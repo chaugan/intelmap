@@ -74,16 +74,6 @@ cd frontend && npm install && npm run dev
 
 Frontend dev server at `http://localhost:5173`, backend at `http://localhost:3001`.
 
-### VPS Deployment
-
-Download `intelmap.tar.gz` and `install.sh` from the [latest release](https://github.com/chaugan/intelmap/releases), transfer to an Ubuntu 24.04 server, and run:
-
-```bash
-chmod +x install.sh
-./install.sh
-```
-
-The script installs Node.js 20, nginx, systemd service, SSL via certbot, and UFW firewall.
 
 ## Environment Variables
 

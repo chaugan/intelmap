@@ -71,8 +71,11 @@ router.get('/wind-grid', async (req, res) => {
       return res.status(400).json({ error: 'Bounds required: north, south, east, west' });
     }
 
-    const n = parseFloat(north), s = parseFloat(south);
-    const e = parseFloat(east), w = parseFloat(west);
+    // Clamp to Norway's geographic extent so grid points aren't wasted over ocean/abroad
+    const n = Math.min(parseFloat(north), 71.5);
+    const s = Math.max(parseFloat(south), 57.5);
+    const e = Math.min(parseFloat(east), 32);
+    const w = Math.max(parseFloat(west), 4);
     const gridSize = 20;
     const latStep = (n - s) / (gridSize - 1);
     const lonStep = (e - w) / (gridSize - 1);

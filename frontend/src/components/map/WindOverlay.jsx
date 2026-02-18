@@ -174,7 +174,7 @@ export default function WindOverlay() {
         const px2 = map.project([newLon, newLat]);
         // Particles always at full brightness — not affected by slider
         // Cap at 0.85 so trails are never fully opaque, letting the map peek through
-        const alpha = Math.min(0.85, speed / 8 + 0.4) * (1 - p.age / p.maxAge);
+        const alpha = Math.min(0.9, speed / 8 + 0.55) * (1 - p.age / p.maxAge);
 
         // Color based on speed
         const color = speedToColor(speed);
@@ -182,7 +182,7 @@ export default function WindOverlay() {
         ctx.moveTo(px.x, px.y);
         ctx.lineTo(px2.x, px2.y);
         ctx.strokeStyle = `rgba(${color}, ${alpha})`;
-        ctx.lineWidth = (2.5 + speed / 4) * zoomWidthScale;
+        ctx.lineWidth = (3.0 + speed / 3) * zoomWidthScale;
         ctx.stroke();
 
         p.lon = newLon;
@@ -220,8 +220,8 @@ export default function WindOverlay() {
 
 // Windy.com-style color stops: [speed m/s, r, g, b]
 const WIND_COLORS = [
-  [0,   98, 113, 184],   // calm — muted blue
-  [1,   57, 160, 221],   // light air — light blue
+  [0,   130, 150, 220],  // calm — visible blue
+  [1,   80, 175, 235],   // light air — bright light blue
   [3,   75, 189, 171],   // light breeze — teal
   [5,   114, 206, 112],  // gentle breeze — green
   [8,   190, 220, 59],   // moderate — yellow-green
