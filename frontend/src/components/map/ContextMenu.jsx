@@ -6,7 +6,7 @@ import { calcWindChill } from '../../lib/weather-utils.js';
 import MoonPhaseIcon from './MoonPhaseIcon.jsx';
 
 function toMGRS(lat, lon) {
-  // Simplified UTM/MGRS conversion for Northern Norway
+  // Simplified UTM/MGRS conversion for Norway
   const zone = Math.floor((lon + 180) / 6) + 1;
   const band = lat >= 72 ? 'X' : lat >= 64 ? 'W' : lat >= 56 ? 'V' : 'U';
   const k0 = 0.9996;

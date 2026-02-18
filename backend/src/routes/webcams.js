@@ -16,14 +16,14 @@ router.get('/', async (_req, res) => {
     if (!response.ok) throw new Error(`WFS ${response.status}`);
     const geojson = await response.json();
 
-    // Filter for Northern Norway (lat 67-72, lon 13-32)
+    // Filter for Norway (lat 57.5-71.5, lon 4-32)
     const filtered = {
       type: 'FeatureCollection',
       features: (geojson.features || []).filter((f) => {
         const coords = f.geometry?.coordinates;
         if (!coords) return false;
         const [lon, lat] = coords;
-        return lat >= 67 && lat <= 72 && lon >= 13 && lon <= 32;
+        return lat >= 57.5 && lat <= 71.5 && lon >= 4 && lon <= 32;
       }).map((f) => {
         const props = f.properties || {};
         return {

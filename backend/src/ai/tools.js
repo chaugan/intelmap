@@ -8,7 +8,7 @@ export const tools = [
       properties: {
         query: {
           type: 'string',
-          description: 'Place name to search for (e.g., "Storsteinnes", "Oteren", "Bardufoss")',
+          description: 'Place name to search for (e.g., "Bardufoss", "Bergen", "Rena")',
         },
       },
     },

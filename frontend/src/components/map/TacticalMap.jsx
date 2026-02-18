@@ -4,6 +4,7 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { useWebcamStore } from '../../stores/useWebcamStore.js';
 import { buildMapStyle } from '../../lib/map-styles.js';
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
 import NatoMarkerLayer from './NatoMarkerLayer.jsx';
@@ -184,9 +185,9 @@ export default function TacticalMap() {
       <Map
         ref={mapRef}
         initialViewState={{
-          longitude: 18.5,
-          latitude: 69.0,
-          zoom: 8,
+          longitude: DEFAULT_CENTER.longitude,
+          latitude: DEFAULT_CENTER.latitude,
+          zoom: DEFAULT_ZOOM,
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}

@@ -1,5 +1,5 @@
-export const DEFAULT_CENTER = { longitude: 18.5, latitude: 69.0 };
-export const DEFAULT_ZOOM = 8;
+export const DEFAULT_CENTER = { longitude: 15.0, latitude: 65.0 };
+export const DEFAULT_ZOOM = 5;
 
 export const BASE_LAYERS = {
   topo: {

@@ -1,6 +1,6 @@
 # IntelMap
 
-Military tactical map server for winter exercises in Northern Norway. Real-time collaborative mapping with AI-powered command interface, NATO symbology, weather intelligence, and Norwegian topographic data.
+Military tactical map server for exercises in Norway. Real-time collaborative mapping with AI-powered command interface, NATO symbology, weather intelligence, and Norwegian topographic data.
 
 ## Features
 
