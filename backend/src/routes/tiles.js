@@ -42,9 +42,9 @@ router.get('/avalanche/:z/:x/:y.png', async (req, res) => {
     // WMS 1.3.0 with EPSG:4326: bbox order is lat,lon (y,x)
     const wmsBbox = `${latMin},${lonMin},${latMax},${lonMax}`;
 
-    const url = 'https://nve.geodataonline.no/arcgis/services/SkredSnoForsvaret/MapServer/WMSServer'
+    const url = 'https://nve.geodataonline.no/arcgis/services/SnoskredAktsomhet/MapServer/WMSServer'
       + '?service=WMS&request=GetMap&version=1.3.0'
-      + '&layers=Utlosningsomrade,Utlopsomrade&styles=&crs=EPSG:4326'
+      + '&layers=PotensieltSkredfareOmr,S2_snoskred_u_skogeffekt_Aktsomhetsomrade&styles=&crs=EPSG:4326'
       + `&bbox=${wmsBbox}&width=256&height=256`
       + '&format=image/png&transparent=true';
 
