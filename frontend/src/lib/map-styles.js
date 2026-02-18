@@ -37,7 +37,12 @@ export function buildMapStyle(baseLayerId, { avalancheVisible = false } = {}) {
       type: 'raster',
       source: 'avalanche-wms',
       minzoom: 9,
-      paint: { 'raster-opacity': 0.6 },
+      paint: {
+        'raster-opacity': 0.6,
+        'raster-saturation': 1,
+        'raster-hue-rotate': -20,
+        'raster-contrast': 0.3,
+      },
     });
   }
 
