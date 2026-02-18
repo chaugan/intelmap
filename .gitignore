@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+backend/data/
+*.log
+.DS_Store
+.claude/
+intelmap.tar.gz
+errors.txt
+nul
+test_tile.png
+*.json.bak

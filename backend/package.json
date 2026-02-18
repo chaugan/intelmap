@@ -1,0 +1,17 @@
+{
+  "name": "intelmap-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "socket.io": "^4.8.0",
+    "uuid": "^10.0.0"
+  }
+}
