@@ -165,6 +165,16 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose, pinned]);
 
+  // Close on Escape (only when NOT pinned)
+  useEffect(() => {
+    if (pinned) return;
+    const handler = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose, pinned]);
+
   const handleTogglePin = () => {
     if (onPin) onPin(!pinned);
   };
@@ -310,7 +320,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         <div className="border-t border-slate-600 my-1" />
         <button
           onClick={handleWeatherPanel}
-          className="w-full text-left px-2 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+          className="w-full text-left px-2 py-1.5 text-xs bg-sky-800 hover:bg-sky-700 rounded transition-colors"
         >
           {lang === 'no' ? 'Vis full værmelding her' : 'Show full forecast here'}
         </button>
@@ -323,7 +333,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               setActivePanel('avalancheWarning');
               if (!pinned) onClose();
             }}
-            className="w-full text-left px-2 py-1.5 text-xs bg-orange-700 hover:bg-orange-600 rounded transition-colors mt-1"
+            className="w-full text-left px-2 py-1.5 text-xs bg-amber-700 hover:bg-amber-600 rounded transition-colors mt-1"
           >
             {t('aval.viewDetail', lang)}
           </button>

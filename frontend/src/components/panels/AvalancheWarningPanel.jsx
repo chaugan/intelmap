@@ -151,14 +151,25 @@ export default function AvalancheWarningPanel() {
           {/* Mountain weather */}
           {detail.MountainWeather?.MeasurementTypes?.length > 0 && (
             <Section title={t('aval.mountainWeather', lang)}>
-              <div className="grid grid-cols-2 gap-1.5">
-                {detail.MountainWeather.MeasurementTypes.map((m, i) => (
-                  <div key={i} className="bg-slate-700/50 rounded p-1.5">
-                    <div className="text-slate-400 text-[10px]">{m.MeasurementTypeName}</div>
-                    <div className="text-xs font-medium">{m.Value}</div>
-                  </div>
-                ))}
-              </div>
+              {detail.MountainWeather.CloudCoverName && (
+                <div className="bg-slate-700/50 rounded p-1.5 mb-1.5">
+                  <div className="text-slate-400 text-[10px]">{lang === 'en' ? 'Cloud cover' : 'Skydekke'}</div>
+                  <div className="text-xs font-medium">{detail.MountainWeather.CloudCoverName}</div>
+                </div>
+              )}
+              {detail.MountainWeather.MeasurementTypes.filter(
+                (m) => m.MeasurementSubTypes?.some((s) => s.Value != null)
+              ).map((m, i) => (
+                <div key={i} className="bg-slate-700/50 rounded p-1.5 mb-1.5">
+                  <div className="text-slate-400 text-[10px] mb-0.5">{m.Name}</div>
+                  {m.MeasurementSubTypes.filter((s) => s.Value != null).map((s, j) => (
+                    <div key={j} className="flex justify-between text-[11px]">
+                      <span className="text-slate-400">{s.Name.trim()}</span>
+                      <span className="text-slate-200">{s.Value}{m.Name === 'Nedbør' || m.Name === 'Precipitation' ? ' mm' : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </Section>
           )}
 
