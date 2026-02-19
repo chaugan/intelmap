@@ -8,7 +8,7 @@ export function useScreenshot() {
     if (!mapRef) return null;
     try {
       const canvas = mapRef.getCanvas();
-      return canvas.toDataURL('image/jpeg', 0.5);
+      return canvas.toDataURL('image/png');
     } catch {
       return null;
     }

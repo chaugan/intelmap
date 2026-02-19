@@ -48,6 +48,13 @@ When using place_marker:
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
+6. **get_viewport_features** — Use this to get exact coordinates of existing markers and drawings on the map. When the user asks you to draw along, near, or relative to an existing feature (e.g., "follow the green line", "mark areas along the route"), ALWAYS call this tool first to get the precise coordinates of those features. You can filter by type, label, color, or layer. This is far more accurate than reading coordinates from the screenshot grid.
+
+## CRITICAL: Using Existing Features as Reference
+When the user references existing drawings or markers on the map (e.g., "along that line", "near those markers", "follow the road I drew"), you MUST:
+1. Call \`get_viewport_features\` with appropriate filters to get the exact coordinates of those features
+2. Use the returned coordinates as reference points for your new drawings
+3. Do NOT try to visually estimate coordinates from the screenshot when existing feature data is available
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.
@@ -292,6 +299,13 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
+6. **get_viewport_features** — Use this to get exact coordinates of existing markers and drawings on the map. When the user asks you to draw along, near, or relative to an existing feature (e.g., "follow the green line", "mark areas along the route"), ALWAYS call this tool first to get the precise coordinates of those features. You can filter by type, label, color, or layer. This is far more accurate than reading coordinates from the screenshot grid.
+
+## CRITICAL: Using Existing Features as Reference
+When the user references existing drawings or markers on the map (e.g., "along that line", "near those markers", "follow the road I drew"), you MUST:
+1. Call \`get_viewport_features\` with appropriate filters to get the exact coordinates of those features
+2. Use the returned coordinates as reference points for your new drawings
+3. Do NOT try to visually estimate coordinates from the screenshot when existing feature data is available
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.
@@ -352,6 +366,13 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
+6. **get_viewport_features** — Use this to get exact coordinates of existing markers and drawings on the map. When the user asks you to draw along, near, or relative to an existing feature (e.g., "follow the green line", "mark areas along the route"), ALWAYS call this tool first to get the precise coordinates of those features. You can filter by type, label, color, or layer. This is far more accurate than reading coordinates from the screenshot grid.
+
+## CRITICAL: Using Existing Features as Reference
+When the user references existing drawings or markers on the map (e.g., "along that line", "near those markers", "follow the road I drew"), you MUST:
+1. Call \`get_viewport_features\` with appropriate filters to get the exact coordinates of those features
+2. Use the returned coordinates as reference points for your new drawings
+3. Do NOT try to visually estimate coordinates from the screenshot when existing feature data is available
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.

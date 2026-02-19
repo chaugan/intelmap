@@ -14,12 +14,12 @@ function drawCoordGrid(ctx, map, width, height) {
   const east = bounds.getEast(), west = bounds.getWest();
   const dpr = window.devicePixelRatio || 1;
 
-  // Pick grid interval for ~5-10 lines per axis (denser = better AI precision)
+  // Pick grid interval for ~8-20 lines per axis (denser = better AI precision)
   const INTERVALS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002, 0.0001];
   const latSpan = north - south;
   const lonSpan = east - west;
-  const latInterval = INTERVALS.find(i => latSpan / i >= 4 && latSpan / i <= 12) || INTERVALS[INTERVALS.length - 1];
-  const lonInterval = INTERVALS.find(i => lonSpan / i >= 4 && lonSpan / i <= 12) || INTERVALS[INTERVALS.length - 1];
+  const latInterval = INTERVALS.find(i => latSpan / i >= 8 && latSpan / i <= 20) || INTERVALS[INTERVALS.length - 1];
+  const lonInterval = INTERVALS.find(i => lonSpan / i >= 8 && lonSpan / i <= 20) || INTERVALS[INTERVALS.length - 1];
 
   // Helper: decimal places for label formatting
   const decimals = (interval) => {
@@ -229,7 +229,7 @@ export default function AiChatPanel() {
               });
               const ctx = captured.getContext('2d');
               drawCoordGrid(ctx, map, captured.width, captured.height);
-              screenshot = captured.toDataURL('image/jpeg', 0.7);
+              screenshot = captured.toDataURL('image/png');
             } catch (e) {
               console.warn('html2canvas failed, falling back to canvas capture:', e);
             }
@@ -244,7 +244,7 @@ export default function AiChatPanel() {
             const ctx = offscreen.getContext('2d');
             ctx.drawImage(mapCanvas, 0, 0);
             drawCoordGrid(ctx, map, offscreen.width, offscreen.height);
-            screenshot = offscreen.toDataURL('image/jpeg', 0.7);
+            screenshot = offscreen.toDataURL('image/png');
           }
         } catch {
           // screenshot unavailable

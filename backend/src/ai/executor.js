@@ -425,6 +425,69 @@ export async function executeTool(name, args, io, projectId, viewport) {
       };
     }
 
+    case 'get_viewport_features': {
+      const state = projectStore.getProjectState(projectId);
+      const colorReverse = {};
+      for (const [name, hex] of Object.entries(COLOR_MAP)) colorReverse[hex] = name;
+
+      // Build markers list
+      let markers = state.markers.map(m => ({
+        type: 'marker',
+        id: m.id,
+        label: m.designation || '',
+        sidc: m.sidc,
+        layerId: m.layerId || null,
+        coordinates: { lat: m.lat, lon: m.lon },
+      }));
+
+      // Build drawings list with full coordinates
+      let drawings = state.drawings.map(d => {
+        const feat = {
+          type: d.drawingType,
+          id: d.id,
+          label: d.properties?.label || d.properties?.text || '',
+          color: colorReverse[d.properties?.color] || d.properties?.color || '',
+          layerId: d.layerId || null,
+        };
+        if (d.geometry?.type === 'LineString') {
+          feat.coordinates = d.geometry.coordinates; // [[lon,lat], ...]
+        } else if (d.geometry?.type === 'Polygon') {
+          feat.coordinates = d.geometry.coordinates[0]; // outer ring [[lon,lat], ...]
+        } else if (d.geometry?.type === 'Point') {
+          feat.coordinates = { lon: d.geometry.coordinates[0], lat: d.geometry.coordinates[1] };
+        }
+        if (d.properties?.center) {
+          feat.center = { lon: d.properties.center[0], lat: d.properties.center[1] };
+          feat.radiusKm = d.properties.radiusKm;
+        }
+        return feat;
+      });
+
+      // Apply filters
+      const all = [...markers, ...drawings];
+      let filtered = all;
+      if (args.type) filtered = filtered.filter(f => f.type === args.type);
+      if (args.label) {
+        const q = args.label.toLowerCase();
+        filtered = filtered.filter(f => (f.label || '').toLowerCase().includes(q));
+      }
+      if (args.layerId) filtered = filtered.filter(f => f.layerId === args.layerId);
+      if (args.color) {
+        const hex = COLOR_MAP[args.color];
+        filtered = filtered.filter(f => f.color === args.color || f.color === hex);
+      }
+
+      // Limit to 100 features to avoid huge responses
+      const limited = filtered.slice(0, 100);
+      return {
+        success: true,
+        features: limited,
+        total: filtered.length,
+        returned: limited.length,
+        message: `Found ${filtered.length} feature(s)${filtered.length > 100 ? ' (returning first 100)' : ''}`,
+      };
+    }
+
     case 'delete_drawings': {
       let deleted = 0;
       if (args.ids?.length) {

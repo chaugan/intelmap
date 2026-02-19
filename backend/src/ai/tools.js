@@ -146,6 +146,19 @@ export const tools = [
     },
   },
   {
+    name: 'get_viewport_features',
+    description: 'Get all markers and drawings currently on the map with their full coordinates. Use this to find exact coordinates of existing features (lines, polygons, markers, circles, text) that you can reference when drawing new features. Supports filtering by type, label, layer, or color. Returns geometry coordinates so you can trace along or align with existing drawings.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['marker', 'line', 'polygon', 'circle', 'arrow', 'text'], description: 'Filter by feature type (optional)' },
+        label: { type: 'string', description: 'Filter by label substring, case-insensitive (optional)' },
+        layerId: { type: 'string', description: 'Filter by layer ID (optional)' },
+        color: { type: 'string', description: 'Filter by color name like "red", "green", "blue", "black" (optional)' },
+      },
+    },
+  },
+  {
     name: 'delete_drawings',
     description: 'Delete drawings from the map. Can delete by specific IDs or delete all drawings in a layer.',
     input_schema: {
