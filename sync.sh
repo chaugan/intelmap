@@ -23,6 +23,7 @@ fi
 
 echo "[1/7] Pulling latest from GitHub..."
 cd "$INSTALL_DIR"
+git config --global --add safe.directory "$INSTALL_DIR"
 git fetch origin main
 git reset --hard origin/main
 
