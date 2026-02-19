@@ -40,18 +40,22 @@ export function buildContext(viewport, projectId) {
 
   if (allMarkers.length > 0) {
     parts.push(`\n### Existing Markers (${allMarkers.length}):`);
+    parts.push('Use these IDs with `delete_markers` to remove markers.');
     allMarkers.slice(0, 20).forEach(m => {
-      parts.push(`- ${m.designation || 'Unknown'} (SIDC: ${m.sidc}) at [${m.lat?.toFixed(4)}, ${m.lon?.toFixed(4)}]`);
+      const layer = m.layerId ? `, layerId: "${m.layerId}"` : '';
+      parts.push(`- id: "${m.id}" — ${m.designation || 'Unknown'} (SIDC: ${m.sidc}) at [${m.lat?.toFixed(4)}, ${m.lon?.toFixed(4)}]${layer}`);
     });
     if (allMarkers.length > 20) parts.push(`... and ${allMarkers.length - 20} more`);
   }
 
   if (allDrawings.length > 0) {
     parts.push(`\n### Existing Drawings (${allDrawings.length}):`);
-    allDrawings.slice(0, 10).forEach(d => {
-      parts.push(`- ${d.drawingType}: ${d.properties?.label || '(no label)'}`);
+    parts.push('Use these IDs with `delete_drawings` to remove drawings.');
+    allDrawings.slice(0, 20).forEach(d => {
+      const layer = d.layerId ? `, layerId: "${d.layerId}"` : '';
+      parts.push(`- id: "${d.id}" — ${d.drawingType}: ${d.properties?.label || '(no label)'}${layer}`);
     });
-    if (allDrawings.length > 10) parts.push(`... and ${allDrawings.length - 10} more`);
+    if (allDrawings.length > 20) parts.push(`... and ${allDrawings.length - 20} more`);
   }
 
   return parts.join('\n');

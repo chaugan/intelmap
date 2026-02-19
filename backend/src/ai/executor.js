@@ -265,7 +265,8 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (!overpassRes.ok) {
         const body = await overpassRes.text().catch(() => '');
         if (overpassRes.status === 429) throw new Error('Overpass API rate limited. Wait a moment and try again.');
-        if (overpassRes.status === 400 && body.includes('timeout')) throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
+        if (overpassRes.status === 504 || overpassRes.status === 408 || (overpassRes.status === 400 && body.includes('timeout')))
+          throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
         throw new Error(`Overpass API error ${overpassRes.status}: ${body.slice(0, 200)}`);
       }
       const data = await overpassRes.json();
@@ -328,7 +329,8 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (!overpassRes.ok) {
         const body = await overpassRes.text().catch(() => '');
         if (overpassRes.status === 429) throw new Error('Overpass API rate limited. Wait a moment and try again.');
-        if (overpassRes.status === 400 && body.includes('timeout')) throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
+        if (overpassRes.status === 504 || overpassRes.status === 408 || (overpassRes.status === 400 && body.includes('timeout')))
+          throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
         throw new Error(`Overpass API error ${overpassRes.status}: ${body.slice(0, 200)}`);
       }
       const data = await overpassRes.json();
