@@ -13,6 +13,7 @@ import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { t } from './lib/i18n.js';
+import { VERSION } from './version.js';
 
 export default function App() {
   useSocket();
@@ -66,6 +67,7 @@ export default function App() {
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-bold text-emerald-400 tracking-wide">
             {t('app.title', lang)}
+            <span className="ml-2 text-xs font-normal text-slate-500">v{VERSION}</span>
           </h1>
           <MapControls />
         </div>
