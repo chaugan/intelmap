@@ -7,6 +7,14 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import ChatMessage from './ChatMessage.jsx';
 import { t } from '../../lib/i18n.js';
 
+// Export canvas as PNG; fall back to high-quality JPEG if over ~4.5 MB (Anthropic 5 MB limit)
+const MAX_BASE64_LEN = 6_000_000; // ~4.5 MB in base64
+function canvasToDataUrl(canvas) {
+  const png = canvas.toDataURL('image/png');
+  if (png.length <= MAX_BASE64_LEN) return png;
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 // Draw lat/lng coordinate grid on AI screenshot for spatial reasoning
 function drawCoordGrid(ctx, map, width, height) {
   const bounds = map.getBounds();
@@ -229,7 +237,7 @@ export default function AiChatPanel() {
               });
               const ctx = captured.getContext('2d');
               drawCoordGrid(ctx, map, captured.width, captured.height);
-              screenshot = captured.toDataURL('image/png');
+              screenshot = canvasToDataUrl(captured);
             } catch (e) {
               console.warn('html2canvas failed, falling back to canvas capture:', e);
             }
@@ -244,7 +252,7 @@ export default function AiChatPanel() {
             const ctx = offscreen.getContext('2d');
             ctx.drawImage(mapCanvas, 0, 0);
             drawCoordGrid(ctx, map, offscreen.width, offscreen.height);
-            screenshot = offscreen.toDataURL('image/png');
+            screenshot = canvasToDataUrl(offscreen);
           }
         } catch {
           // screenshot unavailable
