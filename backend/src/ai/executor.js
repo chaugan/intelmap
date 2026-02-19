@@ -422,7 +422,7 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (args.ids?.length) {
         deleted += projectStore.deleteDrawingBatch(projectId, args.ids);
         for (const id of args.ids) {
-          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { projectId, id });
         }
       }
       if (args.layerId) {
@@ -433,7 +433,7 @@ export async function executeTool(name, args, io, projectId, viewport) {
         if (layerDrawingIds.length) {
           deleted += projectStore.deleteDrawingBatch(projectId, layerDrawingIds);
           for (const id of layerDrawingIds) {
-            io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+            io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { projectId, id });
           }
         }
       }
@@ -444,7 +444,7 @@ export async function executeTool(name, args, io, projectId, viewport) {
       let deleted = 0;
       for (const id of args.ids) {
         if (projectStore.deleteMarker(projectId, id)) {
-          io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { id });
+          io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { projectId, id });
           deleted++;
         }
       }
@@ -460,7 +460,7 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (layerDrawingIds.length) {
         projectStore.deleteDrawingBatch(projectId, layerDrawingIds);
         for (const id of layerDrawingIds) {
-          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { projectId, id });
         }
       }
       // Delete all markers in the layer
@@ -469,11 +469,11 @@ export async function executeTool(name, args, io, projectId, viewport) {
         .map(m => m.id);
       for (const id of layerMarkerIds) {
         projectStore.deleteMarker(projectId, id);
-        io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { id });
+        io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { projectId, id });
       }
       // Delete the layer itself
       projectStore.deleteLayer(projectId, args.layerId);
-      io.to(room).emit(EVENTS.SERVER_LAYER_DELETED, { id: args.layerId });
+      io.to(room).emit(EVENTS.SERVER_LAYER_DELETED, { projectId, id: args.layerId });
       return {
         success: true,
         message: `Deleted layer and its contents (${layerDrawingIds.length} drawing(s), ${layerMarkerIds.length} marker(s))`,
