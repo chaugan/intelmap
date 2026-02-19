@@ -20,7 +20,7 @@ export const tools = [
       type: 'object',
       required: ['query', 'color'],
       properties: {
-        query: { type: 'string', description: 'Overpass QL query. Use [out:json][timeout:25]; prefix. Use {{bbox}} for viewport bounds. Use `out geom;` for ways/relations.' },
+        query: { type: 'string', description: 'Overpass QL query. ALWAYS use [out:json][timeout:60]; prefix. Use {{bbox}} for viewport bounds. Use `out geom;` for ways/relations.' },
         color: { type: 'string', enum: ['blue', 'red', 'green', 'black'] },
         lineType: { type: 'string', enum: ['solid', 'dashed'], description: 'Line style for ways (default: solid)' },
         fillOpacity: { type: 'number', description: 'Fill opacity 0-1 for closed polygons (default: 0.15)' },

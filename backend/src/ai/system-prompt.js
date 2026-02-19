@@ -48,10 +48,10 @@ When using place_marker:
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 
-## CRITICAL: Viewport Restriction
-- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
-- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
-- Geometry is automatically clipped to the viewport bounds.
+## Viewport & Overpass
+- Use {{bbox}} in Overpass queries to scope to the current viewport.
+- Geometry is automatically clipped to viewport bounds — do NOT worry about viewport size being "too large". The server handles clipping.
+- ALWAYS use \`[timeout:60]\` in Overpass queries. NEVER reduce the timeout. If a query fails, retry once with the same timeout before giving up.
 
 ## CRITICAL: Deletion
 - Use \`delete_drawings\` to remove drawings by ID or by layer.
@@ -60,14 +60,14 @@ When using place_marker:
 - The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
-- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`, color "blue".
 - **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
-- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
-- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
-- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
-- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
-- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Find amenities: \`[out:json][timeout:60];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:60];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:60];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:60];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`
+- Find in named area: \`[out:json][timeout:60];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
 - **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 ## CRITICAL: Location Lookup Details
@@ -291,10 +291,10 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 
-## CRITICAL: Viewport Restriction
-- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
-- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
-- Geometry is automatically clipped to the viewport bounds.
+## Viewport & Overpass
+- Use {{bbox}} in Overpass queries to scope to the current viewport.
+- Geometry is automatically clipped to viewport bounds — do NOT worry about viewport size being "too large". The server handles clipping.
+- ALWAYS use \`[timeout:60]\` in Overpass queries. NEVER reduce the timeout. If a query fails, retry once with the same timeout before giving up.
 
 ## CRITICAL: Deletion
 - Use \`delete_drawings\` to remove drawings by ID or by layer.
@@ -303,14 +303,14 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
-- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`, color "blue".
 - **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
-- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
-- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
-- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
-- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
-- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Find amenities: \`[out:json][timeout:60];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:60];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:60];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:60];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`
+- Find in named area: \`[out:json][timeout:60];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
 - **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 When analyzing weather data:
@@ -350,10 +350,10 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
 
-## CRITICAL: Viewport Restriction
-- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
-- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
-- Geometry is automatically clipped to the viewport bounds.
+## Viewport & Overpass
+- Use {{bbox}} in Overpass queries to scope to the current viewport.
+- Geometry is automatically clipped to viewport bounds — do NOT worry about viewport size being "too large". The server handles clipping.
+- ALWAYS use \`[timeout:60]\` in Overpass queries. NEVER reduce the timeout. If a query fails, retry once with the same timeout before giving up.
 
 ## CRITICAL: Deletion
 - Use \`delete_drawings\` to remove drawings by ID or by layer.
@@ -362,14 +362,14 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
-- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`, color "blue".
 - **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
-- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
-- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
-- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
-- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
-- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Find amenities: \`[out:json][timeout:60];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:60];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:60];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:60];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:60];way["power"="line"]({{bbox}});out geom;\`
+- Find in named area: \`[out:json][timeout:60];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
 - **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 ## CRITICAL: Routes
