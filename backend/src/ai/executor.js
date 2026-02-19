@@ -263,25 +263,49 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (!overpassRes.ok) throw new Error(`Overpass API error ${overpassRes.status}`);
       const data = await overpassRes.json();
 
-      const overpassResults = (data.elements || []).slice(0, 50).map(el => {
-        const lat = el.lat ?? el.center?.lat;
-        const lon = el.lon ?? el.center?.lon;
+      const elements = data.elements || [];
+      const overpassResults = elements.slice(0, 50).map(el => {
+        // Get coordinates: node has lat/lon directly, way/relation needs center or geometry
+        let lat = el.lat ?? el.center?.lat;
+        let lon = el.lon ?? el.center?.lon;
+        // For ways with geometry (out geom;), compute centroid from bounds or first node
+        if (lat == null && el.bounds) {
+          lat = (el.bounds.minlat + el.bounds.maxlat) / 2;
+          lon = (el.bounds.minlon + el.bounds.maxlon) / 2;
+        }
+        if (lat == null && el.geometry?.length) {
+          lat = el.geometry[0].lat;
+          lon = el.geometry[0].lon;
+        }
         const name = el.tags?.name || el.tags?.ref || null;
+        // Extract geometry coordinates for ways (for drawing lines/polygons)
+        let geometry = null;
+        if (el.geometry?.length) {
+          geometry = el.geometry.map(p => [p.lon, p.lat]);
+        }
         return {
           name,
-          type: el.tags?.amenity || el.tags?.building || el.tags?.highway || el.type,
+          type: el.tags?.amenity || el.tags?.building || el.tags?.highway || el.tags?.power || el.type,
           lat,
           lon,
           tags: el.tags,
+          ...(geometry && { geometry }),
         };
       }).filter(r => r.lat != null && r.lon != null);
 
+      let message;
+      if (overpassResults.length) {
+        message = `Found ${elements.length} element(s), returning top ${overpassResults.length} with coordinates`;
+      } else if (elements.length > 0) {
+        message = `Found ${elements.length} element(s) but none had coordinates. For ways/relations, use "out center;" or "out geom;" instead of "out;" to get coordinates. Retry the query with "out center;" appended.`;
+      } else {
+        message = 'No results found. Try broadening the query area or adjusting tag filters.';
+      }
+
       return {
         results: overpassResults,
-        count: data.elements?.length || 0,
-        message: overpassResults.length
-          ? `Found ${data.elements.length} result(s), returning top ${overpassResults.length} with coordinates`
-          : 'No results found. Try broadening the query area or adjusting filters.',
+        count: elements.length,
+        message,
       };
     }
 

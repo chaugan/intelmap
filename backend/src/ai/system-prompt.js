@@ -52,8 +52,10 @@ Common Overpass QL patterns:
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
+- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
+- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
 
 ## CRITICAL: Location Lookup Details
 - You do NOT have hardcoded coordinates. You MUST use \`overpass_search\` or \`search_location\` to look up coordinates for ANY named place before using them.
@@ -280,8 +282,10 @@ Common Overpass QL patterns:
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
+- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
+- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
 
 When analyzing weather data:
 - Consider wind direction and speed for wind slab formation
@@ -324,8 +328,10 @@ Common Overpass QL patterns:
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
+- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
+- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
 
 ## CRITICAL: Routes
 - For road routes: use \`get_road_route\` tool.
