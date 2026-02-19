@@ -129,7 +129,21 @@ export default function TacticalMap() {
   }, [useMapStore.getState().mapRef]);
 
   const closeMenu = useCallback((menuId) => {
-    setContextMenus((prev) => prev.filter((m) => m.id !== menuId));
+    setContextMenus((prev) => {
+      const menu = prev.find(m => m.id === menuId);
+      if (menu?.savedToProject) {
+        // Also delete the saved pin from the project to prevent ghost popup
+        const project = useTacticalStore.getState().projects[menu.savedToProject];
+        const pins = project?.pins || [];
+        const match = pins.find(p =>
+          Math.abs(p.lat - menu.lat) < 0.00001 && Math.abs(p.lon - menu.lng) < 0.00001
+        );
+        if (match) {
+          socket.emit('client:pin:delete', { projectId: menu.savedToProject, id: match.id });
+        }
+      }
+      return prev.filter((m) => m.id !== menuId);
+    });
   }, []);
 
   // Pin menu: saves to active project if available, keeps in contextMenus
