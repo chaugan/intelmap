@@ -1,7 +1,7 @@
 export const tools = [
   {
     name: 'overpass_search',
-    description: 'Search OpenStreetMap via Overpass API for precise locations of real-world features (buildings, roads, bridges, fuel stations, hospitals, power lines, military areas, etc.). Returns exact coordinates. Use this FIRST when the user asks about specific infrastructure or points of interest. Write a raw Overpass QL query.',
+    description: 'Search OpenStreetMap via Overpass API for information about real-world features. Returns names, types, coordinates, and tags but does NOT draw. Use for info queries. For drawing features on the map, use overpass_draw instead.',
     input_schema: {
       type: 'object',
       required: ['query'],
@@ -10,6 +10,22 @@ export const tools = [
           type: 'string',
           description: 'Overpass QL query string. Always use [out:json][timeout:15]; prefix. Use {{bbox}} as placeholder for the user\'s current viewport bounding box (south,west,north,east). Example: [out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out center;',
         },
+      },
+    },
+  },
+  {
+    name: 'overpass_draw',
+    description: 'Fetch OSM features via Overpass API and draw them directly on the map. Use when user wants features visualized (power lines, roads, buildings, rivers, etc.). Geometry is drawn automatically — only a summary is returned. Write Overpass QL with {{bbox}} and use `out geom;` for ways.',
+    input_schema: {
+      type: 'object',
+      required: ['query', 'color'],
+      properties: {
+        query: { type: 'string', description: 'Overpass QL query. Use [out:json][timeout:25]; prefix. Use {{bbox}} for viewport bounds. Use `out geom;` for ways/relations.' },
+        color: { type: 'string', enum: ['blue', 'red', 'green', 'black'] },
+        lineType: { type: 'string', enum: ['solid', 'dashed'], description: 'Line style for ways (default: solid)' },
+        fillOpacity: { type: 'number', description: 'Fill opacity 0-1 for closed polygons (default: 0.15)' },
+        label: { type: 'string', description: 'Optional label prefix for features' },
+        layerId: { type: ['string', 'null'], description: 'Layer ID (null for no layer). Recommend creating a layer first.' },
       },
     },
   },
@@ -126,6 +142,39 @@ export const tools = [
         lon: { type: 'number', description: 'Longitude' },
         color: { type: 'string', enum: ['blue', 'red', 'green', 'black', 'white'], description: 'Text color' },
         layerId: { type: ['string', 'null'], description: 'Layer ID (null if no specific layer)' },
+      },
+    },
+  },
+  {
+    name: 'delete_drawings',
+    description: 'Delete drawings from the map. Can delete by specific IDs or delete all drawings in a layer.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Array of drawing IDs to delete' },
+        layerId: { type: 'string', description: 'Delete all drawings in this layer' },
+      },
+    },
+  },
+  {
+    name: 'delete_markers',
+    description: 'Delete markers from the map by their IDs.',
+    input_schema: {
+      type: 'object',
+      required: ['ids'],
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Array of marker IDs to delete' },
+      },
+    },
+  },
+  {
+    name: 'delete_layer',
+    description: 'Delete a layer and ALL its contents (markers and drawings). Use with caution.',
+    input_schema: {
+      type: 'object',
+      required: ['layerId'],
+      properties: {
+        layerId: { type: 'string', description: 'Layer ID to delete' },
       },
     },
   },

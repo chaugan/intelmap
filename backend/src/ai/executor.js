@@ -251,6 +251,8 @@ export async function executeTool(name, args, io, projectId, viewport) {
       if (viewport?.bounds) {
         const { south, west, north, east } = viewport.bounds;
         query = query.replace(/\{\{bbox\}\}/g, `${south},${west},${north},${east}`);
+        // Clip geometry to viewport bounds
+        query = query.replace(/out\s+geom\s*;/g, `out geom(${south},${west},${north},${east});`);
       }
 
       const overpassUrl = 'https://overpass-api.de/api/interpreter';
@@ -260,7 +262,12 @@ export async function executeTool(name, args, io, projectId, viewport) {
         body: `data=${encodeURIComponent(query)}`,
       });
 
-      if (!overpassRes.ok) throw new Error(`Overpass API error ${overpassRes.status}`);
+      if (!overpassRes.ok) {
+        const body = await overpassRes.text().catch(() => '');
+        if (overpassRes.status === 429) throw new Error('Overpass API rate limited. Wait a moment and try again.');
+        if (overpassRes.status === 400 && body.includes('timeout')) throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
+        throw new Error(`Overpass API error ${overpassRes.status}: ${body.slice(0, 200)}`);
+      }
       const data = await overpassRes.json();
 
       const elements = data.elements || [];
@@ -278,18 +285,12 @@ export async function executeTool(name, args, io, projectId, viewport) {
           lon = el.geometry[0].lon;
         }
         const name = el.tags?.name || el.tags?.ref || null;
-        // Extract geometry coordinates for ways (for drawing lines/polygons)
-        let geometry = null;
-        if (el.geometry?.length) {
-          geometry = el.geometry.map(p => [p.lon, p.lat]);
-        }
         return {
           name,
           type: el.tags?.amenity || el.tags?.building || el.tags?.highway || el.tags?.power || el.type,
           lat,
           lon,
           tags: el.tags,
-          ...(geometry && { geometry }),
         };
       }).filter(r => r.lat != null && r.lon != null);
 
@@ -306,6 +307,174 @@ export async function executeTool(name, args, io, projectId, viewport) {
         results: overpassResults,
         count: elements.length,
         message,
+      };
+    }
+
+    case 'overpass_draw': {
+      let query = args.query;
+      if (viewport?.bounds) {
+        const { south, west, north, east } = viewport.bounds;
+        query = query.replace(/\{\{bbox\}\}/g, `${south},${west},${north},${east}`);
+        query = query.replace(/out\s+geom\s*;/g, `out geom(${south},${west},${north},${east});`);
+      }
+
+      const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      const overpassRes = await fetch(overpassUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+
+      if (!overpassRes.ok) {
+        const body = await overpassRes.text().catch(() => '');
+        if (overpassRes.status === 429) throw new Error('Overpass API rate limited. Wait a moment and try again.');
+        if (overpassRes.status === 400 && body.includes('timeout')) throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
+        throw new Error(`Overpass API error ${overpassRes.status}: ${body.slice(0, 200)}`);
+      }
+      const data = await overpassRes.json();
+
+      const elements = data.elements || [];
+      const color = COLOR_MAP[args.color] || COLOR_MAP.blue;
+      const lineType = args.lineType || 'solid';
+      const fillOpacity = args.fillOpacity ?? 0.15;
+      const labelPrefix = args.label || '';
+      const layerId = args.layerId || null;
+      let lines = 0, polygons = 0, points = 0;
+      const drawingIds = [];
+
+      const processGeometry = (geom, name) => {
+        if (!geom?.length || geom.length < 2) return;
+        const coords = geom.map(p => [p.lon, p.lat]);
+        const isClosed = coords.length >= 4 &&
+          coords[0][0] === coords[coords.length - 1][0] &&
+          coords[0][1] === coords[coords.length - 1][1];
+
+        if (isClosed) {
+          const drawing = projectStore.addDrawing(projectId, {
+            drawingType: 'polygon',
+            geometry: { type: 'Polygon', coordinates: [coords] },
+            properties: { color, label: labelPrefix ? `${labelPrefix}: ${name || ''}`.trim() : (name || ''), fillOpacity },
+            layerId, source: 'ai', createdBy: 'ai',
+          });
+          io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
+          drawingIds.push(drawing.id);
+          polygons++;
+        } else {
+          const drawing = projectStore.addDrawing(projectId, {
+            drawingType: 'line',
+            geometry: { type: 'LineString', coordinates: coords },
+            properties: { color, label: labelPrefix ? `${labelPrefix}: ${name || ''}`.trim() : (name || ''), lineType },
+            layerId, source: 'ai', createdBy: 'ai',
+          });
+          io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
+          drawingIds.push(drawing.id);
+          lines++;
+        }
+      };
+
+      let processed = 0;
+      for (const el of elements) {
+        if (processed >= 500) break;
+
+        if (el.type === 'node') {
+          // Draw node as small circle (50m radius)
+          const circleCoords = circleToPolygon([el.lon, el.lat], 0.05);
+          const drawing = projectStore.addDrawing(projectId, {
+            drawingType: 'circle',
+            geometry: { type: 'Polygon', coordinates: [circleCoords] },
+            properties: {
+              color, label: labelPrefix ? `${labelPrefix}: ${el.tags?.name || ''}`.trim() : (el.tags?.name || ''),
+              fillOpacity, center: [el.lon, el.lat], radiusKm: 0.05,
+            },
+            layerId, source: 'ai', createdBy: 'ai',
+          });
+          io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
+          drawingIds.push(drawing.id);
+          points++;
+          processed++;
+        } else if (el.type === 'way' && el.geometry?.length) {
+          processGeometry(el.geometry, el.tags?.name || el.tags?.ref || '');
+          processed++;
+        } else if (el.type === 'relation' && el.members) {
+          for (const member of el.members) {
+            if (processed >= 500) break;
+            if (member.type === 'way' && member.geometry?.length) {
+              processGeometry(member.geometry, el.tags?.name || el.tags?.ref || '');
+              processed++;
+            }
+          }
+        }
+      }
+
+      return {
+        success: true,
+        drawnCount: drawingIds.length,
+        drawingIds,
+        lines, polygons, points,
+        message: `Drew ${drawingIds.length} feature(s): ${lines} line(s), ${polygons} polygon(s), ${points} point(s) from ${elements.length} OSM element(s)`,
+      };
+    }
+
+    case 'delete_drawings': {
+      let deleted = 0;
+      if (args.ids?.length) {
+        deleted += projectStore.deleteDrawingBatch(projectId, args.ids);
+        for (const id of args.ids) {
+          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+        }
+      }
+      if (args.layerId) {
+        const state = projectStore.getProjectState(projectId);
+        const layerDrawingIds = state.drawings
+          .filter(d => d.layerId === args.layerId)
+          .map(d => d.id);
+        if (layerDrawingIds.length) {
+          deleted += projectStore.deleteDrawingBatch(projectId, layerDrawingIds);
+          for (const id of layerDrawingIds) {
+            io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+          }
+        }
+      }
+      return { success: true, deleted, message: `Deleted ${deleted} drawing(s)` };
+    }
+
+    case 'delete_markers': {
+      let deleted = 0;
+      for (const id of args.ids) {
+        if (projectStore.deleteMarker(projectId, id)) {
+          io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { id });
+          deleted++;
+        }
+      }
+      return { success: true, deleted, message: `Deleted ${deleted} marker(s)` };
+    }
+
+    case 'delete_layer': {
+      const state = projectStore.getProjectState(projectId);
+      // Delete all drawings in the layer
+      const layerDrawingIds = state.drawings
+        .filter(d => d.layerId === args.layerId)
+        .map(d => d.id);
+      if (layerDrawingIds.length) {
+        projectStore.deleteDrawingBatch(projectId, layerDrawingIds);
+        for (const id of layerDrawingIds) {
+          io.to(room).emit(EVENTS.SERVER_DRAWING_DELETED, { id });
+        }
+      }
+      // Delete all markers in the layer
+      const layerMarkerIds = state.markers
+        .filter(m => m.layerId === args.layerId)
+        .map(m => m.id);
+      for (const id of layerMarkerIds) {
+        projectStore.deleteMarker(projectId, id);
+        io.to(room).emit(EVENTS.SERVER_MARKER_DELETED, { id });
+      }
+      // Delete the layer itself
+      projectStore.deleteLayer(projectId, args.layerId);
+      io.to(room).emit(EVENTS.SERVER_LAYER_DELETED, { id: args.layerId });
+      return {
+        success: true,
+        message: `Deleted layer and its contents (${layerDrawingIds.length} drawing(s), ${layerMarkerIds.length} marker(s))`,
       };
     }
 

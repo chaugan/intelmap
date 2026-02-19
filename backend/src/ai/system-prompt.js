@@ -43,19 +43,32 @@ When using place_marker:
 - Consider terrain, weather, and logistics in your analysis
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
-2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
-3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
+3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
+4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+
+## CRITICAL: Viewport Restriction
+- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
+- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
+- Geometry is automatically clipped to the viewport bounds.
+
+## CRITICAL: Deletion
+- Use \`delete_drawings\` to remove drawings by ID or by layer.
+- Use \`delete_markers\` to remove markers by ID.
+- Use \`delete_layer\` to remove an entire layer and all its contents.
+- The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
 - Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
-- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
+- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
+- **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 ## CRITICAL: Location Lookup Details
 - You do NOT have hardcoded coordinates. You MUST use \`overpass_search\` or \`search_location\` to look up coordinates for ANY named place before using them.
@@ -273,19 +286,32 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
-2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
-3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
+3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
+4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+
+## CRITICAL: Viewport Restriction
+- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
+- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
+- Geometry is automatically clipped to the viewport bounds.
+
+## CRITICAL: Deletion
+- Use \`delete_drawings\` to remove drawings by ID or by layer.
+- Use \`delete_markers\` to remove markers by ID.
+- Use \`delete_layer\` to remove an entire layer and all its contents.
+- The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
 - Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
-- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
+- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
+- **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 When analyzing weather data:
 - Consider wind direction and speed for wind slab formation
@@ -319,19 +345,32 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
-2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
-3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
+3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
+4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+
+## CRITICAL: Viewport Restriction
+- All Overpass queries MUST use {{bbox}} to restrict to the current viewport.
+- Drawings and features should stay within the visible map area unless the user explicitly asks for a wider area or specific named region.
+- Geometry is automatically clipped to the viewport bounds.
+
+## CRITICAL: Deletion
+- Use \`delete_drawings\` to remove drawings by ID or by layer.
+- Use \`delete_markers\` to remove markers by ID.
+- Use \`delete_layer\` to remove an entire layer and all its contents.
+- The existing markers/drawings/layers are listed in the map context below — use those IDs.
 
 Common Overpass QL patterns:
+- **DRAWING features**: Use \`overpass_draw\` with \`out geom;\`. Example: power lines → query \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`, color "blue".
+- **INFO queries**: Use \`overpass_search\` with \`out center;\` for ways or \`out;\` for nodes.
 - Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
 - Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
 - Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
 - Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
-- Find power lines: \`[out:json][timeout:15];way["power"="line"]({{bbox}});out geom;\`
-- Find power towers/pylons: \`[out:json][timeout:15];node["power"="tower"]({{bbox}});out;\`
+- Find power lines: \`[out:json][timeout:25];way["power"="line"]({{bbox}});out geom;\`
 - Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
-- **CRITICAL**: For ways/relations (lines, polygons), ALWAYS use \`out center;\` (centroid only) or \`out geom;\` (full geometry for drawing). Using plain \`out;\` for ways returns NO coordinates. Use \`out geom;\` when you need to draw the feature on the map — the results will include a \`geometry\` array of [lon, lat] coordinates you can pass directly to \`draw_line\`.
+- **CRITICAL**: For ways/relations, use \`out center;\` for info or \`out geom;\` for drawing. Plain \`out;\` for ways returns NO coordinates.
 
 ## CRITICAL: Routes
 - For road routes: use \`get_road_route\` tool.
