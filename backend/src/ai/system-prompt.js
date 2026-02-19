@@ -43,10 +43,11 @@ When using place_marker:
 - Consider terrain, weather, and logistics in your analysis
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+1. **overpass_draw** — ALWAYS use this to draw real-world features (power lines, roads, buildings, rivers, bridges, etc.). NEVER use \`draw_line\` or \`draw_polygon\` for real-world infrastructure — \`overpass_draw\` produces far more accurate geometry from OSM data. Use \`out geom;\` for ways. Even if the user asks about a single specific feature, use \`overpass_draw\` with a filtered query to draw it accurately.
 2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.
@@ -286,10 +287,11 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+1. **overpass_draw** — ALWAYS use this to draw real-world features (power lines, roads, buildings, rivers, bridges, etc.). NEVER use \`draw_line\` or \`draw_polygon\` for real-world infrastructure — \`overpass_draw\` produces far more accurate geometry from OSM data. Use \`out geom;\` for ways. Even if the user asks about a single specific feature, use \`overpass_draw\` with a filtered query to draw it accurately.
 2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.
@@ -345,10 +347,11 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
 ## CRITICAL: Feature & Location Search Priority
-1. **overpass_draw** — Use when the user wants OSM features DRAWN on the map ("show me the power lines", "draw roads", "highlight rivers"). Draws all matching features automatically. Use \`out geom;\` for ways.
+1. **overpass_draw** — ALWAYS use this to draw real-world features (power lines, roads, buildings, rivers, bridges, etc.). NEVER use \`draw_line\` or \`draw_polygon\` for real-world infrastructure — \`overpass_draw\` produces far more accurate geometry from OSM data. Use \`out geom;\` for ways. Even if the user asks about a single specific feature, use \`overpass_draw\` with a filtered query to draw it accurately.
 2. **overpass_search** — Use for INFORMATION queries about features ("how many hospitals?", "list fuel stations"). Returns data but does NOT draw.
 3. **search_location** — Use for Norwegian place/town/city names (Kartverket).
 4. ALWAYS resolve coordinates before using route, marker, or drawing tools.
+5. **draw_line / draw_polygon** — ONLY for abstract tactical graphics (phase lines, boundaries, axes of advance). NEVER for tracing real-world features visible on the map.
 
 ## Viewport & Overpass
 - Use {{bbox}} in Overpass queries to scope to the current viewport.
