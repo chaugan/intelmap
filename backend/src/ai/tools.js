@@ -1,7 +1,21 @@
 export const tools = [
   {
+    name: 'overpass_search',
+    description: 'Search OpenStreetMap via Overpass API for precise locations of real-world features (buildings, roads, bridges, fuel stations, hospitals, power lines, military areas, etc.). Returns exact coordinates. Use this FIRST when the user asks about specific infrastructure or points of interest. Write a raw Overpass QL query.',
+    input_schema: {
+      type: 'object',
+      required: ['query'],
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Overpass QL query string. Always use [out:json][timeout:15]; prefix. Use {{bbox}} as placeholder for the user\'s current viewport bounding box (south,west,north,east). Example: [out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out center;',
+        },
+      },
+    },
+  },
+  {
     name: 'search_location',
-    description: 'Search for a Norwegian location/place name and get its coordinates. ALWAYS use this tool FIRST to look up coordinates for any named location before calling route, marker, or drawing tools.',
+    description: 'Search for a Norwegian location/place name and get its coordinates. Use this for Norwegian place/town/city name lookups (Kartverket). Best for "where is Bardufoss?" type queries. ALWAYS use this to look up coordinates for any named location before calling route, marker, or drawing tools.',
     input_schema: {
       type: 'object',
       required: ['query'],

@@ -32,7 +32,7 @@ async function fetchRoute(endpoint, params) {
   return res.json();
 }
 
-export async function executeTool(name, args, io, projectId) {
+export async function executeTool(name, args, io, projectId, viewport) {
   if (!projectId) {
     return { error: 'No active project. Ask the user to select a project first.' };
   }
@@ -243,6 +243,45 @@ export async function executeTool(name, args, io, projectId) {
           lat: r.lat, lon: r.lon,
         })),
         message: results.length ? `Found ${results.length} result(s) for "${args.query}"` : `No locations found for "${args.query}". Try different spelling.`,
+      };
+    }
+
+    case 'overpass_search': {
+      let query = args.query;
+      if (viewport?.bounds) {
+        const { south, west, north, east } = viewport.bounds;
+        query = query.replace(/\{\{bbox\}\}/g, `${south},${west},${north},${east}`);
+      }
+
+      const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      const overpassRes = await fetch(overpassUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+
+      if (!overpassRes.ok) throw new Error(`Overpass API error ${overpassRes.status}`);
+      const data = await overpassRes.json();
+
+      const overpassResults = (data.elements || []).slice(0, 50).map(el => {
+        const lat = el.lat ?? el.center?.lat;
+        const lon = el.lon ?? el.center?.lon;
+        const name = el.tags?.name || el.tags?.ref || null;
+        return {
+          name,
+          type: el.tags?.amenity || el.tags?.building || el.tags?.highway || el.type,
+          lat,
+          lon,
+          tags: el.tags,
+        };
+      }).filter(r => r.lat != null && r.lon != null);
+
+      return {
+        results: overpassResults,
+        count: data.elements?.length || 0,
+        message: overpassResults.length
+          ? `Found ${data.elements.length} result(s), returning top ${overpassResults.length} with coordinates`
+          : 'No results found. Try broadening the query area or adjusting filters.',
       };
     }
 

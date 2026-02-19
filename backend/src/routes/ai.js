@@ -176,7 +176,7 @@ router.post('/chat', requireAuth, async (req, res) => {
         for (const block of toolUseBlocks) {
           if (aborted) break;
           try {
-            const result = await executeTool(block.name, block.input, io, projectId);
+            const result = await executeTool(block.name, block.input, io, projectId, viewport);
             if (!aborted) {
               res.write(`data: ${JSON.stringify({ type: 'tool', name: block.name, result })}\n\n`);
             }

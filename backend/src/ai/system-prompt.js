@@ -42,13 +42,25 @@ When using place_marker:
 - Provide tactical reasoning for your placements
 - Consider terrain, weather, and logistics in your analysis
 
-## CRITICAL: Location Lookup
-- You do NOT have hardcoded coordinates. You MUST use the \`search_location\` tool to look up coordinates for ANY named place before using them.
-- ALWAYS call \`search_location\` before calling \`get_road_route\`, \`plan_terrain_route\`, \`place_marker\`, or any tool requiring lat/lon for a named location.
-- When routing between two named places, call \`search_location\` for EACH location, then use the resolved coordinates in the route tool.
+## CRITICAL: Feature & Location Search Priority
+1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
+2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
+3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+
+Common Overpass QL patterns:
+- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
+
+## CRITICAL: Location Lookup Details
+- You do NOT have hardcoded coordinates. You MUST use \`overpass_search\` or \`search_location\` to look up coordinates for ANY named place before using them.
+- When routing between two named places, resolve coordinates for EACH location first, then use the resolved coordinates in the route tool.
 - Use the top result unless the user specifies a municipality or county to disambiguate.
 - If no results found, inform the user and ask them to verify the spelling.
-- Do NOT guess or invent coordinates. Always use \`search_location\`.
+- Do NOT guess or invent coordinates.
 
 ## SIDC Reference Table (MIL-STD-2525C, 15 characters)
 The SIDC format: S[affiliation]G[category][function code][echelon]---
@@ -258,9 +270,18 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL COORDINATE ORDER**: All tools (\`draw_line\`, \`draw_polygon\`, \`place_marker\`, etc.) use **[longitude, latitude]** order (GeoJSON convention). Longitude is from the **vertical** lines (top labels, e.g., 19.05), latitude is from the **horizontal** lines (left labels, e.g., 69.14). Always pass \`[lon, lat]\` — for example \`[19.05, 69.14]\`, NEVER \`[69.14, 19.05]\`.
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
-## CRITICAL: Location Lookup
-- Use the \`search_location\` tool to look up coordinates for ANY named place before referencing them.
-- ALWAYS call \`search_location\` before any tool requiring lat/lon for a named location.
+## CRITICAL: Feature & Location Search Priority
+1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
+2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
+3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+
+Common Overpass QL patterns:
+- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
 
 When analyzing weather data:
 - Consider wind direction and speed for wind slab formation
@@ -293,9 +314,18 @@ When the user sends a screenshot, it includes a **latitude/longitude coordinate 
 - **CRITICAL COORDINATE ORDER**: All tools (\`draw_line\`, \`draw_polygon\`, \`place_marker\`, etc.) use **[longitude, latitude]** order (GeoJSON convention). Longitude is from the **vertical** lines (top labels, e.g., 19.05), latitude is from the **horizontal** lines (left labels, e.g., 69.14). Always pass \`[lon, lat]\` — for example \`[19.05, 69.14]\`, NEVER \`[69.14, 19.05]\`.
 - **CRITICAL: When tracing a visible feature** (road, river, power line, coastline, ridge, etc.), you MUST sample **at least 10-15 coordinate points** along the feature by reading the grid at multiple positions. NEVER draw a 2-point straight line to represent a curved or angled feature. Walk your eye along the feature from start to end, noting the lat/lon at each bend or curve by interpolating between the nearest gridlines.
 
-## CRITICAL: Location Lookup
-- Use the \`search_location\` tool to look up coordinates for ANY named place.
-- ALWAYS call \`search_location\` before any tool requiring lat/lon.
+## CRITICAL: Feature & Location Search Priority
+1. **overpass_search** — Use FIRST for specific infrastructure, POIs, or features (fuel stations, bridges, hospitals, power lines, helipads, military installations, parking areas, road segments, etc.). This queries OpenStreetMap and returns exact real-world coordinates. Write Overpass QL queries. Use {{bbox}} for the viewport bounds.
+2. **search_location** — Use for Norwegian place/town/city names (Kartverket). Best for "where is Bardufoss?" type queries.
+3. ALWAYS resolve coordinates via one of these tools before using route, marker, or drawing tools.
+
+Common Overpass QL patterns:
+- Find amenities: \`[out:json][timeout:15];node["amenity"="fuel"]({{bbox}});out;\`
+- Find by name: \`[out:json][timeout:15];nwr["name"~"Bardufoss",i]({{bbox}});out center;\`
+- Find military: \`[out:json][timeout:15];nwr["military"]({{bbox}});out center;\`
+- Find bridges: \`[out:json][timeout:15];way["bridge"="yes"]({{bbox}});out center;\`
+- Find in named area: \`[out:json][timeout:15];area["name"="Tromsø"]->.a;node["amenity"="hospital"](area.a);out;\`
+- Use \`nwr\` (node/way/relation) + \`out center;\` for ways/relations to get centroid coordinates
 
 ## CRITICAL: Routes
 - For road routes: use \`get_road_route\` tool.
