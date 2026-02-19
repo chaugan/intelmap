@@ -4,6 +4,7 @@ import { useWeather } from '../../hooks/useWeather.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import { calcWindChill } from '../../lib/weather-utils.js';
 import MoonPhaseIcon from './MoonPhaseIcon.jsx';
+import StreetViewOverlay from './StreetViewOverlay.jsx';
 
 function toMGRS(lat, lon) {
   // Simplified UTM/MGRS conversion for Norway
@@ -40,6 +41,9 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const [weatherUpdatedAt, setWeatherUpdatedAt] = useState(null);
   const [weatherSymbol, setWeatherSymbol] = useState(null);
   const [moonPhase, setMoonPhase] = useState(null);
+  const [streetView, setStreetView] = useState(null);
+  const [streetViewOverlay, setStreetViewOverlay] = useState(false);
+  const [svHeading, setSvHeading] = useState(0);
   const pinned = externalPinned || false;
   const ref = useRef(null);
 
@@ -93,6 +97,18 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
     fetch(`/api/tiles/snowdepth-at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`)
       .then(r => r.json())
       .then(d => { if (d.depth) setSnowDepth(d); })
+      .catch(() => {});
+
+    // Street View coverage check
+    fetch(`/api/streetview/check?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.available) {
+          return fetch('/api/streetview/key', { credentials: 'include' })
+            .then(r => r.json())
+            .then(k => { if (k.key) setStreetView({ key: k.key, panoId: d.panoId }); });
+        }
+      })
       .catch(() => {});
   }, [lat, lng]);
 
@@ -254,7 +270,42 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         >
           {lang === 'no' ? 'Vis full værmelding her' : 'Show full forecast here'}
         </button>
+
+        {streetView && (
+          <>
+            <div className="border-t border-slate-600 my-1" />
+            <div className="relative rounded overflow-hidden">
+              <img
+                src={`https://maps.googleapis.com/maps/api/streetview?size=400x150&location=${lat},${lng}&heading=${svHeading}&pitch=0&fov=90&key=${streetView.key}`}
+                className="w-full h-[120px] object-cover cursor-pointer"
+                onClick={() => setStreetViewOverlay(true)}
+                draggable={false}
+                alt="Street View"
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); setSvHeading((h) => (h - 45 + 360) % 360); }}
+                className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/60 hover:bg-black/80 rounded-full text-white text-xs flex items-center justify-center"
+              >&#9664;</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setSvHeading((h) => (h + 45) % 360); }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-black/60 hover:bg-black/80 rounded-full text-white text-xs flex items-center justify-center"
+              >&#9654;</button>
+              <div className="text-center text-[10px] text-slate-400 py-0.5">
+                {lang === 'no' ? 'Klikk for Street View' : 'Click for Street View'}
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      {streetViewOverlay && streetView && (
+        <StreetViewOverlay
+          lat={lat} lng={lng}
+          apiKey={streetView.key}
+          heading={svHeading}
+          onClose={() => setStreetViewOverlay(false)}
+        />
+      )}
     </div>
   );
 }

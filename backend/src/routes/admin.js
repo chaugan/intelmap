@@ -155,4 +155,36 @@ router.delete('/ai-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Maps Configuration ---
+
+// Get Maps config (whether Google Maps API key is set)
+router.get('/maps-config', (req, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'google_maps_api_key'").get();
+  res.json({ hasKey: !!(row?.value) });
+});
+
+// Set Google Maps API key
+router.put('/maps-config', (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 10) {
+    return res.status(400).json({ error: 'Invalid API key' });
+  }
+
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('google_maps_api_key', ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  ).run(apiKey.trim());
+
+  res.json({ ok: true });
+});
+
+// Remove Google Maps API key
+router.delete('/maps-config', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key = 'google_maps_api_key'").run();
+  res.json({ ok: true });
+});
+
 export default router;

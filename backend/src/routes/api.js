@@ -10,6 +10,7 @@ import authRouter from './auth.js';
 import adminRouter from './admin.js';
 import projectsRouter from './projects.js';
 import groupsRouter from './groups.js';
+import streetviewRouter from './streetview.js';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/auth', authRouter);
 router.use('/admin', adminRouter);
 router.use('/projects', projectsRouter);
 router.use('/groups', groupsRouter);
+router.use('/streetview', streetviewRouter);
 
 export default router;

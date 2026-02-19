@@ -32,6 +32,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'ai'} onClick={() => setActiveTab('ai')}>
                 AI
               </TabButton>
+              <TabButton active={activeTab === 'maps'} onClick={() => setActiveTab('maps')}>
+                {lang === 'no' ? 'Kart' : 'Maps'}
+              </TabButton>
             </div>
           </div>
           <button onClick={() => setAdminPanelOpen(false)} className="text-slate-400 hover:text-white">
@@ -45,6 +48,7 @@ export default function AdminPanel() {
           {activeTab === 'users' && <UsersTab lang={lang} currentUser={currentUser} />}
           {activeTab === 'groups' && <GroupsTab lang={lang} />}
           {activeTab === 'ai' && <AiConfigTab lang={lang} />}
+          {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
         </div>
       </div>
     </div>
@@ -516,6 +520,112 @@ function AiConfigTab({ lang }) {
         </form>
 
         {aiConfig.hasKey && (
+          <button
+            onClick={removeKey}
+            className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
+          >
+            {lang === 'no' ? 'Fjern API-n\u00f8kkel' : 'Remove API key'}
+          </button>
+        )}
+
+        {status && <p className="text-emerald-400 text-sm">{status}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- Maps Config Tab ---
+function MapsConfigTab({ lang }) {
+  const [config, setConfig] = useState(null);
+  const [newKey, setNewKey] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/maps-config`, { credentials: 'include' });
+      if (res.ok) setConfig(await res.json());
+    } catch {}
+  }
+
+  async function saveKey(e) {
+    e.preventDefault();
+    setError(''); setStatus('');
+    if (!newKey.trim()) return;
+    try {
+      const res = await fetch(`${API}/maps-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ apiKey: newKey.trim() }),
+      });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setNewKey('');
+      setStatus(lang === 'no' ? 'API-n\u00f8kkel lagret' : 'API key saved');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function removeKey() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/maps-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'API-n\u00f8kkel fjernet' : 'API key removed');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-amber-400">
+          {lang === 'no' ? 'Google Maps-konfigurasjon' : 'Google Maps Configuration'}
+        </h3>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">{lang === 'no' ? 'API-n\u00f8kkel' : 'API Key'}:</span>
+          <span className={config.hasKey ? 'text-emerald-400' : 'text-red-400'}>
+            {config.hasKey
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'Brukes for Street View i h\u00f8yreklikk-menyen. Krever Maps Embed API og Street View Static Metadata API aktivert.'
+            : 'Used for Street View in the right-click menu. Requires Maps Embed API and Street View Static Metadata API enabled.'}
+        </p>
+
+        <form onSubmit={saveKey} className="space-y-2">
+          <label className="block text-xs text-slate-400">
+            {config.hasKey
+              ? (lang === 'no' ? 'Erstatt API-n\u00f8kkel' : 'Replace API key')
+              : (lang === 'no' ? 'Sett API-n\u00f8kkel' : 'Set API key')}
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              placeholder="AIza..."
+              className="flex-1 px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+            <button
+              type="submit"
+              disabled={!newKey.trim()}
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+            >
+              {t('general.save', lang)}
+            </button>
+          </div>
+        </form>
+
+        {config.hasKey && (
           <button
             onClick={removeKey}
             className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"

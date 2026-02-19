@@ -26,4 +26,15 @@ export function getAnthropicApiKey() {
   return process.env.ANTHROPIC_API_KEY || '';
 }
 
+export function getGoogleMapsApiKey() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'google_maps_api_key'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.GOOGLE_MAPS_API_KEY || '';
+}
+
 export default config;
