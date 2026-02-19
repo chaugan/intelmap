@@ -7,12 +7,16 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import ChatMessage from './ChatMessage.jsx';
 import { t } from '../../lib/i18n.js';
 
-// Export canvas as PNG; fall back to high-quality JPEG if over ~4.5 MB (Anthropic 5 MB limit)
-const MAX_BASE64_LEN = 6_000_000; // ~4.5 MB in base64
+// Export canvas under Anthropic's 5 MB limit: try PNG, then progressively lower JPEG quality
+const MAX_BASE64_LEN = 6_000_000; // ~4.5 MB decoded
 function canvasToDataUrl(canvas) {
   const png = canvas.toDataURL('image/png');
   if (png.length <= MAX_BASE64_LEN) return png;
-  return canvas.toDataURL('image/jpeg', 0.92);
+  for (const q of [0.92, 0.8, 0.65]) {
+    const jpg = canvas.toDataURL('image/jpeg', q);
+    if (jpg.length <= MAX_BASE64_LEN) return jpg;
+  }
+  return canvas.toDataURL('image/jpeg', 0.5);
 }
 
 // Draw lat/lng coordinate grid on AI screenshot for spatial reasoning
@@ -229,7 +233,7 @@ export default function AiChatPanel() {
           const mapContainer = document.querySelector('[data-map-container]');
           if (mapContainer) {
             try {
-              const dpr = window.devicePixelRatio || 1;
+              const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // cap DPR for AI — retina not needed
               const captured = await html2canvas(mapContainer, {
                 useCORS: true,
                 backgroundColor: null,
