@@ -14,6 +14,13 @@ export default function SearchPanel() {
     search(e.target.value);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && results.length > 0) {
+      e.preventDefault();
+      handleSelect(results[0]);
+    }
+  };
+
   const handleSelect = (result) => {
     flyTo(result.lon, result.lat, 13);
   };
@@ -28,6 +35,7 @@ export default function SearchPanel() {
         type="text"
         value={query}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         placeholder={t('search.placeholder', lang)}
         className="bg-slate-700 text-sm px-3 py-2 rounded border border-slate-600 focus:border-emerald-500 focus:outline-none mb-3"
         autoFocus

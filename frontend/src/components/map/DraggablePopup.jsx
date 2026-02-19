@@ -6,11 +6,12 @@ import { useMapStore } from '../../stores/useMapStore.js';
  * Props:
  *   originLng, originLat — geo-coordinates of the anchor point
  *   originX, originY     — initial screen position (fallback if no geo)
+ *   initialDisplayLng, initialDisplayLat — saved display position to restore
  *   onPin                — called when auto-pinned via drag
  *   showConnectionLine   — whether to show dashed line to origin (default true)
  *   children             — popup content
  */
-export default function DraggablePopup({ originLng, originLat, originX, originY, onPin, showConnectionLine = true, children }) {
+export default function DraggablePopup({ originLng, originLat, originX, originY, initialDisplayLng, initialDisplayLat, onPin, onDragEnd, showConnectionLine = true, children }) {
   const mapRef = useMapStore((s) => s.mapRef);
   const [offset, setOffset] = useState({ dx: 0, dy: 0 }); // offset from projected origin
   const [isDragged, setIsDragged] = useState(false);
@@ -18,35 +19,69 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   const startRef = useRef({ mouseX: 0, mouseY: 0, dx: 0, dy: 0 });
   const isDraggedRef = useRef(false);
   const containerRef = useRef(null);
+  const initializedRef = useRef(false);
 
-  // Project geo-origin to current screen position
-  function getOriginScreen() {
+  // Get map container offset for coordinate conversion (canvas → viewport)
+  function getMapOffset() {
+    if (!mapRef) return { left: 0, top: 0 };
+    try {
+      const rect = mapRef.getContainer().getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    } catch { return { left: 0, top: 0 }; }
+  }
+
+  // Project geo-origin to canvas-relative screen position
+  function getOriginCanvas() {
     if (originLng != null && originLat != null && mapRef) {
       try {
         const pt = mapRef.project([originLng, originLat]);
         return { x: pt.x, y: pt.y };
       } catch { /* fall through */ }
     }
-    return { x: originX || 0, y: originY || 0 };
+    // Fallback: convert viewport coords to canvas-relative
+    const mo = getMapOffset();
+    return { x: (originX || 0) - mo.left, y: (originY || 0) - mo.top };
   }
 
-  const origin = getOriginScreen();
+  // Restore saved display position on first mount
+  useEffect(() => {
+    if (initializedRef.current) return;
+    if (initialDisplayLng == null || initialDisplayLat == null || !mapRef) return;
+    try {
+      const originPt = mapRef.project([originLng, originLat]);
+      const displayPt = mapRef.project([initialDisplayLng, initialDisplayLat]);
+      setOffset({ dx: displayPt.x - originPt.x, dy: displayPt.y - originPt.y });
+      setIsDragged(true);
+      isDraggedRef.current = true;
+      initializedRef.current = true;
+    } catch {}
+  }, [mapRef, initialDisplayLng, initialDisplayLat, originLng, originLat]);
+
+  const origin = getOriginCanvas();
+  const mapOffset = getMapOffset();
+
+  // Canvas-relative position (for SVG connection line)
+  let canvasX = origin.x + offset.dx;
+  let canvasY = origin.y + offset.dy;
+
+  // Viewport-relative position (for fixed popup)
+  let posX = canvasX + mapOffset.left;
+  let posY = canvasY + mapOffset.top;
 
   // Clamp popup position to stay within viewport
   const popupEl = containerRef.current;
-  let posX = origin.x + offset.dx;
-  let posY = origin.y + offset.dy;
   if (popupEl && !isDragged) {
     const rect = popupEl.getBoundingClientRect();
     const popupH = rect.height || 200;
     const popupW = rect.width || 260;
-    // If popup would clip above viewport, shift it down
     if (posY - popupH < 0) {
-      posY = Math.max(10, posY + popupH + 20);
+      const shift = popupH + 20;
+      canvasY += shift;
+      posY += shift;
     }
-    // If popup would clip right side
     if (posX + popupW > window.innerWidth) {
       posX = window.innerWidth - popupW - 10;
+      canvasX = posX - mapOffset.left;
     }
   }
 
@@ -68,7 +103,19 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
     if (!isDraggedRef.current) {
       isDraggedRef.current = true;
       setIsDragged(true);
-      if (onPin) onPin();
+      if (onPin) {
+        // Compute current display position as geo-coords so the pin saves its position
+        if (mapRef) {
+          try {
+            const pinCanvasX = origin.x + offset.dx;
+            const pinCanvasY = origin.y + offset.dy;
+            const lngLat = mapRef.unproject([pinCanvasX, pinCanvasY]);
+            onPin({ lng: lngLat.lng, lat: lngLat.lat });
+          } catch { onPin(); }
+        } else {
+          onPin();
+        }
+      }
     }
 
     startRef.current = { mouseX: e.clientX, mouseY: e.clientY, dx: offset.dx, dy: offset.dy };
@@ -84,15 +131,24 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
       });
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (e) => {
       dragRef.current = false;
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      // Report final position to parent for persistence
+      if (onDragEnd && mapRef) {
+        try {
+          const finalCanvasX = origin.x + startRef.current.dx + (e.clientX - startRef.current.mouseX);
+          const finalCanvasY = origin.y + startRef.current.dy + (e.clientY - startRef.current.mouseY);
+          const lngLat = mapRef.unproject([finalCanvasX, finalCanvasY]);
+          onDragEnd({ lng: lngLat.lng, lat: lngLat.lat });
+        } catch {}
+      }
     };
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, [offset, onPin]);
+  }, [offset, onPin, onDragEnd, mapRef]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -112,8 +168,8 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
           <line
             x1={origin.x}
             y1={origin.y}
-            x2={posX + 120}
-            y2={posY + 20}
+            x2={canvasX + 120}
+            y2={canvasY + 20}
             stroke="#000000"
             strokeWidth="3.5"
             strokeDasharray="8 5"

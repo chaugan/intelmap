@@ -7,6 +7,7 @@ import { createLayerStore } from './layers.js';
 
 const dataFile = path.join(config.dataDir, 'state.json');
 
+// Legacy in-memory stores (kept for backward compat during transition)
 export const markers = createMarkerStore();
 export const drawings = createDrawingStore();
 export const layers = createLayerStore();
@@ -35,9 +36,11 @@ export function loadState() {
       if (data.markers) data.markers.forEach(m => markers.set(m.id, m));
       if (data.drawings) data.drawings.forEach(d => drawings.set(d.id, d));
       if (data.layers) data.layers.forEach(l => layers.set(l.id, l));
-      // state loaded successfully
     }
   } catch (err) {
     console.error('Failed to load state:', err.message);
   }
 }
+
+// Re-export the project store for Phase 2 code
+export { projectStore } from './project-store.js';

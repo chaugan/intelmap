@@ -8,9 +8,13 @@
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.76.0",
+    "better-sqlite3": "^12.6.2",
+    "cookie": "^1.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.0",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.0",
     "uuid": "^10.0.0"
   }

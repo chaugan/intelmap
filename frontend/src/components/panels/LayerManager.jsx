@@ -6,14 +6,23 @@ import { t } from '../../lib/i18n.js';
 
 export default function LayerManager() {
   const lang = useMapStore((s) => s.lang);
-  const layers = useTacticalStore((s) => s.layers);
-  const markers = useTacticalStore((s) => s.markers);
-  const drawings = useTacticalStore((s) => s.drawings);
+  const activeProjectId = useTacticalStore((s) => s.activeProjectId);
+  const projects = useTacticalStore((s) => s.projects);
+  const layerVisibility = useTacticalStore((s) => s.layerVisibility);
+  const toggleLayerVisibility = useTacticalStore((s) => s.toggleLayerVisibility);
   const [newName, setNewName] = useState('');
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameVal, setRenameVal] = useState('');
+
+  const projData = activeProjectId ? projects[activeProjectId] : null;
+  const layers = projData?.layers || [];
+  const markers = projData?.markers || [];
+  const drawings = projData?.drawings || [];
 
   const createLayer = () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || !activeProjectId) return;
     socket.emit('client:layer:add', {
+      projectId: activeProjectId,
       name: newName.trim(),
       source: 'user',
       createdBy: socket.id,
@@ -21,13 +30,31 @@ export default function LayerManager() {
     setNewName('');
   };
 
-  const toggleLayer = (id, visible) => {
-    socket.emit('client:layer:update', { id, visible: !visible });
+  const toggleLayer = (id) => {
+    toggleLayerVisibility(id);
+  };
+
+  const renameLayer = (id) => {
+    if (!renameVal.trim() || !activeProjectId) return;
+    socket.emit('client:layer:update', { projectId: activeProjectId, id, name: renameVal.trim() });
+    setRenamingId(null);
   };
 
   const deleteLayer = (id) => {
-    socket.emit('client:layer:delete', { id });
+    if (!activeProjectId) return;
+    socket.emit('client:layer:delete', { projectId: activeProjectId, id });
   };
+
+  if (!activeProjectId) {
+    return (
+      <div className="flex flex-col h-full p-3">
+        <h2 className="text-sm font-semibold text-emerald-400 mb-3">
+          {t('layers.title', lang)}
+        </h2>
+        <p className="text-slate-500 text-sm">{t('drawer.noActiveProject', lang)}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full p-3">
@@ -59,6 +86,7 @@ export default function LayerManager() {
           <p className="text-slate-500 text-sm">{t('layers.noLayers', lang)}</p>
         )}
         {layers.map((layer) => {
+          const vis = layerVisibility[layer.id] !== false;
           const markerCount = markers.filter(m => m.layerId === layer.id).length;
           const drawingCount = drawings.filter(d => d.layerId === layer.id).length;
 
@@ -69,13 +97,33 @@ export default function LayerManager() {
             >
               <input
                 type="checkbox"
-                checked={layer.visible}
-                onChange={() => toggleLayer(layer.id, layer.visible)}
+                checked={vis}
+                onChange={() => toggleLayer(layer.id)}
                 className="accent-emerald-500"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="text-sm truncate">{layer.name}</span>
+                  {renamingId === layer.id ? (
+                    <input
+                      value={renameVal}
+                      onChange={(e) => setRenameVal(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') renameLayer(layer.id);
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      onBlur={() => setRenamingId(null)}
+                      autoFocus
+                      className="flex-1 px-1 py-0 bg-slate-900 border border-emerald-500 rounded text-sm text-white focus:outline-none"
+                    />
+                  ) : (
+                    <span
+                      className="text-sm truncate cursor-pointer"
+                      onDoubleClick={() => { setRenamingId(layer.id); setRenameVal(layer.name); }}
+                      title={lang === 'no' ? 'Dobbeltklikk for \u00e5 endre navn' : 'Double-click to rename'}
+                    >
+                      {layer.name}
+                    </span>
+                  )}
                   {layer.source === 'ai' && (
                     <span className="text-[10px] px-1 bg-purple-600 rounded text-white">
                       {t('layers.aiTag', lang)}
@@ -91,7 +139,7 @@ export default function LayerManager() {
                 className="text-red-400 hover:text-red-300 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
                 title={t('layers.delete', lang)}
               >
-                ✕
+                &#x2715;
               </button>
             </div>
           );

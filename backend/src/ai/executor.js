@@ -1,4 +1,4 @@
-import { markers, drawings, layers, saveState } from '../store/index.js';
+import { projectStore } from '../store/project-store.js';
 import { EVENTS } from '../socket/events.js';
 
 const COLOR_MAP = {
@@ -32,22 +32,27 @@ async function fetchRoute(endpoint, params) {
   return res.json();
 }
 
-export async function executeTool(name, args, io) {
+export async function executeTool(name, args, io, projectId) {
+  if (!projectId) {
+    return { error: 'No active project. Ask the user to select a project first.' };
+  }
+
+  const room = `project:${projectId}`;
+
   switch (name) {
     case 'create_layer': {
-      const layer = layers.add({
+      const layer = projectStore.addLayer(projectId, {
         name: args.name,
         description: args.description || '',
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_LAYER_ADDED, layer);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_LAYER_ADDED, layer);
       return { success: true, layerId: layer.id, message: `Layer "${args.name}" created` };
     }
 
     case 'place_marker': {
-      const marker = markers.add({
+      const marker = projectStore.addMarker(projectId, {
         sidc: args.sidc,
         lat: args.lat,
         lon: args.lon,
@@ -58,13 +63,12 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_MARKER_ADDED, marker);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_MARKER_ADDED, marker);
       return { success: true, markerId: marker.id, message: `Placed ${args.designation} at [${args.lat}, ${args.lon}]` };
     }
 
     case 'draw_line': {
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: args.lineType === 'arrow' ? 'arrow' : 'line',
         geometry: {
           type: 'LineString',
@@ -79,18 +83,16 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       return { success: true, drawingId: drawing.id, message: `Drew ${args.lineType || 'line'}: ${args.label || ''}` };
     }
 
     case 'draw_polygon': {
       const coords = [...args.coordinates];
-      // Close polygon if not closed
       if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
         coords.push(coords[0]);
       }
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: 'polygon',
         geometry: {
           type: 'Polygon',
@@ -105,14 +107,13 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       return { success: true, drawingId: drawing.id, message: `Drew polygon: ${args.label || ''}` };
     }
 
     case 'draw_circle': {
       const coords = circleToPolygon(args.center, args.radiusKm);
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: 'circle',
         geometry: {
           type: 'Polygon',
@@ -129,13 +130,12 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       return { success: true, drawingId: drawing.id, message: `Drew circle: ${args.label || ''} (${args.radiusKm}km radius)` };
     }
 
     case 'place_text': {
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: 'text',
         geometry: {
           type: 'Point',
@@ -150,21 +150,20 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       return { success: true, drawingId: drawing.id, message: `Placed text: "${args.text}"` };
     }
 
     case 'get_road_route': {
       const params = {
-        from: `${args.from[1]},${args.from[0]}`,   // [lat,lon] → "lon,lat"
+        from: `${args.from[1]},${args.from[0]}`,
         to: `${args.to[1]},${args.to[0]}`,
       };
       if (args.via?.length) {
         params.via = args.via.map(v => `${v[1]},${v[0]}`).join(';');
       }
       const routeData = await fetchRoute('road', params);
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: args.lineType === 'arrow' ? 'arrow' : 'line',
         geometry: {
           type: 'LineString',
@@ -179,8 +178,7 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       return {
         success: true,
         drawingId: drawing.id,
@@ -192,14 +190,14 @@ export async function executeTool(name, args, io) {
 
     case 'plan_terrain_route': {
       const params = {
-        from: `${args.from[1]},${args.from[0]}`,   // [lat,lon] → "lon,lat"
+        from: `${args.from[1]},${args.from[0]}`,
         to: `${args.to[1]},${args.to[0]}`,
       };
       if (args.via?.length) {
         params.via = args.via.map(v => `${v[1]},${v[0]}`).join(';');
       }
       const routeData = await fetchRoute('terrain', params);
-      const drawing = drawings.add({
+      const drawing = projectStore.addDrawing(projectId, {
         drawingType: args.lineType === 'arrow' ? 'arrow' : 'line',
         geometry: {
           type: 'LineString',
@@ -214,8 +212,7 @@ export async function executeTool(name, args, io) {
         source: 'ai',
         createdBy: 'ai',
       });
-      io.emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
-      saveState();
+      io.to(room).emit(EVENTS.SERVER_DRAWING_ADDED, drawing);
       const profile = routeData.elevationProfile || [];
       const maxElev = profile.reduce((m, p) => Math.max(m, p.elevation || 0), 0);
       const minElev = profile.reduce((m, p) => Math.min(m, p.elevation || Infinity), Infinity);

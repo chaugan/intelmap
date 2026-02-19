@@ -29,5 +29,8 @@ export function createDrawingStore() {
     delete(id) {
       return items.delete(id);
     },
+    clear() {
+      items.clear();
+    },
   };
 }

@@ -1,6 +1,6 @@
-import { markers, drawings, layers } from '../store/index.js';
+import { projectStore } from '../store/project-store.js';
 
-export function buildContext(viewport) {
+export function buildContext(viewport, projectId) {
   const parts = ['## Current Map Context'];
 
   if (viewport) {
@@ -9,18 +9,26 @@ export function buildContext(viewport) {
     const z = viewport.zoom;
     const b = viewport.bounds;
     parts.push(`### User's Current Map Viewport`);
-    parts.push(`Center: latitude ${lat?.toFixed(4)}°, longitude ${lon?.toFixed(4)}°`);
+    parts.push(`Center: latitude ${lat?.toFixed(4)}, longitude ${lon?.toFixed(4)}`);
     parts.push(`Zoom level: ${z?.toFixed(1)}`);
     if (b) {
       parts.push(`Visible area bounding box:`);
-      parts.push(`  North: ${b.north?.toFixed(4)}°, South: ${b.south?.toFixed(4)}°`);
-      parts.push(`  East: ${b.east?.toFixed(4)}°, West: ${b.west?.toFixed(4)}°`);
+      parts.push(`  North: ${b.north?.toFixed(4)}, South: ${b.south?.toFixed(4)}`);
+      parts.push(`  East: ${b.east?.toFixed(4)}, West: ${b.west?.toFixed(4)}`);
     }
   }
 
-  const allMarkers = markers.getAll();
-  const allDrawings = drawings.getAll();
-  const allLayers = layers.getAll();
+  if (!projectId) {
+    parts.push('\n**No active project selected.** Ask the user to select a project before placing markers or drawings.');
+    return parts.join('\n');
+  }
+
+  const state = projectStore.getProjectState(projectId);
+  const allMarkers = state.markers;
+  const allDrawings = state.drawings;
+  const allLayers = state.layers;
+
+  parts.push(`\n### Active Project ID: ${projectId}`);
 
   if (allLayers.length > 0) {
     parts.push(`\n### Existing Layers (${allLayers.length}):`);

@@ -1,49 +1,41 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
-import { useTacticalStore } from '../../stores/useTacticalStore.js';
+import { useTacticalStore, getAllVisibleMarkers } from '../../stores/useTacticalStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { generateSymbolSvg, getAffiliation } from '../../lib/milsymbol-utils.js';
 import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { socket } from '../../lib/socket.js';
+import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 export default function NatoMarkerLayer() {
-  const markers = useTacticalStore((s) => s.markers);
-  const updateMarker = useTacticalStore((s) => s.updateMarker);
-  const layers = useTacticalStore((s) => s.layers);
+  const state = useTacticalStore();
   const lang = useMapStore((s) => s.lang);
   const dragRef = useRef(null);
   const dragEndTimeRef = useRef(0);
+  const [infoPopup, setInfoPopup] = useState(null);
 
-  // Get visible layer IDs
-  const visibleLayerIds = new Set(layers.filter(l => l.visible).map(l => l.id));
-
-  const visibleMarkers = markers.filter(m =>
-    !m.layerId || visibleLayerIds.has(m.layerId)
-  );
+  const visibleMarkers = getAllVisibleMarkers(state);
 
   const onDragStart = useCallback((markerId) => {
     dragRef.current = markerId;
   }, []);
 
-  const onDragEnd = useCallback((evt, markerId) => {
+  const onDragEnd = useCallback((evt, marker) => {
     const { lng, lat } = evt.lngLat;
-    // Optimistic local update to prevent snap-back
-    const marker = useTacticalStore.getState().markers.find(m => m.id === markerId);
-    if (marker) {
-      updateMarker({ ...marker, lat, lon: lng });
-    }
-    socket.emit('client:marker:update', { id: markerId, lat, lon: lng });
-    // Delay clearing dragRef so onClick doesn't fire the label prompt
+    const projectId = marker._projectId || marker.projectId;
+    // Optimistic local update
+    useTacticalStore.getState().updateMarker(projectId, { ...marker, lat, lon: lng });
+    socket.emit('client:marker:update', { projectId, id: marker.id, lat, lon: lng });
     dragEndTimeRef.current = Date.now();
     setTimeout(() => { dragRef.current = null; }, 300);
-  }, [updateMarker]);
+  }, []);
 
-  const onDelete = useCallback((markerId) => {
-    socket.emit('client:marker:delete', { id: markerId });
+  const onDelete = useCallback((marker) => {
+    const projectId = marker._projectId || marker.projectId;
+    socket.emit('client:marker:delete', { projectId, id: marker.id });
   }, []);
 
   const onClickLabel = useCallback((marker) => {
-    // Skip if we just finished a drag (within 400ms)
     if (Date.now() - dragEndTimeRef.current < 400) return;
     const current = marker.customLabel || '';
     const label = prompt(
@@ -51,9 +43,21 @@ export default function NatoMarkerLayer() {
       current
     );
     if (label !== null) {
-      socket.emit('client:marker:update', { id: marker.id, customLabel: label });
+      const projectId = marker._projectId || marker.projectId;
+      socket.emit('client:marker:update', { projectId, id: marker.id, customLabel: label });
     }
   }, [lang]);
+
+  const onContextMenu = useCallback((e, marker) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setInfoPopup({
+      projectId: marker._projectId || marker.projectId,
+      layerId: marker.layerId,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, []);
 
   const affiliationLabels = {
     friendly: { en: 'Friendly', no: 'Vennlig' },
@@ -86,7 +90,7 @@ export default function NatoMarkerLayer() {
             anchor="center"
             draggable
             onDragStart={() => onDragStart(marker.id)}
-            onDragEnd={(e) => onDragEnd(e, marker.id)}
+            onDragEnd={(e) => onDragEnd(e, marker)}
           >
             <div
               className="nato-marker group relative cursor-pointer flex flex-col items-center"
@@ -95,6 +99,7 @@ export default function NatoMarkerLayer() {
                 e.stopPropagation();
                 if (!dragRef.current) onClickLabel(marker);
               }}
+              onContextMenu={(e) => onContextMenu(e, marker)}
             >
               <div dangerouslySetInnerHTML={{ __html: sym.svg }} />
               {marker.customLabel && (
@@ -103,7 +108,7 @@ export default function NatoMarkerLayer() {
                 </div>
               )}
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(marker.id); }}
+                onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
                 className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center hover:bg-red-500"
               >
                 x
@@ -112,6 +117,15 @@ export default function NatoMarkerLayer() {
           </Marker>
         );
       })}
+      {infoPopup && (
+        <ItemInfoPopup
+          projectId={infoPopup.projectId}
+          layerId={infoPopup.layerId}
+          x={infoPopup.x}
+          y={infoPopup.y}
+          onClose={() => setInfoPopup(null)}
+        />
+      )}
     </>
   );
 }

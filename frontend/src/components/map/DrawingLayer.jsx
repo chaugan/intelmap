@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
-import { useTacticalStore } from '../../stores/useTacticalStore.js';
+import { useTacticalStore, getAllVisibleDrawings } from '../../stores/useTacticalStore.js';
 import { socket } from '../../lib/socket.js';
 import { DRAW_COLORS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
@@ -31,7 +31,11 @@ export default function DrawingLayer() {
   const lang = useMapStore((s) => s.lang);
   const mapRefValue = useMapStore((s) => s.mapRef);
   const placementMode = useMapStore((s) => s.placementMode);
-  const drawings = useTacticalStore((s) => s.drawings);
+  const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
+  const activeProjectId = useTacticalStore((s) => s.activeProjectId);
+  const activeLayerId = useTacticalStore((s) => s.activeLayerId);
+  const tacticalState = useTacticalStore();
+  const drawings = getAllVisibleDrawings(tacticalState);
   const [activeMode, setActiveMode] = useState(null);
   const [drawColor, setDrawColor] = useState('#3b82f6');
   const [drawPoints, setDrawPoints] = useState([]);
@@ -87,10 +91,15 @@ export default function DrawingLayer() {
       drawingType = 'circle';
     }
 
-    if (geometry) {
+    const currentState = useTacticalStore.getState();
+    const currentProjectId = currentState.activeProjectId;
+    const currentLayerId = currentState.activeLayerId;
+    if (geometry && currentProjectId) {
       socket.emit('client:drawing:add', {
+        projectId: currentProjectId,
         drawingType,
         geometry,
+        layerId: currentLayerId || null,
         properties: {
           color,
           lineType: mode === 'arrow' ? 'arrow' : 'solid',
@@ -116,10 +125,15 @@ export default function DrawingLayer() {
 
       if (activeModeRef.current === 'text') {
         const text = prompt(lang === 'no' ? 'Skriv inn tekst:' : 'Enter text:');
-        if (text) {
+        const textState = useTacticalStore.getState();
+        const currentPid = textState.activeProjectId;
+        const currentLid = textState.activeLayerId;
+        if (text && currentPid) {
           socket.emit('client:drawing:add', {
+            projectId: currentPid,
             drawingType: 'text',
             geometry: { type: 'Point', coordinates: [lng, lat] },
+            layerId: currentLid || null,
             properties: { text, color: drawColorRef.current },
             source: 'user',
             createdBy: socket.id,
@@ -190,8 +204,9 @@ export default function DrawingLayer() {
           maxLat: ne.lat,
         };
 
-        // Find drawings that intersect the box
-        const allDrawings = useTacticalStore.getState().drawings;
+        // Find drawings that intersect the box (from all visible projects)
+        const state = useTacticalStore.getState();
+        const allDrawings = getAllVisibleDrawings(state);
         const ids = new Set();
         for (const d of allDrawings) {
           if (drawingIntersectsBox(d, box)) {
@@ -222,20 +237,21 @@ export default function DrawingLayer() {
   }, []);
 
   const deleteSelected = useCallback(() => {
-    if (selectedIds.size === 0) return;
-    socket.emit('client:drawing:delete-batch', { ids: Array.from(selectedIds) });
+    if (selectedIds.size === 0 || !activeProjectId) return;
+    socket.emit('client:drawing:delete-batch', { projectId: activeProjectId, ids: Array.from(selectedIds) });
     setSelectedIds(new Set());
-  }, [selectedIds]);
+  }, [selectedIds, activeProjectId]);
 
   const deleteAll = useCallback(() => {
+    if (!activeProjectId) return;
     const ok = confirm(t('draw.confirmDeleteAll', lang));
     if (!ok) return;
-    const allIds = useTacticalStore.getState().drawings.map(d => d.id);
+    const allIds = drawings.map(d => d.id);
     if (allIds.length > 0) {
-      socket.emit('client:drawing:delete-batch', { ids: allIds });
+      socket.emit('client:drawing:delete-batch', { projectId: activeProjectId, ids: allIds });
     }
     exitSelectMode();
-  }, [lang, exitSelectMode]);
+  }, [lang, exitSelectMode, activeProjectId, drawings]);
 
   // Force re-render on map move so preview SVG stays in sync with map
   useEffect(() => {
@@ -258,6 +274,15 @@ export default function DrawingLayer() {
     }
   }
 
+  // Cancel in-progress drawing when tools are hidden
+  useEffect(() => {
+    if (!drawingToolsVisible) {
+      setActiveMode(null);
+      setDrawPoints([]);
+      if (selectMode) exitSelectMode();
+    }
+  }, [drawingToolsVisible]);
+
   const tools = [
     { id: 'line', icon: '/', shortcut: 'L' },
     { id: 'polygon', icon: '\u2B21', shortcut: 'P' },
@@ -269,7 +294,7 @@ export default function DrawingLayer() {
   return (
     <>
       {/* Drawing tools panel */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-1">
+      {drawingToolsVisible && <div className="absolute top-16 left-4 z-10 flex flex-col gap-1">
         {tools.map((tool) => (
           <button
             key={tool.id}
@@ -422,7 +447,7 @@ export default function DrawingLayer() {
             }
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Drawing preview — SVG overlay on top of the map */}
       {screenPoints.length > 0 && (

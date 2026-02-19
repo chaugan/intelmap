@@ -29,5 +29,8 @@ export function createMarkerStore() {
     delete(id) {
       return items.delete(id);
     },
+    clear() {
+      items.clear();
+    },
   };
 }

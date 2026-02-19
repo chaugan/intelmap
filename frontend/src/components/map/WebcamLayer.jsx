@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Marker } from 'react-map-gl/maplibre';
 import { useWebcamStore } from '../../stores/useWebcamStore.js';
 import { useWebcams } from '../../hooks/useWebcams.js';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useTacticalStore, getAllVisiblePins } from '../../stores/useTacticalStore.js';
+import { socket } from '../../lib/socket.js';
 import DraggablePopup from './DraggablePopup.jsx';
+import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 export default function WebcamLayer() {
   const cameras = useWebcamStore((s) => s.cameras);
@@ -14,12 +17,47 @@ export default function WebcamLayer() {
   const { fetchWebcams } = useWebcams();
   const mapRef = useMapStore((s) => s.mapRef);
   const lang = useMapStore((s) => s.lang);
+  const tacticalState = useTacticalStore();
+  const activeProjectId = useTacticalStore((s) => s.activeProjectId);
+  const activeLayerId = useTacticalStore((s) => s.activeLayerId);
+  const visiblePins = getAllVisiblePins(tacticalState);
+  const webcamPinsRaw = visiblePins.filter(p => p.pinType === 'webcam');
+  // Memoize by pin IDs to avoid effect re-runs on every render
+  const webcamPinKey = webcamPinsRaw.map(p => p.id).join(',');
+  const webcamPins = useMemo(() => webcamPinsRaw, [webcamPinKey]);
+  const [infoPopup, setInfoPopup] = useState(null);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
+  // Map pin IDs to webcam IDs for saved pins
+  const [pinIdMap, setPinIdMap] = useState({});
 
-  const pinCamera = useCallback((id) => {
+  const pinCamera = useCallback((id, cam, displayPos) => {
     setPinnedIds((prev) => new Set(prev).add(id));
+    // Save to active project
+    const { activeProjectId, activeLayerId } = useTacticalStore.getState();
+    if (activeProjectId && cam) {
+      const [lon, lat] = cam.geometry.coordinates;
+      const props = {
+        webcamId: cam.properties.id,
+        name: cam.properties.name,
+        road: cam.properties.road || '',
+        direction: cam.properties.direction || '',
+      };
+      if (displayPos) {
+        props.displayLng = displayPos.lng;
+        props.displayLat = displayPos.lat;
+      }
+      socket.emit('client:pin:add', {
+        projectId: activeProjectId,
+        layerId: activeLayerId || null,
+        pinType: 'webcam',
+        lat, lon,
+        properties: props,
+        source: 'user',
+        createdBy: socket.id,
+      });
+    }
   }, []);
 
   const unpinCamera = useCallback((id) => {
@@ -28,16 +66,71 @@ export default function WebcamLayer() {
       next.delete(id);
       return next;
     });
-  }, []);
+    // Remove from project if saved
+    const savedPinId = pinIdMap[id];
+    if (savedPinId) {
+      const { activeProjectId } = useTacticalStore.getState();
+      // Find which project has this pin
+      const state = useTacticalStore.getState();
+      for (const pid of state.visibleProjectIds) {
+        const proj = state.projects[pid];
+        if (proj?.pins?.some(p => p.id === savedPinId)) {
+          socket.emit('client:pin:delete', { projectId: pid, id: savedPinId });
+          break;
+        }
+      }
+      setPinIdMap(prev => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  }, [pinIdMap]);
 
-  const togglePinCamera = useCallback((id) => {
+  const togglePinCamera = useCallback((id, cam, displayPos) => {
     setPinnedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        // Unpin from project
+        const savedPinId = pinIdMap[id];
+        if (savedPinId) {
+          const state = useTacticalStore.getState();
+          for (const pid of state.visibleProjectIds) {
+            const proj = state.projects[pid];
+            if (proj?.pins?.some(p => p.id === savedPinId)) {
+              socket.emit('client:pin:delete', { projectId: pid, id: savedPinId });
+              break;
+            }
+          }
+          setPinIdMap(prev2 => { const n = { ...prev2 }; delete n[id]; return n; });
+        }
+      } else {
+        next.add(id);
+        // Save to project
+        const { activeProjectId, activeLayerId } = useTacticalStore.getState();
+        if (activeProjectId && cam) {
+          const [lon, lat] = cam.geometry.coordinates;
+          const props = {
+            webcamId: cam.properties.id,
+            name: cam.properties.name,
+            road: cam.properties.road || '',
+            direction: cam.properties.direction || '',
+          };
+          if (displayPos) {
+            props.displayLng = displayPos.lng;
+            props.displayLat = displayPos.lat;
+          }
+          socket.emit('client:pin:add', {
+            projectId: activeProjectId,
+            layerId: activeLayerId || null,
+            pinType: 'webcam',
+            lat, lon,
+            properties: props,
+            source: 'user',
+            createdBy: socket.id,
+          });
+        }
+      }
       return next;
     });
-  }, []);
+  }, [pinIdMap]);
 
   // Close unpinned cameras on map click, pan, or zoom
   useEffect(() => {
@@ -88,6 +181,56 @@ export default function WebcamLayer() {
     }
   }, [cameras.length > 0]);
 
+  // Restore webcam pins from project data
+  useEffect(() => {
+    if (cameras.length === 0 || webcamPins.length === 0) return;
+    for (const pin of webcamPins) {
+      const camId = pin.properties?.webcamId;
+      if (!camId) continue;
+      // If not already open, open and pin it
+      if (!openCameras.some(c => c.properties.id === camId)) {
+        const cam = cameras.find(c => c.properties.id === camId);
+        if (cam) {
+          toggleCamera(cam);
+          setPinnedIds(prev => new Set(prev).add(camId));
+          setPinIdMap(prev => ({ ...prev, [camId]: pin.id }));
+        }
+      } else {
+        // Already open, just mark as pinned and track pin ID
+        setPinnedIds(prev => new Set(prev).add(camId));
+        setPinIdMap(prev => ({ ...prev, [camId]: pin.id }));
+      }
+    }
+  }, [cameras.length > 0, webcamPins]);
+
+  // Close pinned webcams when their project is hidden (pin no longer visible)
+  const pinIdMapRef = useRef(pinIdMap);
+  pinIdMapRef.current = pinIdMap;
+  useEffect(() => {
+    const currentMap = pinIdMapRef.current;
+    if (Object.keys(currentMap).length === 0) return;
+    const visiblePinIds = new Set(webcamPins.map(p => p.id));
+    const toClose = [];
+    for (const [camId, pinId] of Object.entries(currentMap)) {
+      if (!visiblePinIds.has(pinId)) {
+        toClose.push(camId);
+      }
+    }
+    if (toClose.length > 0) {
+      for (const camId of toClose) closeCamera(camId);
+      setPinIdMap(prev => {
+        const next = { ...prev };
+        for (const camId of toClose) delete next[camId];
+        return next;
+      });
+      setPinnedIds(prev => {
+        const next = new Set(prev);
+        for (const camId of toClose) next.delete(camId);
+        return next;
+      });
+    }
+  }, [webcamPins, closeCamera]);
+
   return (
     <>
       {cameras.map((cam) => {
@@ -110,24 +253,46 @@ export default function WebcamLayer() {
 
       {openCameras.map((cam) => {
         const id = cam.properties.id;
+        // Find saved pin for this webcam
+        const savedPin = webcamPins.find(p => p.properties?.webcamId === id);
         return (
           <WebcamPopupWrapper
             key={`popup-${id}`}
             camera={cam}
             mapRef={mapRef}
             pinned={pinnedIds.has(id)}
-            onPin={() => pinCamera(id)}
-            onTogglePin={() => togglePinCamera(id)}
+            onPin={(pos) => pinCamera(id, cam, pos)}
+            onTogglePin={() => togglePinCamera(id, cam)}
             onClose={() => closeCamera(id)}
             lang={lang}
+            savedPin={savedPin}
+            onContextMenu={savedPin ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setInfoPopup({
+                projectId: savedPin._projectId,
+                layerId: savedPin.layerId,
+                x: e.clientX,
+                y: e.clientY,
+              });
+            } : undefined}
           />
         );
       })}
+      {infoPopup && (
+        <ItemInfoPopup
+          projectId={infoPopup.projectId}
+          layerId={infoPopup.layerId}
+          x={infoPopup.x}
+          y={infoPopup.y}
+          onClose={() => setInfoPopup(null)}
+        />
+      )}
     </>
   );
 }
 
-function WebcamPopupWrapper({ camera, mapRef, pinned, onPin, onTogglePin, onClose, lang }) {
+function WebcamPopupWrapper({ camera, mapRef, pinned, onPin, onTogglePin, onClose, lang, savedPin, onContextMenu }) {
   const [lon, lat] = camera.geometry.coordinates;
 
   // Get initial screen position for the popup
@@ -141,16 +306,31 @@ function WebcamPopupWrapper({ camera, mapRef, pinned, onPin, onTogglePin, onClos
     }
   }, [lon, lat, mapRef]);
 
+  const handleDragEnd = useCallback(({ lng, lat: newLat }) => {
+    if (savedPin) {
+      socket.emit('client:pin:update', {
+        projectId: savedPin._projectId,
+        id: savedPin.id,
+        properties: { ...savedPin.properties, displayLng: lng, displayLat: newLat },
+      });
+    }
+  }, [savedPin]);
+
   return (
     <DraggablePopup
       originLng={lon}
       originLat={lat}
       originX={popupOrigin.x}
       originY={popupOrigin.y}
+      initialDisplayLng={savedPin?.properties?.displayLng}
+      initialDisplayLat={savedPin?.properties?.displayLat}
       showConnectionLine={true}
       onPin={onPin}
+      onDragEnd={savedPin ? handleDragEnd : undefined}
     >
-      <WebcamPopupContent camera={camera} pinned={pinned} onTogglePin={onTogglePin} onClose={onClose} lang={lang} />
+      <div onContextMenu={onContextMenu}>
+        <WebcamPopupContent camera={camera} pinned={pinned} onTogglePin={onTogglePin} onClose={onClose} lang={lang} />
+      </div>
     </DraggablePopup>
   );
 }
@@ -176,6 +356,19 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   const [displayTime, setDisplayTime] = useState(() => {
     return formatTimestamp(camera.properties.lastUpdate || camera.properties.publicationTime) || formatNow();
   });
+  const containerRef = useRef(null);
+  const isVisibleRef = useRef(true);
+
+  // Track whether popup is visible on screen
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisibleRef.current = entry.isIntersecting;
+    }, { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Fetch image and check for Last-Modified header to get accurate timestamp
   const fetchImageTimestamp = async (bust) => {
@@ -199,6 +392,8 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   // Refresh image every 60 seconds and update the timestamp
   useEffect(() => {
     const interval = setInterval(() => {
+      if (document.hidden) return;
+      if (!isVisibleRef.current) return;
       const newBust = Date.now();
       setCacheBust(newBust);
       fetchImageTimestamp(newBust);
@@ -218,7 +413,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
 
   return (
     <>
-      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 max-w-xs overflow-hidden">
+      <div ref={containerRef} className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 max-w-xs overflow-hidden">
         {/* Timestamp header — draggable */}
         <div className="bg-cyan-700/80 px-2 py-1 text-[11px] text-white font-mono text-center draggable-header cursor-grab">
           {displayTime}

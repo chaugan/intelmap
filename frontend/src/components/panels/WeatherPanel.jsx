@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWeatherStore } from '../../stores/useWeatherStore.js';
 import { useWeather } from '../../hooks/useWeather.js';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -17,6 +17,7 @@ export default function WeatherPanel() {
   const moon = useWeatherStore((s) => s.moon);
   const loading = useWeatherStore((s) => s.loading);
   const location = useWeatherStore((s) => s.location);
+  const [snowDepth, setSnowDepth] = useState(null);
   const { fetchWeather } = useWeather();
 
   useEffect(() => {
@@ -24,6 +25,16 @@ export default function WeatherPanel() {
       fetchWeather(latitude.toFixed(4), longitude.toFixed(4));
     }
   }, []);
+
+  // Fetch snow depth for current location
+  useEffect(() => {
+    const lat = location?.lat || latitude;
+    const lon = location?.lon || longitude;
+    fetch(`/api/tiles/snowdepth-at?lat=${parseFloat(lat).toFixed(4)}&lon=${parseFloat(lon).toFixed(4)}`)
+      .then(r => r.json())
+      .then(d => setSnowDepth(d.depth ? d : null))
+      .catch(() => setSnowDepth(null));
+  }, [location?.lat, location?.lon, latitude, longitude]);
 
   if (loading) {
     return (
@@ -96,6 +107,12 @@ export default function WeatherPanel() {
             <WeatherItem label={t('weather.precip', lang)} value={`${next1h?.details?.precipitation_amount?.toFixed(1) ?? '0'} mm`} />
             <WeatherItem label={t('weather.humidity', lang)} value={`${details.relative_humidity?.toFixed(0) ?? '?'}%`} />
             <WeatherItem label={t('weather.pressure', lang)} value={`${details.air_pressure_at_sea_level?.toFixed(0) ?? '?'} hPa`} />
+            {snowDepth && (
+              <WeatherItem
+                label={lang === 'no' ? 'Snødybde' : 'Snow Depth'}
+                value={snowDepth.label?.[lang] || snowDepth.depth}
+              />
+            )}
           </div>
 
           {/* Sun & Moon */}

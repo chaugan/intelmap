@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { SYMBOL_CATEGORIES } from '../../lib/constants.js';
@@ -37,12 +37,20 @@ function fuzzyScore(query, target) {
 export default function SymbolPicker() {
   const lang = useMapStore((s) => s.lang);
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
-  const layers = useTacticalStore((s) => s.layers);
+  const activeProjectId = useTacticalStore((s) => s.activeProjectId);
+  const activeLayerId = useTacticalStore((s) => s.activeLayerId);
+  const projects = useTacticalStore((s) => s.projects);
+  const layers = activeProjectId && projects[activeProjectId] ? projects[activeProjectId].layers : [];
   const [category, setCategory] = useState(categoryKeys[0]);
   const [tab, setTab] = useState('friendly');
   const [designation, setDesignation] = useState('');
-  const [selectedLayer, setSelectedLayer] = useState('');
+  const [selectedLayer, setSelectedLayer] = useState(activeLayerId || '');
   const [search, setSearch] = useState('');
+
+  // Sync layer dropdown when activeLayerId changes in the drawer
+  useEffect(() => {
+    setSelectedLayer(activeLayerId || '');
+  }, [activeLayerId]);
 
   const tabs = [
     { id: 'friendly', label: t('symbols.friendly', lang), color: 'text-blue-400' },

@@ -1,6 +1,9 @@
 export const EVENTS = {
-  // Client → Server
-  CLIENT_REQUEST_STATE: 'client:request-state',
+  // Client → Server: Project rooms
+  CLIENT_PROJECT_JOIN: 'client:project:join',
+  CLIENT_PROJECT_LEAVE: 'client:project:leave',
+
+  // Client → Server: Mutations (all require projectId in payload)
   CLIENT_MARKER_ADD: 'client:marker:add',
   CLIENT_MARKER_UPDATE: 'client:marker:update',
   CLIENT_MARKER_DELETE: 'client:marker:delete',
@@ -11,9 +14,12 @@ export const EVENTS = {
   CLIENT_LAYER_ADD: 'client:layer:add',
   CLIENT_LAYER_UPDATE: 'client:layer:update',
   CLIENT_LAYER_DELETE: 'client:layer:delete',
+  CLIENT_PIN_ADD: 'client:pin:add',
+  CLIENT_PIN_UPDATE: 'client:pin:update',
+  CLIENT_PIN_DELETE: 'client:pin:delete',
 
   // Server → Client
-  SERVER_STATE: 'server:state',
+  SERVER_PROJECT_STATE: 'server:project:state',
   SERVER_MARKER_ADDED: 'server:marker:added',
   SERVER_MARKER_UPDATED: 'server:marker:updated',
   SERVER_MARKER_DELETED: 'server:marker:deleted',
@@ -23,4 +29,7 @@ export const EVENTS = {
   SERVER_LAYER_ADDED: 'server:layer:added',
   SERVER_LAYER_UPDATED: 'server:layer:updated',
   SERVER_LAYER_DELETED: 'server:layer:deleted',
+  SERVER_PIN_ADDED: 'server:pin:added',
+  SERVER_PIN_UPDATED: 'server:pin:updated',
+  SERVER_PIN_DELETED: 'server:pin:deleted',
 };

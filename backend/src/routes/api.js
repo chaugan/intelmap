@@ -6,6 +6,10 @@ import aiRouter from './ai.js';
 import stateRouter from './state.js';
 import tilesRouter from './tiles.js';
 import routeRouter from './route.js';
+import authRouter from './auth.js';
+import adminRouter from './admin.js';
+import projectsRouter from './projects.js';
+import groupsRouter from './groups.js';
 
 const router = Router();
 
@@ -16,5 +20,9 @@ router.use('/ai', aiRouter);
 router.use('/state', stateRouter);
 router.use('/tiles', tilesRouter);
 router.use('/route', routeRouter);
+router.use('/auth', authRouter);
+router.use('/admin', adminRouter);
+router.use('/projects', projectsRouter);
+router.use('/groups', groupsRouter);
 
 export default router;

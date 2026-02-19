@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
 
 export const useMapStore = create((set) => ({
@@ -16,9 +17,21 @@ export const useMapStore = create((set) => ({
   windOpacity: 0.75,
   webcamsVisible: false,
   avalancheVisible: false,
+  snowDepthVisible: false,
+  snowDepthOpacity: 0.7,
+  drawingToolsVisible: false,
+
+  // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
+  // so it's always rendered on top of MapLibre raster layers, but the order of
+  // avalanche and snowDepth within the map is controlled here.
+  overlayOrder: ['avalanche', 'snowDepth', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
+  chatDrawerWidth: parseInt(localStorage.getItem('chatDrawerWidth') || '384', 10),
+
+  // Project drawer
+  projectDrawerOpen: false,
 
   // Language
   lang: 'no',
@@ -39,17 +52,88 @@ export const useMapStore = create((set) => ({
   setWindOpacity: (windOpacity) => set({ windOpacity }),
   toggleWebcams: () => set((s) => ({ webcamsVisible: !s.webcamsVisible })),
   toggleAvalanche: () => set((s) => ({ avalancheVisible: !s.avalancheVisible })),
+  toggleSnowDepth: () => set((s) => ({ snowDepthVisible: !s.snowDepthVisible })),
+  setSnowDepthOpacity: (snowDepthOpacity) => set({ snowDepthOpacity }),
+  moveOverlayUp: (id) => set((s) => {
+    const order = [...s.overlayOrder];
+    const idx = order.indexOf(id);
+    if (idx < order.length - 1) {
+      [order[idx], order[idx + 1]] = [order[idx + 1], order[idx]];
+    }
+    return { overlayOrder: order };
+  }),
+  moveOverlayDown: (id) => set((s) => {
+    const order = [...s.overlayOrder];
+    const idx = order.indexOf(id);
+    if (idx > 0) {
+      [order[idx - 1], order[idx]] = [order[idx], order[idx - 1]];
+    }
+    return { overlayOrder: order };
+  }),
+  toggleDrawingTools: () => set((s) => ({ drawingToolsVisible: !s.drawingToolsVisible })),
   setLang: (lang) => set({ lang }),
   setMapRef: (mapRef) => set({ mapRef }),
   setActivePanel: (panel) => set((s) => ({
     activePanel: s.activePanel === panel ? null : panel,
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
+  toggleProjectDrawer: () => set((s) => ({ projectDrawerOpen: !s.projectDrawerOpen })),
+  setChatDrawerWidth: (width) => {
+    localStorage.setItem('chatDrawerWidth', String(width));
+    return set({ chatDrawerWidth: width });
+  },
   toggleChatDrawer: () => set((s) => {
     const next = !s.chatDrawerOpen;
     localStorage.setItem('chatDrawerOpen', JSON.stringify(next));
     return { chatDrawerOpen: next };
   }),
+  takeScreenshot: () => {
+    const map = useMapStore.getState().mapRef;
+    if (!map) return;
+
+    map.triggerRepaint();
+    requestAnimationFrame(() => {
+      (async () => {
+        try {
+          let canvas = null;
+
+          // Try html2canvas for full DOM capture (popups, markers, legends)
+          const mapContainer = document.querySelector('[data-map-container]');
+          if (mapContainer) {
+            try {
+              canvas = await html2canvas(mapContainer, {
+                useCORS: true,
+                backgroundColor: null,
+                scale: 1,
+              });
+            } catch (e) {
+              console.warn('html2canvas failed, falling back to canvas capture:', e);
+            }
+          }
+
+          // Fallback: direct canvas capture
+          if (!canvas) {
+            const mapCanvas = map.getCanvas();
+            canvas = document.createElement('canvas');
+            canvas.width = mapCanvas.width;
+            canvas.height = mapCanvas.height;
+            canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
+          }
+
+          canvas.toBlob((blob) => {
+            if (!blob) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `intelmap-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }, 'image/png');
+        } catch (e) {
+          console.error('Screenshot failed:', e);
+        }
+      })();
+    });
+  },
   flyTo: (lon, lat, zoom) => set((s) => {
     const map = s.mapRef;
     if (map) {

@@ -12,8 +12,10 @@ export default function DataFreshness() {
   const lang = useMapStore((s) => s.lang);
   const windVisible = useMapStore((s) => s.windVisible);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
+  const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const windFetchedAt = useWeatherStore((s) => s.windFetchedAt);
   const [avalancheLoadedAt, setAvalancheLoadedAt] = useState(null);
+  const [snowDepthDate, setSnowDepthDate] = useState(null);
 
   useEffect(() => {
     if (avalancheVisible) {
@@ -22,6 +24,17 @@ export default function DataFreshness() {
       setAvalancheLoadedAt(null);
     }
   }, [avalancheVisible]);
+
+  useEffect(() => {
+    if (snowDepthVisible) {
+      fetch('/api/tiles/snowdepth-date')
+        .then((r) => r.json())
+        .then((d) => setSnowDepthDate(d.date))
+        .catch(() => setSnowDepthDate(null));
+    } else {
+      setSnowDepthDate(null);
+    }
+  }, [snowDepthVisible]);
 
   const items = [];
 
@@ -39,6 +52,15 @@ export default function DataFreshness() {
       value: formatDateTime(avalancheLoadedAt),
       sub: 'NVE / NGU',
       color: 'text-red-400',
+    });
+  }
+
+  if (snowDepthVisible && snowDepthDate) {
+    items.push({
+      label: lang === 'no' ? 'Snødybde' : 'Snow Depth',
+      value: snowDepthDate,
+      sub: 'NVE / seNorge',
+      color: 'text-blue-400',
     });
   }
 

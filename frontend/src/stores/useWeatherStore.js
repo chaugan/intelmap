@@ -15,6 +15,8 @@ export const useWeatherStore = create((set) => ({
   setWindGrid: (windGrid) => set({ windGrid }),
   windFetchedAt: null,
   setWindFetchedAt: (windFetchedAt) => set({ windFetchedAt }),
+  windLoading: false,
+  setWindLoading: (windLoading) => set({ windLoading }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setLocation: (location) => set({ location }),

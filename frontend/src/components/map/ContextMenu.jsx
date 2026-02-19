@@ -34,6 +34,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const [elevation, setElevation] = useState(null);
   const [weather, setWeather] = useState(null);
   const [placeName, setPlaceName] = useState(null);
+  const [snowDepth, setSnowDepth] = useState(null);
   const [loadingEl, setLoadingEl] = useState(true);
   const [loadingWx, setLoadingWx] = useState(true);
   const [weatherUpdatedAt, setWeatherUpdatedAt] = useState(null);
@@ -87,12 +88,33 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         }
       })
       .catch(() => {});
+
+    // Snow depth
+    fetch(`/api/tiles/snowdepth-at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`)
+      .then(r => r.json())
+      .then(d => { if (d.depth) setSnowDepth(d); })
+      .catch(() => {});
   }, [lat, lng]);
+
+  const isVisibleRef = useRef(true);
+
+  // Track whether context menu is visible on screen
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisibleRef.current = entry.isIntersecting;
+    }, { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Auto-refresh weather every 5 minutes when pinned
   useEffect(() => {
     if (!pinned) return;
     const interval = setInterval(() => {
+      if (document.hidden) return;
+      if (!isVisibleRef.current) return;
       fetchWeatherData();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
@@ -191,6 +213,12 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               <InfoRow
                 label={lang === 'no' ? 'Vindavkjøling' : 'Wind Chill'}
                 value={`${calcWindChill(weather.air_temperature, weather.wind_speed).toFixed(1)}°C`}
+              />
+            )}
+            {snowDepth && (
+              <InfoRow
+                label={lang === 'no' ? 'Snødybde' : 'Snow Depth'}
+                value={snowDepth.label?.[lang] || snowDepth.depth}
               />
             )}
             {weatherSymbol && (
