@@ -4,11 +4,12 @@ import { BASE_LAYERS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const OVERLAY_IDS = ['wind', 'snowDepth', 'avalanche'];
+const OVERLAY_IDS = ['wind', 'snowDepth', 'avalanche', 'avalancheWarnings'];
 const OVERLAY_LABELS = {
   wind: { no: 'Vind', en: 'Wind' },
   snowDepth: { no: 'Snødybde', en: 'Snow Depth' },
-  avalanche: { no: 'Skred', en: 'Avalanche' },
+  avalanche: { no: 'Skredterreng', en: 'Aval. Terrain' },
+  avalancheWarnings: { no: 'Skredvarsel', en: 'Aval. Warnings' },
 };
 
 export default function MapControls() {
@@ -25,6 +26,10 @@ export default function MapControls() {
   const toggleWebcams = useMapStore((s) => s.toggleWebcams);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
   const toggleAvalanche = useMapStore((s) => s.toggleAvalanche);
+  const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
+  const toggleAvalancheWarnings = useMapStore((s) => s.toggleAvalancheWarnings);
+  const avalancheWarningsOpacity = useMapStore((s) => s.avalancheWarningsOpacity);
+  const setAvalancheWarningsOpacity = useMapStore((s) => s.setAvalancheWarningsOpacity);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const toggleSnowDepth = useMapStore((s) => s.toggleSnowDepth);
   const snowDepthOpacity = useMapStore((s) => s.snowDepthOpacity);
@@ -84,7 +89,7 @@ export default function MapControls() {
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
 
   // Count active weather overlays for z-order button
-  const visibilityMap = { wind: windVisible, snowDepth: snowDepthVisible, avalanche: avalancheVisible };
+  const visibilityMap = { wind: windVisible, snowDepth: snowDepthVisible, avalanche: avalancheVisible, avalancheWarnings: avalancheWarningsVisible };
   const activeOverlays = OVERLAY_IDS.filter((id) => visibilityMap[id]);
   const activeCount = activeOverlays.length;
 
@@ -146,6 +151,19 @@ export default function MapControls() {
       )}
       <ToggleButton active={webcamsVisible} onClick={toggleWebcams} label={t('layer.webcams', lang)} shortcut="C" />
       <ToggleButton active={avalancheVisible} onClick={toggleAvalanche} label={t('layer.avalanche', lang)} shortcut="A" />
+      <ToggleButton active={avalancheWarningsVisible} onClick={toggleAvalancheWarnings} label={t('layer.avalancheWarnings', lang)} shortcut="V" />
+      {avalancheWarningsVisible && (
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={avalancheWarningsOpacity}
+          onChange={(e) => setAvalancheWarningsOpacity(parseFloat(e.target.value))}
+          className="w-16 h-1 accent-orange-500"
+          title={lang === 'no' ? 'Skredvarsel gjennomsiktighet' : 'Avalanche warnings opacity'}
+        />
+      )}
       <ToggleButton active={snowDepthVisible} onClick={toggleSnowDepth} label={t('layer.snowDepth', lang)} shortcut="S" />
       {snowDepthVisible && (
         <input

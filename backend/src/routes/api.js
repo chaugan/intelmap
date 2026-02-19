@@ -11,6 +11,7 @@ import adminRouter from './admin.js';
 import projectsRouter from './projects.js';
 import groupsRouter from './groups.js';
 import streetviewRouter from './streetview.js';
+import avalancheWarningsRouter from './avalanche-warnings.js';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/admin', adminRouter);
 router.use('/projects', projectsRouter);
 router.use('/groups', groupsRouter);
 router.use('/streetview', streetviewRouter);
+router.use('/avalanche-warnings', avalancheWarningsRouter);
 
 export default router;

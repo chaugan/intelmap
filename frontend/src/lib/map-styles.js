@@ -2,9 +2,12 @@ import { BASE_LAYERS } from './constants.js';
 
 export function buildMapStyle(baseLayerId, {
   avalancheVisible = false,
+  avalancheWarningsVisible = false,
+  avalancheWarningsOpacity = 0.5,
+  avalancheWarningsData = null,
   snowDepthVisible = false,
   snowDepthOpacity = 0.7,
-  overlayOrder = ['avalanche', 'snowDepth', 'wind'],
+  overlayOrder = ['avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
 } = {}) {
   const layer = BASE_LAYERS[baseLayerId] || BASE_LAYERS.topo;
 
@@ -30,7 +33,48 @@ export function buildMapStyle(baseLayerId, {
   ];
 
   // Build overlay definitions keyed by id
+  // Value can be a single layer object or an array of layers
   const overlayDefs = {};
+
+  if (avalancheWarningsVisible && avalancheWarningsData) {
+    sources['avalanche-warnings-geojson'] = {
+      type: 'geojson',
+      data: avalancheWarningsData,
+    };
+    overlayDefs.avalancheWarnings = [
+      {
+        id: 'avalanche-warnings-fill',
+        type: 'fill',
+        source: 'avalanche-warnings-geojson',
+        paint: {
+          'fill-color': [
+            'match', ['get', 'dangerLevel'],
+            1, '#56B528',
+            2, '#FFE800',
+            3, '#F18700',
+            4, '#E81700',
+            5, '#1B1B1B',
+            '#888888',
+          ],
+          'fill-opacity': [
+            'case',
+            ['==', ['get', 'dangerLevel'], 0], avalancheWarningsOpacity * 0.3,
+            avalancheWarningsOpacity,
+          ],
+        },
+      },
+      {
+        id: 'avalanche-warnings-line',
+        type: 'line',
+        source: 'avalanche-warnings-geojson',
+        paint: {
+          'line-color': '#333',
+          'line-width': 1,
+          'line-opacity': 0.6,
+        },
+      },
+    ];
+  }
 
   if (avalancheVisible) {
     sources['avalanche-wms'] = {
@@ -66,9 +110,16 @@ export function buildMapStyle(baseLayerId, {
     };
   }
 
-  // Push raster overlays in the user-configured z-order (bottom to top)
+  // Push overlays in the user-configured z-order (bottom to top)
+  // Overlay defs can be a single layer or an array of layers
   for (const id of overlayOrder) {
-    if (overlayDefs[id]) layers.push(overlayDefs[id]);
+    const def = overlayDefs[id];
+    if (!def) continue;
+    if (Array.isArray(def)) {
+      layers.push(...def);
+    } else {
+      layers.push(def);
+    }
   }
 
   return { version: 8, sources, layers };

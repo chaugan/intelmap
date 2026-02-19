@@ -11,9 +11,23 @@ Live at **[intelmap.no](https://intelmap.no)**
 - **Base maps** — Kartverket Topographic, Grayscale, Raster, and OpenStreetMap
 - **Wind overlay** — Animated particle visualization with color-coded speed (green → blue → red)
 - **Webcam layer** — Live road cameras from Vegvesen across Norway
-- **Avalanche zones** — Danger areas from NVE/Varsom
+- **Avalanche terrain** — Danger zones from NVE/Varsom
+- **Avalanche warnings** — Color-coded forecast regions (5 danger levels) with day picker (today/tomorrow/day after), detailed side panel with avalanche problems, mountain weather, safety advice, and aspect/elevation data
 - **Snow depth** — Daily seNorge raster with 8 depth categories (0 cm to 400+ cm)
+- **Layer z-order** — Drag-reorder overlays when multiple are active
 - **Layer management** — Create, rename, reorder, and toggle custom overlay layers
+
+### Context Menu (Right-Click)
+
+Right-click anywhere on the map for point intelligence:
+
+- Coordinates (lat/lon + MGRS/UTM), elevation, place name
+- Current weather (temperature, wind, gusts, wind chill, snow depth, conditions, moon phase)
+- Avalanche danger level for the clicked region (always shown in Norway)
+- Open detailed avalanche warning panel directly from context menu
+- Full weather forecast panel shortcut
+- Google Street View preview with 360° rotation (where available)
+- Pin context menus to the map, auto-refresh weather every 5 minutes
 
 ### NATO Symbology (MIL-STD-2525C)
 
@@ -77,7 +91,8 @@ Natural language map manipulation powered by Claude:
 |-----|--------|
 | `W` | Toggle wind overlay |
 | `C` | Toggle webcams |
-| `A` | Toggle avalanche zones |
+| `A` | Toggle avalanche terrain |
+| `V` | Toggle avalanche warnings |
 | `S` | Toggle snow depth |
 | `D` | Toggle drawing tools |
 | `1` | Layers panel |
@@ -92,8 +107,8 @@ Natural language map manipulation powered by Claude:
 
 - **Frontend**: React 19, Vite 7, MapLibre GL JS, Tailwind CSS v4, Zustand
 - **Backend**: Express, Socket.IO, SQLite (better-sqlite3), Anthropic Claude SDK
-- **APIs**: Kartverket (tiles, search, elevation), MET Norway (weather, sun/moon), Vegvesen (webcams, routing), NVE/Varsom (avalanche), seNorge (snow depth)
-- **Deployment**: Docker, nginx, systemd, certbot SSL
+- **APIs**: Kartverket (tiles, search, elevation), MET Norway (weather, sun/moon), Vegvesen (webcams, routing, Street View), NVE/Varsom (avalanche warnings + terrain), seNorge (snow depth)
+- **Deployment**: Docker, nginx
 
 ## Quick Start
 
@@ -118,22 +133,6 @@ cd frontend && npm install && npm run dev
 ```
 
 Frontend at `http://localhost:5173`, backend at `http://localhost:3001`.
-
-### VPS Deployment
-
-```bash
-curl -O https://raw.githubusercontent.com/chaugan/intelmap/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
-```
-
-This installs everything on a fresh Ubuntu 24.04 server: Node.js, nginx, SSL via certbot, systemd service, and firewall rules. Set your API key via the admin panel after install.
-
-Update with:
-
-```bash
-sudo /opt/intelmap/sync.sh
-```
 
 ## Environment Variables
 

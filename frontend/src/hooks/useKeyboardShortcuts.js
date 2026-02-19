@@ -6,6 +6,7 @@ export function useKeyboardShortcuts() {
   const toggleWind = useMapStore((s) => s.toggleWind);
   const toggleWebcams = useMapStore((s) => s.toggleWebcams);
   const toggleAvalanche = useMapStore((s) => s.toggleAvalanche);
+  const toggleAvalancheWarnings = useMapStore((s) => s.toggleAvalancheWarnings);
   const toggleSnowDepth = useMapStore((s) => s.toggleSnowDepth);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
@@ -51,6 +52,7 @@ export function useKeyboardShortcuts() {
         case 'w': toggleWind(); break;
         case 'c': toggleWebcams(); break;
         case 'a': toggleAvalanche(); break;
+        case 'v': toggleAvalancheWarnings(); break;
         case 's': toggleSnowDepth(); break;
         case 'd': toggleDrawingTools(); break;
 
@@ -78,5 +80,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleSnowDepth, toggleDrawingTools, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleDrawingTools, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer]);
 }

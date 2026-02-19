@@ -3,8 +3,17 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useWeather } from '../../hooks/useWeather.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import { calcWindChill } from '../../lib/weather-utils.js';
+import { t } from '../../lib/i18n.js';
 import MoonPhaseIcon from './MoonPhaseIcon.jsx';
 import StreetViewOverlay from './StreetViewOverlay.jsx';
+
+const DANGER_COLORS = {
+  1: '#56B528',
+  2: '#FFE800',
+  3: '#F18700',
+  4: '#E81700',
+  5: '#1B1B1B',
+};
 
 function toMGRS(lat, lon) {
   // Simplified UTM/MGRS conversion for Norway
@@ -31,6 +40,7 @@ function toMGRS(lat, lon) {
 export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalPinned, onPin }) {
   const lang = useMapStore((s) => s.lang);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
+  const setAvalancheWarningRegion = useMapStore((s) => s.setAvalancheWarningRegion);
   const { fetchWeather } = useWeather();
   const [elevation, setElevation] = useState(null);
   const [weather, setWeather] = useState(null);
@@ -44,6 +54,8 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const [streetView, setStreetView] = useState(null);
   const [streetViewOverlay, setStreetViewOverlay] = useState(false);
   const [svHeading, setSvHeading] = useState(0);
+  const [avalancheRisk, setAvalancheRisk] = useState(null);
+  const [loadingAval, setLoadingAval] = useState(true);
   const pinned = externalPinned || false;
   const ref = useRef(null);
 
@@ -98,6 +110,13 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
       .then(r => r.json())
       .then(d => { if (d.depth) setSnowDepth(d); })
       .catch(() => {});
+
+    // Avalanche risk
+    fetch(`/api/avalanche-warnings/at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&day=0`)
+      .then(r => r.json())
+      .then(d => setAvalancheRisk(d))
+      .catch(() => setAvalancheRisk(null))
+      .finally(() => setLoadingAval(false));
 
     // Street View coverage check
     fetch(`/api/streetview/check?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`, { credentials: 'include' })
@@ -262,6 +281,31 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
           <div className="text-slate-500 text-xs">{lang === 'no' ? 'Vær utilgjengelig' : 'Weather unavailable'}</div>
         )}
 
+        {/* Avalanche risk */}
+        <div className="border-t border-slate-600 my-1" />
+        {loadingAval ? (
+          <div className="text-slate-400 text-xs">{t('aval.loading', lang)}</div>
+        ) : avalancheRisk?.regionId ? (
+          avalancheRisk.dangerLevel > 0 ? (
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 text-xs">{t('aval.risk', lang)}</span>
+              <span className="text-xs font-mono font-semibold" style={{ color: DANGER_COLORS[avalancheRisk.dangerLevel] || '#999' }}>
+                {avalancheRisk.dangerLevel} - {avalancheRisk.dangerLevelName?.[lang === 'en' ? 'en' : 'no'] || ''}
+              </span>
+            </div>
+          ) : (
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 text-xs">{t('aval.risk', lang)}</span>
+              <span className="text-slate-500 text-xs font-mono">{t('aval.notAssessed', lang)}</span>
+            </div>
+          )
+        ) : (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400 text-xs">{t('aval.risk', lang)}</span>
+            <span className="text-slate-500 text-xs font-mono">{t('aval.outside', lang)}</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="border-t border-slate-600 my-1" />
         <button
@@ -270,6 +314,20 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         >
           {lang === 'no' ? 'Vis full værmelding her' : 'Show full forecast here'}
         </button>
+
+        {/* Avalanche detail button - shown when point is inside a warning region */}
+        {avalancheRisk?.regionId && (
+          <button
+            onClick={() => {
+              setAvalancheWarningRegion(avalancheRisk.regionId, avalancheRisk.regionName);
+              setActivePanel('avalancheWarning');
+              if (!pinned) onClose();
+            }}
+            className="w-full text-left px-2 py-1.5 text-xs bg-orange-700 hover:bg-orange-600 rounded transition-colors mt-1"
+          >
+            {t('aval.viewDetail', lang)}
+          </button>
+        )}
 
         {streetView && (
           <>

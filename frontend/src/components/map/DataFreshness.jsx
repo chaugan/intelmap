@@ -12,6 +12,8 @@ export default function DataFreshness() {
   const lang = useMapStore((s) => s.lang);
   const windVisible = useMapStore((s) => s.windVisible);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
+  const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
+  const avalancheWarningsFetchedAt = useMapStore((s) => s.avalancheWarningsFetchedAt);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const windFetchedAt = useWeatherStore((s) => s.windFetchedAt);
   const [avalancheLoadedAt, setAvalancheLoadedAt] = useState(null);
@@ -48,10 +50,19 @@ export default function DataFreshness() {
 
   if (avalancheVisible && avalancheLoadedAt) {
     items.push({
-      label: lang === 'no' ? 'Skredkart' : 'Avalanche map',
+      label: lang === 'no' ? 'Skredterreng' : 'Avalanche terrain',
       value: formatDateTime(avalancheLoadedAt),
       sub: 'NVE / NGU',
       color: 'text-red-400',
+    });
+  }
+
+  if (avalancheWarningsVisible && avalancheWarningsFetchedAt) {
+    items.push({
+      label: lang === 'no' ? 'Skredvarsel' : 'Avalanche warnings',
+      value: formatDateTime(avalancheWarningsFetchedAt),
+      sub: 'varsom.no / NVE',
+      color: 'text-orange-400',
     });
   }
 

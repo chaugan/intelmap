@@ -3,6 +3,7 @@ import LayerManager from './LayerManager.jsx';
 import SymbolPicker from './SymbolPicker.jsx';
 import WeatherPanel from './WeatherPanel.jsx';
 import SearchPanel from './SearchPanel.jsx';
+import AvalancheWarningPanel from './AvalancheWarningPanel.jsx';
 
 export default function SidePanel() {
   const activePanel = useMapStore((s) => s.activePanel);
@@ -12,6 +13,7 @@ export default function SidePanel() {
     case 'symbols': return <SymbolPicker />;
     case 'weather': return <WeatherPanel />;
     case 'search': return <SearchPanel />;
+    case 'avalancheWarning': return <AvalancheWarningPanel />;
     default: return null;
   }
 }

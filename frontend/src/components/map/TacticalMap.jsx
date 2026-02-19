@@ -15,6 +15,8 @@ import ContextMenu from './ContextMenu.jsx';
 import DraggablePopup from './DraggablePopup.jsx';
 import DataFreshness from './DataFreshness.jsx';
 import SnowDepthLegend from './SnowDepthLegend.jsx';
+import AvalancheWarningsLegend from './AvalancheWarningsLegend.jsx';
+import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 let nextMenuId = 1;
@@ -25,6 +27,10 @@ export default function TacticalMap() {
   const webcamsVisible = useMapStore((s) => s.webcamsVisible);
   const windVisible = useMapStore((s) => s.windVisible);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
+  const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
+  const avalancheWarningsOpacity = useMapStore((s) => s.avalancheWarningsOpacity);
+  const avalancheWarningsDay = useMapStore((s) => s.avalancheWarningsDay);
+  const setAvalancheWarningsFetchedAt = useMapStore((s) => s.setAvalancheWarningsFetchedAt);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const snowDepthOpacity = useMapStore((s) => s.snowDepthOpacity);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
@@ -35,6 +41,8 @@ export default function TacticalMap() {
   const windLoading = useWeatherStore((s) => s.windLoading);
   const placementMode = useMapStore((s) => s.placementMode);
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
+  const activePanel = useMapStore((s) => s.activePanel);
+  const setAvalancheWarningRegion = useMapStore((s) => s.setAvalancheWarningRegion);
 
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
@@ -44,6 +52,13 @@ export default function TacticalMap() {
   const visiblePins = getAllVisiblePins(tacticalState);
   const contextPins = visiblePins.filter(p => p.pinType === 'context');
 
+  const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
+
+  // Sync fetchedAt to store for DataFreshness
+  useEffect(() => {
+    setAvalancheWarningsFetchedAt(avalancheWarningsFetchedAt);
+  }, [avalancheWarningsFetchedAt, setAvalancheWarningsFetchedAt]);
+
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
   const [drawingInfoPopup, setDrawingInfoPopup] = useState(null);
@@ -51,8 +66,16 @@ export default function TacticalMap() {
   const suppressMapContextMenu = useRef(false);
 
   const mapStyle = useMemo(
-    () => buildMapStyle(baseLayer, { avalancheVisible, snowDepthVisible, snowDepthOpacity, overlayOrder }),
-    [baseLayer, avalancheVisible, snowDepthVisible, snowDepthOpacity, overlayOrder]
+    () => buildMapStyle(baseLayer, {
+      avalancheVisible,
+      avalancheWarningsVisible,
+      avalancheWarningsOpacity,
+      avalancheWarningsData,
+      snowDepthVisible,
+      snowDepthOpacity,
+      overlayOrder,
+    }),
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
@@ -104,8 +127,22 @@ export default function TacticalMap() {
         createdBy: socket.id,
       });
       setPlacementMode(null);
+      return;
     }
-  }, [placementMode, setPlacementMode, activeProjectId, activeLayerId]);
+
+    // When avalanche detail panel is open, click switches to clicked region
+    if (activePanel === 'avalancheWarning') {
+      const { lng, lat } = evt.lngLat;
+      fetch(`/api/avalanche-warnings/at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&day=0`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.regionId) {
+            setAvalancheWarningRegion(d.regionId, d.regionName);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [placementMode, setPlacementMode, activeProjectId, activeLayerId, activePanel, setAvalancheWarningRegion]);
 
   // Right-click context menu
   useEffect(() => {
@@ -367,9 +404,9 @@ export default function TacticalMap() {
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading) && (
             <div className="flex flex-col items-end gap-1">
               {windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -381,10 +418,16 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter snødybdedata...' : 'Loading snow depth data...'}
                 </div>
               )}
+              {avalancheWarningsLoading && (
+                <div className="text-xs text-orange-400 bg-slate-800/80 px-2 py-1 rounded">
+                  {lang === 'no' ? 'Henter skredvarsel...' : 'Loading avalanche warnings...'}
+                </div>
+              )}
             </div>
           )}
           {windVisible && <WindLegend lang={lang} />}
           {snowDepthVisible && <SnowDepthLegend />}
+          {avalancheWarningsVisible && <AvalancheWarningsLegend />}
         </div>
       )}
       {contextMenus.map((menu) => (
