@@ -168,6 +168,7 @@ router.post('/chat', requireAuth, async (req, res) => {
       if (aborted) break;
 
       const hasToolUse = fullContent.some(b => b.type === 'tool_use');
+      console.log('[ai] turn complete, blocks:', fullContent.map(b => b.type === 'tool_use' ? `tool_use:${b.name}` : b.type).join(', '));
       if (hasToolUse) {
         const toolUseBlocks = fullContent.filter(b => b.type === 'tool_use');
         conversationMessages.push({ role: 'assistant', content: fullContent });
@@ -186,6 +187,7 @@ router.post('/chat', requireAuth, async (req, res) => {
               content: JSON.stringify(result),
             });
           } catch (err) {
+            console.log('[ai] tool error:', block.name, err.message);
             toolResults.push({
               type: 'tool_result',
               tool_use_id: block.id,

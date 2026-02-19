@@ -313,27 +313,34 @@ export async function executeTool(name, args, io, projectId, viewport) {
 
     case 'overpass_draw': {
       let query = args.query;
+      console.log('[overpass_draw] raw query:', query);
+      console.log('[overpass_draw] viewport:', JSON.stringify(viewport?.bounds));
       if (viewport?.bounds) {
         const { south, west, north, east } = viewport.bounds;
         query = query.replace(/\{\{bbox\}\}/g, `${south},${west},${north},${east}`);
         query = query.replace(/out\s+geom\s*;/g, `out geom(${south},${west},${north},${east});`);
       }
+      console.log('[overpass_draw] final query:', query);
 
       const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      const fetchStart = Date.now();
       const overpassRes = await fetch(overpassUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `data=${encodeURIComponent(query)}`,
       });
+      console.log('[overpass_draw] response:', overpassRes.status, 'in', Date.now() - fetchStart, 'ms');
 
       if (!overpassRes.ok) {
         const body = await overpassRes.text().catch(() => '');
+        console.log('[overpass_draw] error body:', body.slice(0, 300));
         if (overpassRes.status === 429) throw new Error('Overpass API rate limited. Wait a moment and try again.');
         if (overpassRes.status === 504 || overpassRes.status === 408 || (overpassRes.status === 400 && body.includes('timeout')))
           throw new Error('Overpass query timed out. Try a smaller area (zoom in) or simpler query.');
         throw new Error(`Overpass API error ${overpassRes.status}: ${body.slice(0, 200)}`);
       }
       const data = await overpassRes.json();
+      console.log('[overpass_draw] elements:', data.elements?.length);
 
       const elements = data.elements || [];
       const color = COLOR_MAP[args.color] || COLOR_MAP.blue;
@@ -345,8 +352,9 @@ export async function executeTool(name, args, io, projectId, viewport) {
       const drawingIds = [];
 
       const processGeometry = (geom, name) => {
-        if (!geom?.length || geom.length < 2) return;
-        const coords = geom.map(p => [p.lon, p.lat]);
+        if (!geom?.length) return;
+        const coords = geom.filter(p => p != null && p.lon != null && p.lat != null).map(p => [p.lon, p.lat]);
+        if (coords.length < 2) return;
         const isClosed = coords.length >= 4 &&
           coords[0][0] === coords[coords.length - 1][0] &&
           coords[0][1] === coords[coords.length - 1][1];
