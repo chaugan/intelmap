@@ -7,24 +7,35 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import ChatMessage from './ChatMessage.jsx';
 import { t } from '../../lib/i18n.js';
 
-// Export canvas under Anthropic's 5 MB limit: try PNG, then progressively lower JPEG quality
-const MAX_BASE64_LEN = 6_000_000; // ~4.5 MB decoded
+// Export canvas under Anthropic's 5 MB decoded limit.
+// 5MB = 5,242,880 bytes. In base64: 5,242,880 * 4/3 ≈ 6,990,507 chars.
+// Use 6,500,000 as safe threshold (~4.9MB decoded).
+const MAX_B64 = 6_500_000;
 function canvasToDataUrl(canvas) {
+  // Try PNG first (lossless)
   const png = canvas.toDataURL('image/png');
-  if (png.length <= MAX_BASE64_LEN) return png;
-  for (const q of [0.92, 0.8, 0.65]) {
+  if (png.length <= MAX_B64) return png;
+  // Progressive JPEG fallback
+  for (const q of [0.85, 0.7, 0.5, 0.3]) {
     const jpg = canvas.toDataURL('image/jpeg', q);
-    if (jpg.length <= MAX_BASE64_LEN) return jpg;
+    if (jpg.length <= MAX_B64) return jpg;
   }
-  return canvas.toDataURL('image/jpeg', 0.5);
+  // Last resort: scale down the canvas and try again
+  const scale = 0.5;
+  const small = document.createElement('canvas');
+  small.width = Math.round(canvas.width * scale);
+  small.height = Math.round(canvas.height * scale);
+  const sCtx = small.getContext('2d');
+  sCtx.drawImage(canvas, 0, 0, small.width, small.height);
+  return small.toDataURL('image/jpeg', 0.7);
 }
 
 // Draw lat/lng coordinate grid on AI screenshot for spatial reasoning
-function drawCoordGrid(ctx, map, width, height) {
+function drawCoordGrid(ctx, map, width, height, captureDpr) {
   const bounds = map.getBounds();
   const north = bounds.getNorth(), south = bounds.getSouth();
   const east = bounds.getEast(), west = bounds.getWest();
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = captureDpr || (window.devicePixelRatio || 1);
 
   // Pick grid interval for ~8-20 lines per axis (denser = better AI precision)
   const INTERVALS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002, 0.0001];
@@ -233,14 +244,14 @@ export default function AiChatPanel() {
           const mapContainer = document.querySelector('[data-map-container]');
           if (mapContainer) {
             try {
-              const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // cap DPR for AI — retina not needed
+              const dpr = 1; // cap at 1x for AI — retina wastes bytes without improving grid readability
               const captured = await html2canvas(mapContainer, {
                 useCORS: true,
                 backgroundColor: null,
                 scale: dpr,
               });
               const ctx = captured.getContext('2d');
-              drawCoordGrid(ctx, map, captured.width, captured.height);
+              drawCoordGrid(ctx, map, captured.width, captured.height, dpr);
               screenshot = canvasToDataUrl(captured);
             } catch (e) {
               console.warn('html2canvas failed, falling back to canvas capture:', e);
