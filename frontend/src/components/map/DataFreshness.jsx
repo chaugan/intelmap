@@ -14,6 +14,8 @@ export default function DataFreshness() {
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
   const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
   const avalancheWarningsFetchedAt = useMapStore((s) => s.avalancheWarningsFetchedAt);
+  const aircraftVisible = useMapStore((s) => s.aircraftVisible);
+  const aircraftFetchedAt = useMapStore((s) => s.aircraftFetchedAt);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const windFetchedAt = useWeatherStore((s) => s.windFetchedAt);
   const [avalancheLoadedAt, setAvalancheLoadedAt] = useState(null);
@@ -63,6 +65,15 @@ export default function DataFreshness() {
       value: formatDateTime(avalancheWarningsFetchedAt),
       sub: 'varsom.no / NVE',
       color: 'text-orange-400',
+    });
+  }
+
+  if (aircraftVisible && aircraftFetchedAt) {
+    items.push({
+      label: lang === 'no' ? 'Luftfart' : 'Aircraft',
+      value: formatDateTime(aircraftFetchedAt),
+      sub: 'airplanes.live / ADS-B',
+      color: 'text-amber-400',
     });
   }
 

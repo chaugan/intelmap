@@ -25,12 +25,15 @@ export const useMapStore = create((set) => ({
   avalancheWarningRegionName: null,
   snowDepthVisible: false,
   snowDepthOpacity: 0.7,
+  aircraftVisible: false,
+  aircraftOpacity: 0.9,
+  aircraftFetchedAt: null,
   drawingToolsVisible: false,
 
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
+  overlayOrder: ['avalancheWarnings', 'avalanche', 'snowDepth', 'aircraft', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -68,6 +71,9 @@ export const useMapStore = create((set) => ({
   setAvalancheWarningRegion: (id, name) => set({ avalancheWarningRegionId: id, avalancheWarningRegionName: name }),
   toggleSnowDepth: () => set((s) => ({ snowDepthVisible: !s.snowDepthVisible })),
   setSnowDepthOpacity: (snowDepthOpacity) => set({ snowDepthOpacity }),
+  toggleAircraft: () => set((s) => ({ aircraftVisible: !s.aircraftVisible })),
+  setAircraftOpacity: (aircraftOpacity) => set({ aircraftOpacity }),
+  setAircraftFetchedAt: (aircraftFetchedAt) => set({ aircraftFetchedAt }),
   moveOverlayUp: (id) => set((s) => {
     const order = [...s.overlayOrder];
     const idx = order.indexOf(id);

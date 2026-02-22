@@ -7,6 +7,7 @@ const translations = {
     'layer.avalanche': 'Skredterreng',
     'layer.avalancheWarnings': 'Skredvarsel',
     'layer.snowDepth': 'Snødybde',
+    'layer.aircraft': 'Luftfart',
     'layer.draw': 'Tegn',
 
     // Base layers
@@ -214,6 +215,7 @@ const translations = {
     'layer.avalanche': 'Aval. Terrain',
     'layer.avalancheWarnings': 'Aval. Warnings',
     'layer.snowDepth': 'Snow Depth',
+    'layer.aircraft': 'Aircraft',
     'layer.draw': 'Draw',
 
     'base.topo': 'Kartverket Topo',

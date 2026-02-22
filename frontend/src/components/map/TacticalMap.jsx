@@ -16,7 +16,9 @@ import DraggablePopup from './DraggablePopup.jsx';
 import DataFreshness from './DataFreshness.jsx';
 import SnowDepthLegend from './SnowDepthLegend.jsx';
 import AvalancheWarningsLegend from './AvalancheWarningsLegend.jsx';
+import AircraftLayer, { AircraftLegend } from './AircraftLayer.jsx';
 import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
+import { useAircraft } from '../../hooks/useAircraft.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 let nextMenuId = 1;
@@ -33,6 +35,8 @@ export default function TacticalMap() {
   const setAvalancheWarningsFetchedAt = useMapStore((s) => s.setAvalancheWarningsFetchedAt);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const snowDepthOpacity = useMapStore((s) => s.snowDepthOpacity);
+  const aircraftVisible = useMapStore((s) => s.aircraftVisible);
+  const setAircraftFetchedAt = useMapStore((s) => s.setAircraftFetchedAt);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
   const setMapRef = useMapStore((s) => s.setMapRef);
@@ -53,11 +57,16 @@ export default function TacticalMap() {
   const contextPins = visiblePins.filter(p => p.pinType === 'context');
 
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
+  const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
 
   // Sync fetchedAt to store for DataFreshness
   useEffect(() => {
     setAvalancheWarningsFetchedAt(avalancheWarningsFetchedAt);
   }, [avalancheWarningsFetchedAt, setAvalancheWarningsFetchedAt]);
+
+  useEffect(() => {
+    setAircraftFetchedAt(aircraftFetchedAt);
+  }, [aircraftFetchedAt, setAircraftFetchedAt]);
 
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
@@ -400,13 +409,14 @@ export default function TacticalMap() {
         </svg>
       )}
 
+      {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {windVisible && <WindOverlay />}
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading || avalancheWarningsLoading) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading) && (
             <div className="flex flex-col items-end gap-1">
               {windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -423,11 +433,17 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter skredvarsel...' : 'Loading avalanche warnings...'}
                 </div>
               )}
+              {aircraftLoading && (
+                <div className="text-xs text-amber-400 bg-slate-800/80 px-2 py-1 rounded">
+                  {lang === 'no' ? 'Henter luftfartdata...' : 'Loading aircraft data...'}
+                </div>
+              )}
             </div>
           )}
           {windVisible && <WindLegend lang={lang} />}
           {snowDepthVisible && <SnowDepthLegend />}
           {avalancheWarningsVisible && <AvalancheWarningsLegend />}
+          {aircraftVisible && <AircraftLegend count={aircraftData?.meta?.total} />}
         </div>
       )}
       {contextMenus.map((menu) => (
