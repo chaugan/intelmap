@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 
 const AIRCRAFT_SOURCE = 'aircraft-data';
@@ -66,7 +66,7 @@ function loadImage(src, size) {
 
 export default function AircraftLayer({ data, mapRef }) {
   const popupRef = useRef(null);
-  const setupDone = useRef(false);
+  const [ready, setReady] = useState(false);
   const aircraftOpacity = useMapStore((s) => s.aircraftOpacity);
 
   const removePopup = useCallback(() => {
@@ -79,7 +79,8 @@ export default function AircraftLayer({ data, mapRef }) {
 
   // Load images and create source + layers once
   useEffect(() => {
-    if (!mapRef || setupDone.current) return;
+    if (!mapRef) return;
+    let cancelled = false;
 
     const setup = async () => {
       try {
@@ -89,6 +90,8 @@ export default function AircraftLayer({ data, mapRef }) {
           loadImage(svgToDataUrl(createHeliSvg('#ffffff')), 48),
           loadImage(svgToDataUrl(createHeliSvg('#f59e0b')), 48),
         ]);
+
+        if (cancelled) return;
 
         if (!mapRef.hasImage(IMG_CIV_PLANE)) mapRef.addImage(IMG_CIV_PLANE, civPlane);
         if (!mapRef.hasImage(IMG_MIL_PLANE)) mapRef.addImage(IMG_MIL_PLANE, milPlane);
@@ -124,24 +127,29 @@ export default function AircraftLayer({ data, mapRef }) {
           }
         };
 
-        // Civilian airplanes: not military AND not helicopter
+        // Filters use boolean() to handle stringified booleans from GeoJSON
         addSymbolLayer(LAYER_CIV_PLANE, IMG_CIV_PLANE, 0.7, [
-          'all', ['!=', ['get', 'military'], true], ['!=', ['get', 'helicopter'], true],
+          'all',
+          ['!', ['to-boolean', ['get', 'military']]],
+          ['!', ['to-boolean', ['get', 'helicopter']]],
         ]);
-        // Military airplanes: military AND not helicopter
         addSymbolLayer(LAYER_MIL_PLANE, IMG_MIL_PLANE, 0.85, [
-          'all', ['==', ['get', 'military'], true], ['!=', ['get', 'helicopter'], true],
+          'all',
+          ['to-boolean', ['get', 'military']],
+          ['!', ['to-boolean', ['get', 'helicopter']]],
         ]);
-        // Civilian helicopters: not military AND helicopter
         addSymbolLayer(LAYER_CIV_HELI, IMG_CIV_HELI, 0.7, [
-          'all', ['!=', ['get', 'military'], true], ['==', ['get', 'helicopter'], true],
+          'all',
+          ['!', ['to-boolean', ['get', 'military']]],
+          ['to-boolean', ['get', 'helicopter']],
         ]);
-        // Military helicopters: military AND helicopter
         addSymbolLayer(LAYER_MIL_HELI, IMG_MIL_HELI, 0.85, [
-          'all', ['==', ['get', 'military'], true], ['==', ['get', 'helicopter'], true],
+          'all',
+          ['to-boolean', ['get', 'military']],
+          ['to-boolean', ['get', 'helicopter']],
         ]);
 
-        setupDone.current = true;
+        if (!cancelled) setReady(true);
       } catch (err) {
         console.error('AircraftLayer setup error:', err);
       }
@@ -150,22 +158,23 @@ export default function AircraftLayer({ data, mapRef }) {
     setup();
 
     return () => {
+      cancelled = true;
       removePopup();
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(AIRCRAFT_SOURCE)) mapRef.removeSource(AIRCRAFT_SOURCE); } catch {}
       ALL_IMAGES.forEach((i) => { try { if (mapRef.hasImage(i)) mapRef.removeImage(i); } catch {} });
-      setupDone.current = false;
+      setReady(false);
     };
   }, [mapRef, removePopup, aircraftOpacity]);
 
-  // Update data source when data changes
+  // Update data source when data changes — depends on ready state
   useEffect(() => {
-    if (!mapRef || !setupDone.current) return;
+    if (!mapRef || !ready) return;
     const src = mapRef.getSource(AIRCRAFT_SOURCE);
     if (src) {
       src.setData(data || { type: 'FeatureCollection', features: [] });
     }
-  }, [mapRef, data]);
+  }, [mapRef, data, ready]);
 
   // Update opacity
   useEffect(() => {
@@ -198,7 +207,6 @@ export default function AircraftLayer({ data, mapRef }) {
         ? `<span style="color:#ef4444;font-weight:bold">${props.squawk} (${emergencySquawk})</span>`
         : (props.squawk || 'N/A');
 
-      const typeLabel = isHeli ? 'Helicopter' : 'Aircraft';
       const html = `
         <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:180px">
           <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${isMil ? '#f59e0b' : '#fff'}">
@@ -295,7 +303,7 @@ export function AircraftLegend({ count }) {
           <svg width="16" height="16" viewBox="0 0 48 48">
             <path d={PLANE_PATH} fill="#f59e0b" stroke="#000" strokeWidth="1"/>
           </svg>
-          <span className="text-amber-400">{lang === 'no' ? 'Militær' : 'Military'}</span>
+          <span className="text-amber-400">{lang === 'no' ? 'Militaer' : 'Military'}</span>
         </div>
         <div className="flex items-center gap-2">
           <svg width="16" height="16" viewBox="0 0 48 48">
