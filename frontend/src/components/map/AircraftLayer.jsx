@@ -2,17 +2,40 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 
 const AIRCRAFT_SOURCE = 'aircraft-data';
-const CIVILIAN_LAYER = 'aircraft-civilian';
-const MILITARY_LAYER = 'aircraft-military';
-const CIVILIAN_IMAGE = 'aircraft-icon-civilian';
-const MILITARY_IMAGE = 'aircraft-icon-military';
+const LAYER_CIV_PLANE = 'aircraft-civ-plane';
+const LAYER_MIL_PLANE = 'aircraft-mil-plane';
+const LAYER_CIV_HELI = 'aircraft-civ-heli';
+const LAYER_MIL_HELI = 'aircraft-mil-heli';
+const IMG_CIV_PLANE = 'img-civ-plane';
+const IMG_MIL_PLANE = 'img-mil-plane';
+const IMG_CIV_HELI = 'img-civ-heli';
+const IMG_MIL_HELI = 'img-mil-heli';
 
-// Create airplane SVG as data URL
-function createAircraftSvg(color) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <path d="M16 2 L14 12 L4 16 L14 17 L14 26 L10 28 L10 30 L16 29 L22 30 L22 28 L18 26 L18 17 L28 16 L18 12 Z"
-      fill="${color}" stroke="#000" stroke-width="0.5"/>
+const ALL_LAYERS = [LAYER_CIV_PLANE, LAYER_MIL_PLANE, LAYER_CIV_HELI, LAYER_MIL_HELI];
+const ALL_IMAGES = [IMG_CIV_PLANE, IMG_MIL_PLANE, IMG_CIV_HELI, IMG_MIL_HELI];
+
+// Top-down airplane silhouette (pointing up)
+function createPlaneSvg(fill, stroke = '#000') {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+    <g fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round">
+      <path d="M24 3 L22 16 L8 22 L8 25 L22 23 L22 37 L17 40 L17 43 L24 41 L31 43 L31 40 L26 37 L26 23 L40 25 L40 22 L26 16 Z"/>
+    </g>
   </svg>`;
+}
+
+// Top-down helicopter silhouette (pointing up) with rotor
+function createHeliSvg(fill, stroke = '#000') {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+    <g fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round">
+      <path d="M24 6 L22.5 18 L19 20 L19 30 L22 32 L22 38 L17 42 L17 44 L24 42 L31 44 L31 42 L26 38 L26 32 L29 30 L29 20 L25.5 18 Z"/>
+      <line x1="6" y1="10" x2="42" y2="10" stroke="${fill}" stroke-width="2.5"/>
+      <line x1="6" y1="10" x2="42" y2="10" stroke="${stroke}" stroke-width="1"/>
+      <circle cx="24" cy="10" r="2.5" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+    </g>
+  </svg>`;
+}
+
+function svgToDataUrl(svg) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -32,101 +55,124 @@ function formatSpeed(kts) {
 
 const EMERGENCY_SQUAWKS = { '7500': 'HIJACK', '7600': 'RADIO FAILURE', '7700': 'EMERGENCY' };
 
+function loadImage(src, size) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(size, size);
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 export default function AircraftLayer({ data, mapRef }) {
   const popupRef = useRef(null);
+  const setupDone = useRef(false);
   const aircraftOpacity = useMapStore((s) => s.aircraftOpacity);
 
   const removePopup = useCallback(() => {
     if (popupRef.current) {
+      if (popupRef.current._cleanup) popupRef.current._cleanup();
       popupRef.current.remove();
       popupRef.current = null;
     }
   }, []);
 
+  // Load images and create source + layers once
   useEffect(() => {
-    if (!mapRef) return;
+    if (!mapRef || setupDone.current) return;
 
-    // Load aircraft images
-    const civImg = new Image(32, 32);
-    civImg.src = createAircraftSvg('#ffffff');
-    civImg.onload = () => {
-      if (!mapRef.hasImage(CIVILIAN_IMAGE)) mapRef.addImage(CIVILIAN_IMAGE, civImg);
+    const setup = async () => {
+      try {
+        const [civPlane, milPlane, civHeli, milHeli] = await Promise.all([
+          loadImage(svgToDataUrl(createPlaneSvg('#ffffff')), 48),
+          loadImage(svgToDataUrl(createPlaneSvg('#f59e0b')), 48),
+          loadImage(svgToDataUrl(createHeliSvg('#ffffff')), 48),
+          loadImage(svgToDataUrl(createHeliSvg('#f59e0b')), 48),
+        ]);
+
+        if (!mapRef.hasImage(IMG_CIV_PLANE)) mapRef.addImage(IMG_CIV_PLANE, civPlane);
+        if (!mapRef.hasImage(IMG_MIL_PLANE)) mapRef.addImage(IMG_MIL_PLANE, milPlane);
+        if (!mapRef.hasImage(IMG_CIV_HELI)) mapRef.addImage(IMG_CIV_HELI, civHeli);
+        if (!mapRef.hasImage(IMG_MIL_HELI)) mapRef.addImage(IMG_MIL_HELI, milHeli);
+
+        if (!mapRef.getSource(AIRCRAFT_SOURCE)) {
+          mapRef.addSource(AIRCRAFT_SOURCE, {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          });
+        }
+
+        const addSymbolLayer = (id, image, size, filter) => {
+          if (!mapRef.getLayer(id)) {
+            mapRef.addLayer({
+              id,
+              type: 'symbol',
+              source: AIRCRAFT_SOURCE,
+              filter,
+              layout: {
+                'icon-image': image,
+                'icon-size': size,
+                'icon-rotate': ['coalesce', ['get', 'track'], 0],
+                'icon-rotation-alignment': 'map',
+                'icon-allow-overlap': true,
+                'icon-ignore-placement': true,
+              },
+              paint: {
+                'icon-opacity': aircraftOpacity,
+              },
+            });
+          }
+        };
+
+        // Civilian airplanes: not military AND not helicopter
+        addSymbolLayer(LAYER_CIV_PLANE, IMG_CIV_PLANE, 0.7, [
+          'all', ['!=', ['get', 'military'], true], ['!=', ['get', 'helicopter'], true],
+        ]);
+        // Military airplanes: military AND not helicopter
+        addSymbolLayer(LAYER_MIL_PLANE, IMG_MIL_PLANE, 0.85, [
+          'all', ['==', ['get', 'military'], true], ['!=', ['get', 'helicopter'], true],
+        ]);
+        // Civilian helicopters: not military AND helicopter
+        addSymbolLayer(LAYER_CIV_HELI, IMG_CIV_HELI, 0.7, [
+          'all', ['!=', ['get', 'military'], true], ['==', ['get', 'helicopter'], true],
+        ]);
+        // Military helicopters: military AND helicopter
+        addSymbolLayer(LAYER_MIL_HELI, IMG_MIL_HELI, 0.85, [
+          'all', ['==', ['get', 'military'], true], ['==', ['get', 'helicopter'], true],
+        ]);
+
+        setupDone.current = true;
+      } catch (err) {
+        console.error('AircraftLayer setup error:', err);
+      }
     };
 
-    const milImg = new Image(32, 32);
-    milImg.src = createAircraftSvg('#f59e0b');
-    milImg.onload = () => {
-      if (!mapRef.hasImage(MILITARY_IMAGE)) mapRef.addImage(MILITARY_IMAGE, milImg);
-    };
+    setup();
 
     return () => {
       removePopup();
-      try { if (mapRef.getLayer(MILITARY_LAYER)) mapRef.removeLayer(MILITARY_LAYER); } catch {}
-      try { if (mapRef.getLayer(CIVILIAN_LAYER)) mapRef.removeLayer(CIVILIAN_LAYER); } catch {}
+      ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(AIRCRAFT_SOURCE)) mapRef.removeSource(AIRCRAFT_SOURCE); } catch {}
-      try { if (mapRef.hasImage(CIVILIAN_IMAGE)) mapRef.removeImage(CIVILIAN_IMAGE); } catch {}
-      try { if (mapRef.hasImage(MILITARY_IMAGE)) mapRef.removeImage(MILITARY_IMAGE); } catch {}
+      ALL_IMAGES.forEach((i) => { try { if (mapRef.hasImage(i)) mapRef.removeImage(i); } catch {} });
+      setupDone.current = false;
     };
-  }, [mapRef, removePopup]);
+  }, [mapRef, removePopup, aircraftOpacity]);
 
-  // Update data source
+  // Update data source when data changes
   useEffect(() => {
-    if (!mapRef) return;
-
-    const geojson = data || { type: 'FeatureCollection', features: [] };
-
-    if (mapRef.getSource(AIRCRAFT_SOURCE)) {
-      mapRef.getSource(AIRCRAFT_SOURCE).setData(geojson);
-    } else {
-      mapRef.addSource(AIRCRAFT_SOURCE, { type: 'geojson', data: geojson });
-
-      // Civilian layer
-      mapRef.addLayer({
-        id: CIVILIAN_LAYER,
-        type: 'symbol',
-        source: AIRCRAFT_SOURCE,
-        filter: ['!=', ['get', 'military'], true],
-        layout: {
-          'icon-image': CIVILIAN_IMAGE,
-          'icon-size': 0.6,
-          'icon-rotate': ['coalesce', ['get', 'track'], 0],
-          'icon-rotation-alignment': 'map',
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-        paint: {
-          'icon-opacity': aircraftOpacity,
-        },
-      });
-
-      // Military layer (slightly larger)
-      mapRef.addLayer({
-        id: MILITARY_LAYER,
-        type: 'symbol',
-        source: AIRCRAFT_SOURCE,
-        filter: ['==', ['get', 'military'], true],
-        layout: {
-          'icon-image': MILITARY_IMAGE,
-          'icon-size': 0.75,
-          'icon-rotate': ['coalesce', ['get', 'track'], 0],
-          'icon-rotation-alignment': 'map',
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-        paint: {
-          'icon-opacity': aircraftOpacity,
-        },
-      });
+    if (!mapRef || !setupDone.current) return;
+    const src = mapRef.getSource(AIRCRAFT_SOURCE);
+    if (src) {
+      src.setData(data || { type: 'FeatureCollection', features: [] });
     }
-  }, [mapRef, data, aircraftOpacity]);
+  }, [mapRef, data]);
 
   // Update opacity
   useEffect(() => {
     if (!mapRef) return;
-    try {
-      if (mapRef.getLayer(CIVILIAN_LAYER)) mapRef.setPaintProperty(CIVILIAN_LAYER, 'icon-opacity', aircraftOpacity);
-      if (mapRef.getLayer(MILITARY_LAYER)) mapRef.setPaintProperty(MILITARY_LAYER, 'icon-opacity', aircraftOpacity);
-    } catch {}
+    ALL_LAYERS.forEach((l) => {
+      try { if (mapRef.getLayer(l)) mapRef.setPaintProperty(l, 'icon-opacity', aircraftOpacity); } catch {}
+    });
   }, [mapRef, aircraftOpacity]);
 
   // Click handler for popups
@@ -134,27 +180,31 @@ export default function AircraftLayer({ data, mapRef }) {
     if (!mapRef) return;
 
     const handleClick = (e) => {
-      const features = mapRef.queryRenderedFeatures(e.point, {
-        layers: [CIVILIAN_LAYER, MILITARY_LAYER].filter((l) => mapRef.getLayer(l)),
-      });
+      const activeLayers = ALL_LAYERS.filter((l) => { try { return !!mapRef.getLayer(l); } catch { return false; } });
+      if (activeLayers.length === 0) return;
+
+      const features = mapRef.queryRenderedFeatures(e.point, { layers: activeLayers });
 
       removePopup();
-
       if (features.length === 0) return;
 
       const props = features[0].properties;
       const coords = features[0].geometry.coordinates.slice();
+      const isMil = props.military === true || props.military === 'true';
+      const isHeli = props.helicopter === true || props.helicopter === 'true';
 
       const emergencySquawk = EMERGENCY_SQUAWKS[props.squawk];
       const squawkHtml = emergencySquawk
         ? `<span style="color:#ef4444;font-weight:bold">${props.squawk} (${emergencySquawk})</span>`
         : (props.squawk || 'N/A');
 
+      const typeLabel = isHeli ? 'Helicopter' : 'Aircraft';
       const html = `
         <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:180px">
-          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${props.military === true || props.military === 'true' ? '#f59e0b' : '#fff'}">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${isMil ? '#f59e0b' : '#fff'}">
             ${props.callsign || props.registration || props.hex || 'Unknown'}
-            ${props.military === true || props.military === 'true' ? ' <span style="font-size:10px;background:#78350f;padding:1px 4px;border-radius:3px">MIL</span>' : ''}
+            ${isMil ? ' <span style="font-size:10px;background:#78350f;padding:1px 4px;border-radius:3px">MIL</span>' : ''}
+            ${isHeli ? ' <span style="font-size:10px;background:#1e3a5f;padding:1px 4px;border-radius:3px">HELI</span>' : ''}
           </div>
           ${props.type ? `<div><span style="color:#94a3b8">Type:</span> ${props.type}</div>` : ''}
           ${props.registration ? `<div><span style="color:#94a3b8">Reg:</span> ${props.registration}</div>` : ''}
@@ -166,15 +216,6 @@ export default function AircraftLayer({ data, mapRef }) {
         </div>
       `;
 
-      const popup = new mapRef.__proto__.constructor.prototype.constructor
-        ? null : null;
-
-      // Use maplibregl Popup directly
-      const maplibregl = mapRef.getContainer()?.__maplibre_map
-        ? window.maplibregl
-        : null;
-
-      // Create popup element manually since we may not have direct maplibregl reference
       const popupEl = document.createElement('div');
       popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
       popupEl.innerHTML = `
@@ -192,7 +233,6 @@ export default function AircraftLayer({ data, mapRef }) {
       mapRef.getContainer().appendChild(popupEl);
       popupRef.current = popupEl;
 
-      // Update position on map move
       const updatePos = () => {
         try {
           const p = mapRef.project(coords);
@@ -206,32 +246,34 @@ export default function AircraftLayer({ data, mapRef }) {
 
     mapRef.on('click', handleClick);
 
-    // Change cursor on hover
     const onEnter = () => { mapRef.getCanvas().style.cursor = 'pointer'; };
     const onLeave = () => { mapRef.getCanvas().style.cursor = ''; };
-    const layers = [CIVILIAN_LAYER, MILITARY_LAYER];
-    layers.forEach((l) => {
-      if (mapRef.getLayer(l)) {
-        mapRef.on('mouseenter', l, onEnter);
-        mapRef.on('mouseleave', l, onLeave);
-      }
+    ALL_LAYERS.forEach((l) => {
+      try {
+        if (mapRef.getLayer(l)) {
+          mapRef.on('mouseenter', l, onEnter);
+          mapRef.on('mouseleave', l, onLeave);
+        }
+      } catch {}
     });
 
     return () => {
       mapRef.off('click', handleClick);
-      layers.forEach((l) => {
+      ALL_LAYERS.forEach((l) => {
         try {
           mapRef.off('mouseenter', l, onEnter);
           mapRef.off('mouseleave', l, onLeave);
         } catch {}
       });
-      if (popupRef.current?._cleanup) popupRef.current._cleanup();
       removePopup();
     };
   }, [mapRef, removePopup]);
 
   return null;
 }
+
+// Airplane icon for legend
+const PLANE_PATH = 'M24 3 L22 16 L8 22 L8 25 L22 23 L22 37 L17 40 L17 43 L24 41 L31 43 L31 40 L26 37 L26 23 L40 25 L40 22 L26 16 Z';
 
 export function AircraftLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
@@ -244,18 +286,24 @@ export function AircraftLegend({ count }) {
       </div>
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 32 32">
-            <path d="M16 2 L14 12 L4 16 L14 17 L14 26 L10 28 L10 30 L16 29 L22 30 L22 28 L18 26 L18 17 L28 16 L18 12 Z"
-              fill="#ffffff" stroke="#000" strokeWidth="0.5"/>
+          <svg width="16" height="16" viewBox="0 0 48 48">
+            <path d={PLANE_PATH} fill="#ffffff" stroke="#000" strokeWidth="1"/>
           </svg>
           <span className="text-slate-300">{lang === 'no' ? 'Sivil' : 'Civilian'}</span>
         </div>
         <div className="flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 32 32">
-            <path d="M16 2 L14 12 L4 16 L14 17 L14 26 L10 28 L10 30 L16 29 L22 30 L22 28 L18 26 L18 17 L28 16 L18 12 Z"
-              fill="#f59e0b" stroke="#000" strokeWidth="0.5"/>
+          <svg width="16" height="16" viewBox="0 0 48 48">
+            <path d={PLANE_PATH} fill="#f59e0b" stroke="#000" strokeWidth="1"/>
           </svg>
           <span className="text-amber-400">{lang === 'no' ? 'Militær' : 'Military'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 48 48">
+            <path d="M24 6 L22.5 18 L19 20 L19 30 L22 32 L22 38 L17 42 L17 44 L24 42 L31 44 L31 42 L26 38 L26 32 L29 30 L29 20 L25.5 18 Z" fill="#ffffff" stroke="#000" strokeWidth="1"/>
+            <line x1="6" y1="10" x2="42" y2="10" stroke="#ffffff" strokeWidth="2.5"/>
+            <circle cx="24" cy="10" r="2.5" fill="#ffffff" stroke="#000" strokeWidth="1"/>
+          </svg>
+          <span className="text-slate-300">{lang === 'no' ? 'Helikopter' : 'Helicopter'}</span>
         </div>
       </div>
     </div>

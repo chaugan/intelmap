@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
-    const radius = Math.min(parseInt(req.query.radius) || 100, 250);
+    const radius = Math.min(Math.max(parseInt(req.query.radius) || 100, 1), 250);
 
     if (isNaN(lat) || isNaN(lon)) {
       return res.status(400).json({ error: 'lat and lon are required' });
@@ -36,6 +36,7 @@ router.get('/', async (req, res) => {
     const url = `https://api.airplanes.live/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${radius}`;
     const response = await fetch(url, {
       headers: { 'User-Agent': 'IntelMap/1.0' },
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`Airplanes.live ${response.status}`);
     const data = await response.json();
@@ -48,27 +49,31 @@ router.get('/', async (req, res) => {
       },
       features: (data.ac || [])
         .filter((ac) => ac.lat != null && ac.lon != null)
-        .map((ac) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [ac.lon, ac.lat],
-          },
-          properties: {
-            hex: ac.hex || null,
-            callsign: (ac.flight || '').trim() || null,
-            registration: ac.r || null,
-            type: ac.t || null,
-            altBaro: ac.alt_baro ?? null,
-            groundSpeed: ac.gs ?? null,
-            track: ac.track ?? null,
-            squawk: ac.squawk || null,
-            military: !!(ac.dbFlags & 1),
-            onGround: ac.alt_baro === 'ground',
-            emergency: ac.emergency || null,
-            category: ac.category || null,
-          },
-        })),
+        .map((ac) => {
+          const dbFlags = typeof ac.dbFlags === 'number' ? ac.dbFlags : 0;
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [ac.lon, ac.lat],
+            },
+            properties: {
+              hex: ac.hex || null,
+              callsign: (ac.flight || '').trim() || null,
+              registration: ac.r || null,
+              type: ac.t || null,
+              altBaro: ac.alt_baro ?? null,
+              groundSpeed: ac.gs ?? null,
+              track: ac.track ?? null,
+              squawk: ac.squawk || null,
+              military: !!(dbFlags & 1),
+              helicopter: ac.category === 'A7',
+              onGround: ac.alt_baro === 'ground',
+              emergency: ac.emergency || null,
+              category: ac.category || null,
+            },
+          };
+        }),
     };
 
     cache.set(cacheKey, { data: geojson, time: Date.now() });
@@ -80,6 +85,7 @@ router.get('/', async (req, res) => {
 
     res.json(geojson);
   } catch (err) {
+    console.error('Aircraft API error:', err.message);
     res.status(502).json({ error: err.message });
   }
 });
