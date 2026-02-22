@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../stores/useMapStore.js';
 
-const REFRESH_INTERVAL = 10000; // 10 seconds
-const DEBOUNCE_DELAY = 2000; // 2 seconds
+const REFRESH_INTERVAL = 15000; // 15 seconds
+const DEBOUNCE_DELAY = 3000; // 3 seconds after viewport stops moving
 
 export function useAircraft(visible) {
   const [data, setData] = useState(null);
@@ -11,8 +11,12 @@ export function useAircraft(visible) {
   const intervalRef = useRef(null);
   const debounceRef = useRef(null);
   const boundsRef = useRef(null);
+  const fetchingRef = useRef(false);
 
   const fetchData = useCallback(async () => {
+    // Prevent overlapping requests
+    if (fetchingRef.current) return;
+
     const bounds = useMapStore.getState().bounds;
     if (!bounds) return;
 
@@ -23,10 +27,11 @@ export function useAircraft(visible) {
     const latSpan = bounds.north - bounds.south;
     const lonSpan = bounds.east - bounds.west;
     const avgLat = lat * (Math.PI / 180);
-    const latDist = latSpan * 60; // 1 deg lat ≈ 60 NM
+    const latDist = latSpan * 60; // 1 deg lat ~ 60 NM
     const lonDist = lonSpan * 60 * Math.cos(avgLat);
     const radiusNm = Math.min(Math.ceil(Math.max(latDist, lonDist) / 2), 250);
 
+    fetchingRef.current = true;
     setLoading(true);
     try {
       const res = await fetch(`/api/aircraft?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&radius=${radiusNm}`);
@@ -38,6 +43,7 @@ export function useAircraft(visible) {
       console.error('Aircraft fetch error:', err);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, []);
 
