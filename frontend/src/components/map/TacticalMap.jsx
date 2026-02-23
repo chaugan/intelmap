@@ -10,6 +10,7 @@ import { t } from '../../lib/i18n.js';
 import NatoMarkerLayer from './NatoMarkerLayer.jsx';
 import WebcamLayer from './WebcamLayer.jsx';
 import WindOverlay, { WindLegend } from './WindOverlay.jsx';
+import SunlightOverlay, { SunlightLegend } from './SunlightOverlay.jsx';
 import DrawingLayer from './DrawingLayer.jsx';
 import ContextMenu from './ContextMenu.jsx';
 import DraggablePopup from './DraggablePopup.jsx';
@@ -30,6 +31,7 @@ export default function TacticalMap() {
   const baseLayer = useMapStore((s) => s.baseLayer);
   const webcamsVisible = useMapStore((s) => s.webcamsVisible);
   const windVisible = useMapStore((s) => s.windVisible);
+  const sunlightVisible = useMapStore((s) => s.sunlightVisible);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
   const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
   const avalancheWarningsOpacity = useMapStore((s) => s.avalancheWarningsOpacity);
@@ -418,13 +420,14 @@ export default function TacticalMap() {
         </svg>
       )}
 
+      {sunlightVisible && <SunlightOverlay />}
       {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
       {windVisible && <WindOverlay />}
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || sunlightVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
           {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading) && (
             <div className="flex flex-col items-end gap-1">
@@ -455,6 +458,7 @@ export default function TacticalMap() {
               )}
             </div>
           )}
+          {sunlightVisible && <SunlightLegend lang={lang} />}
           {windVisible && <WindLegend lang={lang} />}
           {snowDepthVisible && <SnowDepthLegend />}
           {avalancheWarningsVisible && <AvalancheWarningsLegend />}

@@ -32,11 +32,17 @@ export const useMapStore = create((set) => ({
   vesselsOpacity: 0.9,
   vesselsFetchedAt: null,
   drawingToolsVisible: false,
+  sunlightVisible: false,
+  sunlightOpacity: 0.5,
+  sunlightDate: new Date().toISOString().slice(0, 10),
+  sunlightTime: 720,
+  sunlightAnimating: false,
+  sunlightAnimationSpeed: 10,
 
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['avalancheWarnings', 'avalanche', 'snowDepth', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -99,6 +105,12 @@ export const useMapStore = create((set) => ({
     }
     return { overlayOrder: order };
   }),
+  toggleSunlight: () => set((s) => ({ sunlightVisible: !s.sunlightVisible, ...(s.sunlightVisible ? { sunlightAnimating: false } : {}) })),
+  setSunlightOpacity: (sunlightOpacity) => set({ sunlightOpacity }),
+  setSunlightDate: (sunlightDate) => set({ sunlightDate }),
+  setSunlightTime: (sunlightTime) => set({ sunlightTime }),
+  toggleSunlightAnimation: () => set((s) => ({ sunlightAnimating: !s.sunlightAnimating })),
+  setSunlightAnimationSpeed: (sunlightAnimationSpeed) => set({ sunlightAnimationSpeed }),
   toggleDrawingTools: () => set((s) => ({ drawingToolsVisible: !s.drawingToolsVisible })),
   setLang: (lang) => set({ lang }),
   setMapRef: (mapRef) => set({ mapRef }),
@@ -130,6 +142,8 @@ export const useMapStore = create((set) => ({
       ...(parsed.aircraftOpacity !== undefined && { aircraftOpacity: parsed.aircraftOpacity }),
       ...(parsed.vesselsVisible !== undefined && { vesselsVisible: parsed.vesselsVisible }),
       ...(parsed.vesselsOpacity !== undefined && { vesselsOpacity: parsed.vesselsOpacity }),
+      ...(parsed.sunlightVisible !== undefined && { sunlightVisible: parsed.sunlightVisible }),
+      ...(parsed.sunlightOpacity !== undefined && { sunlightOpacity: parsed.sunlightOpacity }),
       ...(parsed.overlayOrder !== undefined && { overlayOrder: parsed.overlayOrder }),
     });
   },
@@ -214,6 +228,8 @@ export function getThemeState() {
     aircraftOpacity: s.aircraftOpacity,
     vesselsVisible: s.vesselsVisible,
     vesselsOpacity: s.vesselsOpacity,
+    sunlightVisible: s.sunlightVisible,
+    sunlightOpacity: s.sunlightOpacity,
     overlayOrder: s.overlayOrder,
   };
 }

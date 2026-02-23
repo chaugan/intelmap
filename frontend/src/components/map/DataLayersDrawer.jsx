@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 
 const OVERLAYS = [
+  { id: 'sunlight', toggleKey: 'toggleSunlight', visibleKey: 'sunlightVisible', opacityKey: 'sunlightOpacity', setOpacityKey: 'setSunlightOpacity', accent: 'accent-yellow-500' },
   { id: 'wind', toggleKey: 'toggleWind', visibleKey: 'windVisible', opacityKey: 'windOpacity', setOpacityKey: 'setWindOpacity', accent: 'accent-emerald-500' },
   { id: 'webcams', toggleKey: 'toggleWebcams', visibleKey: 'webcamsVisible', opacityKey: null, setOpacityKey: null, accent: null },
   { id: 'avalanche', toggleKey: 'toggleAvalanche', visibleKey: 'avalancheVisible', opacityKey: null, setOpacityKey: null, accent: null },
@@ -14,6 +15,7 @@ const OVERLAYS = [
 ];
 
 const OVERLAY_LABELS = {
+  sunlight: { no: 'Sollys/Skygge', en: 'Sun/Shadow' },
   wind: { no: 'Vind', en: 'Wind' },
   webcams: { no: 'Webkameraer', en: 'Webcams' },
   snowDepth: { no: 'Snødybde', en: 'Snow Depth' },
@@ -22,6 +24,74 @@ const OVERLAY_LABELS = {
   aircraft: { no: 'Luftfart', en: 'Aircraft' },
   vessels: { no: 'Fartøy', en: 'Vessels' },
 };
+
+function SunlightControls({ lang }) {
+  const sunlightDate = useMapStore((s) => s.sunlightDate);
+  const sunlightTime = useMapStore((s) => s.sunlightTime);
+  const sunlightAnimating = useMapStore((s) => s.sunlightAnimating);
+  const sunlightAnimationSpeed = useMapStore((s) => s.sunlightAnimationSpeed);
+  const setSunlightDate = useMapStore((s) => s.setSunlightDate);
+  const setSunlightTime = useMapStore((s) => s.setSunlightTime);
+  const toggleSunlightAnimation = useMapStore((s) => s.toggleSunlightAnimation);
+  const setSunlightAnimationSpeed = useMapStore((s) => s.setSunlightAnimationSpeed);
+
+  const hours = Math.floor(sunlightTime / 60);
+  const mins = Math.floor(sunlightTime % 60);
+  const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+  return (
+    <div className="ml-8 mt-1 space-y-1.5">
+      {/* Date */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-slate-400 w-8">{lang === 'no' ? 'Dato' : 'Date'}</span>
+        <input
+          type="date"
+          value={sunlightDate}
+          onChange={(e) => setSunlightDate(e.target.value)}
+          className="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-600 rounded text-[11px] text-white focus:outline-none focus:border-yellow-500"
+        />
+      </div>
+      {/* Time slider */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-slate-400 w-8">{lang === 'no' ? 'Tid' : 'Time'}</span>
+        <input
+          type="range"
+          min="0"
+          max="1439"
+          step="1"
+          value={Math.floor(sunlightTime)}
+          onChange={(e) => setSunlightTime(parseInt(e.target.value))}
+          className="flex-1 h-1 accent-yellow-500"
+        />
+        <span className="text-[10px] text-white w-10 text-right font-mono">{timeStr}</span>
+      </div>
+      {/* Play/pause + speed */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={toggleSunlightAnimation}
+          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+            sunlightAnimating ? 'bg-yellow-600 text-white' : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+          }`}
+        >
+          {sunlightAnimating ? '⏸' : '▶'}
+        </button>
+        {[1, 10, 60].map((spd) => (
+          <button
+            key={spd}
+            onClick={() => setSunlightAnimationSpeed(spd)}
+            className={`px-1.5 py-0.5 rounded text-[10px] ${
+              sunlightAnimationSpeed === spd
+                ? 'bg-yellow-600 text-white'
+                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            {spd}x
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function DataLayersDrawer() {
   const lang = useMapStore((s) => s.lang);
@@ -144,6 +214,10 @@ export default function DataLayersDrawer() {
                       />
                       <span className="text-[10px] text-slate-500 w-7 text-right">{Math.round(opacity * 100)}%</span>
                     </div>
+                  )}
+                  {/* Sunlight expanded controls */}
+                  {overlay.id === 'sunlight' && visible && (
+                    <SunlightControls lang={lang} />
                   )}
                 </div>
               );

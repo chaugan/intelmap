@@ -121,6 +121,14 @@ const translations = {
     'aval.above': 'Over',
     'aval.below': 'Under',
 
+    // Sunlight
+    'sunlight': 'Sollys/Skygge',
+    'sunlight.date': 'Dato',
+    'sunlight.time': 'Tid',
+    'sunlight.speed': 'Hastighet',
+    'sunlight.azimuth': 'Solretning',
+    'sunlight.elevation': 'Solhøyde',
+
     // Wind
     'wind.opacity': 'Vindgjennomsiktighet',
     'wind.legend': 'Vind',
@@ -327,6 +335,14 @@ const translations = {
     'aval.cause': 'Cause',
     'aval.above': 'Above',
     'aval.below': 'Below',
+
+    // Sunlight
+    'sunlight': 'Sun/Shadow',
+    'sunlight.date': 'Date',
+    'sunlight.time': 'Time',
+    'sunlight.speed': 'Speed',
+    'sunlight.azimuth': 'Sun direction',
+    'sunlight.elevation': 'Sun elevation',
 
     // Wind
     'wind.opacity': 'Wind opacity',

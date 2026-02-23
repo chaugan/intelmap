@@ -77,6 +77,55 @@ router.get('/avalanche-date', (_req, res) => {
   res.json({ date: null, source: 'NVE / NGU' });
 });
 
+// DEM tile cache (in-memory, key = "z/x/y", max 2000 entries, 24h TTL)
+const demCache = new Map();
+const DEM_CACHE_MAX = 2000;
+const DEM_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function demCacheGet(key) {
+  const entry = demCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > DEM_CACHE_TTL) { demCache.delete(key); return null; }
+  return entry.buf;
+}
+
+function demCacheSet(key, buf) {
+  if (demCache.size >= DEM_CACHE_MAX) {
+    const oldest = demCache.keys().next().value;
+    demCache.delete(oldest);
+  }
+  demCache.set(key, { buf, ts: Date.now() });
+}
+
+// DEM (Terrarium) tile proxy — AWS elevation tiles
+router.get('/dem/:z/:x/:y.png', async (req, res) => {
+  try {
+    const z = parseInt(req.params.z);
+    const x = parseInt(req.params.x);
+    const y = parseInt(req.params.y);
+    const cacheKey = `dem/${z}/${x}/${y}`;
+
+    const cached = demCacheGet(cacheKey);
+    if (cached) {
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(cached);
+    }
+
+    const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).send('DEM tile error');
+
+    const buf = Buffer.from(await response.arrayBuffer());
+    demCacheSet(cacheKey, buf);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch {
+    res.status(502).send('DEM proxy error');
+  }
+});
+
 // Snow depth tile cache (in-memory, key = "z/x/y", max 2000 entries, 1h TTL)
 const snowCache = new Map();
 const SNOW_CACHE_MAX = 2000;

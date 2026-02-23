@@ -11,6 +11,7 @@ export function useKeyboardShortcuts() {
   const toggleAircraft = useMapStore((s) => s.toggleAircraft);
   const toggleVessels = useMapStore((s) => s.toggleVessels);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
+  const toggleSunlight = useMapStore((s) => s.toggleSunlight);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
   const toggleChatDrawer = useMapStore((s) => s.toggleChatDrawer);
@@ -60,6 +61,7 @@ export function useKeyboardShortcuts() {
         case 'f': toggleAircraft(); break;
         case 'b': toggleVessels(); break;
         case 'd': toggleDrawingTools(); break;
+        case 'h': toggleSunlight(); break;
 
         // Panel toggles
         case '1': setActivePanel('layers'); break;
@@ -88,5 +90,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleDrawingTools, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleDrawingTools, toggleSunlight, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }
