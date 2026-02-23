@@ -301,10 +301,13 @@ router.get('/trace/:hex', async (req, res) => {
       }
     }
 
+    // Departure time: Unix seconds of the first point in the current flight
+    const departureTime = trace[flightStart] ? baseTimestamp + trace[flightStart][0] : null;
+
     const geojson = {
       type: 'Feature',
       geometry: { type: 'LineString', coordinates },
-      properties: { hex, pointCount: coordinates.length },
+      properties: { hex, pointCount: coordinates.length, departureTime },
     };
 
     // Evict oldest if at capacity
@@ -357,7 +360,7 @@ router.get('/route/:callsign', async (req, res) => {
     return res.json(cached.data);
   }
 
-  const negResult = { route: null, departure: null, arrival: null };
+  const negResult = { route: null, departure: null, arrival: null, airline: null };
 
   try {
     const apiRes = await fetch(`https://api.adsbdb.com/v0/callsign/${callsign}`, {
@@ -381,7 +384,11 @@ router.get('/route/:callsign', async (req, res) => {
     const arrival = mapAirport(fr.destination);
     const route = (departure?.icao || '?') + '-' + (arrival?.icao || '?');
 
-    const result = { route, departure, arrival };
+    const airline = fr.airline
+      ? { name: fr.airline.name || null, icao: fr.airline.icao || null, iata: fr.airline.iata || null }
+      : null;
+
+    const result = { route, departure, arrival, airline };
     cacheRoute(callsign, result);
     res.json(result);
   } catch (err) {

@@ -52,6 +52,30 @@ function formatSpeed(kts) {
 
 const EMERGENCY_SQUAWKS = { '7500': 'HIJACK', '7600': 'RADIO FAILURE', '7700': 'EMERGENCY' };
 
+// Build/update the compact "SAS · Departed 14:32 UTC" line below route info
+function updateExtraInfo(popupEl) {
+  const airline = popupEl._airlineName;
+  const depTime = popupEl._departureTime;
+  if (!airline && !depTime) return;
+
+  const parts = [];
+  if (airline) parts.push(airline);
+  if (depTime) parts.push(`Departed ${depTime}`);
+
+  let el = popupEl.querySelector('.extra-info');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'extra-info';
+    el.style.cssText = 'margin-top:4px;color:#94a3b8;font-size:11px';
+    // Insert after route-info if it exists, otherwise after trace-status area
+    const routeEl = popupEl.querySelector('.route-info');
+    if (routeEl) {
+      routeEl.parentNode.insertBefore(el, routeEl.nextSibling);
+    }
+  }
+  el.textContent = parts.join(' \u00b7 ');
+}
+
 function removeTrace(map) {
   try { if (map.getLayer(TRACE_LAYER)) map.removeLayer(TRACE_LAYER); } catch {}
   try { if (map.getSource(TRACE_SOURCE)) map.removeSource(TRACE_SOURCE); } catch {}
@@ -72,23 +96,29 @@ async function fetchAndDrawTrace(map, hex, currentCoords) {
     // Remove any previous trace
     removeTrace(map);
 
-    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson });
+    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson, lineMetrics: true });
     map.addLayer({
       id: TRACE_LAYER,
       type: 'line',
       source: TRACE_SOURCE,
       paint: {
-        'line-color': '#d946ef',
-        'line-width': 2.5,
-        'line-opacity': 0.85,
+        'line-gradient': [
+          'interpolate', ['linear'], ['line-progress'],
+          0, '#06b6d4',
+          1, '#f43f5e',
+        ],
+        'line-width': 3,
       },
       layout: {
         'line-cap': 'round',
         'line-join': 'round',
       },
     }, LAYER_RING); // insert before ring layer so trace is below icons
+
+    return geojson;
   } catch (err) {
     console.error('Failed to fetch trace:', err);
+    return null;
   }
 }
 
@@ -428,9 +458,20 @@ export default function AircraftLayer({ data, mapRef }) {
 
       // Fetch and draw trace (fire-and-forget)
       if (props.hex) {
-        fetchAndDrawTrace(mapRef, props.hex, coords).then(() => {
+        fetchAndDrawTrace(mapRef, props.hex, coords).then((geojson) => {
           const statusEl = popupEl.querySelector('.trace-status');
           if (statusEl) statusEl.remove();
+
+          // Show departure time from trace data
+          const depTs = geojson?.properties?.departureTime;
+          if (depTs) {
+            const d = new Date(depTs * 1000);
+            const hh = String(d.getUTCHours()).padStart(2, '0');
+            const mm = String(d.getUTCMinutes()).padStart(2, '0');
+            popupEl._departureTime = `${hh}:${mm} UTC`;
+          }
+          // Update the extra-info line (airline may already be there)
+          updateExtraInfo(popupEl);
         });
       }
 
@@ -458,6 +499,12 @@ export default function AircraftLayer({ data, mapRef }) {
               <div><span style="color:#94a3b8">From:</span> ${fmtAirport(data.departure)}</div>
               <div><span style="color:#94a3b8">To:</span> ${fmtAirport(data.arrival)}</div>
             `;
+
+            // Store airline name for the extra-info line
+            if (data.airline?.name) {
+              popupEl._airlineName = data.airline.name;
+            }
+            updateExtraInfo(popupEl);
           })
           .catch(() => {
             const routeEl = popupEl.querySelector('.route-info');

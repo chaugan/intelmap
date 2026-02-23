@@ -79,15 +79,18 @@ async function fetchAndDrawTrace(map, mmsi, currentCoords) {
 
     removeTrace(map);
 
-    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson });
+    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson, lineMetrics: true });
     map.addLayer({
       id: TRACE_LAYER,
       type: 'line',
       source: TRACE_SOURCE,
       paint: {
-        'line-color': '#d946ef',
-        'line-width': 2.5,
-        'line-opacity': 0.85,
+        'line-gradient': [
+          'interpolate', ['linear'], ['line-progress'],
+          0, '#06b6d4',
+          1, '#f43f5e',
+        ],
+        'line-width': 3,
       },
       layout: {
         'line-cap': 'round',
