@@ -20,8 +20,9 @@ uniform sampler2D u_dem;
 uniform float u_sunAzimuth;
 uniform float u_sunAltitude;
 uniform float u_opacity;
-uniform vec2 u_viewBoundsMin;
-uniform vec2 u_viewBoundsMax;
+uniform vec2 u_viewOrigin;
+uniform vec2 u_viewDx;
+uniform vec2 u_viewDy;
 uniform vec2 u_demBoundsMin;
 uniform vec2 u_demBoundsMax;
 uniform vec2 u_texSize;
@@ -36,8 +37,8 @@ vec2 mercToUV(vec2 merc) {
 }
 
 void main() {
-  // Map screen UV to Mercator coordinates
-  vec2 merc = mix(u_viewBoundsMin, u_viewBoundsMax, v_uv);
+  // Map screen UV to Mercator coordinates (bearing-aware via corner interpolation)
+  vec2 merc = u_viewOrigin + v_uv.x * u_viewDx + v_uv.y * u_viewDy;
 
   // Map to DEM texture UV
   vec2 uv = mercToUV(merc);
@@ -176,8 +177,9 @@ export default function SunlightOverlay() {
       u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
       u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
       u_opacity: gl.getUniformLocation(program, 'u_opacity'),
-      u_viewBoundsMin: gl.getUniformLocation(program, 'u_viewBoundsMin'),
-      u_viewBoundsMax: gl.getUniformLocation(program, 'u_viewBoundsMax'),
+      u_viewOrigin: gl.getUniformLocation(program, 'u_viewOrigin'),
+      u_viewDx: gl.getUniformLocation(program, 'u_viewDx'),
+      u_viewDy: gl.getUniformLocation(program, 'u_viewDy'),
       u_demBoundsMin: gl.getUniformLocation(program, 'u_demBoundsMin'),
       u_demBoundsMax: gl.getUniformLocation(program, 'u_demBoundsMax'),
       u_texSize: gl.getUniformLocation(program, 'u_texSize'),
@@ -307,7 +309,7 @@ export default function SunlightOverlay() {
     const program = programRef.current;
     const u = uniformsRef.current;
     const demB = demBoundsRef.current;
-    if (!gl || !program || !demB || !bounds || !sunPos) return;
+    if (!gl || !program || !demB || !bounds || !sunPos || !mapRef) return;
 
     gl.useProgram(program);
 
@@ -321,9 +323,19 @@ export default function SunlightOverlay() {
     gl.uniform1f(u.u_sunAltitude, sunPos.altitude);
     gl.uniform1f(u.u_opacity, sunlightOpacity);
 
-    // View bounds in Mercator
-    gl.uniform2f(u.u_viewBoundsMin, lonToMerc(bounds.west), latToMerc(bounds.south));
-    gl.uniform2f(u.u_viewBoundsMax, lonToMerc(bounds.east), latToMerc(bounds.north));
+    // View corners in Mercator (bearing-aware via unproject)
+    const mapCanvas = mapRef.getCanvas();
+    const cw = mapCanvas.clientWidth;
+    const ch = mapCanvas.clientHeight;
+    const bl = mapRef.unproject([0, ch]);
+    const br = mapRef.unproject([cw, ch]);
+    const tl = mapRef.unproject([0, 0]);
+    const blM = [lonToMerc(bl.lng), latToMerc(bl.lat)];
+    const brM = [lonToMerc(br.lng), latToMerc(br.lat)];
+    const tlM = [lonToMerc(tl.lng), latToMerc(tl.lat)];
+    gl.uniform2f(u.u_viewOrigin, blM[0], blM[1]);
+    gl.uniform2f(u.u_viewDx, brM[0] - blM[0], brM[1] - blM[1]);
+    gl.uniform2f(u.u_viewDy, tlM[0] - blM[0], tlM[1] - blM[1]);
 
     // DEM bounds in Mercator
     gl.uniform2f(u.u_demBoundsMin, demB.minX, demB.minY);
@@ -333,11 +345,11 @@ export default function SunlightOverlay() {
     gl.uniform2f(u.u_texSize, texSizeRef.current.w, texSizeRef.current.h);
 
     // Approximate meters per texel
-    const centerLat = (bounds.north + bounds.south) / 2;
+    const center = mapRef.getCenter();
     const zoom = Math.min(12, Math.max(1, Math.round(
       Math.log2(360 / (bounds.east - bounds.west))
     )));
-    const mpt = metersPerPixelAtLat(centerLat, zoom);
+    const mpt = metersPerPixelAtLat(center.lat, zoom);
     gl.uniform1f(u.u_metersPerTexel, mpt);
 
     // Draw
@@ -349,7 +361,7 @@ export default function SunlightOverlay() {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  }, [bounds, sunPos, sunlightOpacity]);
+  }, [bounds, sunPos, sunlightOpacity, mapRef]);
 
   // Load DEM tiles on viewport change (debounced)
   useEffect(() => {
@@ -364,6 +376,16 @@ export default function SunlightOverlay() {
   useEffect(() => {
     if (demBoundsRef.current) renderShadow();
   }, [sunPos, sunlightOpacity, renderShadow]);
+
+  // Re-render on map rotation so shadows track the rotated viewport
+  useEffect(() => {
+    if (!mapRef) return;
+    const onRotate = () => {
+      if (demBoundsRef.current) renderShadow();
+    };
+    mapRef.on('rotate', onRotate);
+    return () => mapRef.off('rotate', onRotate);
+  }, [mapRef, renderShadow]);
 
   // --- Animation loop ---
   useEffect(() => {
@@ -452,6 +474,8 @@ export function SunlightLegend({ lang }) {
       time: timeStr,
       azimuth: azDeg.toFixed(0),
       elevation: altDeg.toFixed(1),
+      azDeg,
+      altDeg,
       sunrise: fmt(times.sunrise),
       sunset: fmt(times.sunset),
     };
@@ -459,9 +483,46 @@ export function SunlightLegend({ lang }) {
 
   if (!info) return null;
 
+  // Sun position on polar compass (sky dome viewed from above)
+  const compassR = 30;
+  const compassCx = 40, compassCy = 40;
+  const altForDist = Math.max(0, info.altDeg);
+  const sunDist = ((90 - altForDist) / 90) * compassR;
+  const azRad = info.azDeg * Math.PI / 180;
+  const sunX = compassCx + sunDist * Math.sin(azRad);
+  const sunY = compassCy - sunDist * Math.cos(azRad);
+  const belowHorizon = info.altDeg < 0;
+
   return (
     <div className="bg-slate-800/90 rounded px-2.5 py-1.5 text-[10px] text-slate-300 min-w-[140px]">
       <div className="text-yellow-400 font-semibold mb-0.5">{t('sunlight', lang)}</div>
+      {/* Sun position compass */}
+      <div className="flex justify-center my-1">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          {/* Horizon circle */}
+          <circle cx={compassCx} cy={compassCy} r={compassR} fill="rgba(15,23,42,0.6)" stroke="rgba(100,116,139,0.4)" strokeWidth="1" />
+          {/* Crosshairs */}
+          <line x1={compassCx} y1={compassCy - compassR} x2={compassCx} y2={compassCy + compassR} stroke="rgba(100,116,139,0.15)" strokeWidth="0.5" />
+          <line x1={compassCx - compassR} y1={compassCy} x2={compassCx + compassR} y2={compassCy} stroke="rgba(100,116,139,0.15)" strokeWidth="0.5" />
+          {/* Cardinal labels */}
+          <text x={compassCx} y={compassCy - compassR - 2} textAnchor="middle" fill="#94a3b8" fontSize="7" fontWeight="bold">N</text>
+          <text x={compassCx + compassR + 6} y={compassCy + 2} textAnchor="middle" fill="#64748b" fontSize="6">E</text>
+          <text x={compassCx} y={compassCy + compassR + 8} textAnchor="middle" fill="#64748b" fontSize="6">S</text>
+          <text x={compassCx - compassR - 6} y={compassCy + 2} textAnchor="middle" fill="#64748b" fontSize="6">W</text>
+          {/* Sun direction line */}
+          <line x1={compassCx} y1={compassCy} x2={sunX} y2={sunY}
+            stroke="#fbbf24" strokeWidth="1" opacity={belowHorizon ? 0.2 : 0.5} />
+          {/* Sun dot + glow */}
+          {belowHorizon ? (
+            <circle cx={sunX} cy={sunY} r="3" fill="#64748b" opacity="0.4" />
+          ) : (
+            <>
+              <circle cx={sunX} cy={sunY} r="4" fill="#fbbf24" />
+              <circle cx={sunX} cy={sunY} r="7" fill="none" stroke="#fbbf24" strokeWidth="0.5" opacity="0.3" />
+            </>
+          )}
+        </svg>
+      </div>
       <div className="flex justify-between gap-3">
         <span>{t('sunlight.date', lang)}</span>
         <span className="text-white font-mono">{info.date}</span>
