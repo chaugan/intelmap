@@ -4,14 +4,14 @@ import { BASE_LAYERS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const OVERLAY_IDS = ['wind', 'snowDepth', 'avalanche', 'avalancheWarnings', 'aircraft'];
+const OVERLAY_IDS = ['wind', 'snowDepth', 'avalanche', 'avalancheWarnings', 'aircraft', 'vessels'];
 const OVERLAY_LABELS = {
   wind: { no: 'Vind', en: 'Wind' },
-  snowDepth: { no: 'Snødybde', en: 'Snow Depth' },
+  snowDepth: { no: 'Sn\u00f8dybde', en: 'Snow Depth' },
   avalanche: { no: 'Skredterreng', en: 'Aval. Terrain' },
   avalancheWarnings: { no: 'Skredvarsel', en: 'Aval. Warnings' },
   aircraft: { no: 'Luftfart', en: 'Aircraft' },
-
+  vessels: { no: 'Fart\u00f8y', en: 'Vessels' },
 };
 
 export default function MapControls() {
@@ -40,6 +40,10 @@ export default function MapControls() {
   const toggleAircraft = useMapStore((s) => s.toggleAircraft);
   const aircraftOpacity = useMapStore((s) => s.aircraftOpacity);
   const setAircraftOpacity = useMapStore((s) => s.setAircraftOpacity);
+  const vesselsVisible = useMapStore((s) => s.vesselsVisible);
+  const toggleVessels = useMapStore((s) => s.toggleVessels);
+  const vesselsOpacity = useMapStore((s) => s.vesselsOpacity);
+  const setVesselsOpacity = useMapStore((s) => s.setVesselsOpacity);
   const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
   const activePanel = useMapStore((s) => s.activePanel);
@@ -95,7 +99,7 @@ export default function MapControls() {
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
 
   // Count active weather overlays for z-order button
-  const visibilityMap = { wind: windVisible, snowDepth: snowDepthVisible, avalanche: avalancheVisible, avalancheWarnings: avalancheWarningsVisible, aircraft: aircraftVisible };
+  const visibilityMap = { wind: windVisible, snowDepth: snowDepthVisible, avalanche: avalancheVisible, avalancheWarnings: avalancheWarningsVisible, aircraft: aircraftVisible, vessels: vesselsVisible };
   const activeOverlays = OVERLAY_IDS.filter((id) => visibilityMap[id]);
   const activeCount = activeOverlays.length;
 
@@ -194,6 +198,19 @@ export default function MapControls() {
           onChange={(e) => setAircraftOpacity(parseFloat(e.target.value))}
           className="w-16 h-1 accent-amber-500"
           title={lang === 'no' ? 'Luftfart gjennomsiktighet' : 'Aircraft opacity'}
+        />
+      )}
+      <ToggleButton active={vesselsVisible} onClick={toggleVessels} label={t('layer.vessels', lang)} shortcut="B" />
+      {vesselsVisible && (
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={vesselsOpacity}
+          onChange={(e) => setVesselsOpacity(parseFloat(e.target.value))}
+          className="w-16 h-1 accent-cyan-500"
+          title={lang === 'no' ? 'Fart\u00f8y gjennomsiktighet' : 'Vessel opacity'}
         />
       )}
 

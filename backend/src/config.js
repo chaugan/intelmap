@@ -37,4 +37,26 @@ export function getGoogleMapsApiKey() {
   return process.env.GOOGLE_MAPS_API_KEY || '';
 }
 
+export function getBarentsWatchClientId() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_id'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.BARENTSWATCH_CLIENT_ID || '';
+}
+
+export function getBarentsWatchClientSecret() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_secret'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.BARENTSWATCH_CLIENT_SECRET || '';
+}
+
 export default config;

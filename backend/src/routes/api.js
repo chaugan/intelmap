@@ -13,6 +13,7 @@ import groupsRouter from './groups.js';
 import streetviewRouter from './streetview.js';
 import avalancheWarningsRouter from './avalanche-warnings.js';
 import aircraftRouter from './aircraft.js';
+import aisRouter from './ais.js';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/groups', groupsRouter);
 router.use('/streetview', streetviewRouter);
 router.use('/avalanche-warnings', avalancheWarningsRouter);
 router.use('/aircraft', aircraftRouter);
+router.use('/ais', aisRouter);
 
 export default router;

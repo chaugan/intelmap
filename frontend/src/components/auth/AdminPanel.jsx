@@ -35,6 +35,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'maps'} onClick={() => setActiveTab('maps')}>
                 {lang === 'no' ? 'Kart' : 'Maps'}
               </TabButton>
+              <TabButton active={activeTab === 'ais'} onClick={() => setActiveTab('ais')}>
+                AIS
+              </TabButton>
             </div>
           </div>
           <button onClick={() => setAdminPanelOpen(false)} className="text-slate-400 hover:text-white">
@@ -49,6 +52,7 @@ export default function AdminPanel() {
           {activeTab === 'groups' && <GroupsTab lang={lang} />}
           {activeTab === 'ai' && <AiConfigTab lang={lang} />}
           {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
+          {activeTab === 'ais' && <AisConfigTab lang={lang} />}
         </div>
       </div>
     </div>
@@ -631,6 +635,130 @@ function MapsConfigTab({ lang }) {
             className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
           >
             {lang === 'no' ? 'Fjern API-n\u00f8kkel' : 'Remove API key'}
+          </button>
+        )}
+
+        {status && <p className="text-emerald-400 text-sm">{status}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- AIS Config Tab ---
+function AisConfigTab({ lang }) {
+  const [config, setConfig] = useState(null);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/ais-config`, { credentials: 'include' });
+      if (res.ok) setConfig(await res.json());
+    } catch {}
+  }
+
+  async function saveCredentials(e) {
+    e.preventDefault();
+    setError(''); setStatus('');
+    if (!clientId.trim() && !clientSecret.trim()) return;
+    try {
+      const body = {};
+      if (clientId.trim()) body.clientId = clientId.trim();
+      if (clientSecret.trim()) body.clientSecret = clientSecret.trim();
+      const res = await fetch(`${API}/ais-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(body),
+      });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setClientId(''); setClientSecret('');
+      setStatus(lang === 'no' ? 'Legitimasjon lagret' : 'Credentials saved');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function removeCredentials() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/ais-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'Legitimasjon fjernet' : 'Credentials removed');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-amber-400">
+          {lang === 'no' ? 'AIS-konfigurasjon (BarentsWatch)' : 'AIS Configuration (BarentsWatch)'}
+        </h3>
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'Brukes for sanntids AIS-fart\u00f8ysporing. Krever BarentsWatch API-tilgang med AIS-omr\u00e5de.'
+            : 'Used for real-time AIS vessel tracking. Requires BarentsWatch API access with AIS scope.'}
+        </p>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">Client ID:</span>
+          <span className={config.hasClientId ? 'text-emerald-400' : 'text-red-400'}>
+            {config.hasClientId
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">Client Secret:</span>
+          <span className={config.hasClientSecret ? 'text-emerald-400' : 'text-red-400'}>
+            {config.hasClientSecret
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          </span>
+        </div>
+
+        <form onSubmit={saveCredentials} className="space-y-2">
+          <label className="block text-xs text-slate-400">
+            {config.hasClientId && config.hasClientSecret
+              ? (lang === 'no' ? 'Erstatt legitimasjon' : 'Replace credentials')
+              : (lang === 'no' ? 'Sett legitimasjon' : 'Set credentials')}
+          </label>
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            placeholder="Client ID"
+            className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+          />
+          <input
+            type="password"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            placeholder="Client Secret"
+            className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+          />
+          <button
+            type="submit"
+            disabled={!clientId.trim() && !clientSecret.trim()}
+            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+          >
+            {t('general.save', lang)}
+          </button>
+        </form>
+
+        {(config.hasClientId || config.hasClientSecret) && (
+          <button
+            onClick={removeCredentials}
+            className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
+          >
+            {lang === 'no' ? 'Fjern legitimasjon' : 'Remove credentials'}
           </button>
         )}
 

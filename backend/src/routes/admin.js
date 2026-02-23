@@ -187,4 +187,45 @@ router.delete('/maps-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- AIS Configuration ---
+
+// Get AIS config (whether BarentsWatch credentials are set)
+router.get('/ais-config', (req, res) => {
+  const db = getDb();
+  const idRow = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_id'").get();
+  const secretRow = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_secret'").get();
+  res.json({
+    hasClientId: !!(idRow?.value),
+    hasClientSecret: !!(secretRow?.value),
+  });
+});
+
+// Set BarentsWatch credentials
+router.put('/ais-config', (req, res) => {
+  const { clientId, clientSecret } = req.body;
+
+  const db = getDb();
+  if (clientId && typeof clientId === 'string' && clientId.trim().length >= 1) {
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('barentswatch_client_id', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(clientId.trim());
+  }
+  if (clientSecret && typeof clientSecret === 'string' && clientSecret.trim().length >= 1) {
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('barentswatch_client_secret', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(clientSecret.trim());
+  }
+
+  res.json({ ok: true });
+});
+
+// Remove BarentsWatch credentials
+router.delete('/ais-config', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key IN ('barentswatch_client_id', 'barentswatch_client_secret')").run();
+  res.json({ ok: true });
+});
+
 export default router;

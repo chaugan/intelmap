@@ -16,6 +16,8 @@ export default function DataFreshness() {
   const avalancheWarningsFetchedAt = useMapStore((s) => s.avalancheWarningsFetchedAt);
   const aircraftVisible = useMapStore((s) => s.aircraftVisible);
   const aircraftFetchedAt = useMapStore((s) => s.aircraftFetchedAt);
+  const vesselsVisible = useMapStore((s) => s.vesselsVisible);
+  const vesselsFetchedAt = useMapStore((s) => s.vesselsFetchedAt);
   const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
   const windFetchedAt = useWeatherStore((s) => s.windFetchedAt);
   const [avalancheLoadedAt, setAvalancheLoadedAt] = useState(null);
@@ -74,6 +76,15 @@ export default function DataFreshness() {
       value: formatDateTime(aircraftFetchedAt),
       sub: 'adsbexchange.com / ADS-B',
       color: 'text-amber-400',
+    });
+  }
+
+  if (vesselsVisible && vesselsFetchedAt) {
+    items.push({
+      label: lang === 'no' ? 'AIS Fart\u00f8y' : 'AIS Vessels',
+      value: formatDateTime(vesselsFetchedAt),
+      sub: 'BarentsWatch / Kystverket',
+      color: 'text-cyan-400',
     });
   }
 
