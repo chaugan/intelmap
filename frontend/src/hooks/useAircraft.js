@@ -20,21 +20,10 @@ export function useAircraft(visible) {
     const bounds = useMapStore.getState().bounds;
     if (!bounds) return;
 
-    const lat = (bounds.north + bounds.south) / 2;
-    const lon = (bounds.east + bounds.west) / 2;
-
-    // Calculate radius in nautical miles from bounds
-    const latSpan = bounds.north - bounds.south;
-    const lonSpan = bounds.east - bounds.west;
-    const avgLat = lat * (Math.PI / 180);
-    const latDist = latSpan * 60; // 1 deg lat ~ 60 NM
-    const lonDist = lonSpan * 60 * Math.cos(avgLat);
-    const radiusNm = Math.min(Math.ceil(Math.max(latDist, lonDist) / 2), 250);
-
     fetchingRef.current = true;
     setLoading(true);
     try {
-      const res = await fetch(`/api/aircraft?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&radius=${radiusNm}`);
+      const res = await fetch(`/api/aircraft?south=${bounds.south.toFixed(4)}&north=${bounds.north.toFixed(4)}&west=${bounds.west.toFixed(4)}&east=${bounds.east.toFixed(4)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const geojson = await res.json();
       setData(geojson);

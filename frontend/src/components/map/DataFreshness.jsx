@@ -72,7 +72,7 @@ export default function DataFreshness() {
     items.push({
       label: lang === 'no' ? 'Luftfart' : 'Aircraft',
       value: formatDateTime(aircraftFetchedAt),
-      sub: 'airplanes.live / ADS-B',
+      sub: 'adsbexchange.com / ADS-B',
       color: 'text-amber-400',
     });
   }
