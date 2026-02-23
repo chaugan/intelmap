@@ -55,7 +55,7 @@ export default function WindOverlay() {
     };
 
     const timer = setTimeout(fetchGrid, 1500);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => { cancelled = true; clearTimeout(timer); setWindLoading(false); };
   }, [bounds?.north, bounds?.south, bounds?.east, bounds?.west]);
 
   // Render heatmap — re-draw whenever windGrid changes or map moves

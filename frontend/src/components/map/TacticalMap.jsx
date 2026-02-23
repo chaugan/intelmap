@@ -499,17 +499,17 @@ export default function TacticalMap() {
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
           {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData)) && (
             <div className="flex flex-col items-end gap-1">
-              {windLoading && (
+              {windVisible && windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
                   {lang === 'no' ? 'Henter vinddata...' : 'Loading wind data...'}
                 </div>
               )}
-              {snowDepthLoading && (
+              {snowDepthVisible && snowDepthLoading && (
                 <div className="text-xs text-blue-400 bg-slate-800/80 px-2 py-1 rounded">
                   {lang === 'no' ? 'Henter sn\u00f8dybdedata...' : 'Loading snow depth data...'}
                 </div>
               )}
-              {avalancheWarningsLoading && (
+              {avalancheWarningsVisible && avalancheWarningsLoading && (
                 <div className="text-xs text-orange-400 bg-slate-800/80 px-2 py-1 rounded">
                   {lang === 'no' ? 'Henter skredvarsel...' : 'Loading avalanche warnings...'}
                 </div>
