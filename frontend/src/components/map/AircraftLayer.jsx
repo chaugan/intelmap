@@ -8,6 +8,9 @@ const LAYER_HELI = 'aircraft-heli';
 const IMG_PLANE = 'img-plane-sdf';
 const IMG_HELI = 'img-heli-sdf';
 
+const TRACE_SOURCE = 'aircraft-trace';
+const TRACE_LAYER = 'aircraft-trace-line';
+
 const SYMBOL_LAYERS = [LAYER_PLANE, LAYER_HELI];
 const ALL_LAYERS = [LAYER_RING, LAYER_PLANE, LAYER_HELI];
 const ALL_IMAGES = [IMG_PLANE, IMG_HELI];
@@ -48,6 +51,41 @@ function formatSpeed(kts) {
 }
 
 const EMERGENCY_SQUAWKS = { '7500': 'HIJACK', '7600': 'RADIO FAILURE', '7700': 'EMERGENCY' };
+
+function removeTrace(map) {
+  try { if (map.getLayer(TRACE_LAYER)) map.removeLayer(TRACE_LAYER); } catch {}
+  try { if (map.getSource(TRACE_SOURCE)) map.removeSource(TRACE_SOURCE); } catch {}
+}
+
+async function fetchAndDrawTrace(map, hex) {
+  try {
+    const res = await fetch(`/api/aircraft/trace/${hex}`);
+    if (!res.ok) return;
+    const geojson = await res.json();
+    if (!geojson.geometry?.coordinates?.length) return;
+
+    // Remove any previous trace
+    removeTrace(map);
+
+    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson });
+    map.addLayer({
+      id: TRACE_LAYER,
+      type: 'line',
+      source: TRACE_SOURCE,
+      paint: {
+        'line-color': '#38bdf8',
+        'line-width': 2.5,
+        'line-opacity': 0.85,
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    }, LAYER_RING); // insert before ring layer so trace is below icons
+  } catch (err) {
+    console.error('Failed to fetch trace:', err);
+  }
+}
 
 // Altitude-based color expression matching ADS-B Exchange / tar1090 HSL gradient
 const ALT_COLOR = [
@@ -94,7 +132,8 @@ export default function AircraftLayer({ data, mapRef }) {
       popupRef.current.remove();
       popupRef.current = null;
     }
-  }, []);
+    if (mapRef) removeTrace(mapRef);
+  }, [mapRef]);
 
   // Pre-load SDF image HTMLImageElements once (shared across style reloads)
   const imagesRef = useRef(null);
@@ -234,6 +273,7 @@ export default function AircraftLayer({ data, mapRef }) {
       cancelled = true;
       mapRef.off('styledata', onStyleData);
       removePopup();
+      removeTrace(mapRef);
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(AIRCRAFT_SOURCE)) mapRef.removeSource(AIRCRAFT_SOURCE); } catch {}
       ALL_IMAGES.forEach((i) => { try { if (mapRef.hasImage(i)) mapRef.removeImage(i); } catch {} });
@@ -308,10 +348,14 @@ export default function AircraftLayer({ data, mapRef }) {
       popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
       popupEl.innerHTML = `
         <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:10px 12px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:280px">
-          <button style="position:absolute;top:4px;right:8px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 4px" onclick="this.parentElement.parentElement.remove()">×</button>
+          <button class="popup-close-btn" style="position:absolute;top:4px;right:8px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 4px">×</button>
           ${html}
+          <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
         </div>
       `;
+
+      // Wire close button to removePopup so trace is also cleaned up
+      popupEl.querySelector('.popup-close-btn').addEventListener('click', () => removePopup());
 
       const point = mapRef.project(coords);
       popupEl.style.left = `${point.x}px`;
@@ -320,6 +364,14 @@ export default function AircraftLayer({ data, mapRef }) {
 
       mapRef.getContainer().appendChild(popupEl);
       popupRef.current = popupEl;
+
+      // Fetch and draw trace (fire-and-forget)
+      if (props.hex) {
+        fetchAndDrawTrace(mapRef, props.hex).then(() => {
+          const statusEl = popupEl.querySelector('.trace-status');
+          if (statusEl) statusEl.remove();
+        });
+      }
 
       const updatePos = () => {
         try {

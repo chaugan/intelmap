@@ -205,4 +205,73 @@ router.get('/', async (req, res) => {
   }
 });
 
+// --- Trace endpoint: per-aircraft historical flight path ---
+
+const traceCache = new Map(); // hex -> { data, time }
+const TRACE_CACHE_TTL = 60000; // 60 seconds
+const TRACE_CACHE_MAX = 200;
+
+router.get('/trace/:hex', async (req, res) => {
+  const hex = req.params.hex.toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(hex)) {
+    return res.status(400).json({ error: 'Invalid hex — must be 6 hex characters' });
+  }
+
+  // Check cache
+  const cached = traceCache.get(hex);
+  if (cached && Date.now() - cached.time < TRACE_CACHE_TTL) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const last2 = hex.slice(-2);
+    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`;
+    const response = await fetch(url, {
+      headers: {
+        'Referer': 'https://globe.adsbexchange.com/',
+        'x-requested-with': 'XMLHttpRequest',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (response.status === 404) {
+      return res.status(404).json({ error: 'No trace data for this aircraft' });
+    }
+    if (!response.ok) {
+      throw new Error(`ADS-B Exchange trace ${response.status}`);
+    }
+
+    const json = await response.json();
+    const trace = json.trace || [];
+
+    // Filter valid lat/lon and build coordinates [lon, lat]
+    const coordinates = [];
+    for (const point of trace) {
+      const lat = point[1];
+      const lon = point[2];
+      if (lat != null && lon != null && typeof lat === 'number' && typeof lon === 'number') {
+        coordinates.push([lon, lat]);
+      }
+    }
+
+    const geojson = {
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates },
+      properties: { hex, pointCount: coordinates.length },
+    };
+
+    // Evict oldest if at capacity
+    if (traceCache.size >= TRACE_CACHE_MAX) {
+      const oldest = traceCache.keys().next().value;
+      traceCache.delete(oldest);
+    }
+    traceCache.set(hex, { data: geojson, time: Date.now() });
+
+    res.json(geojson);
+  } catch (err) {
+    console.error('Trace API error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;
