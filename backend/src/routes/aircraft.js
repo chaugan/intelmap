@@ -321,4 +321,107 @@ router.get('/trace/:hex', async (req, res) => {
   }
 });
 
+// --- Route/airport lookup via hexdb.io ---
+
+const routeCache = new Map(); // callsign -> { data, time }
+const ROUTE_CACHE_TTL = 300000; // 5 minutes
+const ROUTE_CACHE_MAX = 500;
+
+const airportCache = new Map(); // ICAO -> { data, time }
+const AIRPORT_CACHE_TTL = 86400000; // 24 hours
+const AIRPORT_CACHE_MAX = 1000;
+
+async function fetchAirportInfo(icao) {
+  const cached = airportCache.get(icao);
+  if (cached && Date.now() - cached.time < AIRPORT_CACHE_TTL) {
+    return cached.data;
+  }
+
+  try {
+    const res = await fetch(`https://hexdb.io/api/v1/airport/icao/${icao}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const info = {
+      icao: json.icao || icao,
+      iata: json.iata || null,
+      name: json.airport || null,
+      country: json.country || null,
+    };
+
+    if (airportCache.size >= AIRPORT_CACHE_MAX) {
+      const oldest = airportCache.keys().next().value;
+      airportCache.delete(oldest);
+    }
+    airportCache.set(icao, { data: info, time: Date.now() });
+    return info;
+  } catch {
+    return null;
+  }
+}
+
+router.get('/route/:callsign', async (req, res) => {
+  const callsign = req.params.callsign.toUpperCase();
+  if (!/^[A-Z0-9]{2,8}$/.test(callsign)) {
+    return res.status(400).json({ error: 'Invalid callsign' });
+  }
+
+  const cached = routeCache.get(callsign);
+  if (cached && Date.now() - cached.time < ROUTE_CACHE_TTL) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const routeRes = await fetch(`https://hexdb.io/api/v1/route/iata/${callsign}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!routeRes.ok) {
+      const negResult = { route: null, departure: null, arrival: null };
+      if (routeCache.size >= ROUTE_CACHE_MAX) {
+        const oldest = routeCache.keys().next().value;
+        routeCache.delete(oldest);
+      }
+      routeCache.set(callsign, { data: negResult, time: Date.now() });
+      return res.json(negResult);
+    }
+
+    const routeText = await routeRes.text();
+    const route = routeText.trim();
+
+    if (!route || !route.includes('-')) {
+      const negResult = { route: null, departure: null, arrival: null };
+      if (routeCache.size >= ROUTE_CACHE_MAX) {
+        const oldest = routeCache.keys().next().value;
+        routeCache.delete(oldest);
+      }
+      routeCache.set(callsign, { data: negResult, time: Date.now() });
+      return res.json(negResult);
+    }
+
+    const segments = route.split('-');
+    const depIcao = segments[0];
+    const arrIcao = segments[segments.length - 1];
+
+    const [departure, arrival] = await Promise.all([
+      fetchAirportInfo(depIcao),
+      fetchAirportInfo(arrIcao),
+    ]);
+
+    const result = { route, departure, arrival };
+
+    if (routeCache.size >= ROUTE_CACHE_MAX) {
+      const oldest = routeCache.keys().next().value;
+      routeCache.delete(oldest);
+    }
+    routeCache.set(callsign, { data: result, time: Date.now() });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Route API error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;

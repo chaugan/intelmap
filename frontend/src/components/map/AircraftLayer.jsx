@@ -331,6 +331,10 @@ export default function AircraftLayer({ data, mapRef }) {
 
       const titleColor = isMil ? '#f59e0b' : isSpecial ? '#ef4444' : '#fff';
 
+      const routePlaceholder = props.callsign
+        ? `<div class="route-info" style="margin-top:6px;padding-top:6px;border-top:1px solid #334155;color:#64748b;font-size:11px">Loading route...</div>`
+        : '';
+
       const html = `
         <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:180px">
           <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${titleColor}">
@@ -346,16 +350,22 @@ export default function AircraftLayer({ data, mapRef }) {
           <div><span style="color:#94a3b8">Heading:</span> ${props.track != null ? `${Math.round(props.track)}°` : 'N/A'}</div>
           <div><span style="color:#94a3b8">Squawk:</span> ${squawkHtml}</div>
           ${props.hex ? `<div style="color:#64748b;font-size:10px;margin-top:2px">ICAO: ${props.hex}</div>` : ''}
+          ${routePlaceholder}
         </div>
       `;
 
       const popupEl = document.createElement('div');
       popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
       popupEl.innerHTML = `
-        <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:10px 12px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:280px">
-          <button class="popup-close-btn" style="position:absolute;top:4px;right:8px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 4px">×</button>
-          ${html}
-          <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
+        <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:280px;overflow:hidden">
+          <div class="popup-drag-handle" style="height:10px;cursor:grab;background:#334155;display:flex;align-items:center;justify-content:center;border-radius:8px 8px 0 0">
+            <div style="width:30px;height:3px;background:#64748b;border-radius:2px"></div>
+          </div>
+          <div style="padding:10px 12px;position:relative">
+            <button class="popup-close-btn" style="position:absolute;top:0px;right:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 4px">×</button>
+            ${html}
+            <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
+          </div>
         </div>
       `;
 
@@ -370,6 +380,52 @@ export default function AircraftLayer({ data, mapRef }) {
       mapRef.getContainer().appendChild(popupEl);
       popupRef.current = popupEl;
 
+      // --- Drag logic ---
+      let detached = false;
+      const handle = popupEl.querySelector('.popup-drag-handle');
+
+      const onMouseDown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handle.style.cursor = 'grabbing';
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const rect = popupEl.getBoundingClientRect();
+        const containerRect = mapRef.getContainer().getBoundingClientRect();
+        const startLeft = rect.left - containerRect.left;
+        const startTop = rect.top - containerRect.top;
+
+        if (!detached) {
+          detached = true;
+          mapRef.off('move', updatePos);
+          popupEl.style.transform = 'none';
+          popupEl.style.left = `${startLeft}px`;
+          popupEl.style.top = `${startTop}px`;
+        }
+
+        mapRef.dragPan.disable();
+
+        const onMouseMove = (ev) => {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          popupEl.style.left = `${startLeft + dx}px`;
+          popupEl.style.top = `${startTop + dy}px`;
+        };
+
+        const onMouseUp = () => {
+          handle.style.cursor = 'grab';
+          mapRef.dragPan.enable();
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      };
+
+      handle.addEventListener('mousedown', onMouseDown);
+
       // Fetch and draw trace (fire-and-forget)
       if (props.hex) {
         fetchAndDrawTrace(mapRef, props.hex, coords).then(() => {
@@ -378,7 +434,39 @@ export default function AircraftLayer({ data, mapRef }) {
         });
       }
 
+      // Fetch route info (fire-and-forget)
+      if (props.callsign) {
+        fetch(`/api/aircraft/route/${props.callsign}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            const routeEl = popupEl.querySelector('.route-info');
+            if (!routeEl) return;
+            if (!data || !data.route) {
+              routeEl.remove();
+              return;
+            }
+            const fmtAirport = (a) => {
+              if (!a) return 'Unknown';
+              const code = a.iata || a.icao || '??';
+              const parts = [code];
+              if (a.name) parts.push(a.name);
+              if (a.country) parts[parts.length - 1] += `, ${a.country}`;
+              return parts.join(' - ');
+            };
+            routeEl.style.color = '#e2e8f0';
+            routeEl.innerHTML = `
+              <div><span style="color:#94a3b8">From:</span> ${fmtAirport(data.departure)}</div>
+              <div><span style="color:#94a3b8">To:</span> ${fmtAirport(data.arrival)}</div>
+            `;
+          })
+          .catch(() => {
+            const routeEl = popupEl.querySelector('.route-info');
+            if (routeEl) routeEl.remove();
+          });
+      }
+
       const updatePos = () => {
+        if (detached) return;
         try {
           const p = mapRef.project(coords);
           popupEl.style.left = `${p.x}px`;
