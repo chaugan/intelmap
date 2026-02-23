@@ -57,12 +57,17 @@ function removeTrace(map) {
   try { if (map.getSource(TRACE_SOURCE)) map.removeSource(TRACE_SOURCE); } catch {}
 }
 
-async function fetchAndDrawTrace(map, hex) {
+async function fetchAndDrawTrace(map, hex, currentCoords) {
   try {
     const res = await fetch(`/api/aircraft/trace/${hex}`);
     if (!res.ok) return;
     const geojson = await res.json();
     if (!geojson.geometry?.coordinates?.length) return;
+
+    // Append aircraft's current live position so the line connects to the icon
+    if (currentCoords) {
+      geojson.geometry.coordinates.push(currentCoords);
+    }
 
     // Remove any previous trace
     removeTrace(map);
@@ -367,7 +372,7 @@ export default function AircraftLayer({ data, mapRef }) {
 
       // Fetch and draw trace (fire-and-forget)
       if (props.hex) {
-        fetchAndDrawTrace(mapRef, props.hex).then(() => {
+        fetchAndDrawTrace(mapRef, props.hex, coords).then(() => {
           const statusEl = popupEl.querySelector('.trace-status');
           if (statusEl) statusEl.remove();
         });
