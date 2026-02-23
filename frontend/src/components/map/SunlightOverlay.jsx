@@ -443,7 +443,13 @@ export function SunlightLegend({ lang }) {
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     };
 
+    const h = Math.floor(sunlightTime / 60);
+    const m = Math.floor(sunlightTime % 60);
+    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
     return {
+      date: sunlightDate,
+      time: timeStr,
       azimuth: azDeg.toFixed(0),
       elevation: altDeg.toFixed(1),
       sunrise: fmt(times.sunrise),
@@ -456,6 +462,14 @@ export function SunlightLegend({ lang }) {
   return (
     <div className="bg-slate-800/90 rounded px-2.5 py-1.5 text-[10px] text-slate-300 min-w-[140px]">
       <div className="text-yellow-400 font-semibold mb-0.5">{t('sunlight', lang)}</div>
+      <div className="flex justify-between gap-3">
+        <span>{t('sunlight.date', lang)}</span>
+        <span className="text-white font-mono">{info.date}</span>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>{t('sunlight.time', lang)}</span>
+        <span className="text-white font-mono">{info.time}</span>
+      </div>
       <div className="flex justify-between gap-3">
         <span>{t('sunlight.azimuth', lang)}</span>
         <span className="text-white">{info.azimuth}°</span>

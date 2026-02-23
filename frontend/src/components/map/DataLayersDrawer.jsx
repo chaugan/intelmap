@@ -4,14 +4,14 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 
 const OVERLAYS = [
-  { id: 'sunlight', toggleKey: 'toggleSunlight', visibleKey: 'sunlightVisible', opacityKey: 'sunlightOpacity', setOpacityKey: 'setSunlightOpacity', accent: 'accent-yellow-500' },
-  { id: 'wind', toggleKey: 'toggleWind', visibleKey: 'windVisible', opacityKey: 'windOpacity', setOpacityKey: 'setWindOpacity', accent: 'accent-emerald-500' },
-  { id: 'webcams', toggleKey: 'toggleWebcams', visibleKey: 'webcamsVisible', opacityKey: null, setOpacityKey: null, accent: null },
-  { id: 'avalanche', toggleKey: 'toggleAvalanche', visibleKey: 'avalancheVisible', opacityKey: null, setOpacityKey: null, accent: null },
-  { id: 'avalancheWarnings', toggleKey: 'toggleAvalancheWarnings', visibleKey: 'avalancheWarningsVisible', opacityKey: 'avalancheWarningsOpacity', setOpacityKey: 'setAvalancheWarningsOpacity', accent: 'accent-orange-500' },
-  { id: 'snowDepth', toggleKey: 'toggleSnowDepth', visibleKey: 'snowDepthVisible', opacityKey: 'snowDepthOpacity', setOpacityKey: 'setSnowDepthOpacity', accent: 'accent-blue-500' },
-  { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500' },
-  { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500' },
+  { id: 'sunlight', toggleKey: 'toggleSunlight', visibleKey: 'sunlightVisible', opacityKey: 'sunlightOpacity', setOpacityKey: 'setSunlightOpacity', accent: 'accent-yellow-500', shortcut: 'H' },
+  { id: 'wind', toggleKey: 'toggleWind', visibleKey: 'windVisible', opacityKey: 'windOpacity', setOpacityKey: 'setWindOpacity', accent: 'accent-emerald-500', shortcut: 'W' },
+  { id: 'webcams', toggleKey: 'toggleWebcams', visibleKey: 'webcamsVisible', opacityKey: null, setOpacityKey: null, accent: null, shortcut: 'C' },
+  { id: 'avalanche', toggleKey: 'toggleAvalanche', visibleKey: 'avalancheVisible', opacityKey: null, setOpacityKey: null, accent: null, shortcut: 'A' },
+  { id: 'avalancheWarnings', toggleKey: 'toggleAvalancheWarnings', visibleKey: 'avalancheWarningsVisible', opacityKey: 'avalancheWarningsOpacity', setOpacityKey: 'setAvalancheWarningsOpacity', accent: 'accent-orange-500', shortcut: 'V' },
+  { id: 'snowDepth', toggleKey: 'toggleSnowDepth', visibleKey: 'snowDepthVisible', opacityKey: 'snowDepthOpacity', setOpacityKey: 'setSnowDepthOpacity', accent: 'accent-blue-500', shortcut: 'S' },
+  { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500', shortcut: 'F' },
+  { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
 ];
 
 const OVERLAY_LABELS = {
@@ -182,7 +182,8 @@ export default function DataLayersDrawer() {
                     {/* Eye toggle */}
                     <button
                       onClick={toggle}
-                      className={`w-6 h-6 flex items-center justify-center rounded ${visible ? 'text-emerald-400' : 'text-slate-600'}`}
+                      title={overlay.shortcut}
+                      className={`w-6 h-6 flex items-center justify-center rounded cursor-pointer ${visible ? 'text-emerald-400' : 'text-slate-600'}`}
                     >
                       {visible ? (
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
