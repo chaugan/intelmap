@@ -73,7 +73,7 @@ async function fetchAndDrawTrace(map, hex) {
       type: 'line',
       source: TRACE_SOURCE,
       paint: {
-        'line-color': '#38bdf8',
+        'line-color': '#d946ef',
         'line-width': 2.5,
         'line-opacity': 0.85,
       },

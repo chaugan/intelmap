@@ -225,7 +225,7 @@ router.get('/trace/:hex', async (req, res) => {
 
   try {
     const last2 = hex.slice(-2);
-    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`;
+    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_recent_${hex}.json`;
     const response = await fetch(url, {
       headers: {
         'Referer': 'https://globe.adsbexchange.com/',
