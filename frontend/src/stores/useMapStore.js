@@ -45,6 +45,9 @@ export const useMapStore = create((set) => ({
   // Project drawer
   projectDrawerOpen: false,
 
+  // Data layers drawer
+  dataLayersDrawerOpen: false,
+
   // Language
   lang: 'no',
 
@@ -103,7 +106,33 @@ export const useMapStore = create((set) => ({
     activePanel: s.activePanel === panel ? null : panel,
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
-  toggleProjectDrawer: () => set((s) => ({ projectDrawerOpen: !s.projectDrawerOpen })),
+  toggleProjectDrawer: () => set((s) => ({
+    projectDrawerOpen: !s.projectDrawerOpen,
+    ...(!s.projectDrawerOpen ? { dataLayersDrawerOpen: false } : {}),
+  })),
+  toggleDataLayersDrawer: () => set((s) => ({
+    dataLayersDrawerOpen: !s.dataLayersDrawerOpen,
+    ...(!s.dataLayersDrawerOpen ? { projectDrawerOpen: false } : {}),
+  })),
+  applyTheme: (themeState) => {
+    const parsed = typeof themeState === 'string' ? JSON.parse(themeState) : themeState;
+    return set({
+      ...(parsed.baseLayer !== undefined && { baseLayer: parsed.baseLayer }),
+      ...(parsed.windVisible !== undefined && { windVisible: parsed.windVisible }),
+      ...(parsed.windOpacity !== undefined && { windOpacity: parsed.windOpacity }),
+      ...(parsed.webcamsVisible !== undefined && { webcamsVisible: parsed.webcamsVisible }),
+      ...(parsed.avalancheVisible !== undefined && { avalancheVisible: parsed.avalancheVisible }),
+      ...(parsed.avalancheWarningsVisible !== undefined && { avalancheWarningsVisible: parsed.avalancheWarningsVisible }),
+      ...(parsed.avalancheWarningsOpacity !== undefined && { avalancheWarningsOpacity: parsed.avalancheWarningsOpacity }),
+      ...(parsed.snowDepthVisible !== undefined && { snowDepthVisible: parsed.snowDepthVisible }),
+      ...(parsed.snowDepthOpacity !== undefined && { snowDepthOpacity: parsed.snowDepthOpacity }),
+      ...(parsed.aircraftVisible !== undefined && { aircraftVisible: parsed.aircraftVisible }),
+      ...(parsed.aircraftOpacity !== undefined && { aircraftOpacity: parsed.aircraftOpacity }),
+      ...(parsed.vesselsVisible !== undefined && { vesselsVisible: parsed.vesselsVisible }),
+      ...(parsed.vesselsOpacity !== undefined && { vesselsOpacity: parsed.vesselsOpacity }),
+      ...(parsed.overlayOrder !== undefined && { overlayOrder: parsed.overlayOrder }),
+    });
+  },
   setChatDrawerWidth: (width) => {
     localStorage.setItem('chatDrawerWidth', String(width));
     return set({ chatDrawerWidth: width });
@@ -168,3 +197,23 @@ export const useMapStore = create((set) => ({
     return {};
   }),
 }));
+
+export function getThemeState() {
+  const s = useMapStore.getState();
+  return {
+    baseLayer: s.baseLayer,
+    windVisible: s.windVisible,
+    windOpacity: s.windOpacity,
+    webcamsVisible: s.webcamsVisible,
+    avalancheVisible: s.avalancheVisible,
+    avalancheWarningsVisible: s.avalancheWarningsVisible,
+    avalancheWarningsOpacity: s.avalancheWarningsOpacity,
+    snowDepthVisible: s.snowDepthVisible,
+    snowDepthOpacity: s.snowDepthOpacity,
+    aircraftVisible: s.aircraftVisible,
+    aircraftOpacity: s.aircraftOpacity,
+    vesselsVisible: s.vesselsVisible,
+    vesselsOpacity: s.vesselsOpacity,
+    overlayOrder: s.overlayOrder,
+  };
+}

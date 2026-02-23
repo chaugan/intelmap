@@ -10,6 +10,7 @@ import LoginDialog from './components/auth/LoginDialog.jsx';
 import PasswordChangeDialog from './components/auth/PasswordChangeDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
+import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { t } from './lib/i18n.js';
@@ -25,6 +26,7 @@ export default function App() {
   const chatDrawerWidth = useMapStore((s) => s.chatDrawerWidth);
   const setChatDrawerWidth = useMapStore((s) => s.setChatDrawerWidth);
   const projectDrawerOpen = useMapStore((s) => s.projectDrawerOpen);
+  const dataLayersDrawerOpen = useMapStore((s) => s.dataLayersDrawerOpen);
 
   const [isDragging, setIsDragging] = useState(false);
   const draggingRef = useRef(false);
@@ -84,13 +86,14 @@ export default function App() {
 
       {/* Main content */}
       <div className="flex flex-1 min-h-0 relative">
-        {/* Project Drawer (left) */}
+        {/* Left Drawer (Project or Data Layers — mutually exclusive) */}
         <div
           className={`bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 transition-all duration-300 overflow-hidden ${
-            projectDrawerOpen && user ? 'w-72' : 'w-0'
+            (projectDrawerOpen && user) || dataLayersDrawerOpen ? 'w-72' : 'w-0'
           }`}
         >
           {projectDrawerOpen && user && <ProjectDrawer />}
+          {dataLayersDrawerOpen && !projectDrawerOpen && <DataLayersDrawer />}
         </div>
 
         {/* Map */}

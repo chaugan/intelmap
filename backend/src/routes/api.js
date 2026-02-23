@@ -14,6 +14,7 @@ import streetviewRouter from './streetview.js';
 import avalancheWarningsRouter from './avalanche-warnings.js';
 import aircraftRouter from './aircraft.js';
 import aisRouter from './ais.js';
+import themesRouter from './themes.js';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/streetview', streetviewRouter);
 router.use('/avalanche-warnings', avalancheWarningsRouter);
 router.use('/aircraft', aircraftRouter);
 router.use('/ais', aisRouter);
+router.use('/themes', themesRouter);
 
 export default router;

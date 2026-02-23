@@ -201,6 +201,12 @@ const translations = {
     'groups.unshare': 'Gjør privat',
     'groups.selectGroup': 'Velg gruppe',
 
+    // Data Layers Drawer
+    'dataLayers.title': 'Datalag',
+    'dataLayers.overlays': 'Overlegg',
+    'dataLayers.themes': 'Karttema',
+    'dataLayers.noThemes': 'Ingen temaer ennå',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -401,6 +407,12 @@ const translations = {
     'groups.share': 'Share with group',
     'groups.unshare': 'Make private',
     'groups.selectGroup': 'Select group',
+
+    // Data Layers Drawer
+    'dataLayers.title': 'Data Layers',
+    'dataLayers.overlays': 'Overlays',
+    'dataLayers.themes': 'Map Themes',
+    'dataLayers.noThemes': 'No themes yet',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

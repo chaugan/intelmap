@@ -15,6 +15,7 @@ export function useKeyboardShortcuts() {
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
   const toggleChatDrawer = useMapStore((s) => s.toggleChatDrawer);
   const toggleProjectDrawer = useMapStore((s) => s.toggleProjectDrawer);
+  const toggleDataLayersDrawer = useMapStore((s) => s.toggleDataLayersDrawer);
 
   useEffect(() => {
     function handleKeyDown(e) {
@@ -73,6 +74,9 @@ export function useKeyboardShortcuts() {
           break;
         }
 
+        // Data layers drawer
+        case 'l': toggleDataLayersDrawer(); break;
+
         // AI Chat drawer (only if enabled)
         case 'i': {
           const user = useAuthStore.getState().user;
@@ -84,5 +88,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleDrawingTools, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleDrawingTools, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }

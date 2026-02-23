@@ -127,3 +127,13 @@ CREATE TABLE IF NOT EXISTS project_drawings (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Map visual themes (admin-managed presets)
+CREATE TABLE IF NOT EXISTS map_themes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  state TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
