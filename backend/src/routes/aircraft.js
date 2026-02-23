@@ -225,7 +225,7 @@ router.get('/trace/:hex', async (req, res) => {
 
   try {
     const last2 = hex.slice(-2);
-    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_recent_${hex}.json`;
+    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`;
     const response = await fetch(url, {
       headers: {
         'Referer': 'https://globe.adsbexchange.com/',
@@ -244,9 +244,21 @@ router.get('/trace/:hex', async (req, res) => {
     const json = await response.json();
     const trace = json.trace || [];
 
+    // Find start of current flight: walk backwards to find last ground point
+    // trace format: [time_offset, lat, lon, alt_baro, gs, track, flags, ...]
+    // alt_baro === "ground" when on the ground
+    let flightStart = 0;
+    for (let i = trace.length - 1; i >= 0; i--) {
+      if (trace[i][3] === 'ground') {
+        flightStart = i;
+        break;
+      }
+    }
+
     // Filter valid lat/lon and build coordinates [lon, lat]
     const coordinates = [];
-    for (const point of trace) {
+    for (let i = flightStart; i < trace.length; i++) {
+      const point = trace[i];
       const lat = point[1];
       const lon = point[2];
       if (lat != null && lon != null && typeof lat === 'number' && typeof lon === 'number') {
