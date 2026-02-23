@@ -21,17 +21,25 @@ async function getAccessToken() {
       throw new Error('BarentsWatch credentials not configured');
     }
 
-    const res = await fetch('https://id.barentswatch.no/connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
+    // Try 'ais' scope first, fall back to 'api', then no scope
+    let res;
+    for (const scope of ['ais', 'api', '']) {
+      const params = {
         grant_type: 'client_credentials',
         client_id: clientId,
         client_secret: clientSecret,
-        scope: 'ais',
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
+      };
+      if (scope) params.scope = scope;
+
+      res = await fetch('https://id.barentswatch.no/connect/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(params),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (res.ok) break;
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
