@@ -321,44 +321,29 @@ router.get('/trace/:hex', async (req, res) => {
   }
 });
 
-// --- Route/airport lookup via hexdb.io ---
+// --- Route/airport lookup via adsbdb.com ---
 
 const routeCache = new Map(); // callsign -> { data, time }
 const ROUTE_CACHE_TTL = 300000; // 5 minutes
 const ROUTE_CACHE_MAX = 500;
 
-const airportCache = new Map(); // ICAO -> { data, time }
-const AIRPORT_CACHE_TTL = 86400000; // 24 hours
-const AIRPORT_CACHE_MAX = 1000;
-
-async function fetchAirportInfo(icao) {
-  const cached = airportCache.get(icao);
-  if (cached && Date.now() - cached.time < AIRPORT_CACHE_TTL) {
-    return cached.data;
+function cacheRoute(callsign, data) {
+  if (routeCache.size >= ROUTE_CACHE_MAX) {
+    const oldest = routeCache.keys().next().value;
+    routeCache.delete(oldest);
   }
+  routeCache.set(callsign, { data, time: Date.now() });
+}
 
-  try {
-    const res = await fetch(`https://hexdb.io/api/v1/airport/icao/${icao}`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const info = {
-      icao: json.icao || icao,
-      iata: json.iata || null,
-      name: json.airport || null,
-      country: json.country || null,
-    };
-
-    if (airportCache.size >= AIRPORT_CACHE_MAX) {
-      const oldest = airportCache.keys().next().value;
-      airportCache.delete(oldest);
-    }
-    airportCache.set(icao, { data: info, time: Date.now() });
-    return info;
-  } catch {
-    return null;
-  }
+function mapAirport(ap) {
+  if (!ap) return null;
+  return {
+    icao: ap.icao_code || null,
+    iata: ap.iata_code || null,
+    name: ap.name || null,
+    municipality: ap.municipality || null,
+    country: ap.country_name || null,
+  };
 }
 
 router.get('/route/:callsign', async (req, res) => {
@@ -372,51 +357,32 @@ router.get('/route/:callsign', async (req, res) => {
     return res.json(cached.data);
   }
 
+  const negResult = { route: null, departure: null, arrival: null };
+
   try {
-    const routeRes = await fetch(`https://hexdb.io/api/v1/route/iata/${callsign}`, {
+    const apiRes = await fetch(`https://api.adsbdb.com/v0/callsign/${callsign}`, {
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!routeRes.ok) {
-      const negResult = { route: null, departure: null, arrival: null };
-      if (routeCache.size >= ROUTE_CACHE_MAX) {
-        const oldest = routeCache.keys().next().value;
-        routeCache.delete(oldest);
-      }
-      routeCache.set(callsign, { data: negResult, time: Date.now() });
+    if (!apiRes.ok) {
+      cacheRoute(callsign, negResult);
       return res.json(negResult);
     }
 
-    const routeText = await routeRes.text();
-    const route = routeText.trim();
+    const json = await apiRes.json();
+    const fr = json?.response?.flightroute;
 
-    if (!route || !route.includes('-')) {
-      const negResult = { route: null, departure: null, arrival: null };
-      if (routeCache.size >= ROUTE_CACHE_MAX) {
-        const oldest = routeCache.keys().next().value;
-        routeCache.delete(oldest);
-      }
-      routeCache.set(callsign, { data: negResult, time: Date.now() });
+    if (!fr || !fr.origin || !fr.destination) {
+      cacheRoute(callsign, negResult);
       return res.json(negResult);
     }
 
-    const segments = route.split('-');
-    const depIcao = segments[0];
-    const arrIcao = segments[segments.length - 1];
-
-    const [departure, arrival] = await Promise.all([
-      fetchAirportInfo(depIcao),
-      fetchAirportInfo(arrIcao),
-    ]);
+    const departure = mapAirport(fr.origin);
+    const arrival = mapAirport(fr.destination);
+    const route = (departure?.icao || '?') + '-' + (arrival?.icao || '?');
 
     const result = { route, departure, arrival };
-
-    if (routeCache.size >= ROUTE_CACHE_MAX) {
-      const oldest = routeCache.keys().next().value;
-      routeCache.delete(oldest);
-    }
-    routeCache.set(callsign, { data: result, time: Date.now() });
-
+    cacheRoute(callsign, result);
     res.json(result);
   } catch (err) {
     console.error('Route API error:', err.message);
