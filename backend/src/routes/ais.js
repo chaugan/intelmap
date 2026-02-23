@@ -217,7 +217,7 @@ router.get('/trace/:mmsi', async (req, res) => {
     const toStr = now.toISOString();
 
     const apiRes = await fetch(
-      `https://historic.ais.barentswatch.no/v1/historic/track/${mmsi}/${fromStr}/${toStr}`,
+      `https://historic.ais.barentswatch.no/v1/historic/tracks/${mmsi}/${fromStr}/${toStr}`,
       {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(15000),
