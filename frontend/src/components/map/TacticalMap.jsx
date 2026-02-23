@@ -164,7 +164,7 @@ export default function TacticalMap() {
     }
   }, [placementMode, setPlacementMode, activeProjectId, activeLayerId, activePanel, setAvalancheWarningRegion]);
 
-  // Right-click context menu
+  // Right-click context menu + long-press for touch devices
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
@@ -181,8 +181,57 @@ export default function TacticalMap() {
       setContextMenus((prev) => [...prev, { id, lng, lat, x, y, pinned: false }]);
     };
 
+    // Touch long-press support
+    let longPressTimer = null;
+    let touchStartPoint = null;
+    let touchStartLngLat = null;
+
+    const onTouchStart = (e) => {
+      if (e.originalEvent.touches.length !== 1) {
+        clearTimeout(longPressTimer);
+        return;
+      }
+      touchStartPoint = e.point;
+      touchStartLngLat = e.lngLat;
+      longPressTimer = setTimeout(() => {
+        e.originalEvent.preventDefault();
+        const { lng, lat } = touchStartLngLat;
+        const { x, y } = touchStartPoint;
+        if (suppressMapContextMenu.current) {
+          suppressMapContextMenu.current = false;
+          return;
+        }
+        const id = nextMenuId++;
+        setContextMenus((prev) => [...prev, { id, lng, lat, x, y, pinned: false }]);
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 500);
+    };
+
+    const onTouchMove = (e) => {
+      if (!touchStartPoint || !longPressTimer) return;
+      const dx = e.point.x - touchStartPoint.x;
+      const dy = e.point.y - touchStartPoint.y;
+      if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    const onTouchEnd = () => {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    };
+
     map.on('contextmenu', handleContextMenu);
-    return () => map.off('contextmenu', handleContextMenu);
+    map.on('touchstart', onTouchStart);
+    map.on('touchmove', onTouchMove);
+    map.on('touchend', onTouchEnd);
+    return () => {
+      map.off('contextmenu', handleContextMenu);
+      map.off('touchstart', onTouchStart);
+      map.off('touchmove', onTouchMove);
+      map.off('touchend', onTouchEnd);
+    };
   }, [useMapStore.getState().mapRef]);
 
   const closeMenu = useCallback((menuId) => {
@@ -272,6 +321,25 @@ export default function TacticalMap() {
     mapInstance.on('rotate', onRotate);
     return () => mapInstance.off('rotate', onRotate);
   }, [mapInstance]);
+
+  // Avalanche region hover cursor when detail panel is open
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const showCursor = activePanel === 'avalancheWarning' && avalancheWarningsVisible;
+    if (!showCursor) return;
+    const layerId = 'avalanche-warnings-fill';
+    if (!map.getLayer(layerId)) return;
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
+    map.on('mouseenter', layerId, onEnter);
+    map.on('mouseleave', layerId, onLeave);
+    return () => {
+      map.off('mouseenter', layerId, onEnter);
+      map.off('mouseleave', layerId, onLeave);
+      map.getCanvas().style.cursor = '';
+    };
+  }, [activePanel, avalancheWarningsVisible, mapInstance]);
 
   // Project to screen coordinates for SVG rendering
   const map = mapRef.current?.getMap();

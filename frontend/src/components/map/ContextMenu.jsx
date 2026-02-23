@@ -155,14 +155,18 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
     return () => clearInterval(interval);
   }, [pinned, lat, lng]);
 
-  // Close on outside click (only when NOT pinned)
+  // Close on outside click/touch (only when NOT pinned)
   useEffect(() => {
     if (pinned) return;
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, [onClose, pinned]);
 
   // Close on Escape (only when NOT pinned)

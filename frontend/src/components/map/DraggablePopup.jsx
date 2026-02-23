@@ -150,12 +150,67 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
     window.addEventListener('mouseup', onMouseUp);
   }, [offset, onPin, onDragEnd, mapRef]);
 
+  const onTouchDown = useCallback((e) => {
+    if (!e.target.closest('.context-menu-header') && !e.target.closest('.draggable-header')) return;
+    const touch = e.touches[0];
+    e.preventDefault();
+
+    if (!isDraggedRef.current) {
+      isDraggedRef.current = true;
+      setIsDragged(true);
+      if (onPin) {
+        if (mapRef) {
+          try {
+            const pinCanvasX = origin.x + offset.dx;
+            const pinCanvasY = origin.y + offset.dy;
+            const lngLat = mapRef.unproject([pinCanvasX, pinCanvasY]);
+            onPin({ lng: lngLat.lng, lat: lngLat.lat });
+          } catch { onPin(); }
+        } else { onPin(); }
+      }
+    }
+
+    startRef.current = { mouseX: touch.clientX, mouseY: touch.clientY, dx: offset.dx, dy: offset.dy };
+    dragRef.current = true;
+
+    const onTouchMove = (e) => {
+      if (!dragRef.current) return;
+      const t = e.touches[0];
+      setOffset({
+        dx: startRef.current.dx + (t.clientX - startRef.current.mouseX),
+        dy: startRef.current.dy + (t.clientY - startRef.current.mouseY),
+      });
+    };
+
+    const onTouchEnd = (e) => {
+      dragRef.current = false;
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      if (onDragEnd && mapRef) {
+        try {
+          const ct = e.changedTouches[0];
+          const finalCanvasX = origin.x + startRef.current.dx + (ct.clientX - startRef.current.mouseX);
+          const finalCanvasY = origin.y + startRef.current.dy + (ct.clientY - startRef.current.mouseY);
+          const lngLat = mapRef.unproject([finalCanvasX, finalCanvasY]);
+          onDragEnd({ lng: lngLat.lng, lat: lngLat.lat });
+        } catch {}
+      }
+    };
+
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+  }, [offset, onPin, onDragEnd, mapRef]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     el.addEventListener('mousedown', onMouseDown);
-    return () => el.removeEventListener('mousedown', onMouseDown);
-  }, [onMouseDown]);
+    el.addEventListener('touchstart', onTouchDown, { passive: false });
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown);
+      el.removeEventListener('touchstart', onTouchDown);
+    };
+  }, [onMouseDown, onTouchDown]);
 
   return (
     <>
