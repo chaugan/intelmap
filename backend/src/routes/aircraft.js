@@ -349,6 +349,55 @@ function mapAirport(ap) {
   };
 }
 
+// Look up airport details by ICAO code via adsbdb
+async function lookupAirport(icao) {
+  try {
+    const res = await fetch(`https://api.adsbdb.com/v0/airport/${icao}`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return { icao, iata: null, name: null, municipality: null, country: null };
+    const json = await res.json();
+    const ap = json?.response?.airport;
+    return ap ? mapAirport(ap) : { icao, iata: null, name: null, municipality: null, country: null };
+  } catch {
+    return { icao, iata: null, name: null, municipality: null, country: null };
+  }
+}
+
+// Fallback: OpenSky Network routes API
+async function fetchOpenSkyRoute(callsign) {
+  try {
+    const res = await fetch(`https://opensky-network.org/api/routes?callsign=${callsign}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.route || json.route.length < 2) return null;
+    const depIcao = json.route[0];
+    const arrIcao = json.route[json.route.length - 1];
+    if (!depIcao || !arrIcao || depIcao === arrIcao) return null;
+
+    // Look up airport details in parallel
+    const [departure, arrival] = await Promise.all([
+      lookupAirport(depIcao),
+      lookupAirport(arrIcao),
+    ]);
+
+    const airline = json.operatorIata
+      ? { name: null, icao: null, iata: json.operatorIata }
+      : null;
+
+    return {
+      route: `${depIcao}-${arrIcao}`,
+      departure,
+      arrival,
+      airline,
+    };
+  } catch {
+    return null;
+  }
+}
+
 router.get('/route/:callsign', async (req, res) => {
   const callsign = req.params.callsign.toUpperCase();
   if (!/^[A-Z0-9]{2,8}$/.test(callsign)) {
@@ -363,34 +412,40 @@ router.get('/route/:callsign', async (req, res) => {
   const negResult = { route: null, departure: null, arrival: null, airline: null };
 
   try {
+    // Primary: adsbdb
     const apiRes = await fetch(`https://api.adsbdb.com/v0/callsign/${callsign}`, {
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!apiRes.ok) {
-      cacheRoute(callsign, negResult);
-      return res.json(negResult);
+    let result = null;
+
+    if (apiRes.ok) {
+      const json = await apiRes.json();
+      const fr = json?.response?.flightroute;
+
+      if (fr?.origin && fr?.destination) {
+        const departure = mapAirport(fr.origin);
+        const arrival = mapAirport(fr.destination);
+
+        // Check for same origin/destination (stale data)
+        if (departure?.icao && arrival?.icao && departure.icao !== arrival.icao) {
+          const route = `${departure.icao}-${arrival.icao}`;
+          const airline = fr.airline
+            ? { name: fr.airline.name || null, icao: fr.airline.icao || null, iata: fr.airline.iata || null }
+            : null;
+          result = { route, departure, arrival, airline };
+        }
+      }
     }
 
-    const json = await apiRes.json();
-    const fr = json?.response?.flightroute;
-
-    if (!fr || !fr.origin || !fr.destination) {
-      cacheRoute(callsign, negResult);
-      return res.json(negResult);
+    // Fallback: OpenSky Network if adsbdb returned no data or same origin/dest
+    if (!result) {
+      result = await fetchOpenSkyRoute(callsign);
     }
 
-    const departure = mapAirport(fr.origin);
-    const arrival = mapAirport(fr.destination);
-    const route = (departure?.icao || '?') + '-' + (arrival?.icao || '?');
-
-    const airline = fr.airline
-      ? { name: fr.airline.name || null, icao: fr.airline.icao || null, iata: fr.airline.iata || null }
-      : null;
-
-    const result = { route, departure, arrival, airline };
-    cacheRoute(callsign, result);
-    res.json(result);
+    const final = result || negResult;
+    cacheRoute(callsign, final);
+    res.json(final);
   } catch (err) {
     console.error('Route API error:', err.message);
     res.status(502).json({ error: err.message });
