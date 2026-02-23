@@ -162,6 +162,8 @@ export default function AircraftLayer({ data, mapRef }) {
   const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
   const aircraftOpacity = useMapStore((s) => s.aircraftOpacity);
+  const focusedAircraftHex = useMapStore((s) => s.focusedAircraftHex);
+  const setFocusedAircraft = useMapStore((s) => s.setFocusedAircraft);
 
   // Keep dataRef in sync so the styledata handler can re-push data
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -172,7 +174,8 @@ export default function AircraftLayer({ data, mapRef }) {
       popupRef.current.remove();
       popupRef.current = null;
     }
-    if (mapRef) removeTrace(mapRef);
+    // Only remove trace if no aircraft is focused — focus effect manages its own trace
+    if (mapRef && !useMapStore.getState().focusedAircraftHex) removeTrace(mapRef);
   }, [mapRef]);
 
   // Pre-load SDF image HTMLImageElements once (shared across style reloads)
@@ -339,6 +342,73 @@ export default function AircraftLayer({ data, mapRef }) {
     try { if (mapRef.getLayer(LAYER_RING)) mapRef.setPaintProperty(LAYER_RING, 'circle-stroke-opacity', aircraftOpacity); } catch {}
   }, [mapRef, aircraftOpacity]);
 
+  // Dynamic MapLibre filters for focus mode
+  useEffect(() => {
+    if (!mapRef) return;
+    const focused = focusedAircraftHex;
+
+    if (focused) {
+      const hexMatch = ['==', ['get', 'hex'], focused];
+      try {
+        if (mapRef.getLayer(LAYER_PLANE))
+          mapRef.setFilter(LAYER_PLANE, ['all', ['!', ['to-boolean', ['get', 'helicopter']]], hexMatch]);
+        if (mapRef.getLayer(LAYER_HELI))
+          mapRef.setFilter(LAYER_HELI, ['all', ['to-boolean', ['get', 'helicopter']], hexMatch]);
+        if (mapRef.getLayer(LAYER_RING))
+          mapRef.setFilter(LAYER_RING, ['all',
+            ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'special']]],
+            hexMatch,
+          ]);
+      } catch {}
+    } else {
+      // Restore original filters
+      try {
+        if (mapRef.getLayer(LAYER_PLANE))
+          mapRef.setFilter(LAYER_PLANE, ['!', ['to-boolean', ['get', 'helicopter']]]);
+        if (mapRef.getLayer(LAYER_HELI))
+          mapRef.setFilter(LAYER_HELI, ['to-boolean', ['get', 'helicopter']]);
+        if (mapRef.getLayer(LAYER_RING))
+          mapRef.setFilter(LAYER_RING, ['any',
+            ['to-boolean', ['get', 'military']],
+            ['to-boolean', ['get', 'special']],
+          ]);
+      } catch {}
+    }
+  }, [mapRef, focusedAircraftHex]);
+
+  // Continuous trace refresh when focused
+  useEffect(() => {
+    if (!mapRef || !focusedAircraftHex) return;
+    let intervalId = null;
+    let cancelled = false;
+
+    const refreshTrace = () => {
+      const hex = focusedAircraftHex;
+      // Find the focused feature's current coords from data
+      let currentCoords = null;
+      const features = dataRef.current?.features;
+      if (features) {
+        const f = features.find((ft) => ft.properties?.hex === hex);
+        if (f) currentCoords = f.geometry.coordinates;
+      }
+      fetchAndDrawTrace(mapRef, hex, currentCoords);
+    };
+
+    // Fetch immediately
+    refreshTrace();
+    // Refresh every 15s (matching aircraft data refresh)
+    intervalId = setInterval(() => {
+      if (!cancelled) refreshTrace();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+      // Remove trace when focus is cleared
+      removeTrace(mapRef);
+    };
+  }, [mapRef, focusedAircraftHex]);
+
   // Click handler for popups — query only symbol layers (not circle ring)
   useEffect(() => {
     if (!mapRef) return;
@@ -397,7 +467,10 @@ export default function AircraftLayer({ data, mapRef }) {
             <div style="width:40px;height:4px;background:#64748b;border-radius:2px"></div>
           </div>
           <div style="padding:10px 12px;position:relative">
-            <button class="popup-close-btn" style="position:absolute;top:0px;right:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">×</button>
+            <div style="position:absolute;top:0px;right:4px;display:flex;gap:2px">
+              <button class="popup-focus-btn" style="background:${focusedAircraftHex === props.hex ? '#0ea5e9' : 'none'};border:none;color:${focusedAircraftHex === props.hex ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${focusedAircraftHex === props.hex ? '\u2299 Focused' : '\u2295 Focus'}</button>
+              <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
+            </div>
             ${html}
             <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
           </div>
@@ -406,6 +479,24 @@ export default function AircraftLayer({ data, mapRef }) {
 
       // Wire close button to removePopup so trace is also cleaned up
       popupEl.querySelector('.popup-close-btn').addEventListener('click', () => removePopup());
+
+      // Wire focus button
+      const focusBtn = popupEl.querySelector('.popup-focus-btn');
+      focusBtn.addEventListener('click', () => {
+        const current = useMapStore.getState().focusedAircraftHex;
+        const isNowFocused = current === props.hex;
+        setFocusedAircraft(isNowFocused ? null : props.hex);
+        // Update button appearance immediately
+        focusBtn.style.background = isNowFocused ? 'none' : '#0ea5e9';
+        focusBtn.style.color = isNowFocused ? '#94a3b8' : '#fff';
+        focusBtn.textContent = isNowFocused ? '\u2295 Focus' : '\u2299 Focused';
+      });
+      focusBtn.addEventListener('mouseenter', () => {
+        if (useMapStore.getState().focusedAircraftHex !== props.hex) focusBtn.style.background = '#475569';
+      });
+      focusBtn.addEventListener('mouseleave', () => {
+        if (useMapStore.getState().focusedAircraftHex !== props.hex) focusBtn.style.background = 'none';
+      });
 
       const point = mapRef.project(coords);
       popupEl.style.left = `${point.x}px`;

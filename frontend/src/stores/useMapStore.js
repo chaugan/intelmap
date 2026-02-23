@@ -28,9 +28,11 @@ export const useMapStore = create((set) => ({
   aircraftVisible: false,
   aircraftOpacity: 0.9,
   aircraftFetchedAt: null,
+  focusedAircraftHex: null,
   vesselsVisible: false,
   vesselsOpacity: 0.9,
   vesselsFetchedAt: null,
+  focusedVesselMmsi: null,
   drawingToolsVisible: false,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -83,12 +85,20 @@ export const useMapStore = create((set) => ({
   setAvalancheWarningRegion: (id, name) => set({ avalancheWarningRegionId: id, avalancheWarningRegionName: name }),
   toggleSnowDepth: () => set((s) => ({ snowDepthVisible: !s.snowDepthVisible })),
   setSnowDepthOpacity: (snowDepthOpacity) => set({ snowDepthOpacity }),
-  toggleAircraft: () => set((s) => ({ aircraftVisible: !s.aircraftVisible })),
+  toggleAircraft: () => set((s) => ({
+    aircraftVisible: !s.aircraftVisible,
+    ...(s.aircraftVisible ? { focusedAircraftHex: null } : {}),
+  })),
   setAircraftOpacity: (aircraftOpacity) => set({ aircraftOpacity }),
   setAircraftFetchedAt: (aircraftFetchedAt) => set({ aircraftFetchedAt }),
-  toggleVessels: () => set((s) => ({ vesselsVisible: !s.vesselsVisible })),
+  setFocusedAircraft: (hex) => set({ focusedAircraftHex: hex }),
+  toggleVessels: () => set((s) => ({
+    vesselsVisible: !s.vesselsVisible,
+    ...(s.vesselsVisible ? { focusedVesselMmsi: null } : {}),
+  })),
   setVesselsOpacity: (vesselsOpacity) => set({ vesselsOpacity }),
   setVesselsFetchedAt: (vesselsFetchedAt) => set({ vesselsFetchedAt }),
+  setFocusedVessel: (mmsi) => set({ focusedVesselMmsi: mmsi }),
   moveOverlayUp: (id) => set((s) => {
     const order = [...s.overlayOrder];
     const idx = order.indexOf(id);

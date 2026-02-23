@@ -110,6 +110,8 @@ export default function VesselLayer({ data, mapRef }) {
   const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
   const vesselsOpacity = useMapStore((s) => s.vesselsOpacity);
+  const focusedVesselMmsi = useMapStore((s) => s.focusedVesselMmsi);
+  const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -119,7 +121,7 @@ export default function VesselLayer({ data, mapRef }) {
       popupRef.current.remove();
       popupRef.current = null;
     }
-    if (mapRef) removeTrace(mapRef);
+    if (mapRef && !useMapStore.getState().focusedVesselMmsi) removeTrace(mapRef);
   }, [mapRef]);
 
   const imagesRef = useRef(null);
@@ -248,6 +250,65 @@ export default function VesselLayer({ data, mapRef }) {
     try { if (mapRef.getLayer(LAYER_RING)) mapRef.setPaintProperty(LAYER_RING, 'circle-stroke-opacity', vesselsOpacity); } catch {}
   }, [mapRef, vesselsOpacity]);
 
+  // Dynamic MapLibre filters for focus mode
+  useEffect(() => {
+    if (!mapRef) return;
+    const focused = focusedVesselMmsi;
+
+    if (focused) {
+      const mmsiMatch = ['==', ['to-string', ['get', 'mmsi']], focused];
+      try {
+        if (mapRef.getLayer(LAYER_ICON))
+          mapRef.setFilter(LAYER_ICON, mmsiMatch);
+        if (mapRef.getLayer(LAYER_RING))
+          mapRef.setFilter(LAYER_RING, ['all',
+            ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'lawEnforcement']]],
+            mmsiMatch,
+          ]);
+      } catch {}
+    } else {
+      // Restore original filters
+      try {
+        if (mapRef.getLayer(LAYER_ICON))
+          mapRef.setFilter(LAYER_ICON, null);
+        if (mapRef.getLayer(LAYER_RING))
+          mapRef.setFilter(LAYER_RING, ['any',
+            ['to-boolean', ['get', 'military']],
+            ['to-boolean', ['get', 'lawEnforcement']],
+          ]);
+      } catch {}
+    }
+  }, [mapRef, focusedVesselMmsi]);
+
+  // Continuous trace refresh when focused
+  useEffect(() => {
+    if (!mapRef || !focusedVesselMmsi) return;
+    let intervalId = null;
+    let cancelled = false;
+
+    const refreshTrace = () => {
+      const mmsi = focusedVesselMmsi;
+      let currentCoords = null;
+      const features = dataRef.current?.features;
+      if (features) {
+        const f = features.find((ft) => String(ft.properties?.mmsi) === mmsi);
+        if (f) currentCoords = f.geometry.coordinates;
+      }
+      fetchAndDrawTrace(mapRef, mmsi, currentCoords);
+    };
+
+    refreshTrace();
+    intervalId = setInterval(() => {
+      if (!cancelled) refreshTrace();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+      removeTrace(mapRef);
+    };
+  }, [mapRef, focusedVesselMmsi]);
+
   // Click handler for popups
   useEffect(() => {
     if (!mapRef) return;
@@ -301,7 +362,10 @@ export default function VesselLayer({ data, mapRef }) {
             <div style="width:40px;height:4px;background:#64748b;border-radius:2px"></div>
           </div>
           <div style="padding:10px 12px;position:relative">
-            <button class="popup-close-btn" style="position:absolute;top:0px;right:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
+            <div style="position:absolute;top:0px;right:4px;display:flex;gap:2px">
+              <button class="popup-focus-btn" style="background:${focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : 'none'};border:none;color:${focusedVesselMmsi === String(props.mmsi) ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
+              <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
+            </div>
             ${html}
             <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
           </div>
@@ -309,6 +373,24 @@ export default function VesselLayer({ data, mapRef }) {
       `;
 
       popupEl.querySelector('.popup-close-btn').addEventListener('click', () => removePopup());
+
+      // Wire focus button
+      const mmsiStr = String(props.mmsi);
+      const focusBtn = popupEl.querySelector('.popup-focus-btn');
+      focusBtn.addEventListener('click', () => {
+        const current = useMapStore.getState().focusedVesselMmsi;
+        const isNowFocused = current === mmsiStr;
+        setFocusedVessel(isNowFocused ? null : mmsiStr);
+        focusBtn.style.background = isNowFocused ? 'none' : '#0ea5e9';
+        focusBtn.style.color = isNowFocused ? '#94a3b8' : '#fff';
+        focusBtn.textContent = isNowFocused ? '\u2295 Focus' : '\u2299 Focused';
+      });
+      focusBtn.addEventListener('mouseenter', () => {
+        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = '#475569';
+      });
+      focusBtn.addEventListener('mouseleave', () => {
+        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = 'none';
+      });
 
       const point = mapRef.project(coords);
       popupEl.style.left = `${point.x}px`;
