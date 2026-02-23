@@ -81,8 +81,12 @@ function loadImage(src, size) {
 
 export default function AircraftLayer({ data, mapRef }) {
   const popupRef = useRef(null);
+  const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
   const aircraftOpacity = useMapStore((s) => s.aircraftOpacity);
+
+  // Keep dataRef in sync so the styledata handler can re-push data
+  useEffect(() => { dataRef.current = data; }, [data]);
 
   const removePopup = useCallback(() => {
     if (popupRef.current) {
@@ -92,123 +96,150 @@ export default function AircraftLayer({ data, mapRef }) {
     }
   }, []);
 
-  // Load SDF images and create source + layers once
+  // Pre-load SDF image HTMLImageElements once (shared across style reloads)
+  const imagesRef = useRef(null);
+
+  // Add images, source, and layers to the current map style
+  const addLayers = useCallback((opacity) => {
+    if (!mapRef || !imagesRef.current) return;
+    const { planeImg, heliImg } = imagesRef.current;
+
+    if (!mapRef.hasImage(IMG_PLANE)) mapRef.addImage(IMG_PLANE, planeImg, { sdf: true });
+    if (!mapRef.hasImage(IMG_HELI)) mapRef.addImage(IMG_HELI, heliImg, { sdf: true });
+
+    if (!mapRef.getSource(AIRCRAFT_SOURCE)) {
+      mapRef.addSource(AIRCRAFT_SOURCE, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+    }
+
+    // 1. Red circle ring layer (below icons) for military/special aircraft
+    if (!mapRef.getLayer(LAYER_RING)) {
+      mapRef.addLayer({
+        id: LAYER_RING,
+        type: 'circle',
+        source: AIRCRAFT_SOURCE,
+        filter: ['any',
+          ['to-boolean', ['get', 'military']],
+          ['to-boolean', ['get', 'special']],
+        ],
+        paint: {
+          'circle-radius': 33,
+          'circle-color': 'transparent',
+          'circle-stroke-color': '#ef4444',
+          'circle-stroke-width': 2.5,
+          'circle-stroke-opacity': opacity,
+        },
+      });
+    }
+
+    // Size expression: larger for military/special
+    const iconSize = [
+      'case',
+      ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'special']]],
+      1.275,
+      1.05,
+    ];
+
+    // 2. Airplane symbol layer (non-helicopter)
+    if (!mapRef.getLayer(LAYER_PLANE)) {
+      mapRef.addLayer({
+        id: LAYER_PLANE,
+        type: 'symbol',
+        source: AIRCRAFT_SOURCE,
+        filter: ['!', ['to-boolean', ['get', 'helicopter']]],
+        layout: {
+          'icon-image': IMG_PLANE,
+          'icon-size': iconSize,
+          'icon-rotate': ['coalesce', ['get', 'track'], 0],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: {
+          'icon-color': ALT_COLOR,
+          'icon-halo-color': '#000000',
+          'icon-halo-width': 1,
+          'icon-opacity': opacity,
+        },
+      });
+    }
+
+    // 3. Helicopter symbol layer
+    if (!mapRef.getLayer(LAYER_HELI)) {
+      mapRef.addLayer({
+        id: LAYER_HELI,
+        type: 'symbol',
+        source: AIRCRAFT_SOURCE,
+        filter: ['to-boolean', ['get', 'helicopter']],
+        layout: {
+          'icon-image': IMG_HELI,
+          'icon-size': iconSize,
+          'icon-rotate': ['coalesce', ['get', 'track'], 0],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: {
+          'icon-color': ALT_COLOR,
+          'icon-halo-color': '#000000',
+          'icon-halo-width': 1,
+          'icon-opacity': opacity,
+        },
+      });
+    }
+  }, [mapRef]);
+
+  // Load SDF images, create layers, and re-add after style swaps
   useEffect(() => {
     if (!mapRef) return;
     let cancelled = false;
 
     const setup = async () => {
       try {
-        const [planeImg, heliImg] = await Promise.all([
-          loadImage(svgToDataUrl(createPlaneSvgSdf()), 48),
-          loadImage(svgToDataUrl(createHeliSvgSdf()), 48),
-        ]);
-
-        if (cancelled) return;
-
-        if (!mapRef.hasImage(IMG_PLANE)) mapRef.addImage(IMG_PLANE, planeImg, { sdf: true });
-        if (!mapRef.hasImage(IMG_HELI)) mapRef.addImage(IMG_HELI, heliImg, { sdf: true });
-
-        if (!mapRef.getSource(AIRCRAFT_SOURCE)) {
-          mapRef.addSource(AIRCRAFT_SOURCE, {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] },
-          });
+        if (!imagesRef.current) {
+          const [planeImg, heliImg] = await Promise.all([
+            loadImage(svgToDataUrl(createPlaneSvgSdf()), 48),
+            loadImage(svgToDataUrl(createHeliSvgSdf()), 48),
+          ]);
+          if (cancelled) return;
+          imagesRef.current = { planeImg, heliImg };
         }
 
-        // 1. Red circle ring layer (below icons) for military/special aircraft
-        if (!mapRef.getLayer(LAYER_RING)) {
-          mapRef.addLayer({
-            id: LAYER_RING,
-            type: 'circle',
-            source: AIRCRAFT_SOURCE,
-            filter: ['any',
-              ['to-boolean', ['get', 'military']],
-              ['to-boolean', ['get', 'special']],
-            ],
-            paint: {
-              'circle-radius': 22,
-              'circle-color': 'transparent',
-              'circle-stroke-color': '#ef4444',
-              'circle-stroke-width': 2.5,
-              'circle-stroke-opacity': aircraftOpacity,
-            },
-          });
-        }
-
-        // Size expression: larger for military/special
-        const iconSize = [
-          'case',
-          ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'special']]],
-          0.85,
-          0.7,
-        ];
-
-        // 2. Airplane symbol layer (non-helicopter)
-        if (!mapRef.getLayer(LAYER_PLANE)) {
-          mapRef.addLayer({
-            id: LAYER_PLANE,
-            type: 'symbol',
-            source: AIRCRAFT_SOURCE,
-            filter: ['!', ['to-boolean', ['get', 'helicopter']]],
-            layout: {
-              'icon-image': IMG_PLANE,
-              'icon-size': iconSize,
-              'icon-rotate': ['coalesce', ['get', 'track'], 0],
-              'icon-rotation-alignment': 'map',
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-            },
-            paint: {
-              'icon-color': ALT_COLOR,
-              'icon-halo-color': '#000000',
-              'icon-halo-width': 1,
-              'icon-opacity': aircraftOpacity,
-            },
-          });
-        }
-
-        // 3. Helicopter symbol layer
-        if (!mapRef.getLayer(LAYER_HELI)) {
-          mapRef.addLayer({
-            id: LAYER_HELI,
-            type: 'symbol',
-            source: AIRCRAFT_SOURCE,
-            filter: ['to-boolean', ['get', 'helicopter']],
-            layout: {
-              'icon-image': IMG_HELI,
-              'icon-size': iconSize,
-              'icon-rotate': ['coalesce', ['get', 'track'], 0],
-              'icon-rotation-alignment': 'map',
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-            },
-            paint: {
-              'icon-color': ALT_COLOR,
-              'icon-halo-color': '#000000',
-              'icon-halo-width': 1,
-              'icon-opacity': aircraftOpacity,
-            },
-          });
-        }
-
+        addLayers(aircraftOpacity);
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error('AircraftLayer setup error:', err);
       }
     };
 
+    // Re-add layers after a map style swap (e.g. changing base layer)
+    const onStyleData = () => {
+      // Style swap wipes all custom sources/layers/images — re-add them
+      if (imagesRef.current && !mapRef.getSource(AIRCRAFT_SOURCE)) {
+        addLayers(aircraftOpacity);
+        // Re-push current data into the fresh source
+        if (dataRef.current) {
+          const src = mapRef.getSource(AIRCRAFT_SOURCE);
+          if (src) src.setData(dataRef.current);
+        }
+      }
+    };
+
+    mapRef.on('styledata', onStyleData);
     setup();
 
     return () => {
       cancelled = true;
+      mapRef.off('styledata', onStyleData);
       removePopup();
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(AIRCRAFT_SOURCE)) mapRef.removeSource(AIRCRAFT_SOURCE); } catch {}
       ALL_IMAGES.forEach((i) => { try { if (mapRef.hasImage(i)) mapRef.removeImage(i); } catch {} });
       setReady(false);
     };
-  }, [mapRef, removePopup, aircraftOpacity]);
+  }, [mapRef, removePopup, addLayers, aircraftOpacity]);
 
   // Update data source when data changes
   useEffect(() => {
