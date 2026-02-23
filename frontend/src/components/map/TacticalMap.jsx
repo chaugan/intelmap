@@ -497,7 +497,7 @@ export default function TacticalMap() {
       {/* Legends + loading indicators — stacked bottom-right */}
       {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || sunlightVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData)) && (
             <div className="flex flex-col items-end gap-1">
               {windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -514,12 +514,12 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter skredvarsel...' : 'Loading avalanche warnings...'}
                 </div>
               )}
-              {aircraftLoading && (
+              {(aircraftLoading || (aircraftVisible && !aircraftData)) && (
                 <div className="text-xs text-amber-400 bg-slate-800/80 px-2 py-1 rounded">
                   {lang === 'no' ? 'Henter luftfartdata...' : 'Loading aircraft data...'}
                 </div>
               )}
-              {vesselsLoading && (
+              {(vesselsLoading || (vesselsVisible && !vesselsData)) && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
                   {lang === 'no' ? 'Henter fart\u00f8ydata...' : 'Loading vessel data...'}
                 </div>

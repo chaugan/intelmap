@@ -436,7 +436,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
               </button>
               <button
                 onClick={onClose}
-                className="text-slate-400 hover:text-white"
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-sm [@media(pointer:coarse)]:w-9 [@media(pointer:coarse)]:h-9"
               >
                 ✕
               </button>

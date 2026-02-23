@@ -48,7 +48,7 @@ function SunlightControls({ lang }) {
           type="date"
           value={sunlightDate}
           onChange={(e) => setSunlightDate(e.target.value)}
-          className="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-600 rounded text-[11px] text-white focus:outline-none focus:border-yellow-500"
+          className="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-600 rounded text-[11px] text-white focus:outline-none focus:border-yellow-500 [color-scheme:dark]"
         />
       </div>
       {/* Time slider */}
@@ -197,9 +197,9 @@ export default function DataLayersDrawer() {
                         </svg>
                       )}
                     </button>
-                    <span className={`text-sm flex-1 ${visible ? 'text-slate-200' : 'text-slate-500'}`}>
+                    <button onClick={toggle} className={`text-sm flex-1 text-left cursor-pointer ${visible ? 'text-slate-200' : 'text-slate-500'}`}>
                       {OVERLAY_LABELS[overlay.id]?.[lang] || overlay.id}
-                    </span>
+                    </button>
                   </div>
                   {/* Opacity slider (when visible and has opacity) */}
                   {visible && setOpacity && (

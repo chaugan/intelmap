@@ -77,13 +77,14 @@ export default function MapControls() {
       {/* Data layers drawer toggle */}
       <button
         onClick={toggleDataLayersDrawer}
-        className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${dataLayersDrawerOpen ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+        className={`relative px-3 py-1 rounded transition-colors flex items-center gap-1 ${dataLayersDrawerOpen ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
         title={`${t('dataLayers.title', lang)} (L)`}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
         {t('dataLayers.title', lang)}
+        <ActiveLayerBadge />
       </button>
 
       {/* Base layer selector */}
@@ -180,6 +181,21 @@ export default function MapControls() {
         )}
       </button>
     </div>
+  );
+}
+
+const VISIBILITY_KEYS = [
+  'sunlightVisible', 'windVisible', 'webcamsVisible', 'avalancheVisible',
+  'avalancheWarningsVisible', 'snowDepthVisible', 'aircraftVisible', 'vesselsVisible',
+];
+
+function ActiveLayerBadge() {
+  const count = useMapStore((s) => VISIBILITY_KEYS.reduce((n, k) => n + (s[k] ? 1 : 0), 0));
+  if (count === 0) return null;
+  return (
+    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+      {count}
+    </span>
   );
 }
 

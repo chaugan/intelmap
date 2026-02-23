@@ -297,11 +297,11 @@ export default function VesselLayer({ data, mapRef }) {
       popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
       popupEl.innerHTML = `
         <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:300px;overflow:hidden">
-          <div class="popup-drag-handle" style="height:10px;cursor:grab;background:#334155;display:flex;align-items:center;justify-content:center;border-radius:8px 8px 0 0">
-            <div style="width:30px;height:3px;background:#64748b;border-radius:2px"></div>
+          <div class="popup-drag-handle" style="height:28px;cursor:grab;background:#334155;display:flex;align-items:center;justify-content:center;border-radius:8px 8px 0 0;touch-action:none">
+            <div style="width:40px;height:4px;background:#64748b;border-radius:2px"></div>
           </div>
           <div style="padding:10px 12px;position:relative">
-            <button class="popup-close-btn" style="position:absolute;top:0px;right:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 4px">\u00d7</button>
+            <button class="popup-close-btn" style="position:absolute;top:0px;right:4px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
             ${html}
             <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
           </div>
@@ -363,6 +363,56 @@ export default function VesselLayer({ data, mapRef }) {
       };
 
       handle.addEventListener('mousedown', onMouseDown);
+
+      // Touch drag support
+      const onTouchStart = (te) => {
+        te.preventDefault();
+        te.stopPropagation();
+        const touch = te.touches[0];
+        handle.style.cursor = 'grabbing';
+
+        const startX = touch.clientX;
+        const startY = touch.clientY;
+        const rect = popupEl.getBoundingClientRect();
+        const containerRect = mapRef.getContainer().getBoundingClientRect();
+        const startLeft = rect.left - containerRect.left;
+        const startTop = rect.top - containerRect.top;
+
+        if (!detached) {
+          detached = true;
+          mapRef.off('move', updatePos);
+          popupEl.style.transform = 'none';
+          popupEl.style.left = `${startLeft}px`;
+          popupEl.style.top = `${startTop}px`;
+        }
+
+        mapRef.dragPan.disable();
+
+        const onTouchMove = (ev) => {
+          const t = ev.touches[0];
+          const dx = t.clientX - startX;
+          const dy = t.clientY - startY;
+          popupEl.style.left = `${startLeft + dx}px`;
+          popupEl.style.top = `${startTop + dy}px`;
+        };
+
+        const onTouchEnd = () => {
+          handle.style.cursor = 'grab';
+          mapRef.dragPan.enable();
+          document.removeEventListener('touchmove', onTouchMove);
+          document.removeEventListener('touchend', onTouchEnd);
+        };
+
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd);
+      };
+
+      handle.addEventListener('touchstart', onTouchStart, { passive: false });
+
+      // Hover effect on close button
+      const closeBtn = popupEl.querySelector('.popup-close-btn');
+      closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = '#475569'; });
+      closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'none'; });
 
       // Fetch and draw trace (fire-and-forget)
       if (props.mmsi) {

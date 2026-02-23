@@ -23,7 +23,7 @@ export default function WebcamViewer() {
           <h3 className="text-lg font-semibold text-emerald-400">{camera.properties.name}</h3>
           <button
             onClick={() => setSelectedCamera(null)}
-            className="text-slate-400 hover:text-white text-xl"
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-xl [@media(pointer:coarse)]:w-10 [@media(pointer:coarse)]:h-10"
           >
             ✕
           </button>

@@ -220,7 +220,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
           </button>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xs">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-sm [@media(pointer:coarse)]:w-9 [@media(pointer:coarse)]:h-9">✕</button>
         </div>
       </div>
 
