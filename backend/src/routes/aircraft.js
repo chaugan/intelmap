@@ -51,7 +51,7 @@ function decodeBinCraft(decompressed) {
     const onGround = airground === 1;
 
     // Baro altitude: s16[10] * 25 feet (gated by v73 bit 4)
-    const altBaro = (v73 & 16) ? (onGround ? 'ground' : s16[10] * 25) : null;
+    const altBaro = (v73 & 16) ? s16[10] * 25 : null;
 
     // Ground speed: s16[17] / 10 knots (gated by v73 bit 7)
     const gs = (v73 & 128) ? s16[17] / 10 : null;
@@ -102,9 +102,10 @@ function decodeBinCraft(decompressed) {
     }
     registration = registration.trim() || null;
 
-    // dbFlags: u16[43] — bit 0 = military
+    // dbFlags: u16[43] — bit 0 = military, bit 1 = special/government
     const dbFlags = u16[43];
     const military = !!(dbFlags & 1);
+    const special = !!(dbFlags & 2);
 
     aircraft.push({
       type: 'Feature',
@@ -119,6 +120,7 @@ function decodeBinCraft(decompressed) {
         track,
         squawk,
         military,
+        special,
         helicopter: category === 'A7',
         onGround,
         emergency,
