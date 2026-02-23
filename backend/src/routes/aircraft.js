@@ -225,31 +225,66 @@ router.get('/trace/:hex', async (req, res) => {
 
   try {
     const last2 = hex.slice(-2);
-    const url = `https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`;
-    const response = await fetch(url, {
-      headers: {
-        'Referer': 'https://globe.adsbexchange.com/',
-        'x-requested-with': 'XMLHttpRequest',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
+    const headers = {
+      'Referer': 'https://globe.adsbexchange.com/',
+      'x-requested-with': 'XMLHttpRequest',
+    };
 
-    if (response.status === 404) {
+    // Fetch both trace_full (history) and trace_recent (latest positions) in parallel
+    const [fullRes, recentRes] = await Promise.all([
+      fetch(`https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`, {
+        headers, signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`https://globe.adsbexchange.com/data/traces/${last2}/trace_recent_${hex}.json`, {
+        headers, signal: AbortSignal.timeout(10000),
+      }).catch(() => null), // recent is optional
+    ]);
+
+    if (fullRes.status === 404) {
       return res.status(404).json({ error: 'No trace data for this aircraft' });
     }
-    if (!response.ok) {
-      throw new Error(`ADS-B Exchange trace ${response.status}`);
+    if (!fullRes.ok) {
+      throw new Error(`ADS-B Exchange trace ${fullRes.status}`);
     }
 
-    const json = await response.json();
-    const trace = json.trace || [];
+    const fullJson = await fullRes.json();
+    const baseTimestamp = fullJson.timestamp || 0;
+    let trace = fullJson.trace || [];
 
-    // Find start of current flight: walk backwards to find last ground point
+    // Append trace_recent points that come after trace_full
+    if (recentRes && recentRes.ok) {
+      const recentJson = await recentRes.json();
+      const recentTrace = recentJson.trace || [];
+      const lastFullTime = trace.length > 0 ? trace[trace.length - 1][0] : -Infinity;
+      for (const pt of recentTrace) {
+        if (pt[0] > lastFullTime) trace.push(pt);
+      }
+    }
+
+    // Find start of current flight by walking backwards.
     // trace format: [time_offset, lat, lon, alt_baro, gs, track, flags, ...]
-    // alt_baro === "ground" when on the ground
+    // Detect flight boundary by:
+    //   1. alt_baro === "ground" (aircraft was on the ground)
+    //   2. Time gap > 5 minutes between consecutive points (transponder off/on)
+    //   3. Null lat/lon (data gap)
+    const GAP_THRESHOLD = 300; // 5 minutes in seconds
     let flightStart = 0;
-    for (let i = trace.length - 1; i >= 0; i--) {
-      if (trace[i][3] === 'ground') {
+    for (let i = trace.length - 1; i >= 1; i--) {
+      const point = trace[i];
+      const prev = trace[i - 1];
+
+      // Ground status
+      if (prev[3] === 'ground') {
+        flightStart = i;
+        break;
+      }
+      // Time gap between consecutive points
+      if (point[0] - prev[0] > GAP_THRESHOLD) {
+        flightStart = i;
+        break;
+      }
+      // Null position gap
+      if (prev[1] == null || prev[2] == null) {
         flightStart = i;
         break;
       }
