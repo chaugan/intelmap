@@ -363,7 +363,7 @@ export default function VesselLayer({ data, mapRef }) {
           </div>
           <div style="padding:10px 12px;position:relative">
             <div style="position:absolute;top:0px;right:4px;display:flex;gap:2px">
-              <button class="popup-focus-btn" style="background:${focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : 'none'};border:none;color:${focusedVesselMmsi === String(props.mmsi) ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
+              <button class="popup-focus-btn" style="background:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : 'none'};border:none;color:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
               <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
             </div>
             ${html}
