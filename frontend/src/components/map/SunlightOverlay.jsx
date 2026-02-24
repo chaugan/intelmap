@@ -152,7 +152,7 @@ export default function SunlightOverlay() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: true });
+    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: true, preserveDrawingBuffer: true });
     if (!gl) return;
     glRef.current = gl;
 
