@@ -73,6 +73,32 @@ const ALTITUDE_PRESETS = {
   'FL180': { source: 'openmeteo', speedKey: 'wind_speed_500hPa',  dirKey: 'wind_direction_500hPa' },
 };
 
+// Current hour index in the Open-Meteo hourly array (Europe/Oslo)
+function getCurrentHourIndex() {
+  const now = new Date();
+  const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }));
+  return oslo.getHours();
+}
+
+// Fetch Open-Meteo wind for multiple points in a single batched request
+async function fetchOpenMeteoBatch(points, preset, altKey) {
+  const { speedKey, dirKey } = preset;
+  const cacheKey = `wind-batch-${altKey}-${points.map(p => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|')}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  const lats = points.map(p => p.lat.toFixed(4)).join(',');
+  const lons = points.map(p => p.lon.toFixed(4)).join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
+  const data = await resp.json();
+  // Single point returns an object, multiple returns an array
+  const arr = Array.isArray(data) ? data : [data];
+  cache.set(cacheKey, { data: arr, ts: Date.now() });
+  return arr;
+}
+
 router.get('/wind-grid', async (req, res) => {
   try {
     const { north, south, east, west } = req.query;
@@ -99,15 +125,17 @@ router.get('/wind-grid', async (req, res) => {
       }
     }
 
-    // Fetch wind data for each point (with concurrency limit)
-    const results = [];
-    const batchSize = 10;
-    for (let b = 0; b < points.length; b += batchSize) {
-      const batch = points.slice(b, b + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async (pt) => {
-          try {
-            if (preset.source === 'met') {
+    let results;
+
+    if (preset.source === 'met') {
+      // MET Norway: per-point requests with concurrency limit
+      results = [];
+      const batchSize = 10;
+      for (let b = 0; b < points.length; b += batchSize) {
+        const batch = points.slice(b, b + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (pt) => {
+            try {
               const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${pt.lat.toFixed(4)}&lon=${pt.lon.toFixed(4)}`;
               const data = await metFetch(url);
               const ts = data?.properties?.timeseries?.[0];
@@ -120,35 +148,41 @@ router.get('/wind-grid', async (req, res) => {
                 u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
                 speed, direction: dir,
               };
+            } catch {
+              return { lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 };
             }
-            // Open-Meteo for 80m, 180m, and pressure levels
-            const { speedKey, dirKey } = preset;
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
-            const cacheKey = `wind-${altKey}-${pt.lat.toFixed(4)}-${pt.lon.toFixed(4)}`;
-            const cached = getCached(cacheKey);
-            let data;
-            if (cached) {
-              data = cached;
-            } else {
-              const resp = await fetch(url);
-              if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
-              data = await resp.json();
-              cache.set(cacheKey, { data, ts: Date.now() });
-            }
-            const speed = data?.hourly?.[speedKey]?.[0] ?? 0;
-            const dir = data?.hourly?.[dirKey]?.[0] ?? 0;
+          })
+        );
+        results.push(...batchResults);
+      }
+    } else {
+      // Open-Meteo: batched multi-coordinate requests (max ~80 per request to stay within URL limits)
+      const { speedKey, dirKey } = preset;
+      const hourIdx = getCurrentHourIndex();
+      results = [];
+      const batchSize = 80;
+      for (let b = 0; b < points.length; b += batchSize) {
+        const batch = points.slice(b, b + batchSize);
+        try {
+          const arr = await fetchOpenMeteoBatch(batch, preset, altKey);
+          for (let i = 0; i < batch.length; i++) {
+            const loc = arr[i];
+            const speed = loc?.hourly?.[speedKey]?.[hourIdx] ?? 0;
+            const dir = loc?.hourly?.[dirKey]?.[hourIdx] ?? 0;
             const dirRad = (dir * Math.PI) / 180;
-            return {
-              lat: pt.lat, lon: pt.lon,
+            results.push({
+              lat: batch[i].lat, lon: batch[i].lon,
               u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
               speed, direction: dir,
-            };
-          } catch {
-            return { lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 };
+            });
           }
-        })
-      );
-      results.push(...batchResults);
+        } catch {
+          // Fill batch with zeros on failure
+          for (const pt of batch) {
+            results.push({ lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 });
+          }
+        }
+      }
     }
 
     res.json({
