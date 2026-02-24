@@ -93,6 +93,34 @@ function SunlightControls({ lang }) {
   );
 }
 
+const WIND_ALTITUDES = [10, 80, 120, 180];
+
+function WindAltitudeControls({ lang }) {
+  const windAltitude = useMapStore((s) => s.windAltitude);
+  const setWindAltitude = useMapStore((s) => s.setWindAltitude);
+
+  return (
+    <div className="ml-8 mt-1">
+      <span className="text-[10px] text-slate-400">{lang === 'no' ? 'Høyde' : 'Altitude'}</span>
+      <div className="flex gap-1 mt-0.5">
+        {WIND_ALTITUDES.map((alt) => (
+          <button
+            key={alt}
+            onClick={() => setWindAltitude(alt)}
+            className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+              windAltitude === alt
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            {alt}m
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DataLayersDrawer() {
   const lang = useMapStore((s) => s.lang);
   const user = useAuthStore((s) => s.user);
@@ -215,6 +243,10 @@ export default function DataLayersDrawer() {
                       />
                       <span className="text-[10px] text-slate-500 w-7 text-right">{Math.round(opacity * 100)}%</span>
                     </div>
+                  )}
+                  {/* Wind altitude controls */}
+                  {overlay.id === 'wind' && visible && (
+                    <WindAltitudeControls lang={lang} />
                   )}
                   {/* Sunlight expanded controls */}
                   {overlay.id === 'sunlight' && visible && (

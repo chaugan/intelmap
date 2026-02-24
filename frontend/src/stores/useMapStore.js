@@ -15,6 +15,7 @@ export const useMapStore = create((set) => ({
   // Overlays
   windVisible: false,
   windOpacity: 0.75,
+  windAltitude: 10,
   webcamsVisible: false,
   avalancheVisible: false,
   avalancheWarningsVisible: false,
@@ -73,6 +74,7 @@ export const useMapStore = create((set) => ({
   setBaseLayer: (baseLayer) => set({ baseLayer }),
   toggleWind: () => set((s) => ({ windVisible: !s.windVisible })),
   setWindOpacity: (windOpacity) => set({ windOpacity }),
+  setWindAltitude: (windAltitude) => set({ windAltitude }),
   toggleWebcams: () => set((s) => ({ webcamsVisible: !s.webcamsVisible })),
   toggleAvalanche: () => set((s) => ({ avalancheVisible: !s.avalancheVisible })),
   toggleAvalancheWarnings: () => set((s) => ({
@@ -142,6 +144,7 @@ export const useMapStore = create((set) => ({
       ...(parsed.baseLayer !== undefined && { baseLayer: parsed.baseLayer }),
       ...(parsed.windVisible !== undefined && { windVisible: parsed.windVisible }),
       ...(parsed.windOpacity !== undefined && { windOpacity: parsed.windOpacity }),
+      ...(parsed.windAltitude !== undefined && { windAltitude: parsed.windAltitude }),
       ...(parsed.webcamsVisible !== undefined && { webcamsVisible: parsed.webcamsVisible }),
       ...(parsed.avalancheVisible !== undefined && { avalancheVisible: parsed.avalancheVisible }),
       ...(parsed.avalancheWarningsVisible !== undefined && { avalancheWarningsVisible: parsed.avalancheWarningsVisible }),
@@ -228,6 +231,7 @@ export function getThemeState() {
     baseLayer: s.baseLayer,
     windVisible: s.windVisible,
     windOpacity: s.windOpacity,
+    windAltitude: s.windAltitude,
     webcamsVisible: s.webcamsVisible,
     avalancheVisible: s.avalancheVisible,
     avalancheWarningsVisible: s.avalancheWarningsVisible,

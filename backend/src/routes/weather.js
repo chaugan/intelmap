@@ -63,13 +63,17 @@ router.get('/moon', async (req, res) => {
   }
 });
 
-// Wind grid
+// Wind grid (Open-Meteo)
+const VALID_ALTITUDES = [10, 80, 120, 180];
+
 router.get('/wind-grid', async (req, res) => {
   try {
     const { north, south, east, west } = req.query;
     if (!north || !south || !east || !west) {
       return res.status(400).json({ error: 'Bounds required: north, south, east, west' });
     }
+
+    const alt = VALID_ALTITUDES.includes(Number(req.query.altitude)) ? Number(req.query.altitude) : 10;
 
     // Clamp to Norway's geographic extent so grid points aren't wasted over ocean/abroad
     const n = Math.min(parseFloat(north), 71.5);
@@ -87,6 +91,9 @@ router.get('/wind-grid', async (req, res) => {
       }
     }
 
+    const speedKey = `wind_speed_${alt}m`;
+    const dirKey = `wind_direction_${alt}m`;
+
     // Fetch wind data for each point (with concurrency limit)
     const results = [];
     const batchSize = 10;
@@ -95,12 +102,20 @@ router.get('/wind-grid', async (req, res) => {
       const batchResults = await Promise.all(
         batch.map(async (pt) => {
           try {
-            const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${pt.lat.toFixed(4)}&lon=${pt.lon.toFixed(4)}`;
-            const data = await metFetch(url);
-            const ts = data?.properties?.timeseries?.[0];
-            const details = ts?.data?.instant?.details || {};
-            const speed = details.wind_speed || 0;
-            const dir = details.wind_from_direction || 0;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=${speedKey},${dirKey}&forecast_days=1&timezone=auto`;
+            const cacheKey = `wind-${alt}-${pt.lat.toFixed(4)}-${pt.lon.toFixed(4)}`;
+            const cached = getCached(cacheKey);
+            let data;
+            if (cached) {
+              data = cached;
+            } else {
+              const resp = await fetch(url);
+              if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
+              data = await resp.json();
+              cache.set(cacheKey, { data, ts: Date.now() });
+            }
+            const speed = data?.hourly?.[speedKey]?.[0] ?? 0;
+            const dir = data?.hourly?.[dirKey]?.[0] ?? 0;
             const dirRad = (dir * Math.PI) / 180;
             return {
               lat: pt.lat,
