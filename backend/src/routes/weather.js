@@ -98,8 +98,8 @@ router.get('/wind-grid', async (req, res) => {
     const e = Math.min(parseFloat(east), 32);
     const w = Math.max(parseFloat(west), 4);
 
-    // MET 20×20 (400 pts, per-point requests) vs Open-Meteo 10×10 (100 pts, single request)
-    const gridSize = preset.source === 'met' ? 20 : 10;
+    // MET 20×20 (400 pts) vs Open-Meteo 7×7 (49 pts, single request — stays within rate limits)
+    const gridSize = preset.source === 'met' ? 20 : 7;
     const latStep = (n - s) / (gridSize - 1);
     const lonStep = (e - w) / (gridSize - 1);
 
@@ -145,8 +145,8 @@ router.get('/wind-grid', async (req, res) => {
       const { speedKey, dirKey } = preset;
       const hourIdx = getCurrentHourIndex();
 
-      // Round bounds to 1 decimal to stabilise cache across small viewport shifts
-      const cacheKey = `openmeteo-${altKey}-${n.toFixed(1)}-${s.toFixed(1)}-${e.toFixed(1)}-${w.toFixed(1)}`;
+      // Round bounds to whole degrees to stabilise cache across viewport shifts
+      const cacheKey = `openmeteo-${altKey}-${Math.round(n)}-${Math.round(s)}-${Math.round(e)}-${Math.round(w)}`;
       const cached = getCached(cacheKey);
 
       if (cached) {
@@ -155,7 +155,12 @@ router.get('/wind-grid', async (req, res) => {
         const lats = points.map(p => p.lat.toFixed(4)).join(',');
         const lons = points.map(p => p.lon.toFixed(4)).join(',');
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
-        const resp = await fetch(url);
+        let resp = await fetch(url);
+        // Retry once after 5s on rate limit
+        if (resp.status === 429) {
+          await new Promise(r => setTimeout(r, 5000));
+          resp = await fetch(url);
+        }
         if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
         const data = await resp.json();
         const arr = Array.isArray(data) ? data : [data];
