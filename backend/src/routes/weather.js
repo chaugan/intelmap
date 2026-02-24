@@ -63,8 +63,15 @@ router.get('/moon', async (req, res) => {
   }
 });
 
-// Wind grid (Open-Meteo)
-const VALID_ALTITUDES = [10, 80, 120, 180];
+// Wind grid — MET Norway for surface (10m), Open-Meteo for higher altitudes
+const ALTITUDE_PRESETS = {
+  '10':    { source: 'met' },
+  '80':    { source: 'openmeteo', speedKey: 'wind_speed_80m',     dirKey: 'wind_direction_80m' },
+  '180':   { source: 'openmeteo', speedKey: 'wind_speed_180m',    dirKey: 'wind_direction_180m' },
+  'FL50':  { source: 'openmeteo', speedKey: 'wind_speed_850hPa',  dirKey: 'wind_direction_850hPa' },
+  'FL100': { source: 'openmeteo', speedKey: 'wind_speed_700hPa',  dirKey: 'wind_direction_700hPa' },
+  'FL180': { source: 'openmeteo', speedKey: 'wind_speed_500hPa',  dirKey: 'wind_direction_500hPa' },
+};
 
 router.get('/wind-grid', async (req, res) => {
   try {
@@ -73,7 +80,8 @@ router.get('/wind-grid', async (req, res) => {
       return res.status(400).json({ error: 'Bounds required: north, south, east, west' });
     }
 
-    const alt = VALID_ALTITUDES.includes(Number(req.query.altitude)) ? Number(req.query.altitude) : 10;
+    const altKey = ALTITUDE_PRESETS[req.query.altitude] ? req.query.altitude : '10';
+    const preset = ALTITUDE_PRESETS[altKey];
 
     // Clamp to Norway's geographic extent so grid points aren't wasted over ocean/abroad
     const n = Math.min(parseFloat(north), 71.5);
@@ -91,9 +99,6 @@ router.get('/wind-grid', async (req, res) => {
       }
     }
 
-    const speedKey = `wind_speed_${alt}m`;
-    const dirKey = `wind_direction_${alt}m`;
-
     // Fetch wind data for each point (with concurrency limit)
     const results = [];
     const batchSize = 10;
@@ -102,8 +107,24 @@ router.get('/wind-grid', async (req, res) => {
       const batchResults = await Promise.all(
         batch.map(async (pt) => {
           try {
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=${speedKey},${dirKey}&forecast_days=1&timezone=auto`;
-            const cacheKey = `wind-${alt}-${pt.lat.toFixed(4)}-${pt.lon.toFixed(4)}`;
+            if (preset.source === 'met') {
+              const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${pt.lat.toFixed(4)}&lon=${pt.lon.toFixed(4)}`;
+              const data = await metFetch(url);
+              const ts = data?.properties?.timeseries?.[0];
+              const details = ts?.data?.instant?.details || {};
+              const speed = details.wind_speed || 0;
+              const dir = details.wind_from_direction || 0;
+              const dirRad = (dir * Math.PI) / 180;
+              return {
+                lat: pt.lat, lon: pt.lon,
+                u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
+                speed, direction: dir,
+              };
+            }
+            // Open-Meteo for 80m, 180m, and pressure levels
+            const { speedKey, dirKey } = preset;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
+            const cacheKey = `wind-${altKey}-${pt.lat.toFixed(4)}-${pt.lon.toFixed(4)}`;
             const cached = getCached(cacheKey);
             let data;
             if (cached) {
@@ -118,12 +139,9 @@ router.get('/wind-grid', async (req, res) => {
             const dir = data?.hourly?.[dirKey]?.[0] ?? 0;
             const dirRad = (dir * Math.PI) / 180;
             return {
-              lat: pt.lat,
-              lon: pt.lon,
-              u: -speed * Math.sin(dirRad),
-              v: -speed * Math.cos(dirRad),
-              speed,
-              direction: dir,
+              lat: pt.lat, lon: pt.lon,
+              u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
+              speed, direction: dir,
             };
           } catch {
             return { lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 };

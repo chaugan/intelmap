@@ -93,7 +93,14 @@ function SunlightControls({ lang }) {
   );
 }
 
-const WIND_ALTITUDES = [10, 80, 120, 180];
+const WIND_ALTITUDES = [
+  { key: '10',    label: '10m' },
+  { key: '80',    label: '80m' },
+  { key: '180',   label: '180m' },
+  { key: 'FL50',  label: 'FL50' },
+  { key: 'FL100', label: 'FL100' },
+  { key: 'FL180', label: 'FL180' },
+];
 
 function WindAltitudeControls({ lang }) {
   const windAltitude = useMapStore((s) => s.windAltitude);
@@ -102,18 +109,18 @@ function WindAltitudeControls({ lang }) {
   return (
     <div className="ml-8 mt-1">
       <span className="text-[10px] text-slate-400">{lang === 'no' ? 'Høyde' : 'Altitude'}</span>
-      <div className="flex gap-1 mt-0.5">
+      <div className="flex gap-1 mt-0.5 flex-wrap">
         {WIND_ALTITUDES.map((alt) => (
           <button
-            key={alt}
-            onClick={() => setWindAltitude(alt)}
+            key={alt.key}
+            onClick={() => setWindAltitude(alt.key)}
             className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-              windAltitude === alt
+              windAltitude === alt.key
                 ? 'bg-emerald-600 text-white'
                 : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
             }`}
           >
-            {alt}m
+            {alt.label}
           </button>
         ))}
       </div>

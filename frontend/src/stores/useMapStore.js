@@ -15,7 +15,7 @@ export const useMapStore = create((set) => ({
   // Overlays
   windVisible: false,
   windOpacity: 0.75,
-  windAltitude: 10,
+  windAltitude: '10',
   webcamsVisible: false,
   avalancheVisible: false,
   avalancheWarningsVisible: false,
