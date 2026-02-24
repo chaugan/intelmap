@@ -73,30 +73,13 @@ const ALTITUDE_PRESETS = {
   'FL180': { source: 'openmeteo', speedKey: 'wind_speed_500hPa',  dirKey: 'wind_direction_500hPa' },
 };
 
+const OPENMETEO_CACHE_TTL = 60 * 60 * 1000; // 60 min — upper-level wind changes slowly
+
 // Current hour index in the Open-Meteo hourly array (Europe/Oslo)
 function getCurrentHourIndex() {
   const now = new Date();
   const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }));
   return oslo.getHours();
-}
-
-// Fetch Open-Meteo wind for multiple points in a single batched request
-async function fetchOpenMeteoBatch(points, preset, altKey) {
-  const { speedKey, dirKey } = preset;
-  const cacheKey = `wind-batch-${altKey}-${points.map(p => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|')}`;
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
-
-  const lats = points.map(p => p.lat.toFixed(4)).join(',');
-  const lons = points.map(p => p.lon.toFixed(4)).join(',');
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
-  const data = await resp.json();
-  // Single point returns an object, multiple returns an array
-  const arr = Array.isArray(data) ? data : [data];
-  cache.set(cacheKey, { data: arr, ts: Date.now() });
-  return arr;
 }
 
 router.get('/wind-grid', async (req, res) => {
@@ -109,12 +92,14 @@ router.get('/wind-grid', async (req, res) => {
     const altKey = ALTITUDE_PRESETS[req.query.altitude] ? req.query.altitude : '10';
     const preset = ALTITUDE_PRESETS[altKey];
 
-    // Clamp to Norway's geographic extent so grid points aren't wasted over ocean/abroad
+    // Clamp to Norway's geographic extent
     const n = Math.min(parseFloat(north), 71.5);
     const s = Math.max(parseFloat(south), 57.5);
     const e = Math.min(parseFloat(east), 32);
     const w = Math.max(parseFloat(west), 4);
-    const gridSize = 20;
+
+    // MET 20×20 (400 pts, per-point requests) vs Open-Meteo 10×10 (100 pts, single request)
+    const gridSize = preset.source === 'met' ? 20 : 10;
     const latStep = (n - s) / (gridSize - 1);
     const lonStep = (e - w) / (gridSize - 1);
 
@@ -156,32 +141,38 @@ router.get('/wind-grid', async (req, res) => {
         results.push(...batchResults);
       }
     } else {
-      // Open-Meteo: batched multi-coordinate requests (max ~80 per request to stay within URL limits)
+      // Open-Meteo: single request with all 100 coordinates
       const { speedKey, dirKey } = preset;
       const hourIdx = getCurrentHourIndex();
-      results = [];
-      const batchSize = 80;
-      for (let b = 0; b < points.length; b += batchSize) {
-        const batch = points.slice(b, b + batchSize);
-        try {
-          const arr = await fetchOpenMeteoBatch(batch, preset, altKey);
-          for (let i = 0; i < batch.length; i++) {
-            const loc = arr[i];
-            const speed = loc?.hourly?.[speedKey]?.[hourIdx] ?? 0;
-            const dir = loc?.hourly?.[dirKey]?.[hourIdx] ?? 0;
-            const dirRad = (dir * Math.PI) / 180;
-            results.push({
-              lat: batch[i].lat, lon: batch[i].lon,
-              u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
-              speed, direction: dir,
-            });
-          }
-        } catch {
-          // Fill batch with zeros on failure
-          for (const pt of batch) {
-            results.push({ lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 });
-          }
+
+      // Round bounds to 1 decimal to stabilise cache across small viewport shifts
+      const cacheKey = `openmeteo-${altKey}-${n.toFixed(1)}-${s.toFixed(1)}-${e.toFixed(1)}-${w.toFixed(1)}`;
+      const cached = getCached(cacheKey);
+
+      if (cached) {
+        results = cached;
+      } else {
+        const lats = points.map(p => p.lat.toFixed(4)).join(',');
+        const lons = points.map(p => p.lon.toFixed(4)).join(',');
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
+        const data = await resp.json();
+        const arr = Array.isArray(data) ? data : [data];
+
+        results = [];
+        for (let i = 0; i < points.length; i++) {
+          const loc = arr[i];
+          const speed = loc?.hourly?.[speedKey]?.[hourIdx] ?? 0;
+          const dir = loc?.hourly?.[dirKey]?.[hourIdx] ?? 0;
+          const dirRad = (dir * Math.PI) / 180;
+          results.push({
+            lat: points[i].lat, lon: points[i].lon,
+            u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
+            speed, direction: dir,
+          });
         }
+        cache.set(cacheKey, { data: results, ts: Date.now() });
       }
     }
 
