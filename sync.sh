@@ -35,7 +35,7 @@ npm ci --omit=dev
 echo ""
 echo "[3/6] Building frontend..."
 cd "$INSTALL_DIR/frontend"
-npm ci
+npm ci --omit=dev
 npx vite build
 
 echo ""
