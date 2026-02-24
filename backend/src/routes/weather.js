@@ -63,25 +63,7 @@ router.get('/moon', async (req, res) => {
   }
 });
 
-// Wind grid — MET Norway for surface (10m), Open-Meteo for higher altitudes
-const ALTITUDE_PRESETS = {
-  '10':    { source: 'met' },
-  '80':    { source: 'openmeteo', speedKey: 'wind_speed_80m',     dirKey: 'wind_direction_80m' },
-  '180':   { source: 'openmeteo', speedKey: 'wind_speed_180m',    dirKey: 'wind_direction_180m' },
-  'FL50':  { source: 'openmeteo', speedKey: 'wind_speed_850hPa',  dirKey: 'wind_direction_850hPa' },
-  'FL100': { source: 'openmeteo', speedKey: 'wind_speed_700hPa',  dirKey: 'wind_direction_700hPa' },
-  'FL180': { source: 'openmeteo', speedKey: 'wind_speed_500hPa',  dirKey: 'wind_direction_500hPa' },
-};
-
-const OPENMETEO_CACHE_TTL = 60 * 60 * 1000; // 60 min — upper-level wind changes slowly
-
-// Current hour index in the Open-Meteo hourly array (Europe/Oslo)
-function getCurrentHourIndex() {
-  const now = new Date();
-  const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }));
-  return oslo.getHours();
-}
-
+// Wind grid
 router.get('/wind-grid', async (req, res) => {
   try {
     const { north, south, east, west } = req.query;
@@ -89,17 +71,12 @@ router.get('/wind-grid', async (req, res) => {
       return res.status(400).json({ error: 'Bounds required: north, south, east, west' });
     }
 
-    const altKey = ALTITUDE_PRESETS[req.query.altitude] ? req.query.altitude : '10';
-    const preset = ALTITUDE_PRESETS[altKey];
-
-    // Clamp to Norway's geographic extent
+    // Clamp to Norway's geographic extent so grid points aren't wasted over ocean/abroad
     const n = Math.min(parseFloat(north), 71.5);
     const s = Math.max(parseFloat(south), 57.5);
     const e = Math.min(parseFloat(east), 32);
     const w = Math.max(parseFloat(west), 4);
-
-    // MET 20×20 (400 pts) vs Open-Meteo 7×7 (49 pts, single request — stays within rate limits)
-    const gridSize = preset.source === 'met' ? 20 : 7;
+    const gridSize = 20;
     const latStep = (n - s) / (gridSize - 1);
     const lonStep = (e - w) / (gridSize - 1);
 
@@ -110,75 +87,35 @@ router.get('/wind-grid', async (req, res) => {
       }
     }
 
-    let results;
-
-    if (preset.source === 'met') {
-      // MET Norway: per-point requests with concurrency limit
-      results = [];
-      const batchSize = 10;
-      for (let b = 0; b < points.length; b += batchSize) {
-        const batch = points.slice(b, b + batchSize);
-        const batchResults = await Promise.all(
-          batch.map(async (pt) => {
-            try {
-              const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${pt.lat.toFixed(4)}&lon=${pt.lon.toFixed(4)}`;
-              const data = await metFetch(url);
-              const ts = data?.properties?.timeseries?.[0];
-              const details = ts?.data?.instant?.details || {};
-              const speed = details.wind_speed || 0;
-              const dir = details.wind_from_direction || 0;
-              const dirRad = (dir * Math.PI) / 180;
-              return {
-                lat: pt.lat, lon: pt.lon,
-                u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
-                speed, direction: dir,
-              };
-            } catch {
-              return { lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 };
-            }
-          })
-        );
-        results.push(...batchResults);
-      }
-    } else {
-      // Open-Meteo: single request with all 100 coordinates
-      const { speedKey, dirKey } = preset;
-      const hourIdx = getCurrentHourIndex();
-
-      // Round bounds to whole degrees to stabilise cache across viewport shifts
-      const cacheKey = `openmeteo-${altKey}-${Math.round(n)}-${Math.round(s)}-${Math.round(e)}-${Math.round(w)}`;
-      const cached = getCached(cacheKey);
-
-      if (cached) {
-        results = cached;
-      } else {
-        const lats = points.map(p => p.lat.toFixed(4)).join(',');
-        const lons = points.map(p => p.lon.toFixed(4)).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=${speedKey},${dirKey}&wind_speed_unit=ms&forecast_days=1&timezone=auto`;
-        let resp = await fetch(url);
-        // Retry once after 5s on rate limit
-        if (resp.status === 429) {
-          await new Promise(r => setTimeout(r, 5000));
-          resp = await fetch(url);
-        }
-        if (!resp.ok) throw new Error(`Open-Meteo ${resp.status}`);
-        const data = await resp.json();
-        const arr = Array.isArray(data) ? data : [data];
-
-        results = [];
-        for (let i = 0; i < points.length; i++) {
-          const loc = arr[i];
-          const speed = loc?.hourly?.[speedKey]?.[hourIdx] ?? 0;
-          const dir = loc?.hourly?.[dirKey]?.[hourIdx] ?? 0;
-          const dirRad = (dir * Math.PI) / 180;
-          results.push({
-            lat: points[i].lat, lon: points[i].lon,
-            u: -speed * Math.sin(dirRad), v: -speed * Math.cos(dirRad),
-            speed, direction: dir,
-          });
-        }
-        cache.set(cacheKey, { data: results, ts: Date.now() });
-      }
+    // Fetch wind data for each point (with concurrency limit)
+    const results = [];
+    const batchSize = 10;
+    for (let b = 0; b < points.length; b += batchSize) {
+      const batch = points.slice(b, b + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (pt) => {
+          try {
+            const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${pt.lat.toFixed(4)}&lon=${pt.lon.toFixed(4)}`;
+            const data = await metFetch(url);
+            const ts = data?.properties?.timeseries?.[0];
+            const details = ts?.data?.instant?.details || {};
+            const speed = details.wind_speed || 0;
+            const dir = details.wind_from_direction || 0;
+            const dirRad = (dir * Math.PI) / 180;
+            return {
+              lat: pt.lat,
+              lon: pt.lon,
+              u: -speed * Math.sin(dirRad),
+              v: -speed * Math.cos(dirRad),
+              speed,
+              direction: dir,
+            };
+          } catch {
+            return { lat: pt.lat, lon: pt.lon, u: 0, v: 0, speed: 0, direction: 0 };
+          }
+        })
+      );
+      results.push(...batchResults);
     }
 
     res.json({

@@ -13,7 +13,6 @@ export default function WindOverlay() {
   const bounds = useMapStore((s) => s.bounds);
   const lang = useMapStore((s) => s.lang);
   const windOpacity = useMapStore((s) => s.windOpacity);
-  const windAltitude = useMapStore((s) => s.windAltitude);
   const windGrid = useWeatherStore((s) => s.windGrid);
   const setWindGrid = useWeatherStore((s) => s.setWindGrid);
   const setWindFetchedAt = useWeatherStore((s) => s.setWindFetchedAt);
@@ -42,7 +41,7 @@ export default function WindOverlay() {
       setWindLoading(true);
       try {
         const res = await fetch(
-          `/api/weather/wind-grid?north=${bounds.north}&south=${bounds.south}&east=${bounds.east}&west=${bounds.west}&altitude=${windAltitude}`
+          `/api/weather/wind-grid?north=${bounds.north}&south=${bounds.south}&east=${bounds.east}&west=${bounds.west}`
         );
         if (res.ok && !cancelled) {
           setWindGrid(await res.json());
@@ -57,7 +56,7 @@ export default function WindOverlay() {
 
     const timer = setTimeout(fetchGrid, 1500);
     return () => { cancelled = true; clearTimeout(timer); setWindLoading(false); };
-  }, [bounds?.north, bounds?.south, bounds?.east, bounds?.west, windAltitude]);
+  }, [bounds?.north, bounds?.south, bounds?.east, bounds?.west]);
 
   // Render heatmap — re-draw whenever windGrid changes or map moves
   const renderHeatmap = useCallback(() => {
