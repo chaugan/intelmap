@@ -43,8 +43,9 @@ export default function BuildingsLayer() {
         });
       }
 
-      // 3D extruded buildings
+      // 3D extruded buildings — read current opacity from store (not stale closure)
       if (!map.getLayer(OFM_EXTRUSION_LAYER)) {
+        const currentOpacity = useMapStore.getState().buildingOpacity;
         map.addLayer({
           id: OFM_EXTRUSION_LAYER,
           type: 'fill-extrusion',
@@ -55,7 +56,7 @@ export default function BuildingsLayer() {
             'fill-extrusion-color': '#d4c8b8',
             'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
             'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-            'fill-extrusion-opacity': buildingOpacity,
+            'fill-extrusion-opacity': currentOpacity,
           },
         });
       }

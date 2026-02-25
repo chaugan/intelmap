@@ -63,11 +63,17 @@ void main() {
 
   float elev = decodeElevation(texture2D(u_dem, uv));
 
-  // If this pixel is on a building, ray starts from building top
+  // If this pixel is on a building footprint, make shadow transparent so the
+  // 3D fill-extrusion rendered by MapLibre shows through (prevents shadow
+  // painting over building faces when the map is tilted/pitched)
   float selfBuildingH = 0.0;
   if (u_buildingsActive > 0.5) {
     vec4 selfBldg = texture2D(u_buildings, uv);
-    if (selfBldg.a > 0.5) selfBuildingH = decodeBuildingHeight(selfBldg);
+    if (selfBldg.a > 0.5) {
+      selfBuildingH = decodeBuildingHeight(selfBldg);
+      gl_FragColor = vec4(0.0);
+      return;
+    }
   }
 
   // Sun direction as 2D step in texture space
