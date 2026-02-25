@@ -129,6 +129,7 @@ const translations = {
     'sunlight.azimuth': 'Solretning',
     'sunlight.elevation': 'Solhøyde',
     'sunlight.buildings': 'Bygningsskygger',
+    'buildings': 'Bygninger',
 
     // Wind
     'wind.opacity': 'Vindgjennomsiktighet',
@@ -345,6 +346,7 @@ const translations = {
     'sunlight.azimuth': 'Sun direction',
     'sunlight.elevation': 'Sun elevation',
     'sunlight.buildings': 'Building shadows',
+    'buildings': 'Buildings',
 
     // Wind
     'wind.opacity': 'Wind opacity',

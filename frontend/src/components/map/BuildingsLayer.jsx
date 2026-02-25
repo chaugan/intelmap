@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { t } from '../../lib/i18n.js';
 
 const OFM_SOURCE = 'ofm-buildings';
 const OFM_EXTRUSION_LAYER = 'ofm-buildings-3d';
@@ -10,7 +11,11 @@ export { OFM_SOURCE, OFM_QUERY_LAYER, BUILDING_MIN_ZOOM };
 
 export default function BuildingsLayer() {
   const mapRef = useMapStore((s) => s.mapRef);
+  const buildingOpacity = useMapStore((s) => s.buildingOpacity);
+  const setBuildingOpacity = useMapStore((s) => s.setBuildingOpacity);
+  const lang = useMapStore((s) => s.lang);
   const activeRef = useRef(false);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const map = mapRef;
@@ -50,7 +55,7 @@ export default function BuildingsLayer() {
             'fill-extrusion-color': '#d4c8b8',
             'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
             'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-            'fill-extrusion-opacity': 0.7,
+            'fill-extrusion-opacity': buildingOpacity,
           },
         });
       }
@@ -65,6 +70,7 @@ export default function BuildingsLayer() {
       removeLayers();
       try { if (map.getSource(OFM_SOURCE)) map.removeSource(OFM_SOURCE); } catch {}
       activeRef.current = false;
+      setVisible(false);
     };
 
     const checkZoom = () => {
@@ -74,6 +80,7 @@ export default function BuildingsLayer() {
           addSource();
           addLayers();
           activeRef.current = true;
+          setVisible(true);
         }
       } else {
         if (activeRef.current) {
@@ -89,6 +96,7 @@ export default function BuildingsLayer() {
         addSource();
         addLayers();
         activeRef.current = true;
+        setVisible(true);
       }
     };
 
@@ -104,5 +112,32 @@ export default function BuildingsLayer() {
     };
   }, [mapRef]);
 
-  return null;
+  // Update extrusion opacity when slider changes
+  useEffect(() => {
+    const map = mapRef;
+    if (!map || !map.getLayer(OFM_EXTRUSION_LAYER)) return;
+    map.setPaintProperty(OFM_EXTRUSION_LAYER, 'fill-extrusion-opacity', buildingOpacity);
+  }, [mapRef, buildingOpacity]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="absolute top-14 left-2 z-[5] bg-slate-800/90 rounded px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
+      <span className="text-[10px] text-slate-300 whitespace-nowrap">
+        {t('buildings', lang)}
+      </span>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value={Math.round(buildingOpacity * 100)}
+        onChange={(e) => setBuildingOpacity(parseInt(e.target.value) / 100)}
+        className="w-20 h-1 accent-amber-500"
+      />
+      <span className="text-[10px] text-white font-mono w-7 text-right">
+        {Math.round(buildingOpacity * 100)}%
+      </span>
+    </div>
+  );
 }

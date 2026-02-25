@@ -188,8 +188,8 @@ export default function SunlightOverlay() {
   const texRef = useRef(null);
   const buildingTexRef = useRef(null);
   const buildingTexSizeRef = useRef({ w: 0, h: 0 });
-  const buildingsActiveRef = useRef(false);
   const buildingMptRef = useRef(0);
+  const renderShadowRef = useRef(null);
   const [buildingsVisible, setBuildingsVisible] = useState(false);
   const bufRef = useRef(null);
   const animFrameRef = useRef(null);
@@ -390,7 +390,7 @@ export default function SunlightOverlay() {
     if (!gl || !texRef.current) return;
     gl.bindTexture(gl.TEXTURE_2D, texRef.current);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
-    renderShadow();
+    if (renderShadowRef.current) renderShadowRef.current();
   }, []);
 
   // --- Render shadow ---
@@ -408,11 +408,12 @@ export default function SunlightOverlay() {
     gl.bindTexture(gl.TEXTURE_2D, texRef.current);
     gl.uniform1i(u.u_dem, 0);
 
-    // Bind building texture
+    // Bind building texture — active when texture has been rasterized (w > 1) and zoom qualifies
+    const bActive = buildingTexSizeRef.current.w > 1 && mapRef.getZoom() >= BUILDING_MIN_ZOOM;
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
     gl.uniform1i(u.u_buildings, 1);
-    gl.uniform1f(u.u_buildingsActive, buildingsActiveRef.current ? 1.0 : 0.0);
+    gl.uniform1f(u.u_buildingsActive, bActive ? 1.0 : 0.0);
     gl.uniform2f(u.u_buildingTexSize, buildingTexSizeRef.current.w, buildingTexSizeRef.current.h);
 
     // Sun uniforms
@@ -462,6 +463,9 @@ export default function SunlightOverlay() {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }, [bounds, sunPos, sunlightOpacity, mapRef]);
 
+  // Keep ref in sync so rasterizeBuildings can call it without a dependency
+  renderShadowRef.current = renderShadow;
+
   // --- Rasterize OSM building footprints to height texture ---
   const rasterizeBuildings = useCallback(() => {
     const map = mapRef;
@@ -470,14 +474,14 @@ export default function SunlightOverlay() {
     if (!map || !gl || !demB || !buildingTexRef.current) return;
 
     if (!map.getSource(OFM_SOURCE)) {
-      buildingsActiveRef.current = false;
+      buildingTexSizeRef.current = { w: 0, h: 0 };
       setBuildingsVisible(false);
       return;
     }
 
     const features = map.querySourceFeatures(OFM_SOURCE, { sourceLayer: 'building' });
     if (!features.length) {
-      buildingsActiveRef.current = false;
+      buildingTexSizeRef.current = { w: 0, h: 0 };
       setBuildingsVisible(false);
       return;
     }
@@ -553,7 +557,6 @@ export default function SunlightOverlay() {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
     gl.activeTexture(gl.TEXTURE0);
     buildingTexSizeRef.current = { w: cw, h: ch };
-    buildingsActiveRef.current = true;
     setBuildingsVisible(true);
 
     // Compute building meters per texel
@@ -561,8 +564,8 @@ export default function SunlightOverlay() {
     const earthCircumAtLat = 40075016.686 * Math.cos(center.lat * Math.PI / 180);
     buildingMptRef.current = (demW * earthCircumAtLat) / cw;
 
-    renderShadow();
-  }, [mapRef, renderShadow]);
+    renderShadowRef.current();
+  }, [mapRef]);
 
   // --- Listen for building source data from BuildingsLayer ---
   useEffect(() => {
@@ -588,7 +591,7 @@ export default function SunlightOverlay() {
 
     const onZoomEnd = () => {
       if (map.getZoom() < BUILDING_MIN_ZOOM) {
-        buildingsActiveRef.current = false;
+        buildingTexSizeRef.current = { w: 0, h: 0 };
         setBuildingsVisible(false);
       }
     };
@@ -607,7 +610,6 @@ export default function SunlightOverlay() {
       map.off('moveend', onMoveEnd);
       map.off('zoomend', onZoomEnd);
       if (rasterizeTimer) clearTimeout(rasterizeTimer);
-      buildingsActiveRef.current = false;
     };
   }, [mapRef, rasterizeBuildings]);
 
@@ -621,15 +623,17 @@ export default function SunlightOverlay() {
   }, [bounds, loadDemTiles]);
 
   // Re-render when sun position or opacity changes (instant — just uniform update)
+  // Use renderShadowRef to always call the latest function without effect churn
   useEffect(() => {
-    if (demBoundsRef.current) renderShadow();
-  }, [sunPos, sunlightOpacity, renderShadow]);
+    if (demBoundsRef.current && renderShadowRef.current) renderShadowRef.current();
+  }, [sunPos, sunlightOpacity]);
 
   // Re-render on map rotation/pitch so shadows track the viewport
+  // Use renderShadowRef so this effect only depends on mapRef (stable)
   useEffect(() => {
     if (!mapRef) return;
     const onViewChange = () => {
-      if (demBoundsRef.current) renderShadow();
+      if (demBoundsRef.current && renderShadowRef.current) renderShadowRef.current();
     };
     mapRef.on('rotate', onViewChange);
     mapRef.on('pitch', onViewChange);
@@ -637,7 +641,7 @@ export default function SunlightOverlay() {
       mapRef.off('rotate', onViewChange);
       mapRef.off('pitch', onViewChange);
     };
-  }, [mapRef, renderShadow]);
+  }, [mapRef]);
 
   // --- Animation loop ---
   useEffect(() => {
