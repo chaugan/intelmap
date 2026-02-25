@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import SunCalc from 'suncalc';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
+import { OFM_SOURCE, BUILDING_MIN_ZOOM } from './BuildingsLayer.jsx';
 
 // --- WebGL shader sources ---
 const VERT_SRC = `
@@ -106,10 +107,7 @@ void main() {
 }`;
 
 // --- Building shadow constants ---
-const OFM_SOURCE = 'ofm-buildings';
-const OFM_LAYER = 'ofm-buildings-loader';
 const BUILDING_TEX_MAX = 2048;
-const BUILDING_MIN_ZOOM = 15;
 
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
@@ -531,60 +529,18 @@ export default function SunlightOverlay() {
     renderShadow();
   }, [mapRef, renderShadow]);
 
-  // --- OpenFreeMap vector source lifecycle (zoom >= 15) ---
+  // --- Listen for building source data from BuildingsLayer ---
   useEffect(() => {
     const map = mapRef;
     if (!map) return;
 
     let rasterizeTimer = null;
 
-    const addBuildingSource = () => {
-      if (map.getSource(OFM_SOURCE)) return;
-      map.addSource(OFM_SOURCE, {
-        type: 'vector',
-        url: 'https://tiles.openfreemap.org/planet',
-      });
-      map.addLayer({
-        id: OFM_LAYER,
-        type: 'fill',
-        source: OFM_SOURCE,
-        'source-layer': 'building',
-        paint: { 'fill-opacity': 0 },
-      });
-    };
-
-    const removeBuildingSource = () => {
-      try { if (map.getLayer(OFM_LAYER)) map.removeLayer(OFM_LAYER); } catch {}
-      try { if (map.getSource(OFM_SOURCE)) map.removeSource(OFM_SOURCE); } catch {}
-      buildingsActiveRef.current = false;
-      setBuildingsVisible(false);
-    };
-
-    const checkZoom = () => {
-      const z = map.getZoom();
-      if (z >= BUILDING_MIN_ZOOM) {
-        addBuildingSource();
-      } else {
-        removeBuildingSource();
-      }
-    };
-
     const onSourceData = (e) => {
       if (e.sourceId !== OFM_SOURCE || !e.isSourceLoaded) return;
-      // Debounce rasterization — tiles arrive in bursts
       if (rasterizeTimer) clearTimeout(rasterizeTimer);
       rasterizeTimer = setTimeout(() => rasterizeBuildings(), 300);
     };
-
-    const onStyleData = () => {
-      // Style swap wipes custom sources — re-add if zoom qualifies
-      if (map.getZoom() >= BUILDING_MIN_ZOOM && !map.getSource(OFM_SOURCE)) {
-        addBuildingSource();
-      }
-    };
-
-    // Initial check
-    checkZoom();
 
     const onMoveEnd = () => {
       if (map.getZoom() >= BUILDING_MIN_ZOOM && map.getSource(OFM_SOURCE)) {
@@ -593,18 +549,28 @@ export default function SunlightOverlay() {
       }
     };
 
-    map.on('zoomend', checkZoom);
+    const onZoomEnd = () => {
+      if (map.getZoom() < BUILDING_MIN_ZOOM) {
+        buildingsActiveRef.current = false;
+        setBuildingsVisible(false);
+      }
+    };
+
     map.on('sourcedata', onSourceData);
-    map.on('styledata', onStyleData);
     map.on('moveend', onMoveEnd);
+    map.on('zoomend', onZoomEnd);
+
+    // Initial rasterization if source already loaded
+    if (map.getZoom() >= BUILDING_MIN_ZOOM && map.getSource(OFM_SOURCE)) {
+      rasterizeTimer = setTimeout(() => rasterizeBuildings(), 500);
+    }
 
     return () => {
-      map.off('zoomend', checkZoom);
       map.off('sourcedata', onSourceData);
-      map.off('styledata', onStyleData);
       map.off('moveend', onMoveEnd);
+      map.off('zoomend', onZoomEnd);
       if (rasterizeTimer) clearTimeout(rasterizeTimer);
-      removeBuildingSource();
+      buildingsActiveRef.current = false;
     };
   }, [mapRef, rasterizeBuildings]);
 

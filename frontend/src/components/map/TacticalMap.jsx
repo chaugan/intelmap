@@ -12,6 +12,7 @@ import WebcamLayer from './WebcamLayer.jsx';
 import WindOverlay, { WindLegend } from './WindOverlay.jsx';
 import SunlightOverlay, { SunlightLegend } from './SunlightOverlay.jsx';
 import DrawingLayer from './DrawingLayer.jsx';
+import BuildingsLayer from './BuildingsLayer.jsx';
 import ContextMenu from './ContextMenu.jsx';
 import DraggablePopup from './DraggablePopup.jsx';
 import DataFreshness from './DataFreshness.jsx';
@@ -488,6 +489,7 @@ export default function TacticalMap() {
         </svg>
       )}
 
+      <BuildingsLayer />
       {sunlightVisible && <SunlightOverlay />}
       {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
