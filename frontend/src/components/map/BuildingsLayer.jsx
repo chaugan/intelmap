@@ -5,9 +5,9 @@ import { t } from '../../lib/i18n.js';
 const OFM_SOURCE = 'ofm-buildings';
 const OFM_EXTRUSION_LAYER = 'ofm-buildings-3d';
 const OFM_QUERY_LAYER = 'ofm-buildings-query';
-const BUILDING_MIN_ZOOM = 15;
+const BUILDING_MIN_ZOOM = 14;
 
-export { OFM_SOURCE, OFM_QUERY_LAYER, BUILDING_MIN_ZOOM };
+export { OFM_SOURCE, OFM_EXTRUSION_LAYER, OFM_QUERY_LAYER, BUILDING_MIN_ZOOM };
 
 export default function BuildingsLayer() {
   const mapRef = useMapStore((s) => s.mapRef);
@@ -123,7 +123,7 @@ export default function BuildingsLayer() {
   if (!visible) return null;
 
   return (
-    <div className="absolute top-14 left-2 z-[5] bg-slate-800/90 rounded px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
+    <div className="absolute top-[72px] left-2 z-[5] bg-slate-800/90 rounded px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
       <span className="text-[10px] text-slate-300 whitespace-nowrap">
         {t('buildings', lang)}
       </span>

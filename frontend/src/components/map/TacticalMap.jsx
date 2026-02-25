@@ -390,7 +390,7 @@ export default function TacticalMap() {
         <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: `rotate(${-bearing}deg)` }}>
           <polygon points="16,2 12,16 16,13 20,16" fill="#ef4444" />
           <polygon points="16,30 12,16 16,19 20,16" fill="#94a3b8" />
-          <text x="16" y="9" textAnchor="middle" fill="#ffffff" fontSize="7" fontWeight="bold">N</text>
+          <text x="16" y="10" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">N</text>
         </svg>
       </button>
 
