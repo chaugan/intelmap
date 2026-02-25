@@ -24,9 +24,10 @@ uniform vec2 u_buildingTexSize;
 uniform float u_sunAzimuth;
 uniform float u_sunAltitude;
 uniform float u_opacity;
-uniform vec2 u_viewOrigin;
-uniform vec2 u_viewDx;
-uniform vec2 u_viewDy;
+uniform vec2 u_viewBL;
+uniform vec2 u_viewBR;
+uniform vec2 u_viewTL;
+uniform vec2 u_viewTR;
 uniform vec2 u_demBoundsMin;
 uniform vec2 u_demBoundsMax;
 uniform vec2 u_texSize;
@@ -38,7 +39,10 @@ float decodeElevation(vec4 color) {
 }
 
 float decodeBuildingHeight(vec4 color) {
-  return color.r * 256.0 + color.g;
+  // Canvas writes 0-255 integers, texture reads normalized 0.0-1.0 — scale back
+  float r = floor(color.r * 255.0 + 0.5);
+  float g = floor(color.g * 255.0 + 0.5);
+  return r * 256.0 + g;
 }
 
 vec2 mercToUV(vec2 merc) {
@@ -46,8 +50,11 @@ vec2 mercToUV(vec2 merc) {
 }
 
 void main() {
-  // Map screen UV to Mercator coordinates (bearing-aware via corner interpolation)
-  vec2 merc = u_viewOrigin + v_uv.x * u_viewDx + v_uv.y * u_viewDy;
+  // Map screen UV to Mercator via bilinear interpolation of 4 corners
+  // Handles rotation AND pitch (tilted trapezoid viewport)
+  vec2 bottom = mix(u_viewBL, u_viewBR, v_uv.x);
+  vec2 top = mix(u_viewTL, u_viewTR, v_uv.x);
+  vec2 merc = mix(bottom, top, v_uv.y);
 
   // Map to DEM texture UV
   vec2 uv = mercToUV(merc);
@@ -218,9 +225,10 @@ export default function SunlightOverlay() {
       u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
       u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
       u_opacity: gl.getUniformLocation(program, 'u_opacity'),
-      u_viewOrigin: gl.getUniformLocation(program, 'u_viewOrigin'),
-      u_viewDx: gl.getUniformLocation(program, 'u_viewDx'),
-      u_viewDy: gl.getUniformLocation(program, 'u_viewDy'),
+      u_viewBL: gl.getUniformLocation(program, 'u_viewBL'),
+      u_viewBR: gl.getUniformLocation(program, 'u_viewBR'),
+      u_viewTL: gl.getUniformLocation(program, 'u_viewTL'),
+      u_viewTR: gl.getUniformLocation(program, 'u_viewTR'),
       u_demBoundsMin: gl.getUniformLocation(program, 'u_demBoundsMin'),
       u_demBoundsMax: gl.getUniformLocation(program, 'u_demBoundsMax'),
       u_texSize: gl.getUniformLocation(program, 'u_texSize'),
@@ -386,19 +394,18 @@ export default function SunlightOverlay() {
     gl.uniform1f(u.u_sunAltitude, sunPos.altitude);
     gl.uniform1f(u.u_opacity, sunlightOpacity);
 
-    // View corners in Mercator (bearing-aware via unproject)
+    // View corners in Mercator (all 4 for pitch-correct bilinear mapping)
     const mapCanvas = mapRef.getCanvas();
     const cw = mapCanvas.clientWidth;
     const ch = mapCanvas.clientHeight;
     const bl = mapRef.unproject([0, ch]);
     const br = mapRef.unproject([cw, ch]);
     const tl = mapRef.unproject([0, 0]);
-    const blM = [lonToMerc(bl.lng), latToMerc(bl.lat)];
-    const brM = [lonToMerc(br.lng), latToMerc(br.lat)];
-    const tlM = [lonToMerc(tl.lng), latToMerc(tl.lat)];
-    gl.uniform2f(u.u_viewOrigin, blM[0], blM[1]);
-    gl.uniform2f(u.u_viewDx, brM[0] - blM[0], brM[1] - blM[1]);
-    gl.uniform2f(u.u_viewDy, tlM[0] - blM[0], tlM[1] - blM[1]);
+    const tr = mapRef.unproject([cw, 0]);
+    gl.uniform2f(u.u_viewBL, lonToMerc(bl.lng), latToMerc(bl.lat));
+    gl.uniform2f(u.u_viewBR, lonToMerc(br.lng), latToMerc(br.lat));
+    gl.uniform2f(u.u_viewTL, lonToMerc(tl.lng), latToMerc(tl.lat));
+    gl.uniform2f(u.u_viewTR, lonToMerc(tr.lng), latToMerc(tr.lat));
 
     // DEM bounds in Mercator
     gl.uniform2f(u.u_demBoundsMin, demB.minX, demB.minY);
@@ -588,14 +595,18 @@ export default function SunlightOverlay() {
     if (demBoundsRef.current) renderShadow();
   }, [sunPos, sunlightOpacity, renderShadow]);
 
-  // Re-render on map rotation so shadows track the rotated viewport
+  // Re-render on map rotation/pitch so shadows track the viewport
   useEffect(() => {
     if (!mapRef) return;
-    const onRotate = () => {
+    const onViewChange = () => {
       if (demBoundsRef.current) renderShadow();
     };
-    mapRef.on('rotate', onRotate);
-    return () => mapRef.off('rotate', onRotate);
+    mapRef.on('rotate', onViewChange);
+    mapRef.on('pitch', onViewChange);
+    return () => {
+      mapRef.off('rotate', onViewChange);
+      mapRef.off('pitch', onViewChange);
+    };
   }, [mapRef, renderShadow]);
 
   // --- Animation loop ---
