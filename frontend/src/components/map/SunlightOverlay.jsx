@@ -101,6 +101,15 @@ void main() {
 // --- Building shadow constants ---
 const BUILDING_TEX_MAX = 2048;
 const SHADOW_LAYER_ID = 'sunlight-shadow';
+const SHADOW_SCALE = 0.5; // Render shadow at half resolution for performance
+
+const BLIT_FRAG = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
+void main() {
+  gl_FragColor = texture2D(u_tex, v_uv);
+}`;
 
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
@@ -195,6 +204,11 @@ export default function SunlightOverlay() {
   const debounceRef = useRef(null);
   const animFrameRef = useRef(null);
   const layerAddedRef = useRef(false);
+  const fboRef = useRef(null);
+  const fboTexRef = useRef(null);
+  const fboSizeRef = useRef({ w: 0, h: 0 });
+  const blitProgramRef = useRef(null);
+  const rasterizeBuildingsRef = useRef(null);
   const [buildingsVisible, setBuildingsVisible] = useState(false);
 
   // Refs for render callback to access latest values without re-creating the layer
@@ -299,6 +313,35 @@ export default function SunlightOverlay() {
         gl.activeTexture(gl.TEXTURE0);
         buildingTexRef.current = bTex;
 
+        // Create FBO for half-resolution shadow rendering
+        const fbo = gl.createFramebuffer();
+        const fboTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, fboTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        fboRef.current = fbo;
+        fboTexRef.current = fboTex;
+        fboSizeRef.current = { w: 0, h: 0 };
+
+        // Compile blit shader (reuses vertex shader)
+        const blitVs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(blitVs, VERT_SRC);
+        gl.compileShader(blitVs);
+        const blitFs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(blitFs, BLIT_FRAG);
+        gl.compileShader(blitFs);
+        const blitProg = gl.createProgram();
+        gl.attachShader(blitProg, blitVs);
+        gl.attachShader(blitProg, blitFs);
+        gl.linkProgram(blitProg);
+        blitProgramRef.current = blitProg;
+
         // Force DEM reload since textures are fresh
         lastLoadRef.current = null;
       },
@@ -311,12 +354,33 @@ export default function SunlightOverlay() {
         const b = boundsRef.current;
         const op = opacityRef.current;
         const m = mapStoreRef.current;
-        if (!program || !demB || !sp || !b || !m) return;
+        if (!program || !demB || !sp || !b || !m || !fboRef.current) return;
 
-        // Set GL state for shadow rendering
+        const canvas = gl.canvas;
+        const fbW = Math.max(1, Math.floor(canvas.width * SHADOW_SCALE));
+        const fbH = Math.max(1, Math.floor(canvas.height * SHADOW_SCALE));
+
+        // Resize FBO texture if canvas size changed
+        if (fboSizeRef.current.w !== fbW || fboSizeRef.current.h !== fbH) {
+          withTexState(gl, () => {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, fboTexRef.current);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fbW, fbH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          });
+          fboSizeRef.current = { w: fbW, h: fbH };
+        }
+
+        // Save MapLibre's framebuffer and viewport
+        const prevFBO = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+        const prevViewport = gl.getParameter(gl.VIEWPORT);
+
+        // --- Pass 1: Render ray-march shadow to FBO at half resolution ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fboRef.current);
+        gl.viewport(0, 0, fbW, fbH);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
         gl.useProgram(program);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.disable(gl.DEPTH_TEST);
 
         // Bind DEM texture
@@ -366,24 +430,51 @@ export default function SunlightOverlay() {
         gl.uniform1f(u.u_metersPerTexel, mpt);
         gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
 
-        // Draw full-screen quad
+        // Draw full-screen quad to FBO
         const posLoc = gl.getAttribLocation(program, 'a_pos');
         gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
         gl.enableVertexAttribArray(posLoc);
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.disableVertexAttribArray(posLoc);
+
+        // --- Pass 2: Blit FBO to MapLibre's framebuffer ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, prevFBO);
+        gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+        gl.useProgram(blitProgramRef.current);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.disable(gl.DEPTH_TEST);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, fboTexRef.current);
+        gl.uniform1i(gl.getUniformLocation(blitProgramRef.current, 'u_tex'), 0);
+
+        const blitPosLoc = gl.getAttribLocation(blitProgramRef.current, 'a_pos');
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
+        gl.enableVertexAttribArray(blitPosLoc);
+        gl.vertexAttribPointer(blitPosLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disableVertexAttribArray(blitPosLoc);
       },
 
       onRemove(_map, gl) {
         if (programRef.current) gl.deleteProgram(programRef.current);
+        if (blitProgramRef.current) gl.deleteProgram(blitProgramRef.current);
         if (bufRef.current) gl.deleteBuffer(bufRef.current);
         if (demTexRef.current) gl.deleteTexture(demTexRef.current);
         if (buildingTexRef.current) gl.deleteTexture(buildingTexRef.current);
+        if (fboTexRef.current) gl.deleteTexture(fboTexRef.current);
+        if (fboRef.current) gl.deleteFramebuffer(fboRef.current);
         programRef.current = null;
+        blitProgramRef.current = null;
         bufRef.current = null;
         demTexRef.current = null;
         buildingTexRef.current = null;
+        fboRef.current = null;
+        fboTexRef.current = null;
+        fboSizeRef.current = { w: 0, h: 0 };
         glRef.current = null;
         buildingTexSizeRef.current = { w: 0, h: 0 };
       },
@@ -486,7 +577,11 @@ export default function SunlightOverlay() {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
     });
     const map = useMapStore.getState().mapRef;
-    if (map) map.triggerRepaint();
+    if (map) {
+      map.triggerRepaint();
+      // Rasterize buildings now that DEM bounds are ready
+      if (rasterizeBuildingsRef.current) rasterizeBuildingsRef.current();
+    }
   }, []);
 
   // --- Rasterize OSM building footprints to height texture ---
@@ -585,6 +680,8 @@ export default function SunlightOverlay() {
 
     map.triggerRepaint();
   }, [mapRef]);
+
+  rasterizeBuildingsRef.current = rasterizeBuildings;
 
   // --- Listen for building source data from BuildingsLayer ---
   useEffect(() => {
