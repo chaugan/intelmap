@@ -24,10 +24,7 @@ uniform vec2 u_buildingTexSize;
 uniform float u_sunAzimuth;
 uniform float u_sunAltitude;
 uniform float u_opacity;
-uniform vec2 u_viewBL;
-uniform vec2 u_viewBR;
-uniform vec2 u_viewTL;
-uniform vec2 u_viewTR;
+uniform mat3 u_screenToMerc;
 uniform vec2 u_demBoundsMin;
 uniform vec2 u_demBoundsMax;
 uniform vec2 u_texSize;
@@ -50,11 +47,10 @@ vec2 mercToUV(vec2 merc) {
 }
 
 void main() {
-  // Map screen UV to Mercator via bilinear interpolation of 4 corners
-  // Handles rotation AND pitch (tilted trapezoid viewport)
-  vec2 bottom = mix(u_viewBL, u_viewBR, v_uv.x);
-  vec2 top = mix(u_viewTL, u_viewTR, v_uv.x);
-  vec2 merc = mix(bottom, top, v_uv.y);
+  // Map screen UV to Mercator via projective (homography) transform
+  // Correctly handles rotation, pitch/tilt, and perspective distortion
+  vec3 h = u_screenToMerc * vec3(v_uv, 1.0);
+  vec2 merc = h.xy / h.z;
 
   // Map to DEM texture UV
   vec2 uv = mercToUV(merc);
@@ -150,6 +146,39 @@ function metersPerPixelAtLat(lat, zoom) {
   return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom + 8);
 }
 
+// Compute 3x3 homography matrix mapping unit square UV to Mercator quadrilateral
+// Handles perspective distortion from map pitch/tilt
+function computeHomography(bl, br, tl, tr) {
+  // Source: unit square (0,0)→BL, (1,0)→BR, (0,1)→TL, (1,1)→TR
+  const x0 = bl[0], y0 = bl[1];
+  const x1 = br[0], y1 = br[1];
+  const x2 = tr[0], y2 = tr[1];
+  const x3 = tl[0], y3 = tl[1];
+
+  const dx1 = x1 - x2, dy1 = y1 - y2;
+  const dx2 = x3 - x2, dy2 = y3 - y2;
+  const sx = x0 - x1 + x2 - x3;
+  const sy = y0 - y1 + y2 - y3;
+
+  const denom = dx1 * dy2 - dx2 * dy1;
+  const g = (sx * dy2 - dx2 * sy) / denom;
+  const h = (dx1 * sy - sx * dy1) / denom;
+
+  const a = x1 - x0 + g * x1;
+  const b = x3 - x0 + h * x3;
+  const c = x0;
+  const d = y1 - y0 + g * y1;
+  const e = y3 - y0 + h * y3;
+  const f = y0;
+
+  // Column-major order for WebGL mat3
+  return new Float32Array([
+    a, d, g,
+    b, e, h,
+    c, f, 1,
+  ]);
+}
+
 // --- Main component ---
 export default function SunlightOverlay() {
   const canvasRef = useRef(null);
@@ -225,10 +254,7 @@ export default function SunlightOverlay() {
       u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
       u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
       u_opacity: gl.getUniformLocation(program, 'u_opacity'),
-      u_viewBL: gl.getUniformLocation(program, 'u_viewBL'),
-      u_viewBR: gl.getUniformLocation(program, 'u_viewBR'),
-      u_viewTL: gl.getUniformLocation(program, 'u_viewTL'),
-      u_viewTR: gl.getUniformLocation(program, 'u_viewTR'),
+      u_screenToMerc: gl.getUniformLocation(program, 'u_screenToMerc'),
       u_demBoundsMin: gl.getUniformLocation(program, 'u_demBoundsMin'),
       u_demBoundsMax: gl.getUniformLocation(program, 'u_demBoundsMax'),
       u_texSize: gl.getUniformLocation(program, 'u_texSize'),
@@ -394,7 +420,7 @@ export default function SunlightOverlay() {
     gl.uniform1f(u.u_sunAltitude, sunPos.altitude);
     gl.uniform1f(u.u_opacity, sunlightOpacity);
 
-    // View corners in Mercator (all 4 for pitch-correct bilinear mapping)
+    // Compute homography from screen UV → Mercator (handles pitch + rotation)
     const mapCanvas = mapRef.getCanvas();
     const cw = mapCanvas.clientWidth;
     const ch = mapCanvas.clientHeight;
@@ -402,10 +428,12 @@ export default function SunlightOverlay() {
     const br = mapRef.unproject([cw, ch]);
     const tl = mapRef.unproject([0, 0]);
     const tr = mapRef.unproject([cw, 0]);
-    gl.uniform2f(u.u_viewBL, lonToMerc(bl.lng), latToMerc(bl.lat));
-    gl.uniform2f(u.u_viewBR, lonToMerc(br.lng), latToMerc(br.lat));
-    gl.uniform2f(u.u_viewTL, lonToMerc(tl.lng), latToMerc(tl.lat));
-    gl.uniform2f(u.u_viewTR, lonToMerc(tr.lng), latToMerc(tr.lat));
+    const blM = [lonToMerc(bl.lng), latToMerc(bl.lat)];
+    const brM = [lonToMerc(br.lng), latToMerc(br.lat)];
+    const tlM = [lonToMerc(tl.lng), latToMerc(tl.lat)];
+    const trM = [lonToMerc(tr.lng), latToMerc(tr.lat)];
+    const H = computeHomography(blM, brM, tlM, trM);
+    gl.uniformMatrix3fv(u.u_screenToMerc, false, H);
 
     // DEM bounds in Mercator
     gl.uniform2f(u.u_demBoundsMin, demB.minX, demB.minY);
@@ -544,7 +572,9 @@ export default function SunlightOverlay() {
     let rasterizeTimer = null;
 
     const onSourceData = (e) => {
-      if (e.sourceId !== OFM_SOURCE || !e.isSourceLoaded) return;
+      if (e.sourceId !== OFM_SOURCE) return;
+      // Rasterize on any tile load, not just isSourceLoaded (which may never
+      // fire during continuous panning). Debounce handles the burst of events.
       if (rasterizeTimer) clearTimeout(rasterizeTimer);
       rasterizeTimer = setTimeout(() => rasterizeBuildings(), 300);
     };

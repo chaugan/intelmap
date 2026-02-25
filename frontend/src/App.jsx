@@ -89,7 +89,7 @@ export default function App() {
         {/* Left Drawer (Project or Data Layers — mutually exclusive) */}
         <div
           className={`bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 transition-all duration-300 overflow-hidden ${
-            (projectDrawerOpen && user) || dataLayersDrawerOpen ? 'w-72' : 'w-0'
+            (projectDrawerOpen && user) || dataLayersDrawerOpen ? 'w-80' : 'w-0'
           }`}
         >
           {projectDrawerOpen && user && <ProjectDrawer />}
