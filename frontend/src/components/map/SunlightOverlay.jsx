@@ -389,7 +389,8 @@ export default function SunlightOverlay() {
         gl.uniform1i(u.u_dem, 0);
 
         // Bind building texture
-        const bActive = buildingTexSizeRef.current.w > 1 && m.getZoom() >= BUILDING_MIN_ZOOM;
+        const bActive = buildingTexSizeRef.current.w > 1 && m.getZoom() >= BUILDING_MIN_ZOOM
+          && useMapStore.getState().buildingOpacity > 0;
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
         gl.uniform1i(u.u_buildings, 1);
@@ -794,7 +795,6 @@ export function SunlightLegend({ lang }) {
   const sunlightDate = useMapStore((s) => s.sunlightDate);
   const sunlightTime = useMapStore((s) => s.sunlightTime);
   const setSunlightTime = useMapStore((s) => s.setSunlightTime);
-  const buildingShadows = mapRef ? mapRef.getZoom() >= BUILDING_MIN_ZOOM : false;
 
   const svgRef = useRef(null);
   const [dragging, setDragging] = useState(false);
@@ -971,12 +971,6 @@ export function SunlightLegend({ lang }) {
         <span>{t('weather.sunset', lang)}</span>
         <span className="text-white">{info.sunset}</span>
       </div>
-      {buildingShadows && (
-        <div className="flex justify-between gap-3 mt-0.5 pt-0.5 border-t border-slate-700">
-          <span>{t('sunlight.buildings', lang)}</span>
-          <span className="text-green-400">ON</span>
-        </div>
-      )}
     </div>
   );
 }
