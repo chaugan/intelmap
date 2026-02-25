@@ -793,7 +793,79 @@ export function SunlightLegend({ lang }) {
   const bounds = useMapStore((s) => s.bounds);
   const sunlightDate = useMapStore((s) => s.sunlightDate);
   const sunlightTime = useMapStore((s) => s.sunlightTime);
+  const setSunlightTime = useMapStore((s) => s.setSunlightTime);
   const buildingShadows = mapRef ? mapRef.getZoom() >= BUILDING_MIN_ZOOM : false;
+
+  const svgRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const currentTimeRef = useRef(sunlightTime);
+  currentTimeRef.current = sunlightTime;
+
+  // Pre-compute sun azimuth for every minute (used to reverse-map drag angle → time)
+  const azimuthTable = useMemo(() => {
+    if (!bounds) return null;
+    const centerLat = (bounds.north + bounds.south) / 2;
+    const centerLon = (bounds.east + bounds.west) / 2;
+    const table = new Float32Array(1440);
+    for (let m = 0; m < 1440; m++) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      const d = new Date(`${sunlightDate}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`);
+      const pos = SunCalc.getPosition(d, centerLat, centerLon);
+      table[m] = ((pos.azimuth * 180 / Math.PI) + 180) % 360;
+    }
+    return table;
+  }, [bounds, sunlightDate]);
+
+  const getAngleFromPointer = useCallback((e) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    let angle = Math.atan2(dx, -dy) * 180 / Math.PI;
+    if (angle < 0) angle += 360;
+    return angle;
+  }, []);
+
+  const findTimeForAngle = useCallback((angle) => {
+    if (!azimuthTable) return;
+    const current = Math.floor(currentTimeRef.current);
+    let bestMin = current;
+    let bestDist = Infinity;
+    for (let m = 0; m < 1440; m++) {
+      let azDiff = Math.abs(azimuthTable[m] - angle);
+      if (azDiff > 180) azDiff = 360 - azDiff;
+      // Time proximity resolves morning/evening ambiguity (same azimuth, 12h apart)
+      let timeDiff = Math.abs(m - current);
+      if (timeDiff > 720) timeDiff = 1440 - timeDiff;
+      const totalDist = azDiff + timeDiff * 0.02;
+      if (totalDist < bestDist) {
+        bestDist = totalDist;
+        bestMin = m;
+      }
+    }
+    setSunlightTime(bestMin);
+  }, [azimuthTable, setSunlightTime]);
+
+  // Window-level pointer tracking during drag (works for mouse + touch via pointer events)
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      e.preventDefault();
+      const angle = getAngleFromPointer(e);
+      if (angle !== null) findTimeForAngle(angle);
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [dragging, getAngleFromPointer, findTimeForAngle]);
 
   const info = useMemo(() => {
     if (!bounds) return null;
@@ -843,8 +915,8 @@ export function SunlightLegend({ lang }) {
   return (
     <div className="bg-slate-800/90 rounded px-2.5 py-1.5 text-[10px] text-slate-300 min-w-[140px]">
       <div className="text-yellow-400 font-semibold mb-0.5">{t('sunlight', lang)}</div>
-      <div className="flex justify-center my-1">
-        <svg width="80" height="80" viewBox="0 0 80 80">
+      <div className="flex justify-center my-1" style={{ touchAction: 'none' }}>
+        <svg ref={svgRef} width="80" height="80" viewBox="0 0 80 80">
           <circle cx={compassCx} cy={compassCy} r={compassR} fill="rgba(15,23,42,0.6)" stroke="rgba(100,116,139,0.4)" strokeWidth="1" />
           <line x1={compassCx} y1={compassCy - compassR} x2={compassCx} y2={compassCy + compassR} stroke="rgba(100,116,139,0.15)" strokeWidth="0.5" />
           <line x1={compassCx - compassR} y1={compassCy} x2={compassCx + compassR} y2={compassCy} stroke="rgba(100,116,139,0.15)" strokeWidth="0.5" />
@@ -852,16 +924,27 @@ export function SunlightLegend({ lang }) {
           <text x={compassCx + compassR + 6} y={compassCy + 2} textAnchor="middle" fill="#64748b" fontSize="6">E</text>
           <text x={compassCx} y={compassCy + compassR + 8} textAnchor="middle" fill="#64748b" fontSize="6">S</text>
           <text x={compassCx - compassR - 6} y={compassCy + 2} textAnchor="middle" fill="#64748b" fontSize="6">W</text>
-          <line x1={compassCx} y1={compassCy} x2={sunX} y2={sunY}
-            stroke="#fbbf24" strokeWidth="1" opacity={belowHorizon ? 0.2 : 0.5} />
-          {belowHorizon ? (
-            <circle cx={sunX} cy={sunY} r="3" fill="#64748b" opacity="0.4" />
-          ) : (
-            <>
-              <circle cx={sunX} cy={sunY} r="4" fill="#fbbf24" />
-              <circle cx={sunX} cy={sunY} r="7" fill="none" stroke="#fbbf24" strokeWidth="0.5" opacity="0.3" />
-            </>
-          )}
+          <g
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragging(true);
+            }}
+            style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+          >
+            {/* Invisible larger hit area for easy grab on touch */}
+            <circle cx={sunX} cy={sunY} r="12" fill="transparent" />
+            <line x1={compassCx} y1={compassCy} x2={sunX} y2={sunY}
+              stroke="#fbbf24" strokeWidth="1" opacity={belowHorizon ? 0.2 : 0.5} />
+            {belowHorizon ? (
+              <circle cx={sunX} cy={sunY} r="3" fill="#64748b" opacity="0.4" />
+            ) : (
+              <>
+                <circle cx={sunX} cy={sunY} r="4" fill="#fbbf24" />
+                <circle cx={sunX} cy={sunY} r="7" fill="none" stroke="#fbbf24" strokeWidth="0.5" opacity="0.3" />
+              </>
+            )}
+          </g>
         </svg>
       </div>
       <div className="flex justify-between gap-3">
