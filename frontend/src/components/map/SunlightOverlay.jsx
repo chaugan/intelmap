@@ -17,6 +17,9 @@ precision mediump float;
 varying vec2 v_uv;
 
 uniform sampler2D u_dem;
+uniform sampler2D u_buildings;
+uniform float u_buildingsActive;
+uniform vec2 u_buildingTexSize;
 uniform float u_sunAzimuth;
 uniform float u_sunAltitude;
 uniform float u_opacity;
@@ -27,9 +30,14 @@ uniform vec2 u_demBoundsMin;
 uniform vec2 u_demBoundsMax;
 uniform vec2 u_texSize;
 uniform float u_metersPerTexel;
+uniform float u_buildingMetersPerTexel;
 
 float decodeElevation(vec4 color) {
   return color.r * 256.0 * 256.0 + color.g * 256.0 + color.b * 256.0 / 256.0 - 32768.0;
+}
+
+float decodeBuildingHeight(vec4 color) {
+  return color.r * 256.0 + color.g;
 }
 
 vec2 mercToUV(vec2 merc) {
@@ -51,22 +59,42 @@ void main() {
 
   float elev = decodeElevation(texture2D(u_dem, uv));
 
+  // If this pixel is on a building, ray starts from building top
+  float selfBuildingH = 0.0;
+  if (u_buildingsActive > 0.5) {
+    vec4 selfBldg = texture2D(u_buildings, uv);
+    if (selfBldg.a > 0.5) selfBuildingH = decodeBuildingHeight(selfBldg);
+  }
+
   // Sun direction as 2D step in texture space
   // azimuth: 0=north (negative Y in texture), clockwise
   vec2 sunDir = vec2(sin(u_sunAzimuth), -cos(u_sunAzimuth));
   float tanAlt = tan(u_sunAltitude);
 
+  // Step size: use finer building resolution when active
+  float stepSize = (u_buildingsActive > 0.5)
+    ? 1.0 / u_buildingTexSize.x
+    : 1.0 / u_texSize.x;
+  float mpt = (u_buildingsActive > 0.5)
+    ? u_buildingMetersPerTexel
+    : u_metersPerTexel;
+  int maxSteps = (u_buildingsActive > 0.5) ? 256 : 128;
+
   // Ray march toward sun
-  float stepSize = 1.0 / u_texSize.x; // one texel
   float shadow = 0.0;
 
-  for (int i = 1; i <= 128; i++) {
+  for (int i = 1; i <= 256; i++) {
+    if (i > maxSteps) break;
     vec2 sampleUV = uv + sunDir * stepSize * float(i);
     if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
 
     float sampleElev = decodeElevation(texture2D(u_dem, sampleUV));
-    float dist = float(i) * u_metersPerTexel;
-    float rayHeight = elev + dist * tanAlt;
+    if (u_buildingsActive > 0.5) {
+      vec4 bldg = texture2D(u_buildings, sampleUV);
+      if (bldg.a > 0.5) sampleElev += decodeBuildingHeight(bldg);
+    }
+    float dist = float(i) * mpt;
+    float rayHeight = (elev + selfBuildingH) + dist * tanAlt;
 
     if (sampleElev > rayHeight) {
       shadow = 1.0;
@@ -76,6 +104,12 @@ void main() {
 
   gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_opacity);
 }`;
+
+// --- Building shadow constants ---
+const OFM_SOURCE = 'ofm-buildings';
+const OFM_LAYER = 'ofm-buildings-loader';
+const BUILDING_TEX_MAX = 2048;
+const BUILDING_MIN_ZOOM = 15;
 
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
@@ -118,6 +152,11 @@ export default function SunlightOverlay() {
   const programRef = useRef(null);
   const uniformsRef = useRef({});
   const texRef = useRef(null);
+  const buildingTexRef = useRef(null);
+  const buildingTexSizeRef = useRef({ w: 0, h: 0 });
+  const buildingsActiveRef = useRef(false);
+  const buildingMptRef = useRef(0);
+  const [buildingsVisible, setBuildingsVisible] = useState(false);
   const bufRef = useRef(null);
   const animFrameRef = useRef(null);
   const lastLoadRef = useRef(null);
@@ -174,6 +213,10 @@ export default function SunlightOverlay() {
     // Cache uniform locations
     uniformsRef.current = {
       u_dem: gl.getUniformLocation(program, 'u_dem'),
+      u_buildings: gl.getUniformLocation(program, 'u_buildings'),
+      u_buildingsActive: gl.getUniformLocation(program, 'u_buildingsActive'),
+      u_buildingTexSize: gl.getUniformLocation(program, 'u_buildingTexSize'),
+      u_buildingMetersPerTexel: gl.getUniformLocation(program, 'u_buildingMetersPerTexel'),
       u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
       u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
       u_opacity: gl.getUniformLocation(program, 'u_opacity'),
@@ -201,6 +244,19 @@ export default function SunlightOverlay() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     texRef.current = tex;
 
+    // Create building height texture (TEXTURE1) — NEAREST for sharp edges
+    const bTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, bTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    // Initialize with 1x1 transparent pixel
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0]));
+    gl.activeTexture(gl.TEXTURE0);
+    buildingTexRef.current = bTex;
+
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -210,6 +266,8 @@ export default function SunlightOverlay() {
       gl.deleteShader(fs);
       gl.deleteBuffer(buf);
       gl.deleteTexture(tex);
+      gl.deleteTexture(bTex);
+      buildingTexRef.current = null;
       glRef.current = null;
     };
   }, []);
@@ -313,10 +371,17 @@ export default function SunlightOverlay() {
 
     gl.useProgram(program);
 
-    // Bind texture
+    // Bind DEM texture
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texRef.current);
     gl.uniform1i(u.u_dem, 0);
+
+    // Bind building texture
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
+    gl.uniform1i(u.u_buildings, 1);
+    gl.uniform1f(u.u_buildingsActive, buildingsActiveRef.current ? 1.0 : 0.0);
+    gl.uniform2f(u.u_buildingTexSize, buildingTexSizeRef.current.w, buildingTexSizeRef.current.h);
 
     // Sun uniforms
     gl.uniform1f(u.u_sunAzimuth, sunPos.azimuth);
@@ -351,6 +416,7 @@ export default function SunlightOverlay() {
     )));
     const mpt = metersPerPixelAtLat(center.lat, zoom);
     gl.uniform1f(u.u_metersPerTexel, mpt);
+    gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
 
     // Draw
     const posLoc = gl.getAttribLocation(program, 'a_pos');
@@ -362,6 +428,185 @@ export default function SunlightOverlay() {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }, [bounds, sunPos, sunlightOpacity, mapRef]);
+
+  // --- Rasterize OSM building footprints to height texture ---
+  const rasterizeBuildings = useCallback(() => {
+    const map = mapRef;
+    const gl = glRef.current;
+    const demB = demBoundsRef.current;
+    if (!map || !gl || !demB || !buildingTexRef.current) return;
+
+    if (!map.getSource(OFM_SOURCE)) {
+      buildingsActiveRef.current = false;
+      setBuildingsVisible(false);
+      return;
+    }
+
+    const features = map.querySourceFeatures(OFM_SOURCE, { sourceLayer: 'building' });
+    if (!features.length) {
+      buildingsActiveRef.current = false;
+      setBuildingsVisible(false);
+      return;
+    }
+
+    // Deduplicate by feature ID
+    const seen = new Set();
+    const unique = [];
+    for (const f of features) {
+      const id = f.id;
+      if (id != null && seen.has(id)) continue;
+      if (id != null) seen.add(id);
+      unique.push(f);
+    }
+
+    // Sort by render_height ascending (taller overwrites shorter)
+    unique.sort((a, b) => (a.properties.render_height || 10) - (b.properties.render_height || 10));
+
+    // Compute canvas size — fit DEM extent capped at BUILDING_TEX_MAX
+    const demW = demB.maxX - demB.minX;
+    const demH = demB.maxY - demB.minY;
+    const aspect = demW / demH;
+    let cw, ch;
+    if (aspect >= 1) {
+      cw = BUILDING_TEX_MAX;
+      ch = Math.max(1, Math.round(BUILDING_TEX_MAX / aspect));
+    } else {
+      ch = BUILDING_TEX_MAX;
+      cw = Math.max(1, Math.round(BUILDING_TEX_MAX * aspect));
+    }
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = cw;
+    offscreen.height = ch;
+    const ctx = offscreen.getContext('2d');
+    ctx.clearRect(0, 0, cw, ch);
+
+    const drawPolygon = (coords, fillStyle) => {
+      ctx.fillStyle = fillStyle;
+      ctx.beginPath();
+      for (const ring of coords) {
+        for (let i = 0; i < ring.length; i++) {
+          const [lng, lat] = ring[i];
+          const mx = lonToMerc(lng);
+          const my = latToMerc(lat);
+          const px = ((mx - demB.minX) / demW) * cw;
+          const py = ((my - demB.minY) / demH) * ch;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      }
+      ctx.fill('evenodd');
+    };
+
+    for (const f of unique) {
+      const height = Math.round(Math.max(1, f.properties.render_height || 10));
+      const r = Math.floor(height / 256);
+      const g = height % 256;
+      const fillStyle = `rgba(${r},${g},0,1)`;
+      const geom = f.geometry;
+      if (!geom) continue;
+
+      if (geom.type === 'Polygon') {
+        drawPolygon(geom.coordinates, fillStyle);
+      } else if (geom.type === 'MultiPolygon') {
+        for (const poly of geom.coordinates) drawPolygon(poly, fillStyle);
+      }
+    }
+
+    // Upload to building texture
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
+    gl.activeTexture(gl.TEXTURE0);
+    buildingTexSizeRef.current = { w: cw, h: ch };
+    buildingsActiveRef.current = true;
+    setBuildingsVisible(true);
+
+    // Compute building meters per texel
+    const center = map.getCenter();
+    const earthCircumAtLat = 40075016.686 * Math.cos(center.lat * Math.PI / 180);
+    buildingMptRef.current = (demW * earthCircumAtLat) / cw;
+
+    renderShadow();
+  }, [mapRef, renderShadow]);
+
+  // --- OpenFreeMap vector source lifecycle (zoom >= 15) ---
+  useEffect(() => {
+    const map = mapRef;
+    if (!map) return;
+
+    let rasterizeTimer = null;
+
+    const addBuildingSource = () => {
+      if (map.getSource(OFM_SOURCE)) return;
+      map.addSource(OFM_SOURCE, {
+        type: 'vector',
+        url: 'https://tiles.openfreemap.org/planet',
+      });
+      map.addLayer({
+        id: OFM_LAYER,
+        type: 'fill',
+        source: OFM_SOURCE,
+        'source-layer': 'building',
+        paint: { 'fill-opacity': 0 },
+      });
+    };
+
+    const removeBuildingSource = () => {
+      try { if (map.getLayer(OFM_LAYER)) map.removeLayer(OFM_LAYER); } catch {}
+      try { if (map.getSource(OFM_SOURCE)) map.removeSource(OFM_SOURCE); } catch {}
+      buildingsActiveRef.current = false;
+      setBuildingsVisible(false);
+    };
+
+    const checkZoom = () => {
+      const z = map.getZoom();
+      if (z >= BUILDING_MIN_ZOOM) {
+        addBuildingSource();
+      } else {
+        removeBuildingSource();
+      }
+    };
+
+    const onSourceData = (e) => {
+      if (e.sourceId !== OFM_SOURCE || !e.isSourceLoaded) return;
+      // Debounce rasterization — tiles arrive in bursts
+      if (rasterizeTimer) clearTimeout(rasterizeTimer);
+      rasterizeTimer = setTimeout(() => rasterizeBuildings(), 300);
+    };
+
+    const onStyleData = () => {
+      // Style swap wipes custom sources — re-add if zoom qualifies
+      if (map.getZoom() >= BUILDING_MIN_ZOOM && !map.getSource(OFM_SOURCE)) {
+        addBuildingSource();
+      }
+    };
+
+    // Initial check
+    checkZoom();
+
+    const onMoveEnd = () => {
+      if (map.getZoom() >= BUILDING_MIN_ZOOM && map.getSource(OFM_SOURCE)) {
+        if (rasterizeTimer) clearTimeout(rasterizeTimer);
+        rasterizeTimer = setTimeout(() => rasterizeBuildings(), 300);
+      }
+    };
+
+    map.on('zoomend', checkZoom);
+    map.on('sourcedata', onSourceData);
+    map.on('styledata', onStyleData);
+    map.on('moveend', onMoveEnd);
+
+    return () => {
+      map.off('zoomend', checkZoom);
+      map.off('sourcedata', onSourceData);
+      map.off('styledata', onStyleData);
+      map.off('moveend', onMoveEnd);
+      if (rasterizeTimer) clearTimeout(rasterizeTimer);
+      removeBuildingSource();
+    };
+  }, [mapRef, rasterizeBuildings]);
 
   // Load DEM tiles on viewport change (debounced)
   useEffect(() => {
@@ -443,9 +688,11 @@ export default function SunlightOverlay() {
 
 // --- Legend component ---
 export function SunlightLegend({ lang }) {
+  const mapRef = useMapStore((s) => s.mapRef);
   const bounds = useMapStore((s) => s.bounds);
   const sunlightDate = useMapStore((s) => s.sunlightDate);
   const sunlightTime = useMapStore((s) => s.sunlightTime);
+  const buildingShadows = mapRef ? mapRef.getZoom() >= BUILDING_MIN_ZOOM : false;
 
   const info = useMemo(() => {
     if (!bounds) return null;
@@ -547,6 +794,12 @@ export function SunlightLegend({ lang }) {
         <span>{t('weather.sunset', lang)}</span>
         <span className="text-white">{info.sunset}</span>
       </div>
+      {buildingShadows && (
+        <div className="flex justify-between gap-3 mt-0.5 pt-0.5 border-t border-slate-700">
+          <span>{t('sunlight.buildings', lang)}</span>
+          <span className="text-green-400">ON</span>
+        </div>
+      )}
     </div>
   );
 }
