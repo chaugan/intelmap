@@ -83,6 +83,9 @@ export default function TacticalMap() {
 
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
+  const [pitch, setPitch] = useState(0);
+  const [rotating, setRotating] = useState(false);
+  const rotationFrameRef = useRef(null);
   const [drawingInfoPopup, setDrawingInfoPopup] = useState(null);
   const [snowDepthLoading, setSnowDepthLoading] = useState(false);
   const suppressMapContextMenu = useRef(false);
@@ -324,6 +327,53 @@ export default function TacticalMap() {
     return () => mapInstance.off('rotate', onRotate);
   }, [mapInstance]);
 
+  // Track map pitch for fly-around button visibility
+  useEffect(() => {
+    if (!mapInstance) return;
+    const onPitch = () => setPitch(mapInstance.getPitch());
+    mapInstance.on('pitch', onPitch);
+    setPitch(mapInstance.getPitch()); // Initial value
+    return () => mapInstance.off('pitch', onPitch);
+  }, [mapInstance]);
+
+  // Fly-around rotation animation
+  useEffect(() => {
+    if (!rotating || !mapInstance) return;
+
+    let lastTime = performance.now();
+    const ROTATION_SPEED = 8; // degrees per second (counter-clockwise)
+
+    function tick(now) {
+      const deltaMs = now - lastTime;
+      lastTime = now;
+      const deltaDeg = (deltaMs / 1000) * ROTATION_SPEED;
+      const currentBearing = mapInstance.getBearing();
+      mapInstance.setBearing(currentBearing - deltaDeg); // Subtract for counter-clockwise
+      rotationFrameRef.current = requestAnimationFrame(tick);
+    }
+
+    rotationFrameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rotationFrameRef.current) {
+        cancelAnimationFrame(rotationFrameRef.current);
+        rotationFrameRef.current = null;
+      }
+    };
+  }, [rotating, mapInstance]);
+
+  // Stop rotation on Escape key
+  useEffect(() => {
+    if (!rotating) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setRotating(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [rotating]);
+
   // Avalanche region hover cursor when detail panel is open
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -395,6 +445,35 @@ export default function TacticalMap() {
           <text x="16" y="10" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">N</text>
         </svg>
       </button>
+
+      {/* Fly-around rotation button - visible when pitched */}
+      {pitch > 5 && (
+        <button
+          onClick={() => setRotating(!rotating)}
+          className={`absolute top-[4.5rem] left-4 z-10 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-colors ${
+            rotating
+              ? 'bg-red-600/90 hover:bg-red-500/90'
+              : 'bg-slate-800/80 hover:bg-slate-700/90'
+          }`}
+          title={lang === 'no'
+            ? (rotating ? 'Stopp rotasjon (Esc)' : 'Start flyover-rotasjon')
+            : (rotating ? 'Stop rotation (Esc)' : 'Start fly-around rotation')
+          }
+        >
+          {rotating ? (
+            // Stop icon
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+              <rect x="6" y="6" width="12" height="12" rx="1" />
+            </svg>
+          ) : (
+            // Rotation arrows icon (counter-clockwise)
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9" />
+              <polyline points="3 3 3 9 9 9" transform="translate(0, 3)" />
+            </svg>
+          )}
+        </button>
+      )}
 
       <DrawingLayer />
 
