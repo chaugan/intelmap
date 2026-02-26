@@ -375,17 +375,16 @@ export default function TacticalMap() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [rotating]);
 
-  // Stop rotation on user map interaction (pan, tilt, rotate)
+  // Stop rotation on user map interaction (pan, tilt)
+  // Note: rotatestart is not used because setBearing() triggers it programmatically
   useEffect(() => {
     if (!rotating || !mapInstance) return;
     const stopRotation = () => setRotating(false);
     mapInstance.on('dragstart', stopRotation);
     mapInstance.on('pitchstart', stopRotation);
-    mapInstance.on('rotatestart', stopRotation);
     return () => {
       mapInstance.off('dragstart', stopRotation);
       mapInstance.off('pitchstart', stopRotation);
-      mapInstance.off('rotatestart', stopRotation);
     };
   }, [rotating, mapInstance]);
 
