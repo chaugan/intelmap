@@ -252,7 +252,7 @@ export default function SunlightOverlay() {
     const layer = {
       id: SHADOW_LAYER_ID,
       type: 'custom',
-      renderingMode: '2d',
+      renderingMode: '3d',
 
       onAdd(_map, gl) {
         glRef.current = gl;
@@ -450,6 +450,7 @@ export default function SunlightOverlay() {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.disable(gl.DEPTH_TEST);
+        gl.depthMask(false); // Don't corrupt depth buffer for subsequent 3D layers
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, fboTexRef.current);
@@ -461,6 +462,7 @@ export default function SunlightOverlay() {
         gl.vertexAttribPointer(blitPosLoc, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.disableVertexAttribArray(blitPosLoc);
+        gl.depthMask(true);
       },
 
       onRemove(_map, gl) {
