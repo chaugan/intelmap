@@ -394,7 +394,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         <path d={areaPath} fill={`url(#elevGradient-${routeIndex})`} />
 
         {/* Main terrain line */}
-        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth={expanded ? 3 : 2} strokeLinejoin="round" />
+        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth={expanded ? 2 : 2} strokeLinejoin="round" />
 
         {/* Scrubber vertical line */}
         {hoverInfo && (
@@ -405,16 +405,16 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
               x2={hoverInfo.lineX}
               y2={padding.top + chartHeight}
               stroke="#fbbf24"
-              strokeWidth="2"
-              strokeDasharray="4 2"
+              strokeWidth={expanded ? 1.3 : 2}
+              strokeDasharray={expanded ? "3 2" : "4 2"}
             />
             <circle
               cx={hoverInfo.lineX}
               cy={hoverInfo.elevY}
-              r={expanded ? 8 : 6}
+              r={expanded ? 5 : 6}
               fill="#fbbf24"
               stroke="#fff"
-              strokeWidth="2"
+              strokeWidth={expanded ? 1.3 : 2}
             />
           </>
         )}
