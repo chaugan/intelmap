@@ -111,6 +111,84 @@ void main() {
   gl_FragColor = texture2D(u_tex, v_uv);
 }`;
 
+// Shader for geographic-space shadow (used with terrain)
+// UV maps directly to DEM texture coordinates, no homography needed
+const GEO_FRAG_SRC = `
+precision mediump float;
+varying vec2 v_uv;
+
+uniform sampler2D u_dem;
+uniform sampler2D u_buildings;
+uniform float u_buildingsActive;
+uniform vec2 u_buildingTexSize;
+uniform float u_sunAzimuth;
+uniform float u_sunAltitude;
+uniform vec2 u_texSize;
+uniform float u_metersPerTexel;
+uniform float u_buildingMetersPerTexel;
+
+float decodeElevation(vec4 color) {
+  return color.r * 256.0 * 256.0 + color.g * 256.0 + color.b * 256.0 / 256.0 - 32768.0;
+}
+
+float decodeBuildingHeight(vec4 color) {
+  float r = floor(color.r * 255.0 + 0.5);
+  float g = floor(color.g * 255.0 + 0.5);
+  return r * 256.0 + g;
+}
+
+void main() {
+  // Flip Y: WebGL origin bottom-left, DEM tiles origin top-left
+  vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);
+
+  float elev = decodeElevation(texture2D(u_dem, uv));
+
+  float selfBuildingH = 0.0;
+  if (u_buildingsActive > 0.5) {
+    vec4 selfBldg = texture2D(u_buildings, uv);
+    if (selfBldg.a > 0.5) selfBuildingH = decodeBuildingHeight(selfBldg);
+  }
+
+  // Sun direction in UV space where Y+ is south (DEM tile convention)
+  vec2 sunDir = vec2(sin(u_sunAzimuth), -cos(u_sunAzimuth));
+  float tanAlt = tan(u_sunAltitude);
+
+  float stepSize = (u_buildingsActive > 0.5)
+    ? 1.0 / u_buildingTexSize.x
+    : 1.0 / u_texSize.x;
+  float mpt = (u_buildingsActive > 0.5)
+    ? u_buildingMetersPerTexel
+    : u_metersPerTexel;
+  int maxSteps = (u_buildingsActive > 0.5) ? 256 : 128;
+
+  float shadow = 0.0;
+
+  for (int i = 1; i <= 256; i++) {
+    if (i > maxSteps) break;
+    vec2 sampleUV = uv + sunDir * stepSize * float(i);
+    if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) break;
+
+    float sampleElev = decodeElevation(texture2D(u_dem, sampleUV));
+    if (u_buildingsActive > 0.5) {
+      vec4 bldg = texture2D(u_buildings, sampleUV);
+      if (bldg.a > 0.5) sampleElev += decodeBuildingHeight(bldg);
+    }
+    float dist = float(i) * mpt;
+    float rayHeight = (elev + selfBuildingH) + dist * tanAlt;
+
+    if (sampleElev > rayHeight) {
+      shadow = 1.0;
+      break;
+    }
+  }
+
+  gl_FragColor = vec4(0.0, 0.0, 0.0, shadow);
+}`;
+
+const SHADOW_IMAGE_SOURCE = 'shadow-geo-source';
+const SHADOW_RASTER_LAYER = 'shadow-geo-raster';
+const GEO_SHADOW_SIZE = 1024; // Geographic shadow texture resolution
+
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
   return ((lon + 180) / 360) * Math.pow(2, zoom);
@@ -210,6 +288,17 @@ export default function SunlightOverlay() {
   const blitProgramRef = useRef(null);
   const rasterizeBuildingsRef = useRef(null);
   const [buildingsVisible, setBuildingsVisible] = useState(false);
+
+  // Geographic-space rendering for terrain mode
+  const geoCanvasRef = useRef(null);
+  const geoGlRef = useRef(null);
+  const geoProgramRef = useRef(null);
+  const geoUniformsRef = useRef({});
+  const geoBufRef = useRef(null);
+  const geoDemTexRef = useRef(null);
+  const geoBuildingTexRef = useRef(null);
+  const demCoordsRef = useRef(null); // Geographic coordinates for image source
+  const renderGeoShadowRef = useRef(null);
 
   // Refs for render callback to access latest values without re-creating the layer
   const sunPosRef = useRef(null);
@@ -435,6 +524,20 @@ export default function SunlightOverlay() {
         gl.uniform1f(u.u_metersPerTexel, mpt);
         gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
 
+        // Check if terrain is enabled
+        const terrainEnabled = !!m.getTerrain();
+
+        if (terrainEnabled) {
+          // With terrain, use image source approach (rendered in separate context)
+          // Skip screen-space blit - the geo shadow raster layer handles display
+          gl.bindFramebuffer(gl.FRAMEBUFFER, prevFBO);
+          gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+          // Trigger geo shadow render (runs in separate WebGL context)
+          if (renderGeoShadowRef.current) renderGeoShadowRef.current();
+          return;
+        }
+
+        // --- No terrain: render screen-space shadow ---
         // Draw full-screen quad to FBO
         const posLoc = gl.getAttribLocation(program, 'a_pos');
         gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
@@ -442,6 +545,10 @@ export default function SunlightOverlay() {
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.disableVertexAttribArray(posLoc);
+
+        // Remove geo shadow layer if it exists (switching from terrain to no-terrain)
+        try { if (m.getLayer(SHADOW_RASTER_LAYER)) m.removeLayer(SHADOW_RASTER_LAYER); } catch {}
+        try { if (m.getSource(SHADOW_IMAGE_SOURCE)) m.removeSource(SHADOW_IMAGE_SOURCE); } catch {}
 
         // --- Pass 2: Blit FBO to MapLibre's framebuffer ---
         gl.bindFramebuffer(gl.FRAMEBUFFER, prevFBO);
@@ -511,9 +618,88 @@ export default function SunlightOverlay() {
     return () => {
       map.off('styledata', onStyleData);
       try { if (map.getLayer(SHADOW_LAYER_ID)) map.removeLayer(SHADOW_LAYER_ID); } catch {}
+      try { if (map.getLayer(SHADOW_RASTER_LAYER)) map.removeLayer(SHADOW_RASTER_LAYER); } catch {}
+      try { if (map.getSource(SHADOW_IMAGE_SOURCE)) map.removeSource(SHADOW_IMAGE_SOURCE); } catch {}
       layerAddedRef.current = false;
     };
   }, [mapRef]);
+
+  // --- Initialize geographic canvas for terrain mode ---
+  useEffect(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = GEO_SHADOW_SIZE;
+    canvas.height = GEO_SHADOW_SIZE;
+    geoCanvasRef.current = canvas;
+
+    const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: true });
+    if (!gl) return;
+    geoGlRef.current = gl;
+
+    // Compile geographic shader
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, VERT_SRC);
+    gl.compileShader(vs);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, GEO_FRAG_SRC);
+    gl.compileShader(fs);
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    geoProgramRef.current = program;
+
+    geoUniformsRef.current = {
+      u_dem: gl.getUniformLocation(program, 'u_dem'),
+      u_buildings: gl.getUniformLocation(program, 'u_buildings'),
+      u_buildingsActive: gl.getUniformLocation(program, 'u_buildingsActive'),
+      u_buildingTexSize: gl.getUniformLocation(program, 'u_buildingTexSize'),
+      u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
+      u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
+      u_texSize: gl.getUniformLocation(program, 'u_texSize'),
+      u_metersPerTexel: gl.getUniformLocation(program, 'u_metersPerTexel'),
+      u_buildingMetersPerTexel: gl.getUniformLocation(program, 'u_buildingMetersPerTexel'),
+    };
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    geoBufRef.current = buf;
+
+    // DEM texture
+    const demTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, demTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 0, 0, 255]));
+    geoDemTexRef.current = demTex;
+
+    // Building texture
+    const bTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, bTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+    geoBuildingTexRef.current = bTex;
+
+    return () => {
+      if (geoProgramRef.current) gl.deleteProgram(geoProgramRef.current);
+      if (geoBufRef.current) gl.deleteBuffer(geoBufRef.current);
+      if (geoDemTexRef.current) gl.deleteTexture(geoDemTexRef.current);
+      if (geoBuildingTexRef.current) gl.deleteTexture(geoBuildingTexRef.current);
+      geoProgramRef.current = null;
+      geoBufRef.current = null;
+      geoDemTexRef.current = null;
+      geoBuildingTexRef.current = null;
+      geoGlRef.current = null;
+      geoCanvasRef.current = null;
+    };
+  }, []);
 
   // --- Load DEM tiles for viewport ---
   const loadDemTiles = useCallback(() => {
@@ -546,6 +732,14 @@ export default function SunlightOverlay() {
     };
     demBoundsRef.current = demBounds;
     texSizeRef.current = { w: totalW, h: totalH };
+
+    // Store geographic coordinates for image source (terrain mode)
+    // Format: [[west, north], [east, north], [east, south], [west, south]]
+    const west = tile2lon(xMin, zoom);
+    const east = tile2lon(xMax + 1, zoom);
+    const north = tile2lat(yMin, zoom);
+    const south = tile2lat(yMax + 1, zoom);
+    demCoordsRef.current = [[west, north], [east, north], [east, south], [west, south]];
 
     const offscreen = document.createElement('canvas');
     offscreen.width = totalW;
@@ -583,6 +777,15 @@ export default function SunlightOverlay() {
       gl.bindTexture(gl.TEXTURE_2D, demTexRef.current);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
     });
+
+    // Also upload to geographic canvas for terrain mode
+    const geoGl = geoGlRef.current;
+    if (geoGl && geoDemTexRef.current) {
+      geoGl.activeTexture(geoGl.TEXTURE0);
+      geoGl.bindTexture(geoGl.TEXTURE_2D, geoDemTexRef.current);
+      geoGl.texImage2D(geoGl.TEXTURE_2D, 0, geoGl.RGBA, geoGl.RGBA, geoGl.UNSIGNED_BYTE, offscreen);
+    }
+
     const map = useMapStore.getState().mapRef;
     if (map) {
       map.triggerRepaint();
@@ -678,6 +881,15 @@ export default function SunlightOverlay() {
       gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
     });
+
+    // Also upload to geographic canvas for terrain mode
+    const geoGl = geoGlRef.current;
+    if (geoGl && geoBuildingTexRef.current) {
+      geoGl.activeTexture(geoGl.TEXTURE1);
+      geoGl.bindTexture(geoGl.TEXTURE_2D, geoBuildingTexRef.current);
+      geoGl.texImage2D(geoGl.TEXTURE_2D, 0, geoGl.RGBA, geoGl.RGBA, geoGl.UNSIGNED_BYTE, offscreen);
+    }
+
     buildingTexSizeRef.current = { w: cw, h: ch };
     setBuildingsVisible(true);
 
@@ -746,6 +958,99 @@ export default function SunlightOverlay() {
   useEffect(() => {
     if (mapRef && layerAddedRef.current) mapRef.triggerRepaint();
   }, [sunPos, sunlightOpacity, mapRef]);
+
+  // --- Render geographic shadow for terrain mode ---
+  const renderGeoShadow = useCallback(() => {
+    const map = mapRef;
+    const gl = geoGlRef.current;
+    const program = geoProgramRef.current;
+    const u = geoUniformsRef.current;
+    const coords = demCoordsRef.current;
+    if (!map || !gl || !program || !coords || !sunPos || sunPos.altitude < 0) {
+      // Remove raster layer if sun below horizon
+      try { if (map?.getLayer(SHADOW_RASTER_LAYER)) map.removeLayer(SHADOW_RASTER_LAYER); } catch {}
+      try { if (map?.getSource(SHADOW_IMAGE_SOURCE)) map.removeSource(SHADOW_IMAGE_SOURCE); } catch {}
+      return;
+    }
+
+    // Render shadow to geographic canvas
+    gl.viewport(0, 0, GEO_SHADOW_SIZE, GEO_SHADOW_SIZE);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(program);
+    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // Bind DEM texture
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, geoDemTexRef.current);
+    gl.uniform1i(u.u_dem, 0);
+
+    // Bind building texture
+    const bActive = buildingTexSizeRef.current.w > 1 && map.getZoom() >= BUILDING_MIN_ZOOM
+      && useMapStore.getState().buildingOpacity > 0;
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, geoBuildingTexRef.current);
+    gl.uniform1i(u.u_buildings, 1);
+    gl.uniform1f(u.u_buildingsActive, bActive ? 1.0 : 0.0);
+    gl.uniform2f(u.u_buildingTexSize, buildingTexSizeRef.current.w, buildingTexSizeRef.current.h);
+
+    // Sun uniforms
+    gl.uniform1f(u.u_sunAzimuth, sunPos.azimuth);
+    gl.uniform1f(u.u_sunAltitude, sunPos.altitude);
+
+    // Texture size and meters per texel
+    gl.uniform2f(u.u_texSize, texSizeRef.current.w, texSizeRef.current.h);
+    const center = map.getCenter();
+    const zoom = Math.min(12, Math.max(1, Math.round(Math.log2(360 / (bounds.east - bounds.west)))));
+    const mpt = metersPerPixelAtLat(center.lat, zoom);
+    gl.uniform1f(u.u_metersPerTexel, mpt);
+    gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
+
+    // Draw full-screen quad
+    const posLoc = gl.getAttribLocation(program, 'a_pos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, geoBufRef.current);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.disableVertexAttribArray(posLoc);
+
+    // Update image source
+    const dataUrl = geoCanvasRef.current.toDataURL('image/png');
+
+    if (map.getSource(SHADOW_IMAGE_SOURCE)) {
+      map.getSource(SHADOW_IMAGE_SOURCE).updateImage({ url: dataUrl, coordinates: coords });
+    } else {
+      map.addSource(SHADOW_IMAGE_SOURCE, {
+        type: 'image',
+        url: dataUrl,
+        coordinates: coords,
+      });
+    }
+
+    // Add raster layer if not present
+    if (!map.getLayer(SHADOW_RASTER_LAYER)) {
+      const beforeId = map.getLayer(OFM_QUERY_LAYER) ? OFM_QUERY_LAYER
+        : map.getLayer(OFM_EXTRUSION_LAYER) ? OFM_EXTRUSION_LAYER
+        : undefined;
+      map.addLayer({
+        id: SHADOW_RASTER_LAYER,
+        type: 'raster',
+        source: SHADOW_IMAGE_SOURCE,
+        paint: {
+          'raster-opacity': sunlightOpacity,
+          'raster-fade-duration': 0,
+        },
+      }, beforeId);
+    } else {
+      map.setPaintProperty(SHADOW_RASTER_LAYER, 'raster-opacity', sunlightOpacity);
+    }
+  }, [mapRef, bounds, sunPos, sunlightOpacity]);
+
+  // Keep ref in sync for render callback to use
+  renderGeoShadowRef.current = renderGeoShadow;
 
   // --- Animation loop ---
   useEffect(() => {
