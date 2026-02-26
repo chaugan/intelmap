@@ -4,15 +4,7 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 import { OFM_SOURCE, OFM_EXTRUSION_LAYER, OFM_QUERY_LAYER, BUILDING_MIN_ZOOM } from './BuildingsLayer.jsx';
 
-// Shadow is rendered in geographic space to an offscreen WebGL canvas,
-// then displayed via MapLibre image source + raster layer.
-// This allows MapLibre to drape the shadow onto 3D terrain automatically.
-
-const SHADOW_SOURCE_ID = 'shadow-image-source';
-const SHADOW_LAYER_ID = 'shadow-raster-layer';
-const SHADOW_TEX_SIZE = 1024; // Shadow texture resolution
-
-// --- WebGL shader sources (geographic space, no homography) ---
+// --- WebGL shader sources ---
 const VERT_SRC = `
 attribute vec2 a_pos;
 varying vec2 v_uv;
@@ -21,7 +13,6 @@ void main() {
   gl_Position = vec4(a_pos, 0.0, 1.0);
 }`;
 
-// UV directly maps to DEM texture - no homography needed
 const FRAG_SRC = `
 precision mediump float;
 varying vec2 v_uv;
@@ -32,6 +23,10 @@ uniform float u_buildingsActive;
 uniform vec2 u_buildingTexSize;
 uniform float u_sunAzimuth;
 uniform float u_sunAltitude;
+uniform float u_opacity;
+uniform mat3 u_screenToMerc;
+uniform vec2 u_demBoundsMin;
+uniform vec2 u_demBoundsMax;
 uniform vec2 u_texSize;
 uniform float u_metersPerTexel;
 uniform float u_buildingMetersPerTexel;
@@ -46,8 +41,19 @@ float decodeBuildingHeight(vec4 color) {
   return r * 256.0 + g;
 }
 
+vec2 mercToUV(vec2 merc) {
+  return (merc - u_demBoundsMin) / (u_demBoundsMax - u_demBoundsMin);
+}
+
 void main() {
-  vec2 uv = v_uv;
+  vec3 h = u_screenToMerc * vec3(v_uv, 1.0);
+  vec2 merc = h.xy / h.z;
+  vec2 uv = mercToUV(merc);
+
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
 
   float elev = decodeElevation(texture2D(u_dem, uv));
 
@@ -89,11 +95,21 @@ void main() {
     }
   }
 
-  gl_FragColor = vec4(0.0, 0.0, 0.0, shadow);
+  gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_opacity);
 }`;
 
 // --- Building shadow constants ---
 const BUILDING_TEX_MAX = 2048;
+const SHADOW_LAYER_ID = 'sunlight-shadow';
+const SHADOW_SCALE = 0.5; // Render shadow at half resolution for performance
+
+const BLIT_FRAG = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
+void main() {
+  gl_FragColor = texture2D(u_tex, v_uv);
+}`;
 
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
@@ -127,11 +143,53 @@ function metersPerPixelAtLat(lat, zoom) {
   return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom + 8);
 }
 
+function computeHomography(bl, br, tl, tr) {
+  const x0 = bl[0], y0 = bl[1];
+  const x1 = br[0], y1 = br[1];
+  const x2 = tr[0], y2 = tr[1];
+  const x3 = tl[0], y3 = tl[1];
+
+  const dx1 = x1 - x2, dy1 = y1 - y2;
+  const dx2 = x3 - x2, dy2 = y3 - y2;
+  const sx = x0 - x1 + x2 - x3;
+  const sy = y0 - y1 + y2 - y3;
+
+  const denom = dx1 * dy2 - dx2 * dy1;
+  const g = (sx * dy2 - dx2 * sy) / denom;
+  const hh = (dx1 * sy - sx * dy1) / denom;
+
+  const a = x1 - x0 + g * x1;
+  const b = x3 - x0 + hh * x3;
+  const c = x0;
+  const d = y1 - y0 + g * y1;
+  const e = y3 - y0 + hh * y3;
+  const f = y0;
+
+  return new Float32Array([
+    a, d, g,
+    b, e, hh,
+    c, f, 1,
+  ]);
+}
+
+// Save/restore GL texture state around external texture uploads
+function withTexState(gl, fn) {
+  const prevActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+  gl.activeTexture(gl.TEXTURE0);
+  const prevTex0 = gl.getParameter(gl.TEXTURE_BINDING_2D);
+  gl.activeTexture(gl.TEXTURE1);
+  const prevTex1 = gl.getParameter(gl.TEXTURE_BINDING_2D);
+  fn();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, prevTex0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, prevTex1);
+  gl.activeTexture(prevActive);
+}
 
 // --- Main component ---
 export default function SunlightOverlay() {
-  // Offscreen WebGL context for shadow computation (not tied to MapLibre)
-  const offscreenCanvasRef = useRef(null);
+  // GL resources (created in MapLibre's GL context via custom layer)
   const glRef = useRef(null);
   const programRef = useRef(null);
   const uniformsRef = useRef({});
@@ -141,15 +199,23 @@ export default function SunlightOverlay() {
   const buildingTexSizeRef = useRef({ w: 0, h: 0 });
   const buildingMptRef = useRef(0);
   const demBoundsRef = useRef(null);
-  const demCoordsRef = useRef(null); // Geographic coordinates for image source
   const texSizeRef = useRef({ w: 0, h: 0 });
   const lastLoadRef = useRef(null);
   const debounceRef = useRef(null);
   const animFrameRef = useRef(null);
+  const layerAddedRef = useRef(false);
+  const fboRef = useRef(null);
+  const fboTexRef = useRef(null);
+  const fboSizeRef = useRef({ w: 0, h: 0 });
+  const blitProgramRef = useRef(null);
   const rasterizeBuildingsRef = useRef(null);
-  const renderShadowRef = useRef(null);
-  const isRenderingRef = useRef(false); // Guard against styledata infinite loop
   const [buildingsVisible, setBuildingsVisible] = useState(false);
+
+  // Refs for render callback to access latest values without re-creating the layer
+  const sunPosRef = useRef(null);
+  const boundsRef = useRef(null);
+  const opacityRef = useRef(0.5);
+  const mapStoreRef = useRef(null);
 
   const mapRef = useMapStore((s) => s.mapRef);
   const bounds = useMapStore((s) => s.bounds);
@@ -172,202 +238,272 @@ export default function SunlightOverlay() {
     return { azimuth, altitude: pos.altitude, date };
   }, [bounds, sunlightDate, sunlightTime]);
 
-  // --- Initialize offscreen WebGL context for shadow computation ---
-  useEffect(() => {
-    // Create offscreen canvas with its own WebGL context
-    const canvas = document.createElement('canvas');
-    canvas.width = SHADOW_TEX_SIZE;
-    canvas.height = SHADOW_TEX_SIZE;
-    offscreenCanvasRef.current = canvas;
+  // Keep refs in sync for the render callback
+  sunPosRef.current = sunPos;
+  boundsRef.current = bounds;
+  opacityRef.current = sunlightOpacity;
+  mapStoreRef.current = mapRef;
 
-    const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: true });
-    if (!gl) {
-      console.error('SunlightOverlay: WebGL not supported');
-      return;
-    }
-    glRef.current = gl;
-
-    // Compile shaders
-    const vs = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vs, VERT_SRC);
-    gl.compileShader(vs);
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fs, FRAG_SRC);
-    gl.compileShader(fs);
-    const program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    programRef.current = program;
-
-    uniformsRef.current = {
-      u_dem: gl.getUniformLocation(program, 'u_dem'),
-      u_buildings: gl.getUniformLocation(program, 'u_buildings'),
-      u_buildingsActive: gl.getUniformLocation(program, 'u_buildingsActive'),
-      u_buildingTexSize: gl.getUniformLocation(program, 'u_buildingTexSize'),
-      u_buildingMetersPerTexel: gl.getUniformLocation(program, 'u_buildingMetersPerTexel'),
-      u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
-      u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
-      u_texSize: gl.getUniformLocation(program, 'u_texSize'),
-      u_metersPerTexel: gl.getUniformLocation(program, 'u_metersPerTexel'),
-    };
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    bufRef.current = buf;
-
-    // DEM texture (LINEAR for smooth terrain)
-    const demTex = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, demTex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    demTexRef.current = demTex;
-
-    // Building height texture (NEAREST for sharp edges)
-    const bTex = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, bTex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
-    gl.activeTexture(gl.TEXTURE0);
-    buildingTexRef.current = bTex;
-
-    return () => {
-      if (programRef.current) gl.deleteProgram(programRef.current);
-      if (bufRef.current) gl.deleteBuffer(bufRef.current);
-      if (demTexRef.current) gl.deleteTexture(demTexRef.current);
-      if (buildingTexRef.current) gl.deleteTexture(buildingTexRef.current);
-      programRef.current = null;
-      bufRef.current = null;
-      demTexRef.current = null;
-      buildingTexRef.current = null;
-      glRef.current = null;
-      offscreenCanvasRef.current = null;
-    };
-  }, []);
-
-  // --- Render shadow to offscreen canvas and update MapLibre image source ---
-  const renderShadow = useCallback(() => {
-    const gl = glRef.current;
-    const map = mapRef;
-    const program = programRef.current;
-    const u = uniformsRef.current;
-    const coords = demCoordsRef.current;
-
-    // Remove shadow when sun is below horizon
-    if (!sunPos || sunPos.altitude < 0) {
-      if (map) {
-        try { if (map.getLayer(SHADOW_LAYER_ID)) map.removeLayer(SHADOW_LAYER_ID); } catch {}
-        try { if (map.getSource(SHADOW_SOURCE_ID)) map.removeSource(SHADOW_SOURCE_ID); } catch {}
-      }
-      return;
-    }
-
-    if (!gl || !map || !program || !coords) return;
-
-    // Guard against re-entrancy from styledata events
-    if (isRenderingRef.current) return;
-    isRenderingRef.current = true;
-
-    try {
-    // Render shadow to offscreen canvas
-    gl.viewport(0, 0, SHADOW_TEX_SIZE, SHADOW_TEX_SIZE);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    gl.useProgram(program);
-    gl.disable(gl.DEPTH_TEST);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-    // Bind DEM texture
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, demTexRef.current);
-    gl.uniform1i(u.u_dem, 0);
-
-    // Bind building texture
-    const bActive = buildingTexSizeRef.current.w > 1 && map.getZoom() >= BUILDING_MIN_ZOOM
-      && useMapStore.getState().buildingOpacity > 0;
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
-    gl.uniform1i(u.u_buildings, 1);
-    gl.uniform1f(u.u_buildingsActive, bActive ? 1.0 : 0.0);
-    gl.uniform2f(u.u_buildingTexSize, buildingTexSizeRef.current.w, buildingTexSizeRef.current.h);
-
-    // Sun uniforms
-    gl.uniform1f(u.u_sunAzimuth, sunPos.azimuth);
-    gl.uniform1f(u.u_sunAltitude, sunPos.altitude);
-
-    // Texture size and meters per texel
-    gl.uniform2f(u.u_texSize, texSizeRef.current.w, texSizeRef.current.h);
-    const center = map.getCenter();
-    const zoom = Math.min(12, Math.max(1, Math.round(Math.log2(360 / (bounds.east - bounds.west)))));
-    const mpt = metersPerPixelAtLat(center.lat, zoom);
-    gl.uniform1f(u.u_metersPerTexel, mpt);
-    gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
-
-    // Draw full-screen quad
-    const posLoc = gl.getAttribLocation(program, 'a_pos');
-    gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.disableVertexAttribArray(posLoc);
-
-    // Update MapLibre image source with rendered shadow
-    const dataUrl = offscreenCanvasRef.current.toDataURL('image/png');
-
-    if (map.getSource(SHADOW_SOURCE_ID)) {
-      map.getSource(SHADOW_SOURCE_ID).updateImage({ url: dataUrl, coordinates: coords });
-    } else {
-      map.addSource(SHADOW_SOURCE_ID, {
-        type: 'image',
-        url: dataUrl,
-        coordinates: coords,
-      });
-    }
-
-    // Add raster layer if not present
-    if (!map.getLayer(SHADOW_LAYER_ID)) {
-      // Insert below building layers so fill-extrusion renders on top
-      const beforeId = map.getLayer(OFM_QUERY_LAYER) ? OFM_QUERY_LAYER
-        : map.getLayer(OFM_EXTRUSION_LAYER) ? OFM_EXTRUSION_LAYER
-        : undefined;
-      map.addLayer({
-        id: SHADOW_LAYER_ID,
-        type: 'raster',
-        source: SHADOW_SOURCE_ID,
-        paint: {
-          'raster-opacity': sunlightOpacity,
-          'raster-fade-duration': 0,
-        },
-      }, beforeId);
-    } else {
-      map.setPaintProperty(SHADOW_LAYER_ID, 'raster-opacity', sunlightOpacity);
-    }
-    } finally {
-      isRenderingRef.current = false;
-    }
-  }, [mapRef, bounds, sunPos, sunlightOpacity]);
-
-  renderShadowRef.current = renderShadow;
-
-  // --- Add/remove shadow layer on map and handle style changes ---
+  // --- Add MapLibre custom layer ---
   useEffect(() => {
     const map = mapRef;
     if (!map) return;
 
+    const layer = {
+      id: SHADOW_LAYER_ID,
+      type: 'custom',
+      renderingMode: '3d',
+
+      onAdd(_map, gl) {
+        glRef.current = gl;
+
+        // Compile shaders
+        const vs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vs, VERT_SRC);
+        gl.compileShader(vs);
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, FRAG_SRC);
+        gl.compileShader(fs);
+        const program = gl.createProgram();
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+        programRef.current = program;
+
+        uniformsRef.current = {
+          u_dem: gl.getUniformLocation(program, 'u_dem'),
+          u_buildings: gl.getUniformLocation(program, 'u_buildings'),
+          u_buildingsActive: gl.getUniformLocation(program, 'u_buildingsActive'),
+          u_buildingTexSize: gl.getUniformLocation(program, 'u_buildingTexSize'),
+          u_buildingMetersPerTexel: gl.getUniformLocation(program, 'u_buildingMetersPerTexel'),
+          u_sunAzimuth: gl.getUniformLocation(program, 'u_sunAzimuth'),
+          u_sunAltitude: gl.getUniformLocation(program, 'u_sunAltitude'),
+          u_opacity: gl.getUniformLocation(program, 'u_opacity'),
+          u_screenToMerc: gl.getUniformLocation(program, 'u_screenToMerc'),
+          u_demBoundsMin: gl.getUniformLocation(program, 'u_demBoundsMin'),
+          u_demBoundsMax: gl.getUniformLocation(program, 'u_demBoundsMax'),
+          u_texSize: gl.getUniformLocation(program, 'u_texSize'),
+          u_metersPerTexel: gl.getUniformLocation(program, 'u_metersPerTexel'),
+        };
+
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        bufRef.current = buf;
+
+        // DEM texture (LINEAR for smooth terrain)
+        const demTex = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, demTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        demTexRef.current = demTex;
+
+        // Building height texture (NEAREST for sharp edges)
+        const bTex = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, bTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+        gl.activeTexture(gl.TEXTURE0);
+        buildingTexRef.current = bTex;
+
+        // Create FBO for half-resolution shadow rendering
+        const fbo = gl.createFramebuffer();
+        const fboTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, fboTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        fboRef.current = fbo;
+        fboTexRef.current = fboTex;
+        fboSizeRef.current = { w: 0, h: 0 };
+
+        // Compile blit shader (reuses vertex shader)
+        const blitVs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(blitVs, VERT_SRC);
+        gl.compileShader(blitVs);
+        const blitFs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(blitFs, BLIT_FRAG);
+        gl.compileShader(blitFs);
+        const blitProg = gl.createProgram();
+        gl.attachShader(blitProg, blitVs);
+        gl.attachShader(blitProg, blitFs);
+        gl.linkProgram(blitProg);
+        blitProgramRef.current = blitProg;
+
+        // Force DEM reload since textures are fresh
+        lastLoadRef.current = null;
+      },
+
+      render(gl) {
+        const program = programRef.current;
+        const u = uniformsRef.current;
+        const demB = demBoundsRef.current;
+        const sp = sunPosRef.current;
+        const b = boundsRef.current;
+        const op = opacityRef.current;
+        const m = mapStoreRef.current;
+        if (!program || !demB || !sp || !b || !m || !fboRef.current) return;
+
+        const canvas = gl.canvas;
+        const fbW = Math.max(1, Math.floor(canvas.width * SHADOW_SCALE));
+        const fbH = Math.max(1, Math.floor(canvas.height * SHADOW_SCALE));
+
+        // Resize FBO texture if canvas size changed
+        if (fboSizeRef.current.w !== fbW || fboSizeRef.current.h !== fbH) {
+          withTexState(gl, () => {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, fboTexRef.current);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fbW, fbH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          });
+          fboSizeRef.current = { w: fbW, h: fbH };
+        }
+
+        // Save MapLibre's framebuffer and viewport
+        const prevFBO = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+        const prevViewport = gl.getParameter(gl.VIEWPORT);
+
+        // --- Pass 1: Render ray-march shadow to FBO at half resolution ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fboRef.current);
+        gl.viewport(0, 0, fbW, fbH);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(program);
+        gl.disable(gl.DEPTH_TEST);
+
+        // Bind DEM texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, demTexRef.current);
+        gl.uniform1i(u.u_dem, 0);
+
+        // Bind building texture
+        const bActive = buildingTexSizeRef.current.w > 1 && m.getZoom() >= BUILDING_MIN_ZOOM
+          && useMapStore.getState().buildingOpacity > 0;
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
+        gl.uniform1i(u.u_buildings, 1);
+        gl.uniform1f(u.u_buildingsActive, bActive ? 1.0 : 0.0);
+        gl.uniform2f(u.u_buildingTexSize, buildingTexSizeRef.current.w, buildingTexSizeRef.current.h);
+
+        // Sun uniforms
+        gl.uniform1f(u.u_sunAzimuth, sp.azimuth);
+        gl.uniform1f(u.u_sunAltitude, sp.altitude);
+        gl.uniform1f(u.u_opacity, op);
+
+        // Compute homography (screen UV -> Mercator, handles pitch + rotation)
+        // Use FLAT projection (ignores terrain) for stable results.
+        // With terrain enabled, shadow won't perfectly align with surface but will be visible.
+        const mapCanvas = m.getCanvas();
+        const cw = mapCanvas.clientWidth;
+        const ch = mapCanvas.clientHeight;
+        // Use transform.screenPointToLocation for flat projection (bypasses terrain raycasting)
+        const transform = m.transform;
+        const bl = transform.screenPointToLocation({ x: 0, y: ch });
+        const br = transform.screenPointToLocation({ x: cw, y: ch });
+        const tl = transform.screenPointToLocation({ x: 0, y: 0 });
+        const tr = transform.screenPointToLocation({ x: cw, y: 0 });
+        const blM = [lonToMerc(bl.lng), latToMerc(bl.lat)];
+        const brM = [lonToMerc(br.lng), latToMerc(br.lat)];
+        const tlM = [lonToMerc(tl.lng), latToMerc(tl.lat)];
+        const trM = [lonToMerc(tr.lng), latToMerc(tr.lat)];
+        const H = computeHomography(blM, brM, tlM, trM);
+        gl.uniformMatrix3fv(u.u_screenToMerc, false, H);
+
+        // DEM bounds
+        gl.uniform2f(u.u_demBoundsMin, demB.minX, demB.minY);
+        gl.uniform2f(u.u_demBoundsMax, demB.maxX, demB.maxY);
+        gl.uniform2f(u.u_texSize, texSizeRef.current.w, texSizeRef.current.h);
+
+        // Meters per texel
+        const center = m.getCenter();
+        const zoom = Math.min(12, Math.max(1, Math.round(
+          Math.log2(360 / (b.east - b.west))
+        )));
+        const mpt = metersPerPixelAtLat(center.lat, zoom);
+        gl.uniform1f(u.u_metersPerTexel, mpt);
+        gl.uniform1f(u.u_buildingMetersPerTexel, buildingMptRef.current || mpt);
+
+        // Draw full-screen quad to FBO
+        const posLoc = gl.getAttribLocation(program, 'a_pos');
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disableVertexAttribArray(posLoc);
+
+        // --- Pass 2: Blit FBO to MapLibre's framebuffer ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, prevFBO);
+        gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+        gl.useProgram(blitProgramRef.current);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.disable(gl.DEPTH_TEST);
+        gl.depthMask(false); // Don't corrupt depth buffer for subsequent 3D layers
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, fboTexRef.current);
+        gl.uniform1i(gl.getUniformLocation(blitProgramRef.current, 'u_tex'), 0);
+
+        const blitPosLoc = gl.getAttribLocation(blitProgramRef.current, 'a_pos');
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufRef.current);
+        gl.enableVertexAttribArray(blitPosLoc);
+        gl.vertexAttribPointer(blitPosLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disableVertexAttribArray(blitPosLoc);
+        gl.depthMask(true);
+      },
+
+      onRemove(_map, gl) {
+        if (programRef.current) gl.deleteProgram(programRef.current);
+        if (blitProgramRef.current) gl.deleteProgram(blitProgramRef.current);
+        if (bufRef.current) gl.deleteBuffer(bufRef.current);
+        if (demTexRef.current) gl.deleteTexture(demTexRef.current);
+        if (buildingTexRef.current) gl.deleteTexture(buildingTexRef.current);
+        if (fboTexRef.current) gl.deleteTexture(fboTexRef.current);
+        if (fboRef.current) gl.deleteFramebuffer(fboRef.current);
+        programRef.current = null;
+        blitProgramRef.current = null;
+        bufRef.current = null;
+        demTexRef.current = null;
+        buildingTexRef.current = null;
+        fboRef.current = null;
+        fboTexRef.current = null;
+        fboSizeRef.current = { w: 0, h: 0 };
+        glRef.current = null;
+        buildingTexSizeRef.current = { w: 0, h: 0 };
+      },
+    };
+
+    const addShadowLayer = () => {
+      if (map.getLayer(SHADOW_LAYER_ID)) return;
+      // Insert below building layers so fill-extrusion renders on top (occludes shadow)
+      const beforeId = map.getLayer(OFM_QUERY_LAYER) ? OFM_QUERY_LAYER
+        : map.getLayer(OFM_EXTRUSION_LAYER) ? OFM_EXTRUSION_LAYER
+        : undefined;
+      map.addLayer(layer, beforeId);
+      layerAddedRef.current = true;
+    };
+
+    addShadowLayer();
+
+    // Re-add after style swaps (which wipe all layers)
     const onStyleData = () => {
-      // Re-add source and layer after style swap
-      if (demCoordsRef.current && renderShadowRef.current) {
-        renderShadowRef.current();
+      if (!map.getLayer(SHADOW_LAYER_ID)) {
+        addShadowLayer();
+        lastLoadRef.current = null; // force DEM reload
       }
     };
     map.on('styledata', onStyleData);
@@ -375,7 +511,7 @@ export default function SunlightOverlay() {
     return () => {
       map.off('styledata', onStyleData);
       try { if (map.getLayer(SHADOW_LAYER_ID)) map.removeLayer(SHADOW_LAYER_ID); } catch {}
-      try { if (map.getSource(SHADOW_SOURCE_ID)) map.removeSource(SHADOW_SOURCE_ID); } catch {}
+      layerAddedRef.current = false;
     };
   }, [mapRef]);
 
@@ -411,19 +547,6 @@ export default function SunlightOverlay() {
     demBoundsRef.current = demBounds;
     texSizeRef.current = { w: totalW, h: totalH };
 
-    // Store geographic coordinates for MapLibre image source
-    // Format: [[west, north], [east, north], [east, south], [west, south]]
-    const west = tile2lon(xMin, zoom);
-    const east = tile2lon(xMax + 1, zoom);
-    const north = tile2lat(yMin, zoom);
-    const south = tile2lat(yMax + 1, zoom);
-    demCoordsRef.current = [
-      [west, north],
-      [east, north],
-      [east, south],
-      [west, south],
-    ];
-
     const offscreen = document.createElement('canvas');
     offscreen.width = totalW;
     offscreen.height = totalH;
@@ -455,14 +578,17 @@ export default function SunlightOverlay() {
   const uploadTexture = useCallback((offscreen) => {
     const gl = glRef.current;
     if (!gl || !demTexRef.current) return;
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, demTexRef.current);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
-
-    // Rasterize buildings now that DEM bounds are ready
-    if (rasterizeBuildingsRef.current) rasterizeBuildingsRef.current();
-    // Render shadow with new DEM data
-    if (renderShadowRef.current) renderShadowRef.current();
+    withTexState(gl, () => {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, demTexRef.current);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
+    });
+    const map = useMapStore.getState().mapRef;
+    if (map) {
+      map.triggerRepaint();
+      // Rasterize buildings now that DEM bounds are ready
+      if (rasterizeBuildingsRef.current) rasterizeBuildingsRef.current();
+    }
   }, []);
 
   // --- Rasterize OSM building footprints to height texture ---
@@ -546,10 +672,12 @@ export default function SunlightOverlay() {
       }
     }
 
-    // Upload to building texture
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
+    // Upload to building texture (save/restore MapLibre's GL state)
+    withTexState(gl, () => {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, buildingTexRef.current);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
+    });
     buildingTexSizeRef.current = { w: cw, h: ch };
     setBuildingsVisible(true);
 
@@ -557,8 +685,7 @@ export default function SunlightOverlay() {
     const earthCircumAtLat = 40075016.686 * Math.cos(center.lat * Math.PI / 180);
     buildingMptRef.current = (demW * earthCircumAtLat) / cw;
 
-    // Re-render shadow with building data
-    if (renderShadowRef.current) renderShadowRef.current();
+    map.triggerRepaint();
   }, [mapRef]);
 
   rasterizeBuildingsRef.current = rasterizeBuildings;
@@ -615,10 +742,10 @@ export default function SunlightOverlay() {
     return () => clearTimeout(debounceRef.current);
   }, [bounds, loadDemTiles]);
 
-  // Re-render shadow when sun position or opacity changes
+  // Trigger MapLibre repaint when sun position or opacity changes
   useEffect(() => {
-    if (renderShadowRef.current) renderShadowRef.current();
-  }, [sunPos, sunlightOpacity]);
+    if (mapRef && layerAddedRef.current) mapRef.triggerRepaint();
+  }, [sunPos, sunlightOpacity, mapRef]);
 
   // --- Animation loop ---
   useEffect(() => {
