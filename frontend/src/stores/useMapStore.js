@@ -73,6 +73,9 @@ export const useMapStore = create((set) => ({
   // Placement mode
   placementMode: null, // null or { sidc, designation }
 
+  // Measuring tool
+  measuringToolVisible: false,
+
   setViewport: (viewport) => set(viewport),
   setBounds: (bounds) => set({ bounds }),
   setBaseLayer: (baseLayer) => set({ baseLayer }),
@@ -138,6 +141,7 @@ export const useMapStore = create((set) => ({
     activePanel: s.activePanel === panel ? null : panel,
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
+  toggleMeasuringTool: () => set((s) => ({ measuringToolVisible: !s.measuringToolVisible })),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,
     ...(!s.projectDrawerOpen ? { dataLayersDrawerOpen: false } : {}),

@@ -12,6 +12,8 @@ export default function MapControls() {
   const toggleChatDrawer = useMapStore((s) => s.toggleChatDrawer);
   const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
+  const measuringToolVisible = useMapStore((s) => s.measuringToolVisible);
+  const toggleMeasuringTool = useMapStore((s) => s.toggleMeasuringTool);
   const activePanel = useMapStore((s) => s.activePanel);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
   const projectDrawerOpen = useMapStore((s) => s.projectDrawerOpen);
@@ -114,6 +116,7 @@ export default function MapControls() {
       </div>
 
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
+      <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
 
       <div className="w-px h-5 bg-slate-600 mx-1" />
 

@@ -25,6 +25,7 @@ import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
+import MeasuringTool from './MeasuringTool.jsx';
 
 let nextMenuId = 1;
 
@@ -374,6 +375,20 @@ export default function TacticalMap() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [rotating]);
 
+  // Stop rotation on user map interaction (pan, tilt, rotate)
+  useEffect(() => {
+    if (!rotating || !mapInstance) return;
+    const stopRotation = () => setRotating(false);
+    mapInstance.on('dragstart', stopRotation);
+    mapInstance.on('pitchstart', stopRotation);
+    mapInstance.on('rotatestart', stopRotation);
+    return () => {
+      mapInstance.off('dragstart', stopRotation);
+      mapInstance.off('pitchstart', stopRotation);
+      mapInstance.off('rotatestart', stopRotation);
+    };
+  }, [rotating, mapInstance]);
+
   // Avalanche region hover cursor when detail panel is open
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -713,6 +728,7 @@ export default function TacticalMap() {
           onClose={() => setDrawingInfoPopup(null)}
         />
       )}
+      <MeasuringTool />
     </div>
   );
 }

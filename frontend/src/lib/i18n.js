@@ -10,6 +10,12 @@ const translations = {
     'layer.aircraft': 'Luftfart',
     'layer.vessels': 'Fart\u00f8y',
     'layer.draw': 'Tegn',
+    'layer.measure': 'Mål',
+    'measure.route': 'Rute',
+    'measure.total': 'Totalt',
+    'measure.clickToStart': 'Klikk for å starte måling',
+    'measure.clickToContinue': 'Klikk for å legge til punkt, dobbeltklikk for å fullføre',
+    'measure.pressEscToFinish': 'Trykk Esc for å fullføre ruten',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -243,6 +249,12 @@ const translations = {
     'layer.aircraft': 'Aircraft',
     'layer.vessels': 'Vessels',
     'layer.draw': 'Draw',
+    'layer.measure': 'Measure',
+    'measure.route': 'Route',
+    'measure.total': 'Total',
+    'measure.clickToStart': 'Click to start measuring',
+    'measure.clickToContinue': 'Click to add point, double-click to finish',
+    'measure.pressEscToFinish': 'Press Esc to finish route',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
