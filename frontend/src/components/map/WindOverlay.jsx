@@ -252,11 +252,11 @@ export default function WindOverlay() {
 // Flat 2D projection bypassing terrain raycasting — the wind canvas is a flat
 // overlay so we want the Mercator projection, not expensive DEM lookups.
 function flatProject(map, lon, lat) {
-  return map.transform.locationPoint({ lng: lon, lat: lat });
+  return map.transform.locationToScreenPoint({ lng: lon, lat: lat });
 }
 
 function flatUnproject(map, x, y) {
-  return map.transform.pointLocation({ x, y });
+  return map.transform.screenPointToLocation({ x, y });
 }
 
 // Bilinear interpolation — returns { u, v, speed } or null

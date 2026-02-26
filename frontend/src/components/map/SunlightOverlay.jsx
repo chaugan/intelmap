@@ -408,7 +408,7 @@ export default function SunlightOverlay() {
         const mapCanvas = m.getCanvas();
         const cw = mapCanvas.clientWidth;
         const ch = mapCanvas.clientHeight;
-        const flatUnproj = (x, y) => m.transform.pointLocation({ x, y });
+        const flatUnproj = (x, y) => m.transform.screenPointToLocation({ x, y });
         const bl = flatUnproj(0, ch);
         const br = flatUnproj(cw, ch);
         const tl = flatUnproj(0, 0);
