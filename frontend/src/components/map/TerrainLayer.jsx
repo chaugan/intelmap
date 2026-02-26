@@ -44,9 +44,9 @@ export default function TerrainLayer() {
       try { if (map.getLayer(HILLSHADE_LAYER)) map.removeLayer(HILLSHADE_LAYER); } catch {}
     };
 
+    // Only re-add on styledata if the layer was wiped (style swap), not from our own changes
     const onStyleData = () => {
-      if (useMapStore.getState().hillshadeVisible) {
-        removeHillshade();
+      if (useMapStore.getState().hillshadeVisible && !map.getLayer(HILLSHADE_LAYER)) {
         addHillshade();
       }
     };
@@ -76,17 +76,18 @@ export default function TerrainLayer() {
     const map = mapRef;
     if (!map) return;
 
-    const applyTerrain = () => {
-      if (useMapStore.getState().terrainVisible) {
+    if (terrainVisible) {
+      map.setTerrain({ source: 'dem', exaggeration: useMapStore.getState().terrainExaggeration });
+    } else {
+      map.setTerrain(null);
+    }
+
+    // Only re-apply on styledata if terrain was wiped (style swap)
+    const onStyleData = () => {
+      if (useMapStore.getState().terrainVisible && !map.getTerrain()) {
         map.setTerrain({ source: 'dem', exaggeration: useMapStore.getState().terrainExaggeration });
-      } else {
-        map.setTerrain(null);
       }
     };
-
-    const onStyleData = () => applyTerrain();
-
-    applyTerrain();
 
     map.on('styledata', onStyleData);
     return () => {
