@@ -193,10 +193,10 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const startElevation = profilePoints[0].elevation;
   const endElevation = profilePoints[profilePoints.length - 1].elevation;
 
-  // SVG dimensions - use wider aspect ratio for expanded to fill container better
-  // Expanded: ~2.3:1 aspect ratio to match 85vw x 80vh minus header/footer
-  const width = expanded ? 1400 : 500;
-  const height = expanded ? 600 : 180;
+  // SVG dimensions - viewBox coordinates (not pixels)
+  // Expanded uses 4:1 aspect ratio for wide display
+  const width = expanded ? 1200 : 500;
+  const height = expanded ? 300 : 180;
   const padding = {
     top: expanded ? 30 : 15,
     right: expanded ? 40 : 15,
@@ -289,7 +289,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const wpRadius = expanded ? 6 : 4;
 
   const containerClass = expanded
-    ? "bg-slate-900 rounded-lg shadow-2xl p-6 flex flex-col"
+    ? "bg-slate-900 rounded-lg shadow-2xl p-6"
     : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]";
 
   // Handle backdrop click to close expanded view
@@ -300,7 +300,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   };
 
   const content = (
-    <div className={containerClass} ref={containerRef} style={expanded ? { width: '85vw', height: '80vh', maxWidth: '1400px' } : undefined}>
+    <div className={containerClass} ref={containerRef} style={expanded ? { width: '80vw', maxHeight: '90vh' } : undefined}>
       <div className={`flex justify-between items-center ${expanded ? 'mb-3' : 'mb-2'} flex-shrink-0`}>
         <span className={`text-white font-medium ${expanded ? 'text-xl' : 'text-sm'}`}>
           {t('measure.route', lang)} {routeIndex + 1} - {t('measure.profile', lang)}
@@ -345,8 +345,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className={`rounded ${expanded ? 'flex-1 bg-slate-800 min-h-0' : 'bg-slate-900/50 w-full'}`}
-        style={expanded ? { width: '100%', height: '100%' } : { maxHeight: height }}
+        className={`rounded ${expanded ? 'bg-slate-800 w-full' : 'bg-slate-900/50 w-full'}`}
+        style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? 'calc(90vh - 140px)' : height }}
         preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
