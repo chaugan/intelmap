@@ -20,6 +20,12 @@ export function buildMapStyle(baseLayerId, {
         ? '&copy; OpenStreetMap contributors'
         : '&copy; Kartverket',
     },
+    dem: {
+      type: 'raster-dem',
+      tiles: ['/api/tiles/dem/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      encoding: 'terrarium',
+    },
   };
 
   const layers = [

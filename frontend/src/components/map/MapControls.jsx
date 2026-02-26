@@ -187,6 +187,7 @@ export default function MapControls() {
 const VISIBILITY_KEYS = [
   'sunlightVisible', 'windVisible', 'webcamsVisible', 'avalancheVisible',
   'avalancheWarningsVisible', 'snowDepthVisible', 'aircraftVisible', 'vesselsVisible',
+  'hillshadeVisible', 'terrainVisible',
 ];
 
 function ActiveLayerBadge() {

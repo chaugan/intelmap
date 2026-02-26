@@ -131,6 +131,12 @@ const translations = {
     'sunlight.buildings': 'Bygningsskygger',
     'buildings': 'Bygninger',
 
+    // Terrain
+    'terrain.section': 'Terreng',
+    'terrain.hillshade': 'Terrengskygge',
+    'terrain.3d': '3D-terreng',
+    'terrain.exaggeration': 'Forstørrelse',
+
     // Wind
     'wind.opacity': 'Vindgjennomsiktighet',
     'wind.legend': 'Vind',
@@ -347,6 +353,12 @@ const translations = {
     'sunlight.elevation': 'Sun elevation',
     'sunlight.buildings': 'Building shadows',
     'buildings': 'Buildings',
+
+    // Terrain
+    'terrain.section': 'Terrain',
+    'terrain.hillshade': 'Hillshade',
+    'terrain.3d': '3D Terrain',
+    'terrain.exaggeration': 'Exaggeration',
 
     // Wind
     'wind.opacity': 'Wind opacity',
