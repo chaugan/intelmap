@@ -27,6 +27,8 @@ const translations = {
     'measure.toEnd': 'Til slutt',
     'measure.expand': 'Forstørr',
     'measure.shrink': 'Forminsk',
+    'measure.start': 'Start',
+    'measure.end': 'Slutt',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -277,6 +279,8 @@ const translations = {
     'measure.toEnd': 'To end',
     'measure.expand': 'Expand',
     'measure.shrink': 'Shrink',
+    'measure.start': 'Start',
+    'measure.end': 'End',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
