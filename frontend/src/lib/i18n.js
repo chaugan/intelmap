@@ -21,6 +21,7 @@ const translations = {
     'measure.lowest': 'Laveste',
     'measure.distance': 'Avstand',
     'measure.elevation': 'Høyde',
+    'measure.points': 'punkter',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -265,6 +266,7 @@ const translations = {
     'measure.lowest': 'Lowest',
     'measure.distance': 'Distance',
     'measure.elevation': 'Elevation',
+    'measure.points': 'points',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',

@@ -55,40 +55,96 @@ async function fetchElevation(lat, lng) {
   }
 }
 
-// Calculate route statistics
-function getRouteStats(waypoints) {
-  if (waypoints.length === 0) return null;
+// Interpolate points along a path at regular intervals
+function interpolatePoints(waypoints, intervalMeters = 25) {
+  const points = [];
+  let cumulativeDistance = 0;
 
-  let totalDistance = 0;
+  for (let i = 0; i < waypoints.length; i++) {
+    if (i === 0) {
+      points.push({ ...waypoints[0], cumulativeDistance: 0, isWaypoint: true, waypointIndex: 0 });
+      continue;
+    }
+
+    const prev = waypoints[i - 1];
+    const curr = waypoints[i];
+    const segmentDist = calculateDistance2D(prev, curr);
+
+    // Calculate how many intermediate points we need
+    const numIntermediate = Math.floor(segmentDist / intervalMeters);
+
+    for (let j = 1; j <= numIntermediate; j++) {
+      const fraction = j / (numIntermediate + 1);
+      const lng = prev.lng + (curr.lng - prev.lng) * fraction;
+      const lat = prev.lat + (curr.lat - prev.lat) * fraction;
+      const distAlongSegment = segmentDist * fraction;
+
+      points.push({
+        lng,
+        lat,
+        elevation: null, // Will be fetched
+        cumulativeDistance: cumulativeDistance + distAlongSegment,
+        isWaypoint: false,
+      });
+    }
+
+    cumulativeDistance += segmentDist;
+    points.push({
+      ...curr,
+      cumulativeDistance,
+      isWaypoint: true,
+      waypointIndex: i,
+    });
+  }
+
+  return points;
+}
+
+// Fetch elevations for multiple points in parallel batches
+async function fetchElevationsForPoints(points, batchSize = 10) {
+  const results = [...points];
+
+  for (let i = 0; i < points.length; i += batchSize) {
+    const batch = points.slice(i, i + batchSize);
+    const elevations = await Promise.all(
+      batch.map(p => p.elevation !== null ? Promise.resolve(p.elevation) : fetchElevation(p.lat, p.lng))
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      results[i + j] = { ...results[i + j], elevation: elevations[j] };
+    }
+  }
+
+  return results;
+}
+
+// Calculate detailed route statistics from profile points
+function getDetailedStats(profilePoints) {
+  if (profilePoints.length === 0) return null;
+
   let totalAscent = 0;
   let totalDescent = 0;
-  let minElevation = waypoints[0].elevation;
-  let maxElevation = waypoints[0].elevation;
-  let minPoint = waypoints[0];
-  let maxPoint = waypoints[0];
+  let minElevation = profilePoints[0].elevation;
+  let maxElevation = profilePoints[0].elevation;
+  let minIndex = 0;
+  let maxIndex = 0;
 
-  // Build cumulative distance array for profile
-  const profilePoints = [{ distance: 0, elevation: waypoints[0].elevation }];
-
-  for (let i = 1; i < waypoints.length; i++) {
-    const dist = calculateDistance2D(waypoints[i - 1], waypoints[i]);
-    totalDistance += dist;
-
-    const elevDiff = waypoints[i].elevation - waypoints[i - 1].elevation;
+  for (let i = 1; i < profilePoints.length; i++) {
+    const elevDiff = profilePoints[i].elevation - profilePoints[i - 1].elevation;
     if (elevDiff > 0) totalAscent += elevDiff;
     else totalDescent += Math.abs(elevDiff);
 
-    if (waypoints[i].elevation < minElevation) {
-      minElevation = waypoints[i].elevation;
-      minPoint = waypoints[i];
+    if (profilePoints[i].elevation < minElevation) {
+      minElevation = profilePoints[i].elevation;
+      minIndex = i;
     }
-    if (waypoints[i].elevation > maxElevation) {
-      maxElevation = waypoints[i].elevation;
-      maxPoint = waypoints[i];
+    if (profilePoints[i].elevation > maxElevation) {
+      maxElevation = profilePoints[i].elevation;
+      maxIndex = i;
     }
-
-    profilePoints.push({ distance: totalDistance, elevation: waypoints[i].elevation });
   }
+
+  const totalDistance = profilePoints[profilePoints.length - 1].cumulativeDistance;
 
   return {
     totalDistance,
@@ -96,37 +152,57 @@ function getRouteStats(waypoints) {
     totalDescent,
     minElevation,
     maxElevation,
-    minPoint,
-    maxPoint,
+    minIndex,
+    maxIndex,
     profilePoints,
   };
 }
 
-// Height profile component
-function HeightProfile({ waypoints, routeIndex, lang, onClose }) {
-  const stats = getRouteStats(waypoints);
-  if (!stats || waypoints.length < 2) return null;
+// Calculate basic stats from waypoints only (for display during drawing)
+function getBasicStats(waypoints) {
+  if (waypoints.length === 0) return null;
 
-  const { profilePoints, minElevation, maxElevation, totalDistance, totalAscent, totalDescent } = stats;
+  let totalDistance = 0;
+  let totalAscent = 0;
+  let totalDescent = 0;
 
-  // SVG dimensions
-  const width = 320;
-  const height = 120;
-  const padding = { top: 10, right: 10, bottom: 25, left: 45 };
+  for (let i = 1; i < waypoints.length; i++) {
+    totalDistance += calculateDistance2D(waypoints[i - 1], waypoints[i]);
+    const elevDiff = waypoints[i].elevation - waypoints[i - 1].elevation;
+    if (elevDiff > 0) totalAscent += elevDiff;
+    else totalDescent += Math.abs(elevDiff);
+  }
+
+  return { totalDistance, totalAscent, totalDescent };
+}
+
+// Height profile component with detailed terrain
+function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClose, loading }) {
+  if (!profilePoints || profilePoints.length < 2) return null;
+
+  const stats = getDetailedStats(profilePoints);
+  if (!stats) return null;
+
+  const { minElevation, maxElevation, totalDistance, totalAscent, totalDescent, minIndex, maxIndex } = stats;
+
+  // SVG dimensions - wider for more detail
+  const width = 500;
+  const height = 180;
+  const padding = { top: 15, right: 15, bottom: 30, left: 50 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
   // Scale with some padding
   const elevRange = maxElevation - minElevation || 1;
-  const elevPadding = elevRange * 0.1;
+  const elevPadding = elevRange * 0.15;
   const minY = minElevation - elevPadding;
   const maxY = maxElevation + elevPadding;
 
-  // Create path
+  // Create smooth path
   const pathPoints = profilePoints.map((p, i) => {
-    const x = padding.left + (p.distance / totalDistance) * chartWidth;
+    const x = padding.left + (p.cumulativeDistance / totalDistance) * chartWidth;
     const y = padding.top + chartHeight - ((p.elevation - minY) / (maxY - minY)) * chartHeight;
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(' ');
 
   // Create filled area path
@@ -134,46 +210,71 @@ function HeightProfile({ waypoints, routeIndex, lang, onClose }) {
     ` L ${padding.left + chartWidth} ${padding.top + chartHeight}` +
     ` L ${padding.left} ${padding.top + chartHeight} Z`;
 
-  // Y-axis labels
-  const yLabels = [minElevation, (minElevation + maxElevation) / 2, maxElevation].map(v => Math.round(v));
+  // Y-axis labels (5 levels)
+  const yLabelCount = 5;
+  const yLabels = [];
+  for (let i = 0; i < yLabelCount; i++) {
+    const elev = minElevation + (elevRange * i) / (yLabelCount - 1);
+    yLabels.push(Math.round(elev));
+  }
 
   // X-axis labels
-  const xLabels = [0, totalDistance / 2, totalDistance];
+  const xLabelCount = 5;
+  const xLabels = [];
+  for (let i = 0; i < xLabelCount; i++) {
+    xLabels.push((totalDistance * i) / (xLabelCount - 1));
+  }
+
+  // Find waypoint positions for markers
+  const waypointMarkers = profilePoints
+    .map((p, i) => (p.isWaypoint ? { ...p, index: i } : null))
+    .filter(Boolean);
 
   return (
-    <div className="bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[340px]">
+    <div className="bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]">
       <div className="flex justify-between items-center mb-2">
         <span className="text-white text-sm font-medium">
           {t('measure.route', lang)} {routeIndex + 1} - {t('measure.profile', lang)}
+          {loading && <span className="ml-2 text-yellow-400 text-xs">(loading terrain...)</span>}
         </span>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-white text-lg leading-none"
+          className="text-slate-400 hover:text-white text-lg leading-none px-1"
         >
           ×
         </button>
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-3 text-xs text-slate-300 mb-2">
-        <span>↑ {formatElevation(totalAscent)}</span>
-        <span>↓ {formatElevation(totalDescent)}</span>
-        <span className="text-green-400">{t('measure.highest', lang)}: {formatElevation(maxElevation)}</span>
+      <div className="flex gap-4 text-xs text-slate-300 mb-2 flex-wrap">
+        <span className="text-green-400">↑ {formatElevation(totalAscent)}</span>
+        <span className="text-red-400">↓ {formatElevation(totalDescent)}</span>
+        <span className="text-emerald-400">{t('measure.highest', lang)}: {formatElevation(maxElevation)}</span>
         <span className="text-blue-400">{t('measure.lowest', lang)}: {formatElevation(minElevation)}</span>
+        <span className="text-slate-400">{profilePoints.length} {t('measure.points', lang)}</span>
       </div>
 
       {/* SVG Chart */}
       <svg width={width} height={height} className="bg-slate-900/50 rounded">
-        {/* Grid lines */}
+        {/* Grid lines - horizontal */}
         {yLabels.map((label, i) => {
           const y = padding.top + chartHeight - ((label - minY) / (maxY - minY)) * chartHeight;
           return (
             <g key={`y-${i}`}>
               <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
-                stroke="#475569" strokeWidth="1" strokeDasharray="2 2" />
-              <text x={padding.left - 5} y={y + 4} textAnchor="end"
-                fill="#94a3b8" fontSize="10">{label}</text>
+                stroke="#374151" strokeWidth="1" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end"
+                fill="#9ca3af" fontSize="10">{label}</text>
             </g>
+          );
+        })}
+
+        {/* Grid lines - vertical */}
+        {xLabels.map((dist, i) => {
+          const x = padding.left + (dist / totalDistance) * chartWidth;
+          return (
+            <line key={`vgrid-${i}`} x1={x} y1={padding.top} x2={x} y2={padding.top + chartHeight}
+              stroke="#374151" strokeWidth="1" />
           );
         })}
 
@@ -181,37 +282,70 @@ function HeightProfile({ waypoints, routeIndex, lang, onClose }) {
         {xLabels.map((dist, i) => {
           const x = padding.left + (dist / totalDistance) * chartWidth;
           return (
-            <text key={`x-${i}`} x={x} y={height - 5} textAnchor="middle"
-              fill="#94a3b8" fontSize="10">{formatDistance(dist)}</text>
+            <text key={`x-${i}`} x={x} y={height - 8} textAnchor="middle"
+              fill="#9ca3af" fontSize="10">{formatDistance(dist)}</text>
           );
-        })}
-
-        {/* Filled area */}
-        <path d={areaPath} fill="url(#elevGradient)" opacity="0.3" />
-
-        {/* Line */}
-        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth="2" />
-
-        {/* Waypoint dots */}
-        {profilePoints.map((p, i) => {
-          const x = padding.left + (p.distance / totalDistance) * chartWidth;
-          const y = padding.top + chartHeight - ((p.elevation - minY) / (maxY - minY)) * chartHeight;
-          return <circle key={i} cx={x} cy={y} r="3" fill="#3b82f6" stroke="#fff" strokeWidth="1" />;
         })}
 
         {/* Gradient definition */}
         <defs>
-          <linearGradient id="elevGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#1e3a5f" />
+          <linearGradient id={`elevGradient-${routeIndex}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#1e3a5f" stopOpacity="0.2" />
           </linearGradient>
         </defs>
+
+        {/* Filled area */}
+        <path d={areaPath} fill={`url(#elevGradient-${routeIndex})`} />
+
+        {/* Main terrain line */}
+        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="round" />
+
+        {/* Min/Max markers */}
+        {(() => {
+          const minPt = profilePoints[minIndex];
+          const maxPt = profilePoints[maxIndex];
+          const minX = padding.left + (minPt.cumulativeDistance / totalDistance) * chartWidth;
+          const minYPos = padding.top + chartHeight - ((minPt.elevation - minY) / (maxY - minY)) * chartHeight;
+          const maxX = padding.left + (maxPt.cumulativeDistance / totalDistance) * chartWidth;
+          const maxYPos = padding.top + chartHeight - ((maxPt.elevation - minY) / (maxY - minY)) * chartHeight;
+          return (
+            <>
+              {/* Lowest point */}
+              <circle cx={minX} cy={minYPos} r="5" fill="#3b82f6" stroke="#fff" strokeWidth="2" />
+              <text x={minX} y={minYPos - 8} textAnchor="middle" fill="#60a5fa" fontSize="9" fontWeight="bold">
+                {formatElevation(minPt.elevation)}
+              </text>
+              {/* Highest point */}
+              <circle cx={maxX} cy={maxYPos} r="5" fill="#22c55e" stroke="#fff" strokeWidth="2" />
+              <text x={maxX} y={maxYPos - 8} textAnchor="middle" fill="#22c55e" fontSize="9" fontWeight="bold">
+                {formatElevation(maxPt.elevation)}
+              </text>
+            </>
+          );
+        })()}
+
+        {/* Waypoint markers */}
+        {waypointMarkers.map((wp, i) => {
+          const x = padding.left + (wp.cumulativeDistance / totalDistance) * chartWidth;
+          const y = padding.top + chartHeight - ((wp.elevation - minY) / (maxY - minY)) * chartHeight;
+          // Don't render if too close to min/max markers
+          if (wp.index === minIndex || wp.index === maxIndex) return null;
+          return (
+            <g key={`wp-${i}`}>
+              <circle cx={x} cy={y} r="4" fill="#f59e0b" stroke="#fff" strokeWidth="1.5" />
+              <text x={x} y={y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">
+                {wp.waypointIndex + 1}
+              </text>
+            </g>
+          );
+        })}
 
         {/* Axis labels */}
         <text x={padding.left + chartWidth / 2} y={height - 1} textAnchor="middle"
           fill="#64748b" fontSize="9">{t('measure.distance', lang)}</text>
-        <text x={12} y={padding.top + chartHeight / 2} textAnchor="middle"
-          fill="#64748b" fontSize="9" transform={`rotate(-90, 12, ${padding.top + chartHeight / 2})`}>
+        <text x={10} y={padding.top + chartHeight / 2} textAnchor="middle"
+          fill="#64748b" fontSize="9" transform={`rotate(-90, 10, ${padding.top + chartHeight / 2})`}>
           {t('measure.elevation', lang)} (m)
         </text>
       </svg>
@@ -224,11 +358,12 @@ export default function MeasuringTool() {
   const measuringToolVisible = useMapStore((s) => s.measuringToolVisible);
   const lang = useMapStore((s) => s.lang);
 
-  const [routes, setRoutes] = useState([]); // Completed routes
+  const [routes, setRoutes] = useState([]); // Completed routes with detailed profiles
   const [currentRoute, setCurrentRoute] = useState([]); // Active route waypoints
   const [mousePos, setMousePos] = useState(null); // Live cursor position
   const [, setTick] = useState(0); // Force re-render on map move
   const [expandedProfile, setExpandedProfile] = useState(null); // Which route's profile is expanded
+  const [loadingProfile, setLoadingProfile] = useState(null); // Which route is loading detailed profile
   const clickTimeoutRef = useRef(null);
   const lastClickRef = useRef(0);
 
@@ -239,8 +374,54 @@ export default function MeasuringTool() {
       setCurrentRoute([]);
       setMousePos(null);
       setExpandedProfile(null);
+      setLoadingProfile(null);
     }
   }, [measuringToolVisible]);
+
+  // Finalize route with detailed elevation profile
+  const finalizeRoute = useCallback(async (waypoints) => {
+    if (waypoints.length < 2) return;
+
+    const routeId = Date.now();
+    const basicStats = getBasicStats(waypoints);
+
+    // Add route immediately with basic stats
+    setRoutes((prev) => [
+      ...prev,
+      {
+        id: routeId,
+        waypoints,
+        stats: basicStats,
+        profilePoints: null,
+        loading: true,
+      },
+    ]);
+    setLoadingProfile(routeId);
+
+    // Interpolate points along the route (every 25m for detail)
+    const interpolated = interpolatePoints(waypoints, 25);
+
+    // Fetch all elevations
+    const profileWithElevations = await fetchElevationsForPoints(interpolated, 8);
+
+    // Calculate detailed stats
+    const detailedStats = getDetailedStats(profileWithElevations);
+
+    // Update route with detailed profile
+    setRoutes((prev) =>
+      prev.map((r) =>
+        r.id === routeId
+          ? {
+              ...r,
+              stats: detailedStats,
+              profilePoints: profileWithElevations,
+              loading: false,
+            }
+          : r
+      )
+    );
+    setLoadingProfile(null);
+  }, []);
 
   // Handle map click to add waypoint
   const handleClick = useCallback(
@@ -258,11 +439,7 @@ export default function MeasuringTool() {
           clickTimeoutRef.current = null;
         }
         if (currentRoute.length >= 2) {
-          const stats = getRouteStats(currentRoute);
-          setRoutes((prev) => [
-            ...prev,
-            { id: Date.now(), waypoints: currentRoute, stats },
-          ]);
+          finalizeRoute(currentRoute);
           setCurrentRoute([]);
         }
         return;
@@ -275,7 +452,7 @@ export default function MeasuringTool() {
         setCurrentRoute((prev) => [...prev, { lng, lat, elevation }]);
       }, 150);
     },
-    [measuringToolVisible, currentRoute]
+    [measuringToolVisible, currentRoute, finalizeRoute]
   );
 
   // Handle mouse move for preview line
@@ -298,11 +475,7 @@ export default function MeasuringTool() {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
         if (currentRoute.length >= 2) {
-          const stats = getRouteStats(currentRoute);
-          setRoutes((prev) => [
-            ...prev,
-            { id: Date.now(), waypoints: currentRoute, stats },
-          ]);
+          finalizeRoute(currentRoute);
         }
         setCurrentRoute([]);
         setMousePos(null);
@@ -311,7 +484,7 @@ export default function MeasuringTool() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [measuringToolVisible, currentRoute]);
+  }, [measuringToolVisible, currentRoute, finalizeRoute]);
 
   // Attach map event listeners
   useEffect(() => {
@@ -483,7 +656,7 @@ export default function MeasuringTool() {
   };
 
   // Calculate stats for current route
-  const currentStats = getRouteStats(currentRoute);
+  const currentStats = getBasicStats(currentRoute);
 
   return (
     <>
@@ -510,17 +683,20 @@ export default function MeasuringTool() {
                 onClick={() => setExpandedProfile(expandedProfile === i ? null : i)}
                 className="bg-slate-800/90 text-white px-3 py-1.5 rounded shadow-lg text-sm font-medium hover:bg-slate-700/90 transition-colors flex items-center gap-2"
               >
-                <span>{t('measure.route', lang)} {i + 1}: {formatDistance(route.stats.totalDistance)}</span>
-                <span className="text-green-400 text-xs">↑{formatElevation(route.stats.totalAscent)}</span>
-                <span className="text-red-400 text-xs">↓{formatElevation(route.stats.totalDescent)}</span>
+                <span>{t('measure.route', lang)} {i + 1}: {formatDistance(route.stats?.totalDistance || 0)}</span>
+                <span className="text-green-400 text-xs">↑{formatElevation(route.stats?.totalAscent || 0)}</span>
+                <span className="text-red-400 text-xs">↓{formatElevation(route.stats?.totalDescent || 0)}</span>
+                {route.loading && <span className="text-yellow-400 text-xs animate-pulse">...</span>}
                 <span className="text-slate-400 text-xs ml-1">{expandedProfile === i ? '▲' : '▼'}</span>
               </button>
-              {expandedProfile === i && (
+              {expandedProfile === i && route.profilePoints && (
                 <HeightProfile
-                  waypoints={route.waypoints}
+                  profilePoints={route.profilePoints}
+                  waypointIndices={route.waypoints.map((_, idx) => idx)}
                   routeIndex={i}
                   lang={lang}
                   onClose={() => setExpandedProfile(null)}
+                  loading={route.loading}
                 />
               )}
             </div>
