@@ -287,7 +287,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const wpRadius = expanded ? 6 : 4;
 
   const containerClass = expanded
-    ? "fixed inset-4 z-50 bg-slate-800/98 rounded-xl shadow-2xl p-6 flex flex-col overflow-hidden"
+    ? "fixed inset-0 z-50 bg-slate-900 p-6 flex flex-col overflow-auto"
     : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]";
 
   return (
@@ -336,8 +336,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="bg-slate-900/50 rounded w-full"
-        style={{ maxHeight: expanded ? 'calc(100vh - 280px)' : height }}
+        className={`rounded ${expanded ? 'flex-1 bg-slate-800' : 'bg-slate-900/50 w-full'}`}
+        style={expanded ? { width: '100%', minHeight: '400px' } : { maxHeight: height }}
         preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -667,11 +667,17 @@ export default function MeasuringTool() {
   };
 
   // Render SVG lines and labels for a route
-  const renderRoute = (waypoints, isActive = false) => {
+  // profilePoints: detailed terrain points for terrain-following line (optional)
+  const renderRoute = (waypoints, isActive = false, profilePoints = null) => {
     if (waypoints.length === 0) return null;
 
-    const points = waypoints.map((wp) => ({ ...project(wp), elevation: wp.elevation })).filter(p => p.x !== undefined);
-    if (points.length === 0) return null;
+    const waypointScreenPts = waypoints.map((wp) => ({ ...project(wp), elevation: wp.elevation })).filter(p => p.x !== undefined);
+    if (waypointScreenPts.length === 0) return null;
+
+    // For terrain-following line, use profilePoints if available
+    const linePoints = profilePoints
+      ? profilePoints.map((p) => project(p)).filter(Boolean)
+      : waypointScreenPts;
 
     const segments = [];
     for (let i = 1; i < waypoints.length; i++) {
@@ -684,21 +690,24 @@ export default function MeasuringTool() {
       }
     }
 
+    // Build polyline path from all points (terrain-following)
+    const linePath = linePoints.length > 1
+      ? linePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+      : null;
+
     return (
       <>
-        {/* Lines */}
-        {segments.map((seg, i) => (
-          <line
-            key={`line-${i}`}
-            x1={seg.p1.x}
-            y1={seg.p1.y}
-            x2={seg.p2.x}
-            y2={seg.p2.y}
+        {/* Terrain-following line as polyline */}
+        {linePath && (
+          <path
+            d={linePath}
+            fill="none"
             stroke="#3b82f6"
             strokeWidth="3"
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
-        ))}
+        )}
 
         {/* Distance labels with elevation diff */}
         {segments.map((seg, i) => {
@@ -738,7 +747,7 @@ export default function MeasuringTool() {
         })}
 
         {/* Waypoint markers with elevation */}
-        {points.map((p, i) => (
+        {waypointScreenPts.map((p, i) => (
           <g key={`point-${i}`}>
             <circle
               cx={p.x}
@@ -776,8 +785,8 @@ export default function MeasuringTool() {
         ))}
 
         {/* Preview line to cursor */}
-        {isActive && mousePos && points.length > 0 && (() => {
-          const lastPt = points[points.length - 1];
+        {isActive && mousePos && waypointScreenPts.length > 0 && (() => {
+          const lastPt = waypointScreenPts[waypointScreenPts.length - 1];
           const cursorPt = project(mousePos);
           if (!cursorPt) return null;
           return (
@@ -807,9 +816,9 @@ export default function MeasuringTool() {
         className="absolute inset-0 z-[5]"
         style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
       >
-        {/* Completed routes */}
+        {/* Completed routes - use profilePoints for terrain-following line */}
         {routes.map((route) => (
-          <g key={route.id}>{renderRoute(route.waypoints)}</g>
+          <g key={route.id}>{renderRoute(route.waypoints, false, route.profilePoints)}</g>
         ))}
 
         {/* Active route */}
