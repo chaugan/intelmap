@@ -16,6 +16,11 @@ const translations = {
     'measure.clickToStart': 'Klikk for å starte måling',
     'measure.clickToContinue': 'Klikk for å legge til punkt, dobbeltklikk for å fullføre',
     'measure.pressEscToFinish': 'Trykk Esc for å fullføre ruten',
+    'measure.profile': 'Høydeprofil',
+    'measure.highest': 'Høyeste',
+    'measure.lowest': 'Laveste',
+    'measure.distance': 'Avstand',
+    'measure.elevation': 'Høyde',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -255,6 +260,11 @@ const translations = {
     'measure.clickToStart': 'Click to start measuring',
     'measure.clickToContinue': 'Click to add point, double-click to finish',
     'measure.pressEscToFinish': 'Press Esc to finish route',
+    'measure.profile': 'Elevation Profile',
+    'measure.highest': 'Highest',
+    'measure.lowest': 'Lowest',
+    'measure.distance': 'Distance',
+    'measure.elevation': 'Elevation',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
