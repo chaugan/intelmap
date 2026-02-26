@@ -398,28 +398,54 @@ export default function MeasuringTool() {
     ]);
     setLoadingProfile(routeId);
 
-    // Interpolate points along the route (every 25m for detail)
-    const interpolated = interpolatePoints(waypoints, 25);
+    try {
+      // Interpolate points along the route (every 25m for detail)
+      const interpolated = interpolatePoints(waypoints, 25);
+      console.log('[Measure] Interpolated points:', interpolated.length);
 
-    // Fetch all elevations
-    const profileWithElevations = await fetchElevationsForPoints(interpolated, 8);
+      // Fetch all elevations
+      const profileWithElevations = await fetchElevationsForPoints(interpolated, 8);
+      console.log('[Measure] Fetched elevations:', profileWithElevations.length);
 
-    // Calculate detailed stats
-    const detailedStats = getDetailedStats(profileWithElevations);
+      // Calculate detailed stats
+      const detailedStats = getDetailedStats(profileWithElevations);
+      console.log('[Measure] Detailed stats:', detailedStats);
 
-    // Update route with detailed profile
-    setRoutes((prev) =>
-      prev.map((r) =>
-        r.id === routeId
-          ? {
-              ...r,
-              stats: detailedStats,
-              profilePoints: profileWithElevations,
-              loading: false,
-            }
-          : r
-      )
-    );
+      // Update route with detailed profile
+      setRoutes((prev) =>
+        prev.map((r) =>
+          r.id === routeId
+            ? {
+                ...r,
+                stats: detailedStats,
+                profilePoints: profileWithElevations,
+                loading: false,
+              }
+            : r
+        )
+      );
+    } catch (err) {
+      console.error('[Measure] Error fetching terrain:', err);
+      // Still mark as not loading, use waypoints as fallback profile
+      const fallbackProfile = waypoints.map((wp, i) => ({
+        ...wp,
+        cumulativeDistance: i === 0 ? 0 : waypoints.slice(0, i + 1).reduce((sum, w, j) =>
+          j === 0 ? 0 : sum + calculateDistance2D(waypoints[j - 1], waypoints[j]), 0),
+        isWaypoint: true,
+        waypointIndex: i,
+      }));
+      setRoutes((prev) =>
+        prev.map((r) =>
+          r.id === routeId
+            ? {
+                ...r,
+                profilePoints: fallbackProfile,
+                loading: false,
+              }
+            : r
+        )
+      );
+    }
     setLoadingProfile(null);
   }, []);
 
@@ -689,15 +715,23 @@ export default function MeasuringTool() {
                 {route.loading && <span className="text-yellow-400 text-xs animate-pulse">...</span>}
                 <span className="text-slate-400 text-xs ml-1">{expandedProfile === i ? '▲' : '▼'}</span>
               </button>
-              {expandedProfile === i && route.profilePoints && (
-                <HeightProfile
-                  profilePoints={route.profilePoints}
-                  waypointIndices={route.waypoints.map((_, idx) => idx)}
-                  routeIndex={i}
-                  lang={lang}
-                  onClose={() => setExpandedProfile(null)}
-                  loading={route.loading}
-                />
+              {expandedProfile === i && (
+                route.profilePoints ? (
+                  <HeightProfile
+                    profilePoints={route.profilePoints}
+                    waypointIndices={route.waypoints.map((_, idx) => idx)}
+                    routeIndex={i}
+                    lang={lang}
+                    onClose={() => setExpandedProfile(null)}
+                    loading={route.loading}
+                  />
+                ) : (
+                  <div className="bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[340px] text-center">
+                    <div className="text-yellow-400 text-sm animate-pulse">
+                      {t('measure.loadingTerrain', lang)}
+                    </div>
+                  </div>
+                )
               )}
             </div>
           ))}

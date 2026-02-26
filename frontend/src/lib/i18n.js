@@ -22,6 +22,7 @@ const translations = {
     'measure.distance': 'Avstand',
     'measure.elevation': 'Høyde',
     'measure.points': 'punkter',
+    'measure.loadingTerrain': 'Henter terrengdata...',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -267,6 +268,7 @@ const translations = {
     'measure.distance': 'Distance',
     'measure.elevation': 'Elevation',
     'measure.points': 'points',
+    'measure.loadingTerrain': 'Loading terrain data...',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
