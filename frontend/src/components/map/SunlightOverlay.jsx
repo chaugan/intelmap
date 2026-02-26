@@ -187,7 +187,30 @@ void main() {
 
 const SHADOW_IMAGE_SOURCE = 'shadow-geo-source';
 const SHADOW_RASTER_LAYER = 'shadow-geo-raster';
-const GEO_SHADOW_SIZE = 1024; // Geographic shadow texture resolution
+
+// Dynamic shadow resolution based on pitch - higher pitch shows more area, needs more detail
+const GEO_SHADOW_SIZE_BASE = 1024;
+const GEO_SHADOW_SIZE_MAX = 2048;
+
+function getGeoShadowSize(pitch) {
+  if (pitch <= 30) return GEO_SHADOW_SIZE_BASE;
+  const factor = Math.min(1, (pitch - 30) / 40); // ramp from 30° to 70°
+  return Math.round(GEO_SHADOW_SIZE_BASE + factor * (GEO_SHADOW_SIZE_MAX - GEO_SHADOW_SIZE_BASE));
+}
+
+// Sky color gradients based on sun altitude
+function getSkyColors(altitudeDeg) {
+  if (altitudeDeg > 6) // Day
+    return { sky: '#87CEEB', horizon: '#B0E0E6', fog: '#f0f8ff' };
+  if (altitudeDeg > 0) // Golden hour
+    return { sky: '#FFB347', horizon: '#FFD700', fog: '#fff0d0' };
+  if (altitudeDeg > -6) // Civil twilight
+    return { sky: '#4B0082', horizon: '#FF6B6B', fog: '#2a1a3a' };
+  if (altitudeDeg > -12) // Nautical twilight
+    return { sky: '#1a1a3e', horizon: '#2d1f3d', fog: '#151530' };
+  // Night
+  return { sky: '#0a0a1a', horizon: '#0d1220', fog: '#080810' };
+}
 
 // --- Tile math helpers ---
 function lon2tile(lon, zoom) {
@@ -301,6 +324,11 @@ export default function SunlightOverlay() {
   const renderGeoShadowRef = useRef(null);
   const geoShadowCacheKeyRef = useRef(null); // Cache key to avoid redundant renders
   const geoShadowDirtyRef = useRef(true); // Flag to mark when re-render needed
+
+  // Stars overlay for night sky
+  const starsCanvasRef = useRef(null);
+  const starsAnimFrameRef = useRef(null);
+  const starsRef = useRef(null); // Cached star positions
 
   // Refs for render callback to access latest values without re-creating the layer
   const sunPosRef = useRef(null);
@@ -629,8 +657,8 @@ export default function SunlightOverlay() {
   // --- Initialize geographic canvas for terrain mode ---
   useEffect(() => {
     const canvas = document.createElement('canvas');
-    canvas.width = GEO_SHADOW_SIZE;
-    canvas.height = GEO_SHADOW_SIZE;
+    canvas.width = GEO_SHADOW_SIZE_BASE;
+    canvas.height = GEO_SHADOW_SIZE_BASE;
     geoCanvasRef.current = canvas;
 
     const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: true });
@@ -711,10 +739,14 @@ export default function SunlightOverlay() {
       Math.log2(360 / (bounds.east - bounds.west))
     )));
 
-    const xMin = Math.floor(lon2tile(bounds.west, zoom)) - 1;
-    const xMax = Math.floor(lon2tile(bounds.east, zoom)) + 1;
-    const yMin = Math.floor(lat2tile(bounds.north, zoom)) - 1;
-    const yMax = Math.floor(lat2tile(bounds.south, zoom)) + 1;
+    // Expand margins at high pitch angles to cover horizon view
+    const pitch = mapRef?.getPitch() ?? 0;
+    const pitchMargin = Math.ceil(Math.max(0, pitch - 30) / 30); // 0-2 extra tiles
+
+    const xMin = Math.floor(lon2tile(bounds.west, zoom)) - (1 + pitchMargin);
+    const xMax = Math.floor(lon2tile(bounds.east, zoom)) + (1 + pitchMargin);
+    const yMin = Math.floor(lat2tile(bounds.north, zoom)) - (1 + pitchMargin);
+    const yMax = Math.floor(lat2tile(bounds.south, zoom)) + (1 + pitchMargin);
 
     const key = `${zoom}/${xMin}/${yMin}/${xMax}/${yMax}`;
     if (lastLoadRef.current === key) return;
@@ -769,7 +801,7 @@ export default function SunlightOverlay() {
         img.src = `/api/tiles/dem/${zoom}/${tx}/${ty}.png`;
       }
     }
-  }, [bounds]);
+  }, [bounds, mapRef]);
 
   const uploadTexture = useCallback((offscreen) => {
     const gl = glRef.current;
@@ -963,6 +995,102 @@ export default function SunlightOverlay() {
     if (mapRef && layerAddedRef.current) mapRef.triggerRepaint();
   }, [sunPos, sunlightOpacity, mapRef]);
 
+  // --- Update sky colors based on sun position ---
+  useEffect(() => {
+    const map = mapRef;
+    if (!map || !sunPos) return;
+
+    const altDeg = (sunPos.altitude * 180) / Math.PI;
+    const colors = getSkyColors(altDeg);
+
+    try {
+      map.setSky({
+        'sky-color': colors.sky,
+        'horizon-color': colors.horizon,
+        'fog-color': colors.fog,
+        'sky-horizon-blend': 0.8,
+        'horizon-fog-blend': 0.5,
+        'atmosphere-blend': altDeg > -6 ? ['interpolate', ['linear'], ['zoom'], 5, 0.8, 15, 0.3] : 0.2,
+      });
+
+      // Sync light position with sun for atmospheric effects
+      const azDeg = ((sunPos.azimuth * 180) / Math.PI + 180) % 360;
+      map.setLight({
+        anchor: 'map',
+        position: [1.5, azDeg, Math.max(0, altDeg)],
+        intensity: altDeg > 0 ? 0.5 : 0.2,
+      });
+    } catch (e) {
+      // Sky/light API may not be available in all versions
+    }
+  }, [mapRef, sunPos]);
+
+  // --- Stars overlay for night sky ---
+  useEffect(() => {
+    if (!sunPos) return;
+    const altDeg = (sunPos.altitude * 180) / Math.PI;
+    const showStars = altDeg < -6; // Civil twilight threshold
+
+    // Generate stars once
+    if (!starsRef.current) {
+      const stars = [];
+      for (let i = 0; i < 300; i++) {
+        stars.push({
+          x: Math.random(),
+          y: Math.random() * 0.6, // Only in upper 60% (above horizon)
+          size: Math.random() * 1.5 + 0.5,
+          brightness: Math.random() * 0.5 + 0.5,
+          twinkleSpeed: Math.random() * 2 + 1,
+          twinkleOffset: Math.random() * Math.PI * 2,
+        });
+      }
+      starsRef.current = stars;
+    }
+
+    if (showStars && starsCanvasRef.current) {
+      const canvas = starsCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      let lastTime = 0;
+
+      const animate = (time) => {
+        if (!starsCanvasRef.current) return;
+        const dt = time - lastTime;
+        lastTime = time;
+
+        // Match canvas size to window
+        if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Star fade based on sun altitude (-6° to -18°)
+        const fade = Math.min(1, (Math.abs(altDeg) - 6) / 12);
+
+        for (const star of starsRef.current) {
+          const twinkle = Math.sin(time / 1000 * star.twinkleSpeed + star.twinkleOffset) * 0.3 + 0.7;
+          const alpha = star.brightness * twinkle * fade;
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(star.x * canvas.width, star.y * canvas.height, star.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        starsAnimFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      starsAnimFrameRef.current = requestAnimationFrame(animate);
+    }
+
+    return () => {
+      if (starsAnimFrameRef.current) {
+        cancelAnimationFrame(starsAnimFrameRef.current);
+        starsAnimFrameRef.current = null;
+      }
+    };
+  }, [sunPos]);
+
   // --- Render geographic shadow for terrain mode ---
   const renderGeoShadow = useCallback(() => {
     const map = mapRef;
@@ -981,7 +1109,9 @@ export default function SunlightOverlay() {
     // Check if we need to re-render (cache key based on inputs that affect shadow)
     const bActive = buildingTexSizeRef.current.w > 1 && map.getZoom() >= BUILDING_MIN_ZOOM
       && useMapStore.getState().buildingOpacity > 0;
-    const cacheKey = `${sunPos.azimuth.toFixed(4)}_${sunPos.altitude.toFixed(4)}_${coords.join('_')}_${texSizeRef.current.w}_${bActive}_${buildingTexSizeRef.current.w}`;
+    const pitch = map.getPitch();
+    const quantizedPitch = Math.round(pitch / 10) * 10; // Quantize to 10° steps for cache stability
+    const cacheKey = `${sunPos.azimuth.toFixed(4)}_${sunPos.altitude.toFixed(4)}_${coords.join('_')}_${texSizeRef.current.w}_${bActive}_${buildingTexSizeRef.current.w}_${quantizedPitch}`;
 
     if (cacheKey === geoShadowCacheKeyRef.current && !geoShadowDirtyRef.current) {
       // Shadow unchanged, just update opacity if layer exists
@@ -993,8 +1123,15 @@ export default function SunlightOverlay() {
     geoShadowCacheKeyRef.current = cacheKey;
     geoShadowDirtyRef.current = false;
 
+    // Dynamic shadow resolution based on pitch - higher pitch shows more terrain area
+    const targetSize = getGeoShadowSize(pitch);
+    if (geoCanvasRef.current.width !== targetSize) {
+      geoCanvasRef.current.width = targetSize;
+      geoCanvasRef.current.height = targetSize;
+    }
+
     // Render shadow to geographic canvas
-    gl.viewport(0, 0, GEO_SHADOW_SIZE, GEO_SHADOW_SIZE);
+    gl.viewport(0, 0, targetSize, targetSize);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -1098,15 +1235,26 @@ export default function SunlightOverlay() {
     };
   }, [sunlightAnimating, sunlightAnimationSpeed]);
 
-  // Night overlay
+  // Night overlay (reduced since sky colors now handle darkening)
   const nightOpacity = useMemo(() => {
     if (!sunPos || sunPos.altitude >= 0) return 0;
     const deg = (sunPos.altitude * 180) / Math.PI;
-    return Math.min(1, Math.abs(deg) / 18) * 0.7;
+    return Math.min(1, Math.abs(deg) / 18) * 0.7 * 0.3; // Reduced by 70%
   }, [sunPos]);
+
+  // Show stars when civil twilight threshold reached
+  const showStars = sunPos && (sunPos.altitude * 180 / Math.PI) < -6;
 
   return (
     <>
+      {/* Stars canvas for night sky - behind night overlay */}
+      {showStars && (
+        <canvas
+          ref={starsCanvasRef}
+          className="absolute inset-0 pointer-events-none z-[2]"
+          style={{ width: '100%', height: '100%' }}
+        />
+      )}
       {nightOpacity > 0 && (
         <div
           className="absolute inset-0 pointer-events-none z-[3] transition-opacity duration-300"

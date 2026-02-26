@@ -129,6 +129,8 @@ const translations = {
     'sunlight.azimuth': 'Solretning',
     'sunlight.elevation': 'Solhøyde',
     'sunlight.buildings': 'Bygningsskygger',
+    'sunlight.sky': 'Himmel',
+    'sunlight.stars': 'Stjerner',
     'buildings': 'Bygninger',
 
     // Terrain
@@ -352,6 +354,8 @@ const translations = {
     'sunlight.azimuth': 'Sun direction',
     'sunlight.elevation': 'Sun elevation',
     'sunlight.buildings': 'Building shadows',
+    'sunlight.sky': 'Sky',
+    'sunlight.stars': 'Stars',
     'buildings': 'Buildings',
 
     // Terrain
