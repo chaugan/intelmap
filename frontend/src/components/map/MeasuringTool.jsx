@@ -848,13 +848,24 @@ export default function MeasuringTool() {
                 {route.loading && <span className="text-yellow-400 text-xs animate-pulse">...</span>}
                 <span className="text-slate-400 text-xs ml-1">{expandedProfile === i ? '▲' : '▼'}</span>
               </button>
-              {/* Non-expanded profile stays here */}
-              {expandedProfile === i && !routes[i]?.profilePoints && (
-                <div className="bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[340px] text-center">
-                  <div className="text-yellow-400 text-sm animate-pulse">
-                    {t('measure.loadingTerrain', lang)}
+              {/* Height profile - rendered inline, uses portal internally when expanded */}
+              {expandedProfile === i && (
+                routes[i]?.profilePoints ? (
+                  <HeightProfile
+                    profilePoints={routes[i].profilePoints}
+                    waypointIndices={routes[i].waypoints.map((_, idx) => idx)}
+                    routeIndex={i}
+                    lang={lang}
+                    onClose={() => setExpandedProfile(null)}
+                    loading={routes[i].loading}
+                  />
+                ) : (
+                  <div className="bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[340px] text-center">
+                    <div className="text-yellow-400 text-sm animate-pulse">
+                      {t('measure.loadingTerrain', lang)}
+                    </div>
                   </div>
-                </div>
+                )
               )}
             </div>
           ))}
@@ -866,18 +877,6 @@ export default function MeasuringTool() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Height profile - rendered outside of transformed container for proper fixed positioning */}
-      {expandedProfile !== null && routes[expandedProfile]?.profilePoints && (
-        <HeightProfile
-          profilePoints={routes[expandedProfile].profilePoints}
-          waypointIndices={routes[expandedProfile].waypoints.map((_, idx) => idx)}
-          routeIndex={expandedProfile}
-          lang={lang}
-          onClose={() => setExpandedProfile(null)}
-          loading={routes[expandedProfile].loading}
-        />
       )}
 
       {/* Hint text */}
