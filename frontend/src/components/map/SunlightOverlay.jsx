@@ -403,13 +403,16 @@ export default function SunlightOverlay() {
         gl.uniform1f(u.u_opacity, op);
 
         // Compute homography (screen UV -> Mercator, handles pitch + rotation)
+        // Use flat 2D projection (bypass terrain) since the shadow shader
+        // operates in flat Mercator space with its own DEM data.
         const mapCanvas = m.getCanvas();
         const cw = mapCanvas.clientWidth;
         const ch = mapCanvas.clientHeight;
-        const bl = m.unproject([0, ch]);
-        const br = m.unproject([cw, ch]);
-        const tl = m.unproject([0, 0]);
-        const tr = m.unproject([cw, 0]);
+        const flatUnproj = (x, y) => m.transform.pointLocation({ x, y });
+        const bl = flatUnproj(0, ch);
+        const br = flatUnproj(cw, ch);
+        const tl = flatUnproj(0, 0);
+        const tr = flatUnproj(cw, 0);
         const blM = [lonToMerc(bl.lng), latToMerc(bl.lat)];
         const brM = [lonToMerc(br.lng), latToMerc(br.lat)];
         const tlM = [lonToMerc(tl.lng), latToMerc(tl.lat)];
