@@ -299,6 +299,8 @@ export default function SunlightOverlay() {
   const geoBuildingTexRef = useRef(null);
   const demCoordsRef = useRef(null); // Geographic coordinates for image source
   const renderGeoShadowRef = useRef(null);
+  const geoShadowCacheKeyRef = useRef(null); // Cache key to avoid redundant renders
+  const geoShadowDirtyRef = useRef(true); // Flag to mark when re-render needed
 
   // Refs for render callback to access latest values without re-creating the layer
   const sunPosRef = useRef(null);
@@ -784,6 +786,7 @@ export default function SunlightOverlay() {
       geoGl.activeTexture(geoGl.TEXTURE0);
       geoGl.bindTexture(geoGl.TEXTURE_2D, geoDemTexRef.current);
       geoGl.texImage2D(geoGl.TEXTURE_2D, 0, geoGl.RGBA, geoGl.RGBA, geoGl.UNSIGNED_BYTE, offscreen);
+      geoShadowDirtyRef.current = true; // Mark for re-render
     }
 
     const map = useMapStore.getState().mapRef;
@@ -888,6 +891,7 @@ export default function SunlightOverlay() {
       geoGl.activeTexture(geoGl.TEXTURE1);
       geoGl.bindTexture(geoGl.TEXTURE_2D, geoBuildingTexRef.current);
       geoGl.texImage2D(geoGl.TEXTURE_2D, 0, geoGl.RGBA, geoGl.RGBA, geoGl.UNSIGNED_BYTE, offscreen);
+      geoShadowDirtyRef.current = true; // Mark for re-render
     }
 
     buildingTexSizeRef.current = { w: cw, h: ch };
@@ -970,8 +974,24 @@ export default function SunlightOverlay() {
       // Remove raster layer if sun below horizon
       try { if (map?.getLayer(SHADOW_RASTER_LAYER)) map.removeLayer(SHADOW_RASTER_LAYER); } catch {}
       try { if (map?.getSource(SHADOW_IMAGE_SOURCE)) map.removeSource(SHADOW_IMAGE_SOURCE); } catch {}
+      geoShadowCacheKeyRef.current = null;
       return;
     }
+
+    // Check if we need to re-render (cache key based on inputs that affect shadow)
+    const bActive = buildingTexSizeRef.current.w > 1 && map.getZoom() >= BUILDING_MIN_ZOOM
+      && useMapStore.getState().buildingOpacity > 0;
+    const cacheKey = `${sunPos.azimuth.toFixed(4)}_${sunPos.altitude.toFixed(4)}_${coords.join('_')}_${texSizeRef.current.w}_${bActive}_${buildingTexSizeRef.current.w}`;
+
+    if (cacheKey === geoShadowCacheKeyRef.current && !geoShadowDirtyRef.current) {
+      // Shadow unchanged, just update opacity if layer exists
+      if (map.getLayer(SHADOW_RASTER_LAYER)) {
+        map.setPaintProperty(SHADOW_RASTER_LAYER, 'raster-opacity', sunlightOpacity);
+      }
+      return;
+    }
+    geoShadowCacheKeyRef.current = cacheKey;
+    geoShadowDirtyRef.current = false;
 
     // Render shadow to geographic canvas
     gl.viewport(0, 0, GEO_SHADOW_SIZE, GEO_SHADOW_SIZE);
@@ -989,8 +1009,6 @@ export default function SunlightOverlay() {
     gl.uniform1i(u.u_dem, 0);
 
     // Bind building texture
-    const bActive = buildingTexSizeRef.current.w > 1 && map.getZoom() >= BUILDING_MIN_ZOOM
-      && useMapStore.getState().buildingOpacity > 0;
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, geoBuildingTexRef.current);
     gl.uniform1i(u.u_buildings, 1);

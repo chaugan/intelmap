@@ -38,7 +38,7 @@ export const useMapStore = create((set) => ({
   sunlightOpacity: 0.5,
   buildingOpacity: 0.7,
   hillshadeVisible: false,
-  hillshadeOpacity: 0.5,
+  hillshadeOpacity: 0.25,
   terrainVisible: false,
   terrainExaggeration: 1.5,
   sunlightDate: new Date().toISOString().slice(0, 10),

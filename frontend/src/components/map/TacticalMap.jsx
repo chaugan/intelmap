@@ -367,6 +367,7 @@ export default function TacticalMap() {
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
+        maxPitch={85}
         onLoad={onMapLoad}
         onMove={onMove}
         onMoveEnd={onMoveEnd}
