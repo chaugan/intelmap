@@ -84,7 +84,7 @@ export default function WindOverlay() {
         // Map screen pixel to lon/lat
         const screenX = px * scale;
         const screenY = py * scale;
-        const lngLat = map.unproject([screenX, screenY]);
+        const lngLat = flatUnproject(map, screenX, screenY);
         const speed = getWindSpeed(windGrid, lngLat.lng, lngLat.lat);
         if (speed === null) continue;
 
@@ -185,7 +185,7 @@ export default function WindOverlay() {
           continue;
         }
 
-        const px = map.project([p.lon, p.lat]);
+        const px = flatProject(map, p.lon, p.lat);
 
         // Move particle — low base so calm winds drift slowly, sqrt curve for higher speeds
         const moveScale = 0.00003 + Math.sqrt(wind.speed) * 0.00004;
@@ -198,7 +198,7 @@ export default function WindOverlay() {
           continue;
         }
 
-        const px2 = map.project([newLon, newLat]);
+        const px2 = flatProject(map, newLon, newLat);
 
         // Ensure minimum screen-space line length for visibility
         let dx = px2.x - px.x;
@@ -247,6 +247,16 @@ export default function WindOverlay() {
       />
     </div>
   );
+}
+
+// Flat 2D projection bypassing terrain raycasting — the wind canvas is a flat
+// overlay so we want the Mercator projection, not expensive DEM lookups.
+function flatProject(map, lon, lat) {
+  return map.transform.locationPoint({ lng: lon, lat: lat });
+}
+
+function flatUnproject(map, x, y) {
+  return map.transform.pointLocation({ x, y });
 }
 
 // Bilinear interpolation — returns { u, v, speed } or null
