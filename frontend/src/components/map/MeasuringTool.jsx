@@ -288,12 +288,19 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const wpRadius = expanded ? 6 : 4;
 
   const containerClass = expanded
-    ? "fixed inset-0 z-[9999] bg-slate-900 p-6 flex flex-col overflow-auto"
+    ? "bg-slate-900 rounded-lg shadow-2xl p-6 flex flex-col"
     : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]";
 
+  // Handle backdrop click to close expanded view
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setExpanded(false);
+    }
+  };
+
   const content = (
-    <div className={containerClass} ref={containerRef}>
-      <div className={`flex justify-between items-center ${expanded ? 'mb-4' : 'mb-2'}`}>
+    <div className={containerClass} ref={containerRef} style={expanded ? { width: '85vw', height: '80vh', maxWidth: '1400px' } : undefined}>
+      <div className={`flex justify-between items-center ${expanded ? 'mb-3' : 'mb-2'} flex-shrink-0`}>
         <span className={`text-white font-medium ${expanded ? 'text-xl' : 'text-sm'}`}>
           {t('measure.route', lang)} {routeIndex + 1} - {t('measure.profile', lang)}
           {loading && <span className="ml-2 text-yellow-400 text-xs">(loading terrain...)</span>}
@@ -324,7 +331,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       </div>
 
       {/* Stats row */}
-      <div className={`flex gap-4 text-slate-300 ${expanded ? 'mb-4 text-base' : 'mb-2 text-xs'} flex-wrap`}>
+      <div className={`flex gap-4 text-slate-300 ${expanded ? 'mb-3 text-base' : 'mb-2 text-xs'} flex-wrap flex-shrink-0`}>
         <span className="text-slate-400">{t('measure.start', lang)}: {formatElevation(startElevation)}</span>
         <span className="text-slate-400">{t('measure.end', lang)}: {formatElevation(endElevation)}</span>
         <span className="text-green-400">↑ {formatElevation(totalAscent)}</span>
@@ -337,9 +344,9 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className={`rounded ${expanded ? 'flex-1 bg-slate-800' : 'bg-slate-900/50 w-full'}`}
-        style={expanded ? { width: '100%', minHeight: '400px' } : { maxHeight: height }}
-        preserveAspectRatio="xMidYMid meet"
+        className={`rounded ${expanded ? 'flex-1 bg-slate-800 min-h-0' : 'bg-slate-900/50 w-full'}`}
+        style={expanded ? { width: '100%', height: '100%' } : { maxHeight: height }}
+        preserveAspectRatio={expanded ? "none" : "xMidYMid meet"}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
@@ -461,7 +468,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       </svg>
 
       {/* Scrubber info display - always visible below chart */}
-      <div className={`flex gap-4 text-slate-300 ${expanded ? 'mt-4 text-base' : 'mt-2 text-xs'} bg-slate-700/50 rounded px-3 py-1.5`}>
+      <div className={`flex gap-4 text-slate-300 ${expanded ? 'mt-3 text-base' : 'mt-2 text-xs'} bg-slate-700/50 rounded px-3 py-1.5 flex-shrink-0`}>
         <span>{t('measure.fromStart', lang)}: <strong className="text-white">{hoverInfo ? formatDistance(hoverInfo.distanceFromStart) : '—'}</strong></span>
         <span>{t('measure.toEnd', lang)}: <strong className="text-white">{hoverInfo ? formatDistance(hoverInfo.distanceToEnd) : '—'}</strong></span>
         <span>{t('measure.elevation', lang)}: <strong className="text-yellow-400">{hoverInfo ? formatElevation(hoverInfo.elevation) : '—'}</strong></span>
@@ -471,7 +478,15 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
 
   // Use portal for expanded mode to escape all CSS containment
   if (expanded) {
-    return createPortal(content, document.body);
+    return createPortal(
+      <div
+        className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center"
+        onClick={handleBackdropClick}
+      >
+        {content}
+      </div>,
+      document.body
+    );
   }
 
   return content;
