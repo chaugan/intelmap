@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 
@@ -287,10 +288,10 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const wpRadius = expanded ? 6 : 4;
 
   const containerClass = expanded
-    ? "fixed inset-0 z-50 bg-slate-900 p-6 flex flex-col overflow-auto"
+    ? "fixed inset-0 z-[9999] bg-slate-900 p-6 flex flex-col overflow-auto"
     : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]";
 
-  return (
+  const content = (
     <div className={containerClass} ref={containerRef}>
       <div className={`flex justify-between items-center ${expanded ? 'mb-4' : 'mb-2'}`}>
         <span className={`text-white font-medium ${expanded ? 'text-xl' : 'text-sm'}`}>
@@ -467,6 +468,13 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       </div>
     </div>
   );
+
+  // Use portal for expanded mode to escape all CSS containment
+  if (expanded) {
+    return createPortal(content, document.body);
+  }
+
+  return content;
 }
 
 export default function MeasuringTool() {
@@ -840,23 +848,13 @@ export default function MeasuringTool() {
                 {route.loading && <span className="text-yellow-400 text-xs animate-pulse">...</span>}
                 <span className="text-slate-400 text-xs ml-1">{expandedProfile === i ? '▲' : '▼'}</span>
               </button>
-              {expandedProfile === i && (
-                route.profilePoints ? (
-                  <HeightProfile
-                    profilePoints={route.profilePoints}
-                    waypointIndices={route.waypoints.map((_, idx) => idx)}
-                    routeIndex={i}
-                    lang={lang}
-                    onClose={() => setExpandedProfile(null)}
-                    loading={route.loading}
-                  />
-                ) : (
-                  <div className="bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[340px] text-center">
-                    <div className="text-yellow-400 text-sm animate-pulse">
-                      {t('measure.loadingTerrain', lang)}
-                    </div>
+              {/* Non-expanded profile stays here */}
+              {expandedProfile === i && !routes[i]?.profilePoints && (
+                <div className="bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[340px] text-center">
+                  <div className="text-yellow-400 text-sm animate-pulse">
+                    {t('measure.loadingTerrain', lang)}
                   </div>
-                )
+                </div>
               )}
             </div>
           ))}
@@ -868,6 +866,18 @@ export default function MeasuringTool() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Height profile - rendered outside of transformed container for proper fixed positioning */}
+      {expandedProfile !== null && routes[expandedProfile]?.profilePoints && (
+        <HeightProfile
+          profilePoints={routes[expandedProfile].profilePoints}
+          waypointIndices={routes[expandedProfile].waypoints.map((_, idx) => idx)}
+          routeIndex={expandedProfile}
+          lang={lang}
+          onClose={() => setExpandedProfile(null)}
+          loading={routes[expandedProfile].loading}
+        />
       )}
 
       {/* Hint text */}
