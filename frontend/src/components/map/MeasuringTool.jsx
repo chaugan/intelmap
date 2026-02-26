@@ -193,14 +193,15 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const startElevation = profilePoints[0].elevation;
   const endElevation = profilePoints[profilePoints.length - 1].elevation;
 
-  // SVG dimensions - fixed values based on expanded state
-  const width = expanded ? 1200 : 500;
-  const height = expanded ? 450 : 180;
+  // SVG dimensions - use wider aspect ratio for expanded to fill container better
+  // Expanded: ~2.3:1 aspect ratio to match 85vw x 80vh minus header/footer
+  const width = expanded ? 1400 : 500;
+  const height = expanded ? 600 : 180;
   const padding = {
-    top: expanded ? 25 : 15,
-    right: expanded ? 25 : 15,
-    bottom: expanded ? 50 : 30,
-    left: expanded ? 70 : 50,
+    top: expanded ? 30 : 15,
+    right: expanded ? 40 : 15,
+    bottom: expanded ? 55 : 30,
+    left: expanded ? 75 : 50,
   };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
@@ -346,7 +347,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         viewBox={`0 0 ${width} ${height}`}
         className={`rounded ${expanded ? 'flex-1 bg-slate-800 min-h-0' : 'bg-slate-900/50 w-full'}`}
         style={expanded ? { width: '100%', height: '100%' } : { maxHeight: height }}
-        preserveAspectRatio={expanded ? "none" : "xMidYMid meet"}
+        preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
