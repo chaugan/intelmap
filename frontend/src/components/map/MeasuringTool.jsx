@@ -178,6 +178,10 @@ function getBasicStats(waypoints) {
 
 // Height profile component with detailed terrain
 function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClose, loading }) {
+  const [expanded, setExpanded] = useState(false);
+  const [hoverX, setHoverX] = useState(null);
+  const svgRef = useRef(null);
+
   if (!profilePoints || profilePoints.length < 2) return null;
 
   const stats = getDetailedStats(profilePoints);
@@ -185,10 +189,16 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
 
   const { minElevation, maxElevation, totalDistance, totalAscent, totalDescent, minIndex, maxIndex } = stats;
 
-  // SVG dimensions - wider for more detail
-  const width = 500;
-  const height = 180;
-  const padding = { top: 15, right: 15, bottom: 30, left: 50 };
+  // SVG dimensions - scale based on expanded state
+  const width = expanded ? Math.min(window.innerWidth - 80, 1400) : 500;
+  const height = expanded ? Math.min(window.innerHeight - 200, 500) : 180;
+  const scale = expanded ? 1.5 : 1;
+  const padding = {
+    top: expanded ? 25 : 15,
+    right: expanded ? 25 : 15,
+    bottom: expanded ? 45 : 30,
+    left: expanded ? 70 : 50,
+  };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -210,8 +220,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
     ` L ${padding.left + chartWidth} ${padding.top + chartHeight}` +
     ` L ${padding.left} ${padding.top + chartHeight} Z`;
 
-  // Y-axis labels (5 levels)
-  const yLabelCount = 5;
+  // Y-axis labels
+  const yLabelCount = expanded ? 8 : 5;
   const yLabels = [];
   for (let i = 0; i < yLabelCount; i++) {
     const elev = minElevation + (elevRange * i) / (yLabelCount - 1);
@@ -219,7 +229,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   }
 
   // X-axis labels
-  const xLabelCount = 5;
+  const xLabelCount = expanded ? 10 : 5;
   const xLabels = [];
   for (let i = 0; i < xLabelCount; i++) {
     xLabels.push((totalDistance * i) / (xLabelCount - 1));
@@ -230,32 +240,114 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
     .map((p, i) => (p.isWaypoint ? { ...p, index: i } : null))
     .filter(Boolean);
 
+  // Handle mouse move for scrubber
+  const handleMouseMove = (e) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    // Check if within chart area horizontally
+    if (x >= padding.left && x <= padding.left + chartWidth) {
+      setHoverX(x);
+    } else {
+      setHoverX(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHoverX(null);
+  };
+
+  // Calculate scrubber data
+  let scrubberData = null;
+  if (hoverX !== null) {
+    const fraction = (hoverX - padding.left) / chartWidth;
+    const distanceFromStart = fraction * totalDistance;
+    const distanceToEnd = totalDistance - distanceFromStart;
+
+    // Find the closest profile point
+    let closestIdx = 0;
+    let closestDiff = Infinity;
+    for (let i = 0; i < profilePoints.length; i++) {
+      const diff = Math.abs(profilePoints[i].cumulativeDistance - distanceFromStart);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestIdx = i;
+      }
+    }
+    const elevation = profilePoints[closestIdx].elevation;
+    const elevY = padding.top + chartHeight - ((elevation - minY) / (maxY - minY)) * chartHeight;
+
+    scrubberData = { distanceFromStart, distanceToEnd, elevation, elevY };
+  }
+
+  const fontSize = expanded ? 14 : 10;
+  const labelFontSize = expanded ? 12 : 9;
+  const markerRadius = expanded ? 7 : 5;
+  const wpRadius = expanded ? 6 : 4;
+
+  const containerClass = expanded
+    ? "fixed inset-4 z-50 bg-slate-800/98 rounded-xl shadow-2xl p-4 flex flex-col"
+    : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]";
+
   return (
-    <div className="bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[520px]">
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-white text-sm font-medium">
+    <div className={containerClass}>
+      <div className={`flex justify-between items-center ${expanded ? 'mb-4' : 'mb-2'}`}>
+        <span className={`text-white font-medium ${expanded ? 'text-lg' : 'text-sm'}`}>
           {t('measure.route', lang)} {routeIndex + 1} - {t('measure.profile', lang)}
           {loading && <span className="ml-2 text-yellow-400 text-xs">(loading terrain...)</span>}
         </span>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white text-lg leading-none px-1"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
+            title={expanded ? t('measure.shrink', lang) : t('measure.expand', lang)}
+          >
+            {expanded ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={onClose}
+            className={`text-slate-400 hover:text-white leading-none px-1 ${expanded ? 'text-2xl' : 'text-lg'}`}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-4 text-xs text-slate-300 mb-2 flex-wrap">
+      <div className={`flex gap-4 text-slate-300 ${expanded ? 'mb-4 text-base' : 'mb-2 text-xs'} flex-wrap`}>
         <span className="text-green-400">↑ {formatElevation(totalAscent)}</span>
         <span className="text-red-400">↓ {formatElevation(totalDescent)}</span>
         <span className="text-emerald-400">{t('measure.highest', lang)}: {formatElevation(maxElevation)}</span>
         <span className="text-blue-400">{t('measure.lowest', lang)}: {formatElevation(minElevation)}</span>
-        <span className="text-slate-400">{profilePoints.length} {t('measure.points', lang)}</span>
       </div>
 
+      {/* Scrubber info display */}
+      {scrubberData && (
+        <div className={`flex gap-4 text-white ${expanded ? 'mb-3 text-sm' : 'mb-2 text-xs'} bg-slate-700/80 rounded px-3 py-1.5`}>
+          <span>{t('measure.fromStart', lang)}: <strong>{formatDistance(scrubberData.distanceFromStart)}</strong></span>
+          <span>{t('measure.toEnd', lang)}: <strong>{formatDistance(scrubberData.distanceToEnd)}</strong></span>
+          <span>{t('measure.elevation', lang)}: <strong className="text-yellow-400">{formatElevation(scrubberData.elevation)}</strong></span>
+        </div>
+      )}
+
       {/* SVG Chart */}
-      <svg width={width} height={height} className="bg-slate-900/50 rounded">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        className={`bg-slate-900/50 rounded ${expanded ? 'flex-1' : ''}`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={expanded ? { width: '100%', height: 'auto', maxHeight: height } : {}}
+      >
         {/* Grid lines - horizontal */}
         {yLabels.map((label, i) => {
           const y = padding.top + chartHeight - ((label - minY) / (maxY - minY)) * chartHeight;
@@ -264,7 +356,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
               <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
                 stroke="#374151" strokeWidth="1" />
               <text x={padding.left - 8} y={y + 4} textAnchor="end"
-                fill="#9ca3af" fontSize="10">{label}</text>
+                fill="#9ca3af" fontSize={fontSize}>{label}</text>
             </g>
           );
         })}
@@ -282,8 +374,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         {xLabels.map((dist, i) => {
           const x = padding.left + (dist / totalDistance) * chartWidth;
           return (
-            <text key={`x-${i}`} x={x} y={height - 8} textAnchor="middle"
-              fill="#9ca3af" fontSize="10">{formatDistance(dist)}</text>
+            <text key={`x-${i}`} x={x} y={height - (expanded ? 12 : 8)} textAnchor="middle"
+              fill="#9ca3af" fontSize={fontSize}>{formatDistance(dist)}</text>
           );
         })}
 
@@ -299,7 +391,30 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         <path d={areaPath} fill={`url(#elevGradient-${routeIndex})`} />
 
         {/* Main terrain line */}
-        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="round" />
+        <path d={pathPoints} fill="none" stroke="#3b82f6" strokeWidth={expanded ? 3 : 2} strokeLinejoin="round" />
+
+        {/* Scrubber vertical line */}
+        {scrubberData && hoverX !== null && (
+          <>
+            <line
+              x1={hoverX}
+              y1={padding.top}
+              x2={hoverX}
+              y2={padding.top + chartHeight}
+              stroke="#fbbf24"
+              strokeWidth="2"
+              strokeDasharray="4 2"
+            />
+            <circle
+              cx={hoverX}
+              cy={scrubberData.elevY}
+              r={expanded ? 8 : 6}
+              fill="#fbbf24"
+              stroke="#fff"
+              strokeWidth="2"
+            />
+          </>
+        )}
 
         {/* Min/Max markers */}
         {(() => {
@@ -312,13 +427,13 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
           return (
             <>
               {/* Lowest point */}
-              <circle cx={minX} cy={minYPos} r="5" fill="#3b82f6" stroke="#fff" strokeWidth="2" />
-              <text x={minX} y={minYPos - 8} textAnchor="middle" fill="#60a5fa" fontSize="9" fontWeight="bold">
+              <circle cx={minX} cy={minYPos} r={markerRadius} fill="#3b82f6" stroke="#fff" strokeWidth="2" />
+              <text x={minX} y={minYPos - (expanded ? 12 : 8)} textAnchor="middle" fill="#60a5fa" fontSize={labelFontSize} fontWeight="bold">
                 {formatElevation(minPt.elevation)}
               </text>
               {/* Highest point */}
-              <circle cx={maxX} cy={maxYPos} r="5" fill="#22c55e" stroke="#fff" strokeWidth="2" />
-              <text x={maxX} y={maxYPos - 8} textAnchor="middle" fill="#22c55e" fontSize="9" fontWeight="bold">
+              <circle cx={maxX} cy={maxYPos} r={markerRadius} fill="#22c55e" stroke="#fff" strokeWidth="2" />
+              <text x={maxX} y={maxYPos - (expanded ? 12 : 8)} textAnchor="middle" fill="#22c55e" fontSize={labelFontSize} fontWeight="bold">
                 {formatElevation(maxPt.elevation)}
               </text>
             </>
@@ -333,8 +448,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
           if (wp.index === minIndex || wp.index === maxIndex) return null;
           return (
             <g key={`wp-${i}`}>
-              <circle cx={x} cy={y} r="4" fill="#f59e0b" stroke="#fff" strokeWidth="1.5" />
-              <text x={x} y={y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">
+              <circle cx={x} cy={y} r={wpRadius} fill="#f59e0b" stroke="#fff" strokeWidth="1.5" />
+              <text x={x} y={y + (expanded ? 4 : 3)} textAnchor="middle" fill="#fff" fontSize={expanded ? 10 : 7} fontWeight="bold">
                 {wp.waypointIndex + 1}
               </text>
             </g>
@@ -343,9 +458,9 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
 
         {/* Axis labels */}
         <text x={padding.left + chartWidth / 2} y={height - 1} textAnchor="middle"
-          fill="#64748b" fontSize="9">{t('measure.distance', lang)}</text>
-        <text x={10} y={padding.top + chartHeight / 2} textAnchor="middle"
-          fill="#64748b" fontSize="9" transform={`rotate(-90, 10, ${padding.top + chartHeight / 2})`}>
+          fill="#64748b" fontSize={labelFontSize}>{t('measure.distance', lang)}</text>
+        <text x={expanded ? 15 : 10} y={padding.top + chartHeight / 2} textAnchor="middle"
+          fill="#64748b" fontSize={labelFontSize} transform={`rotate(-90, ${expanded ? 15 : 10}, ${padding.top + chartHeight / 2})`}>
           {t('measure.elevation', lang)} (m)
         </text>
       </svg>

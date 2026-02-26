@@ -23,6 +23,10 @@ const translations = {
     'measure.elevation': 'Høyde',
     'measure.points': 'punkter',
     'measure.loadingTerrain': 'Henter terrengdata...',
+    'measure.fromStart': 'Fra start',
+    'measure.toEnd': 'Til slutt',
+    'measure.expand': 'Forstørr',
+    'measure.shrink': 'Forminsk',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -269,6 +273,10 @@ const translations = {
     'measure.elevation': 'Elevation',
     'measure.points': 'points',
     'measure.loadingTerrain': 'Loading terrain data...',
+    'measure.fromStart': 'From start',
+    'measure.toEnd': 'To end',
+    'measure.expand': 'Expand',
+    'measure.shrink': 'Shrink',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
