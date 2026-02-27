@@ -48,7 +48,7 @@ export const useMapStore = create((set) => ({
 
   // Aurora overlay
   auroraVisible: false,
-  auroraOpacity: 0.5,
+  auroraOpacity: 0.8,
   auroraTimeOffset: 0, // 0=now, 1=+1h, 2=+3h, 3=tomorrow, 4=day after
   auroraFetchedAt: null,
   auroraGrid: null,
