@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 
@@ -9,20 +10,21 @@ const TIME_OPTIONS = [
   { value: 4, labelKey: 'aurora.dayAfter' },
 ];
 
-const KP_ACTIVITY_COLORS = {
-  quiet: '#4ade80',
-  unsettled: '#a3e635',
-  active: '#facc15',
-  minor_storm: '#fb923c',
-  moderate_storm: '#f87171',
-  severe_storm: '#ef4444',
-};
+const KP_COLORS = ['#4ade80', '#4ade80', '#a3e635', '#a3e635', '#facc15', '#fb923c', '#f87171', '#ef4444', '#dc2626', '#b91c1c'];
+
+function getLatitudeRegion(lat, lang) {
+  if (lat <= 70 && lat > 66) return lang === 'no' ? 'Nord-Norge' : 'Northern Norway';
+  if (lat <= 66 && lat > 63) return lang === 'no' ? 'Trøndelag' : 'Central Norway';
+  if (lat <= 63 && lat > 60) return lang === 'no' ? 'Midt-Norge' : 'Mid-Norway';
+  if (lat <= 60) return lang === 'no' ? 'Sør-Norge' : 'Southern Norway';
+  return lang === 'no' ? 'Arktis' : 'Arctic';
+}
 
 export default function AuroraLegend({ kpData }) {
   const lang = useMapStore((s) => s.lang);
   const timeOffset = useMapStore((s) => s.auroraTimeOffset);
   const setTimeOffset = useMapStore((s) => s.setAuroraTimeOffset);
-  const setActivePanel = useMapStore((s) => s.setActivePanel);
+  const [hoveredBar, setHoveredBar] = useState(null);
 
   // Get Kp value based on selected time offset
   const getKpForOffset = () => {
@@ -47,9 +49,8 @@ export default function AuroraLegend({ kpData }) {
   };
 
   const kpInfo = getKpForOffset();
-  const activityColor = kpInfo?.activity?.level
-    ? KP_ACTIVITY_COLORS[kpInfo.activity.level] || '#4ade80'
-    : '#4ade80';
+  const kpColorIndex = kpInfo?.kp != null ? Math.min(Math.floor(kpInfo.kp), 9) : 0;
+  const kpColor = KP_COLORS[kpColorIndex];
 
   return (
     <div className="bg-slate-800/90 rounded px-2.5 py-2 text-xs pointer-events-auto min-w-[280px]">
@@ -74,15 +75,114 @@ export default function AuroraLegend({ kpData }) {
         ))}
       </div>
 
+      {/* Kp badge with latitude info */}
+      {kpInfo && (
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="inline-block w-12 h-12 rounded-md text-center leading-[48px] font-bold text-xl"
+            style={{ backgroundColor: kpColor, color: '#fff' }}
+          >
+            {kpInfo.kp?.toFixed(1)}
+          </span>
+          <div className="flex-1">
+            {kpData.auroraLatitude && (
+              <div className="text-slate-300 text-[11px]">
+                ~{kpData.auroraLatitude}°N ({getLatitudeRegion(kpData.auroraLatitude, lang)})
+              </div>
+            )}
+            {kpInfo.activity && (
+              <div className="text-[10px]" style={{ color: kpColor }}>
+                {kpInfo.activity[lang === 'no' ? 'no' : 'en']}
+              </div>
+            )}
+            {kpInfo.maxKp && (
+              <div className="text-slate-400 text-[9px]">
+                {lang === 'no' ? 'Maks' : 'Max'}: {kpInfo.maxKp.toFixed(1)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 24-hour Kp chart with tooltips */}
+      {kpData?.hourly?.length > 0 && (
+        <div className="bg-slate-900 rounded p-2 mb-2 relative">
+          <svg width="100%" height="60" viewBox="0 0 260 60" preserveAspectRatio="none">
+            <defs>
+              {kpData.hourly.slice(0, 24).map((entry, i) => {
+                const kpVal = Math.min(Math.floor(entry.kp), 9);
+                const topColor = KP_COLORS[kpVal];
+                return (
+                  <linearGradient key={`grad-${i}`} id={`aurora-bar-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor={topColor} stopOpacity="1" />
+                    <stop offset="50%" stopColor={topColor} stopOpacity="0.6" />
+                    <stop offset="100%" stopColor={topColor} stopOpacity="0.1" />
+                  </linearGradient>
+                );
+              })}
+            </defs>
+            {/* Grid lines - adjusted for new viewBox */}
+            <line x1="0" y1="15" x2="220" y2="15" stroke="#334155" strokeWidth="0.5" />
+            <line x1="0" y1="30" x2="220" y2="30" stroke="#334155" strokeWidth="0.5" />
+            <line x1="0" y1="45" x2="220" y2="45" stroke="#334155" strokeWidth="0.5" />
+            {/* Y-axis labels on the right, outside bar area */}
+            <text x="235" y="18" fill="#64748b" fontSize="8" textAnchor="middle">6</text>
+            <text x="235" y="33" fill="#64748b" fontSize="8" textAnchor="middle">4</text>
+            <text x="235" y="48" fill="#64748b" fontSize="8" textAnchor="middle">2</text>
+            {/* Bars */}
+            {kpData.hourly.slice(0, 24).map((entry, i) => {
+              const barWidth = 220 / 24;
+              const x = i * barWidth;
+              const height = Math.max(3, (entry.kp / 9) * 50);
+              const y = 55 - height;
+              const hour = new Date(entry.time).getHours();
+              return (
+                <rect
+                  key={i}
+                  x={x + 1}
+                  y={y}
+                  width={barWidth - 2}
+                  height={height}
+                  fill={`url(#aurora-bar-grad-${i})`}
+                  rx="1"
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredBar({ i, hour, kp: entry.kp, x: x + barWidth / 2 })}
+                  onMouseLeave={() => setHoveredBar(null)}
+                />
+              );
+            })}
+          </svg>
+          {/* Hour labels */}
+          <div className="flex justify-between text-[8px] text-slate-500 mt-0.5" style={{ width: '85%' }}>
+            {[0, 6, 12, 18, 24].map((h) => (
+              <span key={h}>{h === 24 ? '+24' : h}</span>
+            ))}
+          </div>
+          {/* Hover tooltip */}
+          {hoveredBar && (
+            <div
+              className="absolute bg-slate-950 border border-slate-700 px-2 py-1 rounded text-[10px] text-white pointer-events-none z-10"
+              style={{
+                left: `${(hoveredBar.x / 260) * 100}%`,
+                top: '-4px',
+                transform: 'translateX(-50%)',
+              }}
+            >
+              {hoveredBar.hour}:00 — Kp {hoveredBar.kp.toFixed(1)}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Intensity gradient bar */}
-      <div className="mb-2">
+      <div className="mb-1.5">
         <div
-          className="h-3 rounded-sm"
+          className="h-2.5 rounded-sm"
           style={{
-            background: 'linear-gradient(to right, rgba(0,40,0,0.4), rgba(0,100,20,0.7), rgba(0,180,50,0.85), rgba(50,255,100,0.95), rgba(140,255,160,1))',
+            background: 'linear-gradient(to right, rgba(0,50,10,0.3), rgba(0,100,20,0.5), rgba(0,150,30,0.7), rgba(0,213,37,0.9), rgba(0,213,37,1))',
           }}
         />
-        <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+        <div className="flex justify-between text-[8px] text-slate-500 mt-0.5">
           <span>{t('aurora.none', lang)}</span>
           <span>{t('aurora.low', lang)}</span>
           <span>{t('aurora.moderate', lang)}</span>
@@ -90,31 +190,7 @@ export default function AuroraLegend({ kpData }) {
         </div>
       </div>
 
-      {/* Kp index display */}
-      {kpInfo && (
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-slate-400 text-[10px]">{t('aurora.kpIndex', lang)}:</span>
-          <span className="font-semibold" style={{ color: activityColor }}>
-            {typeof kpInfo.kp === 'number' ? kpInfo.kp.toFixed(1) : '?'}
-            {kpInfo.activity && ` (${kpInfo.activity[lang === 'no' ? 'no' : 'en']})`}
-            {kpInfo.maxKp && (
-              <span className="text-slate-400 text-[9px] ml-1">
-                {lang === 'no' ? 'maks' : 'max'} {kpInfo.maxKp.toFixed(1)}
-              </span>
-            )}
-          </span>
-        </div>
-      )}
-
-      {/* View details button */}
-      <button
-        onClick={() => setActivePanel('aurora')}
-        className="w-full text-left px-2 py-1 text-[10px] bg-green-800 hover:bg-green-700 rounded transition-colors"
-      >
-        {t('aurora.viewDetails', lang)}
-      </button>
-
-      <div className="text-slate-600 text-[9px] mt-1">noaa.gov / SWPC</div>
+      <div className="text-slate-600 text-[9px]">noaa.gov / SWPC</div>
     </div>
   );
 }

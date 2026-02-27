@@ -126,22 +126,44 @@ export function buildMapStyle(baseLayerId, {
     };
     overlayDefs.aurora = [
       {
-        id: 'aurora-fill',
-        type: 'fill',
+        id: 'aurora-heatmap',
+        type: 'heatmap',
         source: 'aurora-geojson',
         paint: {
-          'fill-color': [
+          // Weight based on intensity (0-25 scale)
+          'heatmap-weight': [
             'interpolate', ['linear'], ['get', 'intensity'],
-            0, 'rgba(0, 0, 0, 0)',
-            3, 'rgba(0, 40, 0, 0.3)',
-            5, 'rgba(0, 80, 0, 0.5)',
-            8, 'rgba(0, 140, 20, 0.7)',
-            12, 'rgba(0, 200, 50, 0.85)',
-            16, 'rgba(30, 255, 80, 0.92)',
-            20, 'rgba(80, 255, 120, 0.96)',
-            25, 'rgba(140, 255, 160, 1.0)',
+            0, 0,
+            5, 0.3,
+            15, 0.7,
+            25, 1,
           ],
-          'fill-opacity': auroraOpacity,
+          // Intensity increases with zoom
+          'heatmap-intensity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.5,
+            6, 1,
+            10, 2,
+          ],
+          // Color ramp: transparent → dark green → #00D525
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0, 0, 0, 0)',
+            0.1, 'rgba(0, 50, 10, 0.3)',
+            0.3, 'rgba(0, 100, 20, 0.5)',
+            0.5, 'rgba(0, 150, 30, 0.7)',
+            0.7, 'rgba(0, 190, 35, 0.85)',
+            0.9, 'rgba(0, 213, 37, 0.95)',
+            1.0, 'rgba(0, 213, 37, 1.0)',
+          ],
+          // Radius of blur
+          'heatmap-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 15,
+            6, 30,
+            10, 50,
+          ],
+          'heatmap-opacity': auroraOpacity,
         },
       },
     ];

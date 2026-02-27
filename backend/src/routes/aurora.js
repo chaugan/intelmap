@@ -49,25 +49,17 @@ async function fetchAuroraData() {
   // OVATION data format: { Observation Time, Forecast Time, Data Products: [...], coordinates: [[lon, lat, intensity], ...] }
   const coords = raw.coordinates || [];
 
-  // Build GeoJSON with grid cells (each point represents a 1°×1° cell)
+  // Build GeoJSON with points for heatmap layer
   const features = [];
   for (const [lon, lat, intensity] of coords) {
     // Filter: only visible aurora (intensity > 3) and Northern Hemisphere (lat > 50)
     if (intensity <= 3 || lat < 50) continue;
 
-    // Create a small polygon around the point (roughly 1° cell)
-    const halfDeg = 0.5;
     features.push({
       type: 'Feature',
       geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [lon - halfDeg, lat - halfDeg],
-          [lon + halfDeg, lat - halfDeg],
-          [lon + halfDeg, lat + halfDeg],
-          [lon - halfDeg, lat + halfDeg],
-          [lon - halfDeg, lat - halfDeg],
-        ]],
+        type: 'Point',
+        coordinates: [lon, lat],
       },
       properties: {
         intensity,
@@ -213,18 +205,15 @@ router.get('/at', async (req, res) => {
       fetchKpForecast(),
     ]);
 
-    // Find nearest grid point
+    // Find nearest point
     let nearestIntensity = 0;
     let nearestDist = Infinity;
 
     for (const feature of auroraData.features) {
-      // Get center of polygon
-      const coords = feature.geometry.coordinates[0];
-      const centerLon = (coords[0][0] + coords[2][0]) / 2;
-      const centerLat = (coords[0][1] + coords[2][1]) / 2;
+      const [ptLon, ptLat] = feature.geometry.coordinates;
 
       const dist = Math.sqrt(
-        Math.pow(centerLon - lonNum, 2) + Math.pow(centerLat - latNum, 2)
+        Math.pow(ptLon - lonNum, 2) + Math.pow(ptLat - latNum, 2)
       );
 
       if (dist < nearestDist) {

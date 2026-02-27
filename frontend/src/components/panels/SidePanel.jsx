@@ -4,7 +4,6 @@ import SymbolPicker from './SymbolPicker.jsx';
 import WeatherPanel from './WeatherPanel.jsx';
 import SearchPanel from './SearchPanel.jsx';
 import AvalancheWarningPanel from './AvalancheWarningPanel.jsx';
-import AuroraPanel from './AuroraPanel.jsx';
 
 export default function SidePanel() {
   const activePanel = useMapStore((s) => s.activePanel);
@@ -17,7 +16,6 @@ export default function SidePanel() {
     case 'weather': content = <WeatherPanel />; break;
     case 'search': content = <SearchPanel />; break;
     case 'avalancheWarning': content = <AvalancheWarningPanel />; break;
-    case 'aurora': content = <AuroraPanel />; break;
     default: return null;
   }
 
