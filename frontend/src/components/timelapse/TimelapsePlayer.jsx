@@ -114,6 +114,22 @@ export default function TimelapsePlayer() {
     }
   }, [loop]);
 
+  // Spacebar play/pause toggle
+  useEffect(() => {
+    if (!selectedCamera) return;
+
+    const handleKeyDown = (e) => {
+      // Only handle spacebar, ignore if typing in an input
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCamera, setIsPlaying]);
+
   // Track video time
   const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
