@@ -43,7 +43,10 @@ export function purgeOldFrames() {
     // Update available_from timestamp
     const remaining = fs.readdirSync(framesDir).filter(f => f.endsWith('.jpg')).sort();
     if (remaining.length > 0) {
-      const oldest = remaining[0].replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 16 ? ':' : '.');
+      // Convert filename back to ISO timestamp
+      // Filename: 2026-02-27T12-59-40-366Z.jpg -> 2026-02-27T12:59:40.366Z
+      // Dashes at positions: 4,7 (date), 13,16 (time), 19 (ms)
+      const oldest = remaining[0].replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 19 ? ':' : '.');
       db.prepare(`
         UPDATE timelapse_cameras SET available_from = ? WHERE camera_id = ?
       `).run(oldest, camera_id);

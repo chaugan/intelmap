@@ -16,10 +16,17 @@ export default function TimelapsePanel() {
   const clearError = useTimelapseStore((s) => s.clearError);
   const lang = useMapStore((s) => s.lang);
 
-  // Fetch cameras on mount
+  // Fetch cameras on mount and periodically refresh (every 60s for live updates)
   useEffect(() => {
     fetchCameras();
     fetchExports();
+
+    // Refresh camera data every 60 seconds to get updated availableTo timestamps
+    const interval = setInterval(() => {
+      fetchCameras();
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, [fetchCameras, fetchExports]);
 
   // Auto-clear errors after 5 seconds

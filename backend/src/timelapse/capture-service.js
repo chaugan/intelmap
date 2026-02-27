@@ -198,7 +198,7 @@ class CaptureService {
 
     return files.map(f => ({
       filename: f,
-      timestamp: f.replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 16 ? ':' : '.'),
+      timestamp: f.replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 19 ? ':' : '.'),
       path: path.join(framesDir, f),
     }));
   }
