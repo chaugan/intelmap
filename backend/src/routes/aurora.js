@@ -12,11 +12,11 @@ let kpForecastCache = { data: null, ts: 0 };
 const AURORA_TTL = 15 * 60 * 1000; // 15 minutes
 const KP_TTL = 30 * 60 * 1000; // 30 minutes
 
-// Intensity level mapping (0-25 scale)
+// Aurora probability level mapping (0-100% scale)
 function getIntensityLevel(value) {
-  if (value < 4) return { level: 'none', en: 'None', no: 'Ingen' };
-  if (value < 11) return { level: 'low', en: 'Low', no: 'Lav' };
-  if (value < 21) return { level: 'moderate', en: 'Moderate', no: 'Moderat' };
+  if (value < 10) return { level: 'none', en: 'None', no: 'Ingen' };
+  if (value < 30) return { level: 'low', en: 'Low', no: 'Lav' };
+  if (value < 60) return { level: 'moderate', en: 'Moderate', no: 'Moderat' };
   return { level: 'high', en: 'High', no: 'Høy' };
 }
 

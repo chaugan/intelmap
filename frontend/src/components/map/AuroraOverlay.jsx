@@ -137,7 +137,7 @@ function getAuroraIntensity(grid, lon, lat) {
 // Color ramp: very faint -> dark green -> bright #00D525
 function intensityToColor(intensity) {
   // Ensure minimum visibility for any non-zero intensity
-  const norm = Math.min(Math.max(intensity, 0) / 25, 1.0);
+  const norm = Math.min(Math.max(intensity, 0) / 100, 1.0);
 
   if (norm < 0.12) {
     // Very low: faint dark green base (ensures smooth edges)

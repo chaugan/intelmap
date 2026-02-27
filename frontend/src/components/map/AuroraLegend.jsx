@@ -112,7 +112,7 @@ export default function AuroraLegend({ kpData }) {
             height="60"
             viewBox="0 0 260 60"
             preserveAspectRatio="none"
-            className="cursor-crosshair"
+            className=""
             onMouseMove={(e) => {
               const svg = e.currentTarget;
               const rect = svg.getBoundingClientRect();
