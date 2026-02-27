@@ -30,11 +30,14 @@ export default function WebcamLayer() {
   const webcamPins = useMemo(() => webcamPinsRaw, [webcamPinKey]);
   const [infoPopup, setInfoPopup] = useState(null);
 
-  // Get recording camera IDs from timelapse store
+  // Get recording camera IDs from timelapse store (only for users with timelapse access)
+  const user = useAuthStore((s) => s.user);
+  const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
   const timelapseCameras = useTimelapseStore((s) => s.cameras);
   const recordingCameraIds = useMemo(() => {
+    if (!canTimelapse) return new Set();
     return new Set(timelapseCameras.filter(c => c.isCapturing).map(c => c.cameraId));
-  }, [timelapseCameras]);
+  }, [timelapseCameras, canTimelapse]);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
