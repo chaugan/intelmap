@@ -137,3 +137,46 @@ CREATE TABLE IF NOT EXISTS map_themes (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Timelapse: camera capture jobs (ONE per camera, shared by all subscribers)
+CREATE TABLE IF NOT EXISTS timelapse_cameras (
+  camera_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT '',
+  is_protected INTEGER NOT NULL DEFAULT 0,
+  is_capturing INTEGER NOT NULL DEFAULT 0,
+  subscriber_count INTEGER NOT NULL DEFAULT 0,
+  last_frame_at TEXT,
+  available_from TEXT,
+  available_to TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Timelapse: user subscriptions (many users can subscribe to same camera)
+CREATE TABLE IF NOT EXISTS timelapse_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  camera_id TEXT NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, camera_id)
+);
+
+-- Timelapse: export jobs
+CREATE TABLE IF NOT EXISTS timelapse_exports (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  camera_id TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  progress INTEGER NOT NULL DEFAULT 0,
+  file_path TEXT,
+  file_size INTEGER,
+  error_message TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_timelapse_subs_camera ON timelapse_subscriptions(camera_id);
+CREATE INDEX IF NOT EXISTS idx_timelapse_subs_user ON timelapse_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_timelapse_exports_user ON timelapse_exports(user_id);

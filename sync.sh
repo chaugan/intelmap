@@ -17,8 +17,14 @@ echo ""
 
 # Ensure build dependencies for native modules
 if ! command -v python3 &>/dev/null || ! command -v make &>/dev/null || ! command -v g++ &>/dev/null; then
-    echo "[0/6] Installing build dependencies..."
+    echo "[0/7] Installing build dependencies..."
     apt install -y python3 make g++
+fi
+
+# Ensure FFmpeg is installed for timelapse feature
+if ! command -v ffmpeg &>/dev/null; then
+    echo "[0/7] Installing FFmpeg..."
+    apt install -y ffmpeg
 fi
 
 echo "[1/6] Pulling latest from GitHub..."
@@ -46,11 +52,16 @@ systemctl daemon-reload
 nginx -t && systemctl reload nginx
 
 echo ""
-echo "[5/6] Setting permissions..."
+echo "[5/7] Setting permissions..."
 chown -R intelmap:intelmap "$INSTALL_DIR"
 
 echo ""
-echo "[6/6] Restarting backend..."
+echo "[6/7] Creating timelapse directories..."
+mkdir -p /var/lib/intelmap/timelapse/exports
+chown -R intelmap:intelmap /var/lib/intelmap/timelapse
+
+echo ""
+echo "[7/7] Restarting backend..."
 systemctl restart intelmap
 
 echo ""

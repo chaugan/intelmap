@@ -11,6 +11,7 @@ import PasswordChangeDialog from './components/auth/PasswordChangeDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
+import TimelapseDrawer from './components/timelapse/TimelapseDrawer.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { t } from './lib/i18n.js';
@@ -131,6 +132,9 @@ export default function App() {
       <LoginDialog />
       <PasswordChangeDialog />
       <AdminPanel />
+
+      {/* Timelapse drawer (renders as overlay) */}
+      <TimelapseDrawer />
     </div>
   );
 }

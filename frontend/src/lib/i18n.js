@@ -244,6 +244,18 @@ const translations = {
     'dataLayers.themes': 'Karttema',
     'dataLayers.noThemes': 'Ingen temaer ennå',
 
+    // Timelapse
+    'timelapse.title': 'Tidslapse',
+    'timelapse.cameras': 'Kameraer',
+    'timelapse.player': 'Avspiller',
+    'timelapse.exports': 'Eksporter',
+    'timelapse.start': 'Start tidslapse',
+    'timelapse.view': 'Vis tidslapse',
+    'timelapse.saveFrame': 'Lagre bilde',
+    'timelapse.noSubs': 'Ingen kameraer abonnert',
+    'timelapse.speed': 'Hastighet',
+    'timelapse.exportMp4': 'Eksporter MP4',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -487,6 +499,18 @@ const translations = {
     'dataLayers.overlays': 'Overlays',
     'dataLayers.themes': 'Map Themes',
     'dataLayers.noThemes': 'No themes yet',
+
+    // Timelapse
+    'timelapse.title': 'Timelapse',
+    'timelapse.cameras': 'Cameras',
+    'timelapse.player': 'Player',
+    'timelapse.exports': 'Exports',
+    'timelapse.start': 'Start timelapse',
+    'timelapse.view': 'View timelapse',
+    'timelapse.saveFrame': 'Save frame',
+    'timelapse.noSubs': 'No cameras subscribed',
+    'timelapse.speed': 'Speed',
+    'timelapse.exportMp4': 'Export MP4',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

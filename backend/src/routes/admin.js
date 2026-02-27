@@ -14,13 +14,14 @@ router.use(requireAdmin);
 router.get('/users', (req, res) => {
   const db = getDb();
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, created_at, updated_at FROM users ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, created_at, updated_at FROM users ORDER BY created_at'
   ).all();
   res.json(users.map(u => ({
     ...u,
     mustChangePassword: !!u.must_change_password,
     locked: !!u.locked,
     aiChatEnabled: !!u.ai_chat_enabled,
+    timelapseEnabled: !!u.timelapse_enabled,
   })));
 });
 
@@ -117,6 +118,17 @@ router.post('/users/:id/toggle-ai-chat', (req, res) => {
   const newVal = user.ai_chat_enabled ? 0 : 1;
   db.prepare("UPDATE users SET ai_chat_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
   res.json({ ok: true, aiChatEnabled: !!newVal });
+});
+
+// Toggle timelapse access
+router.post('/users/:id/toggle-timelapse', (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, timelapse_enabled FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.timelapse_enabled ? 0 : 1;
+  db.prepare("UPDATE users SET timelapse_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  res.json({ ok: true, timelapseEnabled: !!newVal });
 });
 
 // --- AI Configuration ---

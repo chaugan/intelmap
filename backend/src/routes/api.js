@@ -15,6 +15,7 @@ import avalancheWarningsRouter from './avalanche-warnings.js';
 import aircraftRouter from './aircraft.js';
 import aisRouter from './ais.js';
 import themesRouter from './themes.js';
+import timelapseRouter from './timelapse.js';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/avalanche-warnings', avalancheWarningsRouter);
 router.use('/aircraft', aircraftRouter);
 router.use('/ais', aisRouter);
 router.use('/themes', themesRouter);
+router.use('/timelapse', timelapseRouter);
 
 export default router;

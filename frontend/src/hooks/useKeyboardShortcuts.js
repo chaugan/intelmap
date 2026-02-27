@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMapStore } from '../stores/useMapStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
+import { useTimelapseStore } from '../stores/useTimelapseStore.js';
 
 export function useKeyboardShortcuts() {
   const toggleWind = useMapStore((s) => s.toggleWind);
@@ -89,6 +90,15 @@ export function useKeyboardShortcuts() {
         case 'i': {
           const user = useAuthStore.getState().user;
           if (user?.aiChatEnabled) toggleChatDrawer();
+          break;
+        }
+
+        // Timelapse drawer (only if enabled)
+        case 'y': {
+          const user = useAuthStore.getState().user;
+          if (user?.timelapseEnabled || user?.role === 'admin') {
+            useTimelapseStore.getState().toggleDrawer();
+          }
           break;
         }
       }

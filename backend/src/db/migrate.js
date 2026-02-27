@@ -17,6 +17,13 @@ export function runMigration() {
   const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   const adminId = admin?.id || 'system';
 
+  // Add timelapse_enabled column to users table (if not exists)
+  const userCols = db.prepare("PRAGMA table_info(users)").all();
+  if (!userCols.some(c => c.name === 'timelapse_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN timelapse_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added timelapse_enabled column to users table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];
