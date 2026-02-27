@@ -327,7 +327,7 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, lang,
           <h3 className="text-sm font-medium text-white truncate flex-1" title={camera.name}>
             {camera.name || camera.cameraId}
           </h3>
-          <div className="flex items-center gap-1 ml-1">
+          <div className="flex items-center gap-2 ml-2">
             {/* Zoom to camera button */}
             {camera.lat && camera.lon && (
               <button
@@ -335,10 +335,10 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, lang,
                   e.stopPropagation();
                   onZoom();
                 }}
-                className="text-xs text-cyan-400 hover:text-cyan-300 p-0.5"
+                className="text-cyan-400 hover:text-cyan-300 p-1 cursor-pointer hover:bg-slate-700 rounded transition-colors"
                 title={lang === 'no' ? 'Zoom til kamera' : 'Zoom to camera'}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
@@ -350,10 +350,12 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, lang,
                 e.stopPropagation();
                 onUnsubscribe();
               }}
-              className="text-xs text-red-400 hover:text-red-300 px-1"
+              className="text-red-400 hover:text-red-300 p-1 cursor-pointer hover:bg-slate-700 rounded transition-colors"
               title={lang === 'no' ? 'Avslutt abonnement' : 'Unsubscribe'}
             >
-              {'\u2715'}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
