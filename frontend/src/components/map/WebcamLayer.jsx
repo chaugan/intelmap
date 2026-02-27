@@ -34,10 +34,18 @@ export default function WebcamLayer() {
   const user = useAuthStore((s) => s.user);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
   const timelapseCameras = useTimelapseStore((s) => s.cameras);
+  const fetchTimelapseCameras = useTimelapseStore((s) => s.fetchCameras);
   const recordingCameraIds = useMemo(() => {
     if (!canTimelapse) return new Set();
     return new Set(timelapseCameras.filter(c => c.isCapturing).map(c => c.cameraId));
   }, [timelapseCameras, canTimelapse]);
+
+  // Fetch timelapse cameras on mount if user has access
+  useEffect(() => {
+    if (canTimelapse) {
+      fetchTimelapseCameras();
+    }
+  }, [canTimelapse, fetchTimelapseCameras]);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
