@@ -107,7 +107,30 @@ export default function AuroraLegend({ kpData }) {
       {/* 24-hour Kp chart with tooltips */}
       {kpData?.hourly?.length > 0 && (
         <div className="bg-slate-900 rounded p-2 mb-2 relative">
-          <svg width="100%" height="60" viewBox="0 0 260 60" preserveAspectRatio="none">
+          <svg
+            width="100%"
+            height="60"
+            viewBox="0 0 260 60"
+            preserveAspectRatio="none"
+            className="cursor-crosshair"
+            onMouseMove={(e) => {
+              const svg = e.currentTarget;
+              const rect = svg.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width) * 260;
+              if (x < 0 || x > 220) {
+                setHoveredBar(null);
+                return;
+              }
+              const barWidth = 220 / 24;
+              const i = Math.min(23, Math.floor(x / barWidth));
+              const entry = kpData.hourly[i];
+              if (entry) {
+                const hour = new Date(entry.time).getHours();
+                setHoveredBar({ i, hour, kp: entry.kp, x: i * barWidth + barWidth / 2, cursorX: x });
+              }
+            }}
+            onMouseLeave={() => setHoveredBar(null)}
+          >
             <defs>
               {kpData.hourly.slice(0, 24).map((entry, i) => {
                 const kpVal = Math.min(Math.floor(entry.kp), 9);
@@ -135,7 +158,6 @@ export default function AuroraLegend({ kpData }) {
               const x = i * barWidth;
               const height = Math.max(3, (entry.kp / 9) * 50);
               const y = 55 - height;
-              const hour = new Date(entry.time).getHours();
               return (
                 <rect
                   key={i}
@@ -145,12 +167,24 @@ export default function AuroraLegend({ kpData }) {
                   height={height}
                   fill={`url(#aurora-bar-grad-${i})`}
                   rx="1"
-                  className="cursor-pointer"
-                  onMouseEnter={() => setHoveredBar({ i, hour, kp: entry.kp, x: x + barWidth / 2 })}
-                  onMouseLeave={() => setHoveredBar(null)}
                 />
               );
             })}
+            {/* Dashed cursor line */}
+            {hoveredBar && (
+              <line
+                x1={hoveredBar.cursorX}
+                y1="0"
+                x2={hoveredBar.cursorX}
+                y2="60"
+                stroke="#94a3b8"
+                strokeWidth="1"
+                strokeDasharray="3 2"
+                pointerEvents="none"
+              />
+            )}
+            {/* Invisible overlay for mouse events - covers entire chart area */}
+            <rect x="0" y="0" width="220" height="60" fill="transparent" />
           </svg>
           {/* Hour labels */}
           <div className="flex justify-between text-[8px] text-slate-500 mt-0.5" style={{ width: '85%' }}>
