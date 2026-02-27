@@ -107,6 +107,13 @@ export default function TimelapsePlayer() {
     setDuration(videoRef.current.duration || 0);
   }, []);
 
+  // Get duration as soon as metadata loads (before play)
+  const handleLoadedMetadata = useCallback(() => {
+    if (!videoRef.current) return;
+    setDuration(videoRef.current.duration || 0);
+    setLoading(false);
+  }, []);
+
   // Seek to time
   const handleSeek = useCallback((time) => {
     if (videoRef.current) {
@@ -194,6 +201,7 @@ export default function TimelapsePlayer() {
             ref={videoRef}
             className="w-full h-full"
             onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             playsInline

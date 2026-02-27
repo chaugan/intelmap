@@ -339,7 +339,7 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
         {duration && (
           <div className="mt-1">
             <span className="text-[10px] px-1.5 py-0.5 bg-cyan-900/50 text-cyan-300 rounded">
-              {duration}
+              {lang === 'no' ? 'Opptak' : 'Recording'}: {duration}
             </span>
           </div>
         )}
