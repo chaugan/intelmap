@@ -7,7 +7,10 @@ export function buildMapStyle(baseLayerId, {
   avalancheWarningsData = null,
   snowDepthVisible = false,
   snowDepthOpacity = 0.7,
-  overlayOrder = ['avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
+  auroraVisible = false,
+  auroraOpacity = 0.5,
+  auroraData = null,
+  overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
 } = {}) {
   const layer = BASE_LAYERS[baseLayerId] || BASE_LAYERS.topo;
 
@@ -114,6 +117,32 @@ export function buildMapStyle(baseLayerId, {
       minzoom: 5,
       paint: { 'raster-opacity': snowDepthOpacity },
     };
+  }
+
+  if (auroraVisible && auroraData) {
+    sources['aurora-geojson'] = {
+      type: 'geojson',
+      data: auroraData,
+    };
+    overlayDefs.aurora = [
+      {
+        id: 'aurora-fill',
+        type: 'fill',
+        source: 'aurora-geojson',
+        paint: {
+          'fill-color': [
+            'interpolate', ['linear'], ['get', 'intensity'],
+            0, 'rgba(0, 0, 0, 0)',
+            4, 'rgba(0, 100, 0, 0.2)',
+            10, 'rgba(0, 180, 0, 0.4)',
+            15, 'rgba(0, 255, 100, 0.6)',
+            20, 'rgba(100, 255, 150, 0.7)',
+            25, 'rgba(150, 255, 200, 0.8)',
+          ],
+          'fill-opacity': auroraOpacity,
+        },
+      },
+    ];
   }
 
   // Push overlays in the user-configured z-order (bottom to top)

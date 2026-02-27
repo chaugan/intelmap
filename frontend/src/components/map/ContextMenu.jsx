@@ -56,6 +56,9 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const [svHeading, setSvHeading] = useState(0);
   const [avalancheRisk, setAvalancheRisk] = useState(null);
   const [loadingAval, setLoadingAval] = useState(true);
+  const [auroraData, setAuroraData] = useState(null);
+  const [loadingAurora, setLoadingAurora] = useState(true);
+  const auroraVisible = useMapStore((s) => s.auroraVisible);
   const pinned = externalPinned || false;
   const ref = useRef(null);
 
@@ -118,6 +121,17 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
       .catch(() => setAvalancheRisk(null))
       .finally(() => setLoadingAval(false));
 
+    // Aurora data (only if aurora layer is visible)
+    if (auroraVisible) {
+      fetch(`/api/aurora/at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`)
+        .then(r => r.json())
+        .then(d => setAuroraData(d))
+        .catch(() => setAuroraData(null))
+        .finally(() => setLoadingAurora(false));
+    } else {
+      setLoadingAurora(false);
+    }
+
     // Street View coverage check
     fetch(`/api/streetview/check?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`, { credentials: 'include' })
       .then(r => r.json())
@@ -129,7 +143,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         }
       })
       .catch(() => {});
-  }, [lat, lng]);
+  }, [lat, lng, auroraVisible]);
 
   const isVisibleRef = useRef(true);
 
@@ -318,6 +332,30 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
             <span className="text-slate-400 text-xs">{t('aval.risk', lang)}</span>
             <span className="text-slate-500 text-xs font-mono">{t('aval.outside', lang)}</span>
           </div>
+        )}
+
+        {/* Aurora info (only when aurora layer is visible) */}
+        {auroraVisible && (
+          <>
+            <div className="border-t border-slate-600 my-1" />
+            {loadingAurora ? (
+              <div className="text-slate-400 text-xs">{lang === 'no' ? 'Henter nordlysdata...' : 'Loading aurora data...'}</div>
+            ) : auroraData && !auroraData.isOutside ? (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-xs">{lang === 'no' ? 'Nordlys' : 'Aurora'}</span>
+                <span className="text-green-400 text-xs font-mono">
+                  {auroraData[lang === 'no' ? 'no' : 'en']} ({auroraData.intensity}/25)
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-xs">{lang === 'no' ? 'Nordlys' : 'Aurora'}</span>
+                <span className="text-slate-500 text-xs font-mono">
+                  {lang === 'no' ? 'Utenfor prognoseområde' : 'Outside forecast area'}
+                </span>
+              </div>
+            )}
+          </>
         )}
 
         {/* Actions */}

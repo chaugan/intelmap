@@ -46,10 +46,16 @@ export const useMapStore = create((set) => ({
   sunlightAnimating: false,
   sunlightAnimationSpeed: 10,
 
+  // Aurora overlay
+  auroraVisible: false,
+  auroraOpacity: 0.5,
+  auroraTimeOffset: 0, // 0=now, 1=+1h, 2=+3h, 3=tomorrow, 4=day after
+  auroraFetchedAt: null,
+
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -123,6 +129,13 @@ export const useMapStore = create((set) => ({
     }
     return { overlayOrder: order };
   }),
+  toggleAurora: () => set((s) => ({
+    auroraVisible: !s.auroraVisible,
+    ...(s.auroraVisible && s.activePanel === 'aurora' ? { activePanel: null } : {}),
+  })),
+  setAuroraOpacity: (auroraOpacity) => set({ auroraOpacity }),
+  setAuroraTimeOffset: (auroraTimeOffset) => set({ auroraTimeOffset }),
+  setAuroraFetchedAt: (auroraFetchedAt) => set({ auroraFetchedAt }),
   toggleSunlight: () => set((s) => ({ sunlightVisible: !s.sunlightVisible, ...(s.sunlightVisible ? { sunlightAnimating: false } : {}) })),
   setSunlightOpacity: (sunlightOpacity) => set({ sunlightOpacity }),
   setBuildingOpacity: (buildingOpacity) => set({ buildingOpacity }),
@@ -173,6 +186,8 @@ export const useMapStore = create((set) => ({
       ...(parsed.terrainVisible !== undefined && { terrainVisible: parsed.terrainVisible }),
       ...(parsed.terrainExaggeration !== undefined && { terrainExaggeration: parsed.terrainExaggeration }),
       ...(parsed.overlayOrder !== undefined && { overlayOrder: parsed.overlayOrder }),
+      ...(parsed.auroraVisible !== undefined && { auroraVisible: parsed.auroraVisible }),
+      ...(parsed.auroraOpacity !== undefined && { auroraOpacity: parsed.auroraOpacity }),
     });
   },
   setChatDrawerWidth: (width) => {
@@ -263,5 +278,7 @@ export function getThemeState() {
     terrainVisible: s.terrainVisible,
     terrainExaggeration: s.terrainExaggeration,
     overlayOrder: s.overlayOrder,
+    auroraVisible: s.auroraVisible,
+    auroraOpacity: s.auroraOpacity,
   };
 }

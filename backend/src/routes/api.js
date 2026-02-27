@@ -16,6 +16,7 @@ import aircraftRouter from './aircraft.js';
 import aisRouter from './ais.js';
 import themesRouter from './themes.js';
 import timelapseRouter from './timelapse.js';
+import auroraRouter from './aurora.js';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/aircraft', aircraftRouter);
 router.use('/ais', aisRouter);
 router.use('/themes', themesRouter);
 router.use('/timelapse', timelapseRouter);
+router.use('/aurora', auroraRouter);
 
 export default router;

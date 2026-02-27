@@ -25,6 +25,8 @@ import VesselLayer, { VesselLegend } from './VesselLayer.jsx';
 import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
+import { useAuroraForecast } from '../../hooks/useAuroraForecast.js';
+import AuroraLegend from './AuroraLegend.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 
@@ -47,6 +49,9 @@ export default function TacticalMap() {
   const setAircraftFetchedAt = useMapStore((s) => s.setAircraftFetchedAt);
   const vesselsVisible = useMapStore((s) => s.vesselsVisible);
   const setVesselsFetchedAt = useMapStore((s) => s.setVesselsFetchedAt);
+  const auroraVisible = useMapStore((s) => s.auroraVisible);
+  const auroraOpacity = useMapStore((s) => s.auroraOpacity);
+  const setAuroraFetchedAt = useMapStore((s) => s.setAuroraFetchedAt);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
   const setMapRef = useMapStore((s) => s.setMapRef);
@@ -73,6 +78,7 @@ export default function TacticalMap() {
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
   const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
   const { data: vesselsData, loading: vesselsLoading, fetchedAt: vesselsFetchedAt } = useVessels(vesselsVisible);
+  const { data: auroraData, kpData: auroraKpData, loading: auroraLoading, fetchedAt: auroraFetchedAt } = useAuroraForecast(auroraVisible);
 
   // Sync fetchedAt to store for DataFreshness
   useEffect(() => {
@@ -86,6 +92,10 @@ export default function TacticalMap() {
   useEffect(() => {
     setVesselsFetchedAt(vesselsFetchedAt);
   }, [vesselsFetchedAt, setVesselsFetchedAt]);
+
+  useEffect(() => {
+    setAuroraFetchedAt(auroraFetchedAt);
+  }, [auroraFetchedAt, setAuroraFetchedAt]);
 
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
@@ -104,9 +114,12 @@ export default function TacticalMap() {
       avalancheWarningsData,
       snowDepthVisible,
       snowDepthOpacity,
+      auroraVisible,
+      auroraOpacity,
+      auroraData,
       overlayOrder,
     }),
-    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, overlayOrder]
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, auroraVisible, auroraOpacity, auroraData, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
@@ -622,9 +635,9 @@ export default function TacticalMap() {
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || sunlightVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || sunlightVisible || auroraVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData)) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || auroraLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (auroraVisible && !auroraData)) && (
             <div className="flex flex-col items-end gap-1">
               {windVisible && windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -651,6 +664,11 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter fart\u00f8ydata...' : 'Loading vessel data...'}
                 </div>
               )}
+              {(auroraLoading || (auroraVisible && !auroraData)) && (
+                <div className="text-xs text-green-400 bg-slate-800/80 px-2 py-1 rounded">
+                  {t('aurora.loading', lang)}
+                </div>
+              )}
             </div>
           )}
           {sunlightVisible && <SunlightLegend lang={lang} />}
@@ -659,6 +677,7 @@ export default function TacticalMap() {
           {avalancheWarningsVisible && <AvalancheWarningsLegend />}
           {aircraftVisible && <AircraftLegend count={aircraftData?.meta?.total} />}
           {vesselsVisible && <VesselLegend count={vesselsData?.meta?.total} />}
+          {auroraVisible && <AuroraLegend kpData={auroraKpData} />}
         </div>
       )}
       {contextMenus.map((menu) => (

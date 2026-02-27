@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 
 const OVERLAYS = [
+  { id: 'aurora', toggleKey: 'toggleAurora', visibleKey: 'auroraVisible', opacityKey: 'auroraOpacity', setOpacityKey: 'setAuroraOpacity', accent: 'accent-green-500', shortcut: 'N' },
   { id: 'sunlight', toggleKey: 'toggleSunlight', visibleKey: 'sunlightVisible', opacityKey: 'sunlightOpacity', setOpacityKey: 'setSunlightOpacity', accent: 'accent-yellow-500', shortcut: 'H' },
   { id: 'wind', toggleKey: 'toggleWind', visibleKey: 'windVisible', opacityKey: 'windOpacity', setOpacityKey: 'setWindOpacity', accent: 'accent-emerald-500', shortcut: 'W' },
   { id: 'webcams', toggleKey: 'toggleWebcams', visibleKey: 'webcamsVisible', opacityKey: null, setOpacityKey: null, accent: null, shortcut: 'C' },
@@ -15,6 +16,7 @@ const OVERLAYS = [
 ];
 
 const OVERLAY_LABELS = {
+  aurora: { no: 'Nordlys', en: 'Aurora' },
   sunlight: { no: 'Sollys/Skygge', en: 'Sun/Shadow' },
   wind: { no: 'Vind', en: 'Wind' },
   webcams: { no: 'Webkameraer', en: 'Webcams' },
