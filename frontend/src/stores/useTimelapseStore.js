@@ -13,6 +13,9 @@ export const useTimelapseStore = create((set, get) => ({
   loading: false,
   error: null,
 
+  // All currently recording camera IDs (for map markers)
+  recordingCameraIds: [],
+
   // Currently selected camera for player
   selectedCamera: null,
 
@@ -68,6 +71,18 @@ export const useTimelapseStore = create((set, get) => ({
       set({ cameras: data, loading: false });
     } catch (err) {
       set({ error: err.message, loading: false });
+    }
+  },
+
+  // Fetch all currently recording camera IDs (for map markers)
+  fetchRecordingCameras: async () => {
+    try {
+      const res = await fetch(`${API}/recording`, { credentials: 'include' });
+      if (!res.ok) return; // Silently fail - user may not have access
+      const data = await res.json();
+      set({ recordingCameraIds: data });
+    } catch {
+      // Silently fail
     }
   },
 

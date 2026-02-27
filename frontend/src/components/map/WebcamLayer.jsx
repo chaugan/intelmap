@@ -33,19 +33,19 @@ export default function WebcamLayer() {
   // Get recording camera IDs from timelapse store (only for users with timelapse access)
   const user = useAuthStore((s) => s.user);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
-  const timelapseCameras = useTimelapseStore((s) => s.cameras);
-  const fetchTimelapseCameras = useTimelapseStore((s) => s.fetchCameras);
+  const recordingCameraIdsList = useTimelapseStore((s) => s.recordingCameraIds);
+  const fetchRecordingCameras = useTimelapseStore((s) => s.fetchRecordingCameras);
   const recordingCameraIds = useMemo(() => {
     if (!canTimelapse) return new Set();
-    return new Set(timelapseCameras.filter(c => c.isCapturing).map(c => c.cameraId));
-  }, [timelapseCameras, canTimelapse]);
+    return new Set(recordingCameraIdsList);
+  }, [recordingCameraIdsList, canTimelapse]);
 
-  // Fetch timelapse cameras on mount if user has access
+  // Fetch all recording cameras on mount if user has access
   useEffect(() => {
     if (canTimelapse) {
-      fetchTimelapseCameras();
+      fetchRecordingCameras();
     }
-  }, [canTimelapse, fetchTimelapseCameras]);
+  }, [canTimelapse, fetchRecordingCameras]);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
@@ -385,10 +385,12 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   // Timelapse integration
   const user = useAuthStore((s) => s.user);
   const cameras = useTimelapseStore((s) => s.cameras);
+  const recordingCameraIds = useTimelapseStore((s) => s.recordingCameraIds);
   const subscribe = useTimelapseStore((s) => s.subscribe);
   const openDrawer = useTimelapseStore((s) => s.openDrawer);
   const setSelectedCamera = useTimelapseStore((s) => s.setSelectedCamera);
   const hasTimelapseSub = cameras.some((c) => c.cameraId === id);
+  const isRecording = recordingCameraIds.includes(id);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
 
   // Track whether popup is visible on screen
@@ -510,7 +512,11 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              {hasTimelapseSub ? t('timelapse.view', lang) : t('timelapse.start', lang)}
+              {hasTimelapseSub
+                ? t('timelapse.view', lang)
+                : isRecording
+                  ? t('timelapse.addToMine', lang)
+                  : t('timelapse.start', lang)}
             </button>
           )}
         </div>

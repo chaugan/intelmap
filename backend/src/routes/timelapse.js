@@ -20,6 +20,20 @@ function requireTimelapseAccess(req, res, next) {
 
 // --- User endpoints ---
 
+// Get all currently recording camera IDs (for map markers)
+router.get('/recording', requireAuth, requireTimelapseAccess, (req, res) => {
+  try {
+    const db = getDb();
+    // Get all cameras that are currently capturing
+    const cameras = db.prepare(`
+      SELECT camera_id FROM timelapse_cameras WHERE is_capturing = 1
+    `).all();
+    res.json(cameras.map(c => c.camera_id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get user's subscribed cameras (with extra info)
 router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
