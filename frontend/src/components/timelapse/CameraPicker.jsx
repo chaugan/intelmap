@@ -169,18 +169,24 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [thumbnailError, setThumbnailError] = useState(false);
 
-  // Load thumbnail with fetch to include credentials
+  // Load thumbnail with fetch to include credentials (cache bust with timestamp)
   useEffect(() => {
     let cancelled = false;
     const loadThumbnail = async () => {
       try {
-        const res = await fetch(`/api/timelapse/frame/${camera.cameraId}/latest.jpg`, {
+        // Add cache-busting param to always get latest frame
+        const cacheBust = Date.now();
+        const res = await fetch(`/api/timelapse/frame/${camera.cameraId}/latest.jpg?t=${cacheBust}`, {
           credentials: 'include',
+          cache: 'no-store',
         });
         if (!res.ok) throw new Error('Failed to load');
         const blob = await res.blob();
         if (!cancelled) {
+          // Revoke old URL before setting new one
+          if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
           setThumbnailUrl(URL.createObjectURL(blob));
+          setThumbnailError(false);
         }
       } catch {
         if (!cancelled) setThumbnailError(true);
@@ -189,9 +195,15 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
     loadThumbnail();
     return () => {
       cancelled = true;
+    };
+  }, [camera.cameraId, camera.lastFrameAt]); // Refetch when lastFrameAt changes
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
       if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
     };
-  }, [camera.cameraId]);
+  }, [thumbnailUrl]);
 
   const formatTime = (iso) => {
     if (!iso) return '--';

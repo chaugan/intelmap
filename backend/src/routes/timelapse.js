@@ -398,4 +398,28 @@ router.post('/admin/cameras/:cameraId/protect', requireAdmin, (req, res) => {
   }
 });
 
+// Delete timelapse camera and all data (admin)
+router.delete('/admin/cameras/:cameraId', requireAdmin, (req, res) => {
+  try {
+    const { cameraId } = req.params;
+    const db = getDb();
+
+    // Get subscriber count for warning
+    const camera = db.prepare('SELECT subscriber_count FROM timelapse_cameras WHERE camera_id = ?').get(cameraId);
+    if (!camera) {
+      return res.status(404).json({ error: 'Camera not found' });
+    }
+
+    // Delete camera and all associated data
+    const result = captureService.deleteCamera(cameraId);
+    res.json({
+      ok: true,
+      deletedSubscriptions: result.deletedSubscriptions,
+      deletedFrames: result.deletedFrames,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

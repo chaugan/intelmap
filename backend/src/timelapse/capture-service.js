@@ -291,6 +291,43 @@ class CaptureService {
   }
 
   /**
+   * Delete a camera and all associated data (admin only)
+   */
+  deleteCamera(cameraId) {
+    const db = getDb();
+
+    // Stop capture if running
+    this.stopCapture(cameraId);
+
+    // Count subscriptions being deleted
+    const subCount = db.prepare(`
+      SELECT COUNT(*) as c FROM timelapse_subscriptions WHERE camera_id = ?
+    `).get(cameraId).c;
+
+    // Delete subscriptions
+    db.prepare('DELETE FROM timelapse_subscriptions WHERE camera_id = ?').run(cameraId);
+
+    // Delete camera record
+    db.prepare('DELETE FROM timelapse_cameras WHERE camera_id = ?').run(cameraId);
+
+    // Delete frame files
+    const cameraDir = path.join(this.dataDir, cameraId);
+    let deletedFrames = 0;
+    if (fs.existsSync(cameraDir)) {
+      const framesDir = path.join(cameraDir, 'frames');
+      if (fs.existsSync(framesDir)) {
+        deletedFrames = fs.readdirSync(framesDir).length;
+      }
+      fs.rmSync(cameraDir, { recursive: true, force: true });
+    }
+
+    return {
+      deletedSubscriptions: subCount,
+      deletedFrames,
+    };
+  }
+
+  /**
    * Resume capturing for all cameras that should be active
    * Called on server startup
    */
