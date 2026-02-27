@@ -78,8 +78,11 @@ function getAuroraIntensity(grid, lon, lat) {
   const { bounds: b, gridSize, data } = grid;
   if (lat < b.south || lat > b.north) return null;
 
+  // Normalize longitude to -180 to 180 range (MapLibre can return values outside this range when zoomed out)
+  let normLon = ((lon % 360) + 540) % 360 - 180;
+
   // Normalize to grid coordinates
-  const x = ((lon - b.west) / (b.east - b.west)) * (gridSize.lon - 1);
+  const x = ((normLon - b.west) / (b.east - b.west)) * (gridSize.lon - 1);
   const y = ((lat - b.south) / (b.north - b.south)) * (gridSize.lat - 1);
 
   const xi = Math.floor(x), yi = Math.floor(y);

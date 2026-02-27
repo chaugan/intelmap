@@ -337,17 +337,25 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
           <div className="text-slate-400 text-xs">{lang === 'no' ? 'Henter nordlysdata...' : 'Loading aurora data...'}</div>
         ) : auroraData && !auroraData.isOutside ? (
           <div
-            className={`flex justify-between items-center ${!auroraVisible ? 'cursor-pointer hover:bg-slate-700/50 -mx-1 px-1 py-0.5 rounded transition-colors' : ''}`}
+            className={`${!auroraVisible ? 'cursor-pointer hover:bg-slate-700/50 -mx-1 px-1 py-0.5 rounded transition-colors' : ''}`}
             onClick={() => { if (!auroraVisible) toggleAurora(); }}
             title={!auroraVisible ? (lang === 'no' ? 'Klikk for å aktivere nordlyslaget' : 'Click to enable aurora layer') : undefined}
           >
-            <span className="text-slate-400 text-xs flex items-center gap-1">
-              {lang === 'no' ? 'Nordlys' : 'Aurora'}
-              {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
-            </span>
-            <span className="text-green-400 text-xs font-mono">
-              Kp {auroraData.kp?.toFixed(1) || '?'}
-            </span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 text-xs flex items-center gap-1">
+                {lang === 'no' ? 'Nordlys' : 'Aurora'}
+                {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
+              </span>
+              <span className={`text-xs font-mono ${auroraData.intensity > 10 ? 'text-green-400' : auroraData.intensity > 3 ? 'text-green-600' : 'text-slate-500'}`}>
+                {auroraData.intensity?.toFixed(0) || 0}/25 ({auroraData[lang] || auroraData.en || 'None'})
+              </span>
+            </div>
+            <div className="flex justify-between items-center mt-0.5">
+              <span className="text-slate-500 text-[10px]">{lang === 'no' ? 'Global Kp-indeks' : 'Global Kp index'}</span>
+              <span className="text-slate-400 text-[10px] font-mono">
+                {auroraData.kp?.toFixed(1) || '?'} ({auroraData.kpActivity?.[lang] || auroraData.kpActivity?.en || ''})
+              </span>
+            </div>
           </div>
         ) : (
           <div
