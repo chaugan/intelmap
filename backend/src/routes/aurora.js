@@ -166,6 +166,14 @@ async function fetchKpForecast() {
   return result;
 }
 
+// Fetch raw OVATION data (for grid endpoint)
+async function fetchRawOvation() {
+  // Return raw data without caching transform
+  const res = await fetch(OVATION_URL);
+  if (!res.ok) throw new Error(`NOAA OVATION API ${res.status}`);
+  return res.json();
+}
+
 // GET /api/aurora - Full aurora grid GeoJSON
 router.get('/', async (req, res) => {
   try {
@@ -173,6 +181,48 @@ router.get('/', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Aurora fetch error:', err);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// GET /api/aurora/grid - Structured grid for canvas interpolation
+router.get('/grid', async (req, res) => {
+  try {
+    const raw = await fetchRawOvation();
+    const coords = raw.coordinates || [];
+
+    // OVATION data is 1° resolution from -180 to 180 lon, 0 to 90 lat
+    // Filter to Northern Hemisphere aurora zone (lat > 50)
+    const minLat = 50, maxLat = 90;
+    const minLon = -180, maxLon = 180;
+    const latStep = 1, lonStep = 1;
+
+    const latSize = (maxLat - minLat) / latStep + 1; // 41 rows
+    const lonSize = (maxLon - minLon) / lonStep + 1; // 361 columns
+
+    // Build 2D grid array
+    const grid = new Array(latSize * lonSize).fill(0);
+
+    for (const [lon, lat, intensity] of coords) {
+      if (lat < minLat || lat > maxLat) continue;
+      const latIdx = Math.round((lat - minLat) / latStep);
+      const lonIdx = Math.round((lon - minLon) / lonStep);
+      if (latIdx >= 0 && latIdx < latSize && lonIdx >= 0 && lonIdx < lonSize) {
+        grid[latIdx * lonSize + lonIdx] = intensity;
+      }
+    }
+
+    res.json({
+      bounds: { north: maxLat, south: minLat, east: maxLon, west: minLon },
+      gridSize: { lat: latSize, lon: lonSize },
+      data: grid,
+      meta: {
+        observationTime: raw['Observation Time'],
+        forecastTime: raw['Forecast Time'],
+      },
+    });
+  } catch (err) {
+    console.error('Aurora grid fetch error:', err);
     res.status(502).json({ error: err.message });
   }
 });

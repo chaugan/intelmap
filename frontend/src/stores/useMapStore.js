@@ -51,6 +51,7 @@ export const useMapStore = create((set) => ({
   auroraOpacity: 0.5,
   auroraTimeOffset: 0, // 0=now, 1=+1h, 2=+3h, 3=tomorrow, 4=day after
   auroraFetchedAt: null,
+  auroraGrid: null,
 
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
@@ -136,6 +137,7 @@ export const useMapStore = create((set) => ({
   setAuroraOpacity: (auroraOpacity) => set({ auroraOpacity }),
   setAuroraTimeOffset: (auroraTimeOffset) => set({ auroraTimeOffset }),
   setAuroraFetchedAt: (auroraFetchedAt) => set({ auroraFetchedAt }),
+  setAuroraGrid: (auroraGrid) => set({ auroraGrid }),
   toggleSunlight: () => set((s) => ({ sunlightVisible: !s.sunlightVisible, ...(s.sunlightVisible ? { sunlightAnimating: false } : {}) })),
   setSunlightOpacity: (sunlightOpacity) => set({ sunlightOpacity }),
   setBuildingOpacity: (buildingOpacity) => set({ buildingOpacity }),

@@ -8,8 +8,6 @@ export function buildMapStyle(baseLayerId, {
   snowDepthVisible = false,
   snowDepthOpacity = 0.7,
   auroraVisible = false,
-  auroraOpacity = 0.5,
-  auroraData = null,
   overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
 } = {}) {
   const layer = BASE_LAYERS[baseLayerId] || BASE_LAYERS.topo;
@@ -119,57 +117,8 @@ export function buildMapStyle(baseLayerId, {
     };
   }
 
-  if (auroraVisible && auroraData) {
-    sources['aurora-geojson'] = {
-      type: 'geojson',
-      data: auroraData,
-    };
-    overlayDefs.aurora = [
-      {
-        id: 'aurora-heatmap',
-        type: 'heatmap',
-        source: 'aurora-geojson',
-        paint: {
-          // Weight based on intensity (0-25 scale)
-          'heatmap-weight': [
-            'interpolate', ['linear'], ['get', 'intensity'],
-            0, 0,
-            5, 0.3,
-            15, 0.7,
-            25, 1,
-          ],
-          // Intensity increases with zoom
-          'heatmap-intensity': [
-            'interpolate', ['linear'], ['zoom'],
-            0, 0.5,
-            6, 1,
-            10, 2,
-          ],
-          // Color ramp: transparent → dark green → #00D525
-          'heatmap-color': [
-            'interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(0, 0, 0, 0)',
-            0.1, 'rgba(0, 50, 10, 0.3)',
-            0.3, 'rgba(0, 100, 20, 0.5)',
-            0.5, 'rgba(0, 150, 30, 0.7)',
-            0.7, 'rgba(0, 190, 35, 0.85)',
-            0.9, 'rgba(0, 213, 37, 0.95)',
-            1.0, 'rgba(0, 213, 37, 1.0)',
-          ],
-          // Radius of blur
-          'heatmap-radius': [
-            'interpolate', ['linear'], ['zoom'],
-            0, 15,
-            6, 30,
-            10, 50,
-          ],
-          'heatmap-opacity': auroraOpacity,
-        },
-      },
-    ];
-  }
-
   // Push overlays in the user-configured z-order (bottom to top)
+  // Note: Aurora is rendered via canvas overlay (AuroraOverlay.jsx), not MapLibre
   // Overlay defs can be a single layer or an array of layers
   for (const id of overlayOrder) {
     const def = overlayDefs[id];

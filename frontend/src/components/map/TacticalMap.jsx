@@ -27,6 +27,7 @@ import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
 import { useAuroraForecast } from '../../hooks/useAuroraForecast.js';
 import AuroraLegend from './AuroraLegend.jsx';
+import AuroraOverlay from './AuroraOverlay.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 
@@ -115,11 +116,9 @@ export default function TacticalMap() {
       snowDepthVisible,
       snowDepthOpacity,
       auroraVisible,
-      auroraOpacity,
-      auroraData,
       overlayOrder,
     }),
-    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, auroraVisible, auroraOpacity, auroraData, overlayOrder]
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, auroraVisible, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
@@ -631,6 +630,7 @@ export default function TacticalMap() {
       {sunlightVisible && <SunlightOverlay />}
       {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
+      {auroraVisible && <AuroraOverlay />}
       {windVisible && <WindOverlay />}
       <DataFreshness />
 
