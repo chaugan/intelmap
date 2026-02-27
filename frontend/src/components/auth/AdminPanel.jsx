@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
 import { t } from '../../lib/i18n.js';
 
 const API = '/api/admin';
@@ -792,7 +793,12 @@ function TimelapseAdminTab({ lang }) {
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => { fetchCameras(); }, []);
+  const mapRef = useMapStore((s) => s.mapRef);
+  const userCameras = useTimelapseStore((s) => s.cameras);
+  const subscribe = useTimelapseStore((s) => s.subscribe);
+  const fetchUserCameras = useTimelapseStore((s) => s.fetchCameras);
+
+  useEffect(() => { fetchCameras(); fetchUserCameras(); }, []);
 
   async function fetchCameras() {
     setLoading(true);
@@ -842,6 +848,29 @@ function TimelapseAdminTab({ lang }) {
     }
   }
 
+  async function addToMine(cam) {
+    try {
+      await subscribe(cam.cameraId, cam.name, cam.lat, cam.lon);
+      fetchUserCameras();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function zoomToCamera(cam) {
+    if (!mapRef || !cam.lat || !cam.lon) return;
+    mapRef.flyTo({
+      center: [cam.lon, cam.lat],
+      zoom: 14,
+      duration: 1500,
+    });
+  }
+
+  // Check if admin is subscribed to a camera
+  function isSubscribed(cameraId) {
+    return userCameras.some(c => c.cameraId === cameraId);
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">{lang === 'no' ? 'Laster...' : 'Loading...'}</p>;
 
   return (
@@ -886,6 +915,38 @@ function TimelapseAdminTab({ lang }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {/* Zoom to camera */}
+                  {cam.lat && cam.lon && (
+                    <button
+                      onClick={() => zoomToCamera(cam)}
+                      className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-cyan-400 transition-colors cursor-pointer"
+                      title={lang === 'no' ? 'Zoom til kamera' : 'Zoom to camera'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
+                  )}
+                  {/* Add to my recordings */}
+                  {!isSubscribed(cam.cameraId) ? (
+                    <button
+                      onClick={() => addToMine(cam)}
+                      className="px-2 py-1 rounded text-xs bg-emerald-800 hover:bg-emerald-700 text-white transition-colors cursor-pointer"
+                      title={lang === 'no' ? 'Legg til mine opptak' : 'Add to my recordings'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <span className="px-2 py-1 rounded text-xs bg-emerald-900/50 text-emerald-400" title={lang === 'no' ? 'Allerede i mine opptak' : 'Already in my recordings'}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                  {/* Protection toggle */}
                   <button
                     onClick={() => toggleProtection(cam.cameraId, cam.isProtected)}
                     className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
@@ -904,6 +965,7 @@ function TimelapseAdminTab({ lang }) {
                       ? (lang === 'no' ? 'Beskyttet' : 'Protected')
                       : (lang === 'no' ? 'Ubeskyttet' : 'Unprotected')}
                   </button>
+                  {/* Delete */}
                   <button
                     onClick={() => setDeleteConfirm(cam)}
                     className="px-2 py-1 rounded text-xs bg-red-800 hover:bg-red-700 text-white transition-colors"
