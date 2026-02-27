@@ -342,9 +342,8 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
             title={!auroraVisible ? (lang === 'no' ? 'Klikk for å aktivere nordlyslaget' : 'Click to enable aurora layer') : undefined}
           >
             <div className="flex justify-between items-center">
-              <span className="text-slate-400 text-xs flex items-center gap-1">
+              <span className="text-slate-400 text-xs">
                 {lang === 'no' ? 'Nordlys (Kp)' : 'Aurora (Kp)'}
-                {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
               </span>
               <span className={`text-xs font-mono ${auroraData.kp >= 5 ? 'text-green-400' : auroraData.kp >= 3 ? 'text-green-600' : 'text-slate-500'}`}>
                 {auroraData.kp?.toFixed(1) || '?'} ({auroraData.kpActivity?.[lang] || auroraData.kpActivity?.en || ''})
@@ -363,9 +362,8 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
             onClick={() => { if (!auroraVisible) toggleAurora(); }}
             title={!auroraVisible ? (lang === 'no' ? 'Klikk for å aktivere nordlyslaget' : 'Click to enable aurora layer') : undefined}
           >
-            <span className="text-slate-400 text-xs flex items-center gap-1">
+            <span className="text-slate-400 text-xs">
               {lang === 'no' ? 'Nordlys' : 'Aurora'}
-              {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
             </span>
             <span className="text-slate-500 text-xs font-mono">
               {lang === 'no' ? 'Utenfor prognoseområde' : 'Outside forecast area'}
