@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 
-export default function TimelineSlider({ camera, currentTime, duration, onSeek }) {
+export default function TimelineSlider({ camera, currentTime, duration, onSeek, onPause }) {
   const lang = useMapStore((s) => s.lang);
   const sliderRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -35,8 +35,10 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
 
   const handleMouseDown = useCallback((e) => {
     setIsDragging(true);
+    // Pause video when user clicks on timeline
+    if (onPause) onPause();
     handleInteraction(e.clientX);
-  }, [handleInteraction]);
+  }, [handleInteraction, onPause]);
 
   const handleMouseMove = useCallback((e) => {
     if (!sliderRef.current) return;

@@ -114,6 +114,11 @@ export default function TimelapsePlayer() {
     }
   }, []);
 
+  // Pause video (called when user interacts with timeline)
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+  }, [setIsPlaying]);
+
   // Save current frame
   const saveFrame = useCallback(async () => {
     if (!selectedCamera) return;
@@ -210,6 +215,7 @@ export default function TimelapsePlayer() {
           currentTime={currentTime}
           duration={duration}
           onSeek={handleSeek}
+          onPause={handlePause}
         />
       </div>
 
