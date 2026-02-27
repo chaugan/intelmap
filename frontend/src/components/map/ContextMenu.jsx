@@ -343,17 +343,17 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
           >
             <div className="flex justify-between items-center">
               <span className="text-slate-400 text-xs flex items-center gap-1">
-                {lang === 'no' ? 'Nordlys sannsynlighet' : 'Aurora probability'}
+                {lang === 'no' ? 'Nordlys (Kp)' : 'Aurora (Kp)'}
                 {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
               </span>
-              <span className={`text-xs font-mono ${auroraData.intensity > 30 ? 'text-green-400' : auroraData.intensity > 10 ? 'text-green-600' : 'text-slate-500'}`}>
-                {auroraData.intensity?.toFixed(0) || 0}%
+              <span className={`text-xs font-mono ${auroraData.kp >= 5 ? 'text-green-400' : auroraData.kp >= 3 ? 'text-green-600' : 'text-slate-500'}`}>
+                {auroraData.kp?.toFixed(1) || '?'} ({auroraData.kpActivity?.[lang] || auroraData.kpActivity?.en || ''})
               </span>
             </div>
             <div className="flex justify-between items-center mt-0.5">
-              <span className="text-slate-500 text-[10px]">{lang === 'no' ? 'Global Kp-indeks' : 'Global Kp index'}</span>
+              <span className="text-slate-500 text-[10px]">{lang === 'no' ? 'Lokal sannsynlighet' : 'Local probability'}</span>
               <span className="text-slate-400 text-[10px] font-mono">
-                {auroraData.kp?.toFixed(1) || '?'} ({auroraData.kpActivity?.[lang] || auroraData.kpActivity?.en || ''})
+                {auroraData.intensity?.toFixed(0) || 0}%
               </span>
             </div>
           </div>
