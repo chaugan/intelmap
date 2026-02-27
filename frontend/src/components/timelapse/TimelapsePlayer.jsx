@@ -126,29 +126,46 @@ export default function TimelapsePlayer() {
     setIsPlaying(false);
   }, [setIsPlaying]);
 
-  // Save current frame
-  const saveFrame = useCallback(async () => {
-    if (!selectedCamera) return;
+  // Save current frame (captures from video canvas, not server)
+  const saveFrame = useCallback(() => {
+    if (!selectedCamera || !videoRef.current) return;
 
-    // Get timestamp in local time for filename
-    const now = new Date();
-    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-    const url = getFrameUrl(selectedCamera.cameraId);
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error('Video not ready');
+      return;
+    }
 
-    try {
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch frame');
+    // Create canvas and draw current video frame
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const blob = await res.blob();
+    // Generate timestamp for filename based on video position
+    const videoTime = video.currentTime || 0;
+    const availableFrom = selectedCamera.availableFrom ? new Date(selectedCamera.availableFrom) : null;
+    let frameDate;
+    if (availableFrom && duration > 0) {
+      // Calculate actual timestamp of this frame
+      const msPerSecond = (new Date(selectedCamera.availableTo) - availableFrom) / duration;
+      frameDate = new Date(availableFrom.getTime() + videoTime * msPerSecond);
+    } else {
+      frameDate = new Date();
+    }
+    const timestamp = `${frameDate.getFullYear()}-${String(frameDate.getMonth() + 1).padStart(2, '0')}-${String(frameDate.getDate()).padStart(2, '0')}_${String(frameDate.getHours()).padStart(2, '0')}-${String(frameDate.getMinutes()).padStart(2, '0')}-${String(frameDate.getSeconds()).padStart(2, '0')}`;
+
+    // Download as JPEG
+    canvas.toBlob((blob) => {
+      if (!blob) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${selectedCamera.name || selectedCamera.cameraId}_${timestamp}.jpg`;
       a.click();
       URL.revokeObjectURL(a.href);
-    } catch (err) {
-      console.error('Failed to save frame:', err);
-    }
-  }, [selectedCamera, getFrameUrl]);
+    }, 'image/jpeg', 0.95);
+  }, [selectedCamera, duration]);
 
   if (!selectedCamera) {
     return (
