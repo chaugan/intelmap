@@ -55,11 +55,14 @@ async function fetchAuroraData() {
     // Filter: only visible aurora (intensity > 3) and Northern Hemisphere (lat > 50)
     if (intensity <= 3 || lat < 50) continue;
 
+    // NOAA OVATION uses 0-360 longitude, convert to -180 to 180
+    const normLon = lon > 180 ? lon - 360 : lon;
+
     features.push({
       type: 'Feature',
       geometry: {
         type: 'Point',
-        coordinates: [lon, lat],
+        coordinates: [normLon, lat],
       },
       properties: {
         intensity,
@@ -205,8 +208,10 @@ router.get('/grid', async (req, res) => {
 
     for (const [lon, lat, intensity] of coords) {
       if (lat < minLat || lat > maxLat) continue;
+      // NOAA OVATION uses 0-360 longitude, convert to -180 to 180
+      const normLon = lon > 180 ? lon - 360 : lon;
       const latIdx = Math.round((lat - minLat) / latStep);
-      const lonIdx = Math.round((lon - minLon) / lonStep);
+      const lonIdx = Math.round((normLon - minLon) / lonStep);
       if (latIdx >= 0 && latIdx < latSize && lonIdx >= 0 && lonIdx < lonSize) {
         grid[latIdx * lonSize + lonIdx] = intensity;
       }

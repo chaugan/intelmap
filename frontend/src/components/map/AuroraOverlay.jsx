@@ -56,12 +56,9 @@ export default function AuroraOverlay() {
         if (lat < b.south || lat > b.north) continue;
 
         const intensity = getAuroraIntensity(auroraGrid, lng, lat);
-        const effectiveIntensity = intensity === null ? 0 : intensity;
+        if (intensity === null || intensity < 2) continue;
 
-        // Always draw something in the aurora zone - use minimum intensity of 2 for visibility
-        const displayIntensity = Math.max(effectiveIntensity, 2);
-
-        const color = intensityToColor(displayIntensity);
+        const color = intensityToColor(intensity);
         const idx = (py * sw + px) * 4;
         pixels[idx] = color[0];
         pixels[idx + 1] = color[1];
