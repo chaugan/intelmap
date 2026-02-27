@@ -5,23 +5,33 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
   const lang = useMapStore((s) => s.lang);
   const sliderRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [hoverTime, setHoverTime] = useState(null);
+  const [hoverPercent, setHoverPercent] = useState(null);
   const [hoverX, setHoverX] = useState(0);
 
   // Calculate available time range from camera data
   const availableFrom = camera?.availableFrom ? new Date(camera.availableFrom) : null;
   const availableTo = camera?.availableTo ? new Date(camera.availableTo) : null;
+  const timeRangeMs = availableFrom && availableTo ? (availableTo - availableFrom) : 0;
 
-  // Handle click/drag on slider
+  // Use video duration if available, otherwise estimate from time range
+  // At 10fps playback, 1 frame per minute capture = 10fps * 60 = duration in seconds
+  const effectiveDuration = duration > 0 ? duration : (timeRangeMs / 60000 / 10); // rough estimate
+
+  // Handle click/drag on slider - allow even before video loads
   const handleInteraction = useCallback((clientX) => {
-    if (!sliderRef.current || duration <= 0) return;
+    if (!sliderRef.current) return;
+    if (effectiveDuration <= 0 && timeRangeMs <= 0) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percent = x / rect.width;
-    const newTime = percent * duration;
-    onSeek(newTime);
-  }, [duration, onSeek]);
+
+    // Only seek if we have actual video duration
+    if (duration > 0) {
+      const newTime = percent * duration;
+      onSeek(newTime);
+    }
+  }, [duration, effectiveDuration, timeRangeMs, onSeek]);
 
   const handleMouseDown = useCallback((e) => {
     setIsDragging(true);
@@ -36,9 +46,9 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
     const percent = Math.max(0, Math.min(x / rect.width, 1));
 
     setHoverX(x);
-    setHoverTime(percent * duration);
+    setHoverPercent(percent);
 
-    if (isDragging) {
+    if (isDragging && duration > 0) {
       handleInteraction(e.clientX);
     }
   }, [isDragging, duration, handleInteraction]);
@@ -48,7 +58,7 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
   }, []);
 
   const handleMouseLeave = useCallback(() => {
-    setHoverTime(null);
+    setHoverPercent(null);
     setIsDragging(false);
   }, []);
 
@@ -68,20 +78,27 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
     }
   }, [isDragging, handleMouseMove]);
 
-  const progress = duration > 0 ? (currentTime || 0) / duration : 0;
+  const progress = effectiveDuration > 0 ? (currentTime || 0) / effectiveDuration : 0;
 
-  // Generate day markers for 7-day range
+  // Calculate hover date/time based on position in time range
+  const getDateAtPercent = (percent) => {
+    if (!availableFrom || !availableTo) return null;
+    const timeAtPercent = availableFrom.getTime() + (percent * timeRangeMs);
+    return new Date(timeAtPercent);
+  };
+
+  // Generate day markers for time range
   const dayMarkers = [];
-  if (availableFrom && availableTo) {
+  if (availableFrom && availableTo && timeRangeMs > 0) {
     const dayMs = 24 * 60 * 60 * 1000;
-    const rangeDays = Math.ceil((availableTo - availableFrom) / dayMs);
+    const rangeDays = Math.ceil(timeRangeMs / dayMs);
 
     for (let i = 0; i <= Math.min(rangeDays, 7); i++) {
       const date = new Date(availableFrom.getTime() + i * dayMs);
       date.setHours(0, 0, 0, 0);
 
       if (date >= availableFrom && date <= availableTo) {
-        const percent = (date - availableFrom) / (availableTo - availableFrom);
+        const percent = (date - availableFrom) / timeRangeMs;
         dayMarkers.push({
           percent,
           label: date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-US', {
@@ -93,8 +110,42 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
     }
   }
 
+  // Format date/time for tooltip
+  const formatDateTime = (date) => {
+    if (!date) return '--';
+    return date.toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Human-friendly duration
+  const formatDurationHuman = (ms) => {
+    if (!ms || ms <= 0) return '--';
+    const totalMinutes = Math.floor(ms / 60000);
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} ${lang === 'no' ? (days === 1 ? 'dag' : 'dager') : (days === 1 ? 'day' : 'days')}`);
+    if (hours > 0) parts.push(`${hours} ${lang === 'no' ? (hours === 1 ? 'time' : 'timer') : (hours === 1 ? 'hour' : 'hours')}`);
+    if (minutes > 0 || parts.length === 0) parts.push(`${minutes} min`);
+
+    return parts.join(', ');
+  };
+
   return (
     <div className="space-y-2">
+      {/* Duration info */}
+      {timeRangeMs > 0 && (
+        <div className="text-center text-xs text-cyan-400 mb-1">
+          {lang === 'no' ? 'Varighet' : 'Duration'}: {formatDurationHuman(timeRangeMs)}
+        </div>
+      )}
+
       {/* Timeline bar */}
       <div
         ref={sliderRef}
@@ -124,13 +175,13 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
           style={{ left: `calc(${progress * 100}% - 8px)` }}
         />
 
-        {/* Hover tooltip */}
-        {hoverTime !== null && !isDragging && (
+        {/* Hover tooltip - show date/time */}
+        {hoverPercent !== null && !isDragging && (
           <div
-            className="absolute -top-8 transform -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-xs rounded shadow-lg whitespace-nowrap"
+            className="absolute -top-10 transform -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-10"
             style={{ left: hoverX }}
           >
-            {formatTime(hoverTime)}
+            {formatDateTime(getDateAtPercent(hoverPercent))}
           </div>
         )}
       </div>
@@ -155,37 +206,9 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek }
 
       {/* Time range info */}
       <div className="flex justify-between text-xs text-slate-500">
-        <span>
-          {availableFrom
-            ? availableFrom.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : '--'}
-        </span>
-        <span>
-          {availableTo
-            ? availableTo.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : '--'}
-        </span>
+        <span>{formatDateTime(availableFrom)}</span>
+        <span>{formatDateTime(availableTo)}</span>
       </div>
     </div>
   );
-}
-
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-  return `${m}:${String(s).padStart(2, '0')}`;
 }

@@ -214,6 +214,40 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
     });
   };
 
+  const formatDateTime = (iso) => {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    return d.toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Human-friendly duration
+  const formatDuration = () => {
+    if (!camera.availableFrom || !camera.availableTo) return null;
+    const from = new Date(camera.availableFrom);
+    const to = new Date(camera.availableTo);
+    const ms = to - from;
+    if (ms <= 0) return null;
+
+    const totalMinutes = Math.floor(ms / 60000);
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}${lang === 'no' ? 'd' : 'd'}`);
+    if (hours > 0) parts.push(`${hours}${lang === 'no' ? 't' : 'h'}`);
+    if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+
+    return parts.join(' ');
+  };
+
+  const duration = formatDuration();
+
   return (
     <div
       className={`relative bg-slate-900 rounded-lg overflow-hidden border transition-all cursor-pointer ${
@@ -269,24 +303,37 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
 
       {/* Info */}
       <div className="p-2">
-        <h3 className="text-sm font-medium text-white truncate" title={camera.name}>
-          {camera.name || camera.cameraId}
-        </h3>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-xs text-slate-400">
-            {camera.lastFrameAt ? formatTime(camera.lastFrameAt) : '--'}
-          </span>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-white truncate flex-1" title={camera.name}>
+            {camera.name || camera.cameraId}
+          </h3>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onUnsubscribe();
             }}
-            className="text-xs text-red-400 hover:text-red-300 px-1"
+            className="text-xs text-red-400 hover:text-red-300 px-1 ml-1"
             title={lang === 'no' ? 'Avslutt abonnement' : 'Unsubscribe'}
           >
             {'\u2715'}
           </button>
         </div>
+        {/* Time range info */}
+        {camera.availableFrom && camera.availableTo && (
+          <div className="text-[10px] text-slate-500 mt-1">
+            <span>{formatDateTime(camera.availableFrom)}</span>
+            <span className="mx-1">-</span>
+            <span>{formatDateTime(camera.availableTo)}</span>
+          </div>
+        )}
+        {/* Duration badge */}
+        {duration && (
+          <div className="mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 bg-cyan-900/50 text-cyan-300 rounded">
+              {duration}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

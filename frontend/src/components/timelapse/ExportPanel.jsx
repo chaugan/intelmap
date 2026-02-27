@@ -73,6 +73,29 @@ export default function ExportPanel() {
     });
   };
 
+  // Human-friendly duration
+  const formatDurationHuman = (fromIso, toIso) => {
+    if (!fromIso || !toIso) return null;
+    const from = new Date(fromIso);
+    const to = new Date(toIso);
+    const ms = to - from;
+    if (ms <= 0) return null;
+
+    const totalMinutes = Math.floor(ms / 60000);
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} ${lang === 'no' ? (days === 1 ? 'dag' : 'dager') : (days === 1 ? 'day' : 'days')}`);
+    if (hours > 0) parts.push(`${hours} ${lang === 'no' ? (hours === 1 ? 'time' : 'timer') : (hours === 1 ? 'hour' : 'hours')}`);
+    if (minutes > 0 || parts.length === 0) parts.push(`${minutes} min`);
+
+    return parts.join(', ');
+  };
+
+  const selectedCamera = cameras.find((c) => c.cameraId === selectedCameraId);
+
   const statusColors = {
     pending: 'bg-yellow-600',
     processing: 'bg-blue-600',
@@ -124,6 +147,21 @@ export default function ExportPanel() {
                 ))}
               </select>
             </div>
+
+            {/* Show selected camera's available range */}
+            {selectedCamera && selectedCamera.availableFrom && selectedCamera.availableTo && (
+              <div className="bg-slate-800 rounded p-2 text-xs">
+                <div className="text-slate-400 mb-1">
+                  {lang === 'no' ? 'Tilgjengelig periode' : 'Available range'}:
+                </div>
+                <div className="text-white">
+                  {formatDate(selectedCamera.availableFrom)} - {formatDate(selectedCamera.availableTo)}
+                </div>
+                <div className="text-cyan-400 mt-1">
+                  {lang === 'no' ? 'Varighet' : 'Duration'}: {formatDurationHuman(selectedCamera.availableFrom, selectedCamera.availableTo)}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -214,6 +252,11 @@ export default function ExportPanel() {
                   </div>
                   <div className="text-xs text-slate-400">
                     {formatDate(exp.startTime)} - {formatDate(exp.endTime)}
+                    {formatDurationHuman(exp.startTime, exp.endTime) && (
+                      <span className="text-cyan-400 ml-2">
+                        ({formatDurationHuman(exp.startTime, exp.endTime)})
+                      </span>
+                    )}
                   </div>
                   {exp.fileSize && (
                     <div className="text-xs text-slate-500">{formatFileSize(exp.fileSize)}</div>
