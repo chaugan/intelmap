@@ -27,15 +27,23 @@ export default function AuroraOverlay() {
     const imageData = ctx.createImageData(sw, sh);
     const pixels = imageData.data;
 
+    const { bounds: b } = auroraGrid;
+
     for (let py = 0; py < sh; py++) {
       for (let px = 0; px < sw; px++) {
         const screenX = px * scale;
         const screenY = py * scale;
         const lngLat = map.transform.screenPointToLocation({ x: screenX, y: screenY });
-        const intensity = getAuroraIntensity(auroraGrid, lngLat.lng, lngLat.lat);
-        if (intensity === null || intensity < 3) continue;
 
-        const color = intensityToColor(intensity);
+        // Check if within aurora latitude zone (50-90°N)
+        if (lngLat.lat < b.south || lngLat.lat > b.north) continue;
+
+        const intensity = getAuroraIntensity(auroraGrid, lngLat.lng, lngLat.lat);
+        // Show faint base color for very low intensity areas (smooth edges)
+        const effectiveIntensity = intensity === null ? 0 : intensity;
+        if (effectiveIntensity < 1) continue; // Only skip if essentially zero
+
+        const color = intensityToColor(effectiveIntensity);
         const idx = (py * sw + px) * 4;
         pixels[idx] = color[0];
         pixels[idx + 1] = color[1];
@@ -85,14 +93,23 @@ function getAuroraIntensity(grid, lon, lat) {
   const x = ((normLon - b.west) / (b.east - b.west)) * (gridSize.lon - 1);
   const y = ((lat - b.south) / (b.north - b.south)) * (gridSize.lat - 1);
 
+  // Clamp to valid grid range for interpolation
   const xi = Math.floor(x), yi = Math.floor(y);
-  if (xi < 0 || xi >= gridSize.lon - 1 || yi < 0 || yi >= gridSize.lat - 1) return null;
 
-  const fx = x - xi, fy = y - yi;
-  const i00 = data[yi * gridSize.lon + xi];
-  const i10 = data[yi * gridSize.lon + xi + 1];
-  const i01 = data[(yi + 1) * gridSize.lon + xi];
-  const i11 = data[(yi + 1) * gridSize.lon + xi + 1];
+  // Handle edge cases by clamping instead of returning null
+  const xi0 = Math.max(0, Math.min(xi, gridSize.lon - 2));
+  const yi0 = Math.max(0, Math.min(yi, gridSize.lat - 2));
+  const xi1 = xi0 + 1;
+  const yi1 = yi0 + 1;
+
+  // Fractional parts (clamped for edge pixels)
+  const fx = Math.max(0, Math.min(1, x - xi0));
+  const fy = Math.max(0, Math.min(1, y - yi0));
+
+  const i00 = data[yi0 * gridSize.lon + xi0] || 0;
+  const i10 = data[yi0 * gridSize.lon + xi1] || 0;
+  const i01 = data[yi1 * gridSize.lon + xi0] || 0;
+  const i11 = data[yi1 * gridSize.lon + xi1] || 0;
 
   return i00 * (1 - fx) * (1 - fy)
        + i10 * fx * (1 - fy)
@@ -100,21 +117,26 @@ function getAuroraIntensity(grid, lon, lat) {
        + i11 * fx * fy;
 }
 
-// Color ramp: transparent -> dark green -> #00D525
+// Color ramp: very faint -> dark green -> bright #00D525
 function intensityToColor(intensity) {
-  const norm = Math.min(intensity / 25, 1.0);
+  // Ensure minimum visibility for any non-zero intensity
+  const norm = Math.min(Math.max(intensity, 0) / 25, 1.0);
 
-  if (norm < 0.2) {
-    // Transparent to dark green
-    const t = norm / 0.2;
-    return [0, Math.round(50 * t), Math.round(10 * t), Math.round(80 * t)];
-  } else if (norm < 0.5) {
+  if (norm < 0.12) {
+    // Very low: faint dark green base (ensures smooth edges)
+    const t = norm / 0.12;
+    return [0, Math.round(30 + 20 * t), Math.round(15 * t), Math.round(30 + 50 * t)];
+  } else if (norm < 0.3) {
+    // Low to dark green
+    const t = (norm - 0.12) / 0.18;
+    return [0, Math.round(50 + 50 * t), Math.round(15 + 10 * t), Math.round(80 + 70 * t)];
+  } else if (norm < 0.6) {
     // Dark green to medium green
-    const t = (norm - 0.2) / 0.3;
-    return [0, Math.round(50 + 100 * t), Math.round(10 + 10 * t), Math.round(80 + 100 * t)];
+    const t = (norm - 0.3) / 0.3;
+    return [0, Math.round(100 + 80 * t), Math.round(25 + 10 * t), Math.round(150 + 50 * t)];
   } else {
     // Medium green to bright #00D525
-    const t = (norm - 0.5) / 0.5;
-    return [0, Math.round(150 + 63 * t), Math.round(20 + 17 * t), Math.round(180 + 60 * t)];
+    const t = (norm - 0.6) / 0.4;
+    return [0, Math.round(180 + 33 * t), Math.round(35 + 2 * t), Math.round(200 + 40 * t)];
   }
 }
