@@ -7,7 +7,7 @@ import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { socket } from '../../lib/socket.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
-export default function NatoMarkerLayer() {
+export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) {
   const state = useTacticalStore();
   const lang = useMapStore((s) => s.lang);
   const dragRef = useRef(null);
@@ -34,6 +34,33 @@ export default function NatoMarkerLayer() {
     const projectId = marker._projectId || marker.projectId;
     socket.emit('client:marker:delete', { projectId, id: marker.id });
   }, []);
+
+  // Local marker handlers (for non-logged-in users)
+  const onLocalDragEnd = useCallback((evt, marker) => {
+    if (!setLocalMarkers) return;
+    const { lng, lat } = evt.lngLat;
+    setLocalMarkers((prev) => prev.map((m) => m.id === marker.id ? { ...m, lat, lon: lng } : m));
+    dragEndTimeRef.current = Date.now();
+    setTimeout(() => { dragRef.current = null; }, 300);
+  }, [setLocalMarkers]);
+
+  const onLocalDelete = useCallback((marker) => {
+    if (!setLocalMarkers) return;
+    setLocalMarkers((prev) => prev.filter((m) => m.id !== marker.id));
+  }, [setLocalMarkers]);
+
+  const onLocalClickLabel = useCallback((marker) => {
+    if (Date.now() - dragEndTimeRef.current < 400) return;
+    if (!setLocalMarkers) return;
+    const current = marker.customLabel || '';
+    const label = prompt(
+      lang === 'no' ? 'Skriv inn etikett for symbol:' : 'Enter label for symbol:',
+      current
+    );
+    if (label !== null) {
+      setLocalMarkers((prev) => prev.map((m) => m.id === marker.id ? { ...m, customLabel: label } : m));
+    }
+  }, [lang, setLocalMarkers]);
 
   const onClickLabel = useCallback((marker) => {
     if (Date.now() - dragEndTimeRef.current < 400) return;
@@ -109,6 +136,57 @@ export default function NatoMarkerLayer() {
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center hover:bg-red-500"
+              >
+                x
+              </button>
+            </div>
+          </Marker>
+        );
+      })}
+      {/* Local markers (non-logged-in users) */}
+      {localMarkers.map((marker) => {
+        const sym = generateSymbolSvg(marker.sidc, {
+          designation: marker.designation,
+          higherFormation: marker.higherFormation,
+          additionalInfo: marker.additionalInfo,
+        });
+
+        const affiliation = getAffiliation(marker.sidc);
+        const symName = getSymbolName(marker.sidc, lang);
+        const affLabel = affiliationLabels[affiliation]?.[lang] || affiliationLabels[affiliation]?.en || affiliation;
+        const tooltip = marker.designation
+          ? `${marker.designation} — ${symName} (${affLabel})`
+          : `${symName} (${affLabel})`;
+
+        return (
+          <Marker
+            key={marker.id}
+            longitude={marker.lon}
+            latitude={marker.lat}
+            anchor="center"
+            draggable
+            onDragStart={() => onDragStart(marker.id)}
+            onDragEnd={(e) => onLocalDragEnd(e, marker)}
+          >
+            <div
+              className="nato-marker group relative cursor-pointer flex flex-col items-center"
+              title={tooltip}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!dragRef.current) onLocalClickLabel(marker);
+              }}
+            >
+              <div dangerouslySetInnerHTML={{ __html: sym.svg }} />
+              {/* Local indicator badge */}
+              <div className="absolute -top-1 -left-1 w-3 h-3 bg-amber-500 rounded-full border border-white" title={lang === 'no' ? 'Ikke lagret' : 'Not saved'} />
+              {marker.customLabel && (
+                <div className="text-[10px] text-center font-semibold text-white bg-slate-900/80 rounded px-1 -mt-1 whitespace-nowrap">
+                  {marker.customLabel}
+                </div>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); onLocalDelete(marker); }}
                 className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center hover:bg-red-500"
               >
                 x

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings } from '../../stores/useTacticalStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { socket } from '../../lib/socket.js';
 import { DRAW_COLORS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
@@ -36,6 +37,8 @@ export default function DrawingLayer() {
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
   const tacticalState = useTacticalStore();
   const drawings = getAllVisibleDrawings(tacticalState);
+  const user = useAuthStore((s) => s.user);
+  const [localDrawings, setLocalDrawings] = useState([]);
   const [activeMode, setActiveMode] = useState(null);
   const [drawColor, setDrawColor] = useState('#3b82f6');
   const [drawPoints, setDrawPoints] = useState([]);
@@ -94,21 +97,40 @@ export default function DrawingLayer() {
     const currentState = useTacticalStore.getState();
     const currentProjectId = currentState.activeProjectId;
     const currentLayerId = currentState.activeLayerId;
-    if (geometry && currentProjectId) {
-      socket.emit('client:drawing:add', {
-        projectId: currentProjectId,
-        drawingType,
-        geometry,
-        layerId: currentLayerId || null,
-        properties: {
-          color,
-          lineType: mode === 'arrow' ? 'arrow' : 'solid',
-          fillOpacity: 0.15,
-          label: label || undefined,
-        },
-        source: 'user',
-        createdBy: socket.id,
-      });
+    const currentUser = useAuthStore.getState().user;
+
+    if (geometry) {
+      if (currentProjectId) {
+        // Logged in with active project - save to server
+        socket.emit('client:drawing:add', {
+          projectId: currentProjectId,
+          drawingType,
+          geometry,
+          layerId: currentLayerId || null,
+          properties: {
+            color,
+            lineType: mode === 'arrow' ? 'arrow' : 'solid',
+            fillOpacity: 0.15,
+            label: label || undefined,
+          },
+          source: 'user',
+          createdBy: socket.id,
+        });
+      } else if (!currentUser) {
+        // Not logged in - add to local drawings (not saved)
+        setLocalDrawings((prev) => [...prev, {
+          id: `local-${Date.now()}`,
+          drawingType,
+          geometry,
+          properties: {
+            color,
+            lineType: mode === 'arrow' ? 'arrow' : 'solid',
+            fillOpacity: 0.15,
+            label: label || undefined,
+          },
+          _local: true,
+        }]);
+      }
     }
 
     setDrawPoints([]);
@@ -128,16 +150,29 @@ export default function DrawingLayer() {
         const textState = useTacticalStore.getState();
         const currentPid = textState.activeProjectId;
         const currentLid = textState.activeLayerId;
-        if (text && currentPid) {
-          socket.emit('client:drawing:add', {
-            projectId: currentPid,
-            drawingType: 'text',
-            geometry: { type: 'Point', coordinates: [lng, lat] },
-            layerId: currentLid || null,
-            properties: { text, color: drawColorRef.current },
-            source: 'user',
-            createdBy: socket.id,
-          });
+        const currentUser = useAuthStore.getState().user;
+        if (text) {
+          if (currentPid) {
+            // Logged in with active project - save to server
+            socket.emit('client:drawing:add', {
+              projectId: currentPid,
+              drawingType: 'text',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              layerId: currentLid || null,
+              properties: { text, color: drawColorRef.current },
+              source: 'user',
+              createdBy: socket.id,
+            });
+          } else if (!currentUser) {
+            // Not logged in - add to local drawings
+            setLocalDrawings((prev) => [...prev, {
+              id: `local-${Date.now()}`,
+              drawingType: 'text',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              properties: { text, color: drawColorRef.current },
+              _local: true,
+            }]);
+          }
         }
         setActiveMode(null);
         return;
@@ -366,12 +401,28 @@ export default function DrawingLayer() {
           </svg>
         </button>
 
-        {/* Delete all button */}
+        {/* Delete all button (server drawings) */}
         {drawings.length > 0 && (
           <button
             onClick={deleteAll}
             className="w-10 h-10 flex items-center justify-center rounded bg-slate-800 text-red-400 hover:bg-red-800 hover:text-white text-sm font-bold transition-colors shadow-lg"
             title={t('draw.deleteAll', lang)}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        )}
+
+        {/* Clear local drawings button */}
+        {localDrawings.length > 0 && (
+          <button
+            onClick={() => {
+              const ok = confirm(lang === 'no' ? 'Slett alle lokale tegninger?' : 'Delete all local drawings?');
+              if (ok) setLocalDrawings([]);
+            }}
+            className="w-10 h-10 flex items-center justify-center rounded bg-amber-700 text-white hover:bg-amber-600 text-sm font-bold transition-colors shadow-lg"
+            title={lang === 'no' ? 'Slett lokale tegninger' : 'Clear local drawings'}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -447,6 +498,20 @@ export default function DrawingLayer() {
             }
           </div>
         )}
+
+        {/* Not logged in warning */}
+        {!user && !activeProjectId && (
+          <div className="bg-amber-600/90 rounded px-2 py-1 mt-2 text-[10px] text-white max-w-[120px] text-center">
+            {lang === 'no' ? 'Ikke lagret (ikke innlogget)' : 'Not saved (not logged in)'}
+          </div>
+        )}
+
+        {/* Local drawings count */}
+        {localDrawings.length > 0 && (
+          <div className="text-[10px] text-center text-amber-400 mt-1">
+            {localDrawings.length} {lang === 'no' ? 'lokal' : 'local'}
+          </div>
+        )}
       </div>}
 
       {/* Drawing preview — SVG overlay on top of the map */}
@@ -519,6 +584,103 @@ export default function DrawingLayer() {
             strokeWidth="2"
             strokeDasharray="6 3"
           />
+        </svg>
+      )}
+
+      {/* Local drawings SVG overlay (not saved - non-logged-in users) */}
+      {mapRefValue && localDrawings.length > 0 && (
+        <svg className="absolute inset-0 z-[5]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
+          {localDrawings.map(d => {
+            const color = d.properties?.color || '#3b82f6';
+            const key = d.id;
+
+            const projectCoord = (coord) => {
+              try { const p = mapRefValue.project(coord); return { x: p.x, y: p.y }; }
+              catch { return null; }
+            };
+
+            const projectCoords = (coords) => coords.map(c => projectCoord(c)).filter(Boolean);
+
+            const handleDelete = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setLocalDrawings((prev) => prev.filter((ld) => ld.id !== d.id));
+            };
+
+            if (d.geometry.type === 'LineString') {
+              const pts = projectCoords(d.geometry.coordinates);
+              if (pts.length < 2) return null;
+              const midPt = pts[Math.floor(pts.length / 2)];
+              return (
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                  {/* Local indicator dot */}
+                  <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  {/* Invisible wider stroke for easier clicking */}
+                  <polyline
+                    points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth="12"
+                  />
+                  <polyline
+                    points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="3"
+                    strokeDasharray={d.properties?.lineType === 'dashed' ? '8 4' : 'none'}
+                  />
+                  {d.properties?.label && (
+                    <text x={midPt.x} y={midPt.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
+                      stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
+                  )}
+                </g>
+              );
+            }
+
+            if (d.geometry.type === 'Polygon') {
+              const ring = d.geometry.coordinates[0];
+              const pts = projectCoords(ring);
+              if (pts.length < 3) return null;
+              const centroid = {
+                x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+                y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+              };
+              return (
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                  {/* Local indicator dot */}
+                  <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  <polygon
+                    points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill={color}
+                    fillOpacity={d.properties?.fillOpacity ?? 0.15}
+                    stroke={color}
+                    strokeWidth="2"
+                  />
+                  {d.properties?.label && (
+                    <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="central"
+                      fill="#ffffff" fontSize="16" fontWeight="700"
+                      stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
+                  )}
+                </g>
+              );
+            }
+
+            if (d.geometry.type === 'Point' && d.drawingType === 'text') {
+              const pt = projectCoord(d.geometry.coordinates);
+              if (!pt) return null;
+              return (
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                  {/* Local indicator dot */}
+                  <circle cx={pt.x - 10} cy={pt.y - 10} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
+                    fill="#ffffff" fontSize="18" fontWeight="700"
+                    stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>
+                </g>
+              );
+            }
+
+            return null;
+          })}
         </svg>
       )}
     </>

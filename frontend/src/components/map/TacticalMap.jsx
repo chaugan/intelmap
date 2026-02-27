@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import Map from 'react-map-gl/maplibre';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins } from '../../stores/useTacticalStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { buildMapStyle } from '../../lib/map-styles.js';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
@@ -64,6 +65,10 @@ export default function TacticalMap() {
   const visibleDrawings = getAllVisibleDrawings(tacticalState);
   const visiblePins = getAllVisiblePins(tacticalState);
   const contextPins = visiblePins.filter(p => p.pinType === 'context');
+
+  // Auth state for local-only markers (non-logged-in users)
+  const user = useAuthStore((s) => s.user);
+  const [localMarkers, setLocalMarkers] = useState([]);
 
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
   const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
@@ -138,20 +143,38 @@ export default function TacticalMap() {
   const onClick = useCallback((evt) => {
     setContextMenus((prev) => prev.filter((m) => m.pinned));
 
-    if (placementMode && activeProjectId) {
+    if (placementMode) {
       const { lng, lat } = evt.lngLat;
-      socket.emit('client:marker:add', {
-        projectId: activeProjectId,
-        sidc: placementMode.sidc,
-        lat,
-        lon: lng,
-        designation: placementMode.designation || '',
-        higherFormation: '',
-        additionalInfo: '',
-        layerId: placementMode.layerId || activeLayerId || null,
-        source: 'user',
-        createdBy: socket.id,
-      });
+
+      if (activeProjectId) {
+        // Logged in with active project - save to server
+        socket.emit('client:marker:add', {
+          projectId: activeProjectId,
+          sidc: placementMode.sidc,
+          lat,
+          lon: lng,
+          designation: placementMode.designation || '',
+          higherFormation: '',
+          additionalInfo: '',
+          layerId: placementMode.layerId || activeLayerId || null,
+          source: 'user',
+          createdBy: socket.id,
+        });
+      } else if (!user) {
+        // Not logged in - add to local markers (not saved)
+        setLocalMarkers((prev) => [...prev, {
+          id: `local-${Date.now()}`,
+          sidc: placementMode.sidc,
+          lat,
+          lon: lng,
+          designation: placementMode.designation || '',
+          higherFormation: '',
+          additionalInfo: '',
+          _local: true,
+        }]);
+      }
+      // If logged in but no active project, placement is ignored (user should select a project)
+
       setPlacementMode(null);
       return;
     }
@@ -440,7 +463,7 @@ export default function TacticalMap() {
         preserveDrawingBuffer={true}
         attributionControl={false}
       >
-        <NatoMarkerLayer />
+        <NatoMarkerLayer localMarkers={localMarkers} setLocalMarkers={setLocalMarkers} />
         {webcamsVisible && <WebcamLayer />}
       </Map>
 
@@ -708,11 +731,19 @@ export default function TacticalMap() {
         </DraggablePopup>
       ))}
       {placementMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded shadow-lg z-10 flex items-center gap-3">
-          <span>{activeProjectId ? t('symbols.clickMap', lang) : (lang === 'no' ? 'Velg et aktivt prosjekt først' : 'Select an active project first')}</span>
+        <div className={`absolute top-4 left-1/2 -translate-x-1/2 text-white px-4 py-2 rounded shadow-lg z-10 flex items-center gap-3 ${
+          !user && !activeProjectId ? 'bg-amber-600' : 'bg-emerald-600'
+        }`}>
+          <span>
+            {activeProjectId
+              ? t('symbols.clickMap', lang)
+              : !user
+                ? (lang === 'no' ? 'Klikk for å plassere (ikke lagret - ikke innlogget)' : 'Click to place (not saved - not logged in)')
+                : (lang === 'no' ? 'Velg et aktivt prosjekt først' : 'Select an active project first')}
+          </span>
           <button
             onClick={() => setPlacementMode(null)}
-            className="bg-emerald-800 hover:bg-emerald-700 px-2 py-1 rounded text-sm"
+            className={`px-2 py-1 rounded text-sm ${!user && !activeProjectId ? 'bg-amber-800 hover:bg-amber-700' : 'bg-emerald-800 hover:bg-emerald-700'}`}
           >
             {t('symbols.cancel', lang)}
           </button>
