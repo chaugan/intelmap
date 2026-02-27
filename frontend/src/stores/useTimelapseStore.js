@@ -16,6 +16,9 @@ export const useTimelapseStore = create((set, get) => ({
   // All currently recording camera IDs (for map markers)
   recordingCameraIds: [],
 
+  // Show only user's timelapses on map (vs all recording)
+  showOnlyMine: JSON.parse(localStorage.getItem('timelapseShowOnlyMine') ?? 'true'),
+
   // Currently selected camera for player
   selectedCamera: null,
 
@@ -46,6 +49,10 @@ export const useTimelapseStore = create((set, get) => ({
   setDrawerWidth: (width) => {
     localStorage.setItem('timelapseDrawerWidth', String(width));
     set({ drawerWidth: width });
+  },
+  setShowOnlyMine: (value) => {
+    localStorage.setItem('timelapseShowOnlyMine', JSON.stringify(value));
+    set({ showOnlyMine: value });
   },
   setActiveTab: (tab) => set({ activeTab: tab }),
 

@@ -34,18 +34,29 @@ export default function WebcamLayer() {
   const user = useAuthStore((s) => s.user);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
   const recordingCameraIdsList = useTimelapseStore((s) => s.recordingCameraIds);
+  const userCameras = useTimelapseStore((s) => s.cameras);
+  const showOnlyMine = useTimelapseStore((s) => s.showOnlyMine);
   const fetchRecordingCameras = useTimelapseStore((s) => s.fetchRecordingCameras);
+  const fetchUserCameras = useTimelapseStore((s) => s.fetchCameras);
+
+  // Determine which cameras to show as red based on filter setting
   const recordingCameraIds = useMemo(() => {
     if (!canTimelapse) return new Set();
+    if (showOnlyMine) {
+      // Only show user's subscribed cameras that are capturing as red
+      return new Set(userCameras.filter(c => c.isCapturing).map(c => c.cameraId));
+    }
+    // Show all recording cameras as red
     return new Set(recordingCameraIdsList);
-  }, [recordingCameraIdsList, canTimelapse]);
+  }, [recordingCameraIdsList, userCameras, showOnlyMine, canTimelapse]);
 
-  // Fetch all recording cameras on mount if user has access
+  // Fetch cameras on mount if user has access
   useEffect(() => {
     if (canTimelapse) {
       fetchRecordingCameras();
+      fetchUserCameras();
     }
-  }, [canTimelapse, fetchRecordingCameras]);
+  }, [canTimelapse, fetchRecordingCameras, fetchUserCameras]);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
