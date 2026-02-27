@@ -18,12 +18,21 @@ export default function ExportPanel() {
   const [endDate, setEndDate] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Set default dates (last 24 hours)
+  // Set default dates (last 24 hours) in local time
   useEffect(() => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    setEndDate(now.toISOString().slice(0, 16));
-    setStartDate(yesterday.toISOString().slice(0, 16));
+    // Format as local datetime string for datetime-local input
+    const toLocalDatetime = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    setEndDate(toLocalDatetime(now));
+    setStartDate(toLocalDatetime(yesterday));
   }, []);
 
   // Refresh exports periodically while any are processing

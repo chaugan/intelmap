@@ -118,8 +118,9 @@ export default function TimelapsePlayer() {
   const saveFrame = useCallback(async () => {
     if (!selectedCamera) return;
 
-    // Get the current frame timestamp (approximate based on video time)
-    const timestamp = new Date().toISOString();
+    // Get timestamp in local time for filename
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
     const url = getFrameUrl(selectedCamera.cameraId);
 
     try {
@@ -129,7 +130,7 @@ export default function TimelapsePlayer() {
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${selectedCamera.name || selectedCamera.cameraId}_${timestamp.replace(/[:.]/g, '-')}.jpg`;
+      a.download = `${selectedCamera.name || selectedCamera.cameraId}_${timestamp}.jpg`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (err) {
