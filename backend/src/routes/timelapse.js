@@ -20,14 +20,27 @@ function requireTimelapseAccess(req, res, next) {
 
 // --- User endpoints ---
 
-// Get user's subscribed cameras
+// Get user's subscribed cameras (with extra info)
 router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
-    const subs = captureService.getUserSubscriptions(req.user.id);
+    const db = getDb();
+    const isAdmin = req.user.role === 'admin';
+
+    // Get user's subscriptions with camera info
+    const subs = db.prepare(`
+      SELECT s.*, c.name, c.is_capturing, c.is_protected, c.subscriber_count, c.last_frame_at, c.available_from, c.available_to
+      FROM timelapse_subscriptions s
+      JOIN timelapse_cameras c ON s.camera_id = c.camera_id
+      WHERE s.user_id = ? AND s.is_active = 1
+      ORDER BY s.created_at DESC
+    `).all(req.user.id);
+
     res.json(subs.map(s => ({
       cameraId: s.camera_id,
       name: s.name,
       isCapturing: !!s.is_capturing,
+      isProtected: !!s.is_protected,
+      subscriberCount: s.subscriber_count,
       lastFrameAt: s.last_frame_at,
       availableFrom: s.available_from,
       availableTo: s.available_to,
@@ -50,10 +63,91 @@ router.post('/subscribe/:cameraId', requireAuth, requireTimelapseAccess, async (
   }
 });
 
+// Check if user can unsubscribe (returns warning info)
+router.get('/subscribe/:cameraId/check', requireAuth, requireTimelapseAccess, (req, res) => {
+  try {
+    const { cameraId } = req.params;
+    const db = getDb();
+    const isAdmin = req.user.role === 'admin';
+
+    // Get camera info
+    const camera = db.prepare('SELECT * FROM timelapse_cameras WHERE camera_id = ?').get(cameraId);
+    if (!camera) {
+      return res.json({ canUnsubscribe: true, otherSubscribers: 0, isProtected: false, willStopCapture: false });
+    }
+
+    // Count other active subscribers (excluding current user)
+    const otherSubscribers = db.prepare(`
+      SELECT COUNT(*) as c FROM timelapse_subscriptions
+      WHERE camera_id = ? AND is_active = 1 AND user_id != ?
+    `).get(cameraId, req.user.id).c;
+
+    const isProtected = !!camera.is_protected;
+    const willStopCapture = otherSubscribers === 0 && !isProtected;
+
+    // Non-admin users can't stop capture if others are subscribed
+    if (!isAdmin && otherSubscribers > 0) {
+      return res.json({
+        canUnsubscribe: false,
+        error: 'Other users are subscribed to this camera',
+        otherSubscribers,
+        isProtected,
+        willStopCapture: false,
+      });
+    }
+
+    // Non-admin users can't unsubscribe from protected cameras if it would stop capture
+    if (!isAdmin && isProtected && otherSubscribers === 0) {
+      return res.json({
+        canUnsubscribe: false,
+        error: 'This camera is protected by admin',
+        otherSubscribers,
+        isProtected,
+        willStopCapture: false,
+      });
+    }
+
+    // Admins can always unsubscribe but get warnings
+    res.json({
+      canUnsubscribe: true,
+      otherSubscribers,
+      isProtected,
+      willStopCapture,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Unsubscribe from a camera
 router.delete('/subscribe/:cameraId', requireAuth, requireTimelapseAccess, async (req, res) => {
   try {
     const { cameraId } = req.params;
+    const force = req.query.force === 'true';
+    const db = getDb();
+    const isAdmin = req.user.role === 'admin';
+
+    // Get camera info
+    const camera = db.prepare('SELECT * FROM timelapse_cameras WHERE camera_id = ?').get(cameraId);
+
+    if (camera) {
+      // Count other active subscribers
+      const otherSubscribers = db.prepare(`
+        SELECT COUNT(*) as c FROM timelapse_subscriptions
+        WHERE camera_id = ? AND is_active = 1 AND user_id != ?
+      `).get(cameraId, req.user.id).c;
+
+      // Non-admin checks (unless force is true and user is admin)
+      if (!isAdmin || !force) {
+        if (otherSubscribers > 0 && !isAdmin) {
+          return res.status(403).json({ error: 'Other users are subscribed to this camera' });
+        }
+        if (camera.is_protected && otherSubscribers === 0 && !isAdmin) {
+          return res.status(403).json({ error: 'This camera is protected by admin' });
+        }
+      }
+    }
+
     const result = await captureService.unsubscribe(req.user.id, cameraId);
     res.json(result);
   } catch (err) {
@@ -302,17 +396,6 @@ router.post('/admin/cameras/:cameraId/protect', requireAdmin, (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// Toggle timelapse access for user (admin)
-router.post('/users/:id/toggle-timelapse', requireAdmin, (req, res) => {
-  const db = getDb();
-  const user = db.prepare('SELECT id, timelapse_enabled FROM users WHERE id = ?').get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const newVal = user.timelapse_enabled ? 0 : 1;
-  db.prepare("UPDATE users SET timelapse_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
-  res.json({ ok: true, timelapseEnabled: !!newVal });
 });
 
 export default router;

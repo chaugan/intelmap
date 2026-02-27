@@ -38,6 +38,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'ais'} onClick={() => setActiveTab('ais')}>
                 AIS
               </TabButton>
+              <TabButton active={activeTab === 'timelapse'} onClick={() => setActiveTab('timelapse')}>
+                {lang === 'no' ? 'Tidslapse' : 'Timelapse'}
+              </TabButton>
             </div>
           </div>
           <button onClick={() => setAdminPanelOpen(false)} className="text-slate-400 hover:text-white">
@@ -53,6 +56,7 @@ export default function AdminPanel() {
           {activeTab === 'ai' && <AiConfigTab lang={lang} />}
           {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
           {activeTab === 'ais' && <AisConfigTab lang={lang} />}
+          {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
         </div>
       </div>
     </div>
@@ -776,6 +780,114 @@ function AisConfigTab({ lang }) {
 
         {status && <p className="text-emerald-400 text-sm">{status}</p>}
         {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- Timelapse Admin Tab ---
+function TimelapseAdminTab({ lang }) {
+  const [cameras, setCameras] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchCameras(); }, []);
+
+  async function fetchCameras() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/timelapse/admin/cameras', { credentials: 'include' });
+      if (res.ok) setCameras(await res.json());
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  }
+
+  async function toggleProtection(cameraId, currentlyProtected) {
+    try {
+      const res = await fetch(`/api/timelapse/admin/cameras/${cameraId}/protect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ isProtected: !currentlyProtected }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to update protection');
+        return;
+      }
+      fetchCameras();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">{lang === 'no' ? 'Laster...' : 'Loading...'}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-cyan-400">
+          {lang === 'no' ? 'Aktive kameraer' : 'Active Cameras'}
+        </h3>
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'Beskyttede kameraer slettes ikke av den automatiske 7-dagers oppryddingen.'
+            : 'Protected cameras are not deleted by the automatic 7-day cleanup.'}
+        </p>
+
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        {cameras.length === 0 ? (
+          <p className="text-slate-500 text-sm">
+            {lang === 'no' ? 'Ingen aktive tidslapse-opptak' : 'No active timelapse recordings'}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {cameras.map((cam) => (
+              <div key={cam.cameraId} className="flex items-center justify-between bg-slate-800 rounded p-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate" title={cam.name || cam.cameraId}>
+                    {cam.name || cam.cameraId}
+                  </div>
+                  <div className="text-xs text-slate-500 space-x-3">
+                    <span>
+                      {cam.subscriberCount} {lang === 'no' ? 'abonnenter' : 'subscribers'}
+                    </span>
+                    <span className={cam.isCapturing ? 'text-emerald-400' : 'text-slate-500'}>
+                      {cam.isCapturing ? (lang === 'no' ? 'Aktiv' : 'Active') : (lang === 'no' ? 'Inaktiv' : 'Inactive')}
+                    </span>
+                    {cam.lastFrameAt && (
+                      <span>
+                        {lang === 'no' ? 'Sist' : 'Last'}: {new Date(cam.lastFrameAt).toLocaleTimeString(lang === 'no' ? 'nb-NO' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleProtection(cam.cameraId, cam.isProtected)}
+                  className={`px-3 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
+                    cam.isProtected
+                      ? 'bg-cyan-700 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:text-white'
+                  }`}
+                  title={cam.isProtected
+                    ? (lang === 'no' ? 'Klikk for å fjerne beskyttelse' : 'Click to remove protection')
+                    : (lang === 'no' ? 'Klikk for å beskytte' : 'Click to protect')}
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  {cam.isProtected
+                    ? (lang === 'no' ? 'Beskyttet' : 'Protected')
+                    : (lang === 'no' ? 'Ubeskyttet' : 'Unprotected')}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

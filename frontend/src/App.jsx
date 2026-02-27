@@ -11,9 +11,10 @@ import PasswordChangeDialog from './components/auth/PasswordChangeDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
-import TimelapseDrawer from './components/timelapse/TimelapseDrawer.jsx';
+import TimelapsePanel from './components/timelapse/TimelapsePanel.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
+import { useTimelapseStore } from './stores/useTimelapseStore.js';
 import { t } from './lib/i18n.js';
 import { VERSION } from './version.js';
 
@@ -29,24 +30,31 @@ export default function App() {
   const projectDrawerOpen = useMapStore((s) => s.projectDrawerOpen);
   const dataLayersDrawerOpen = useMapStore((s) => s.dataLayersDrawerOpen);
 
-  const [isDragging, setIsDragging] = useState(false);
-  const draggingRef = useRef(false);
+  // Timelapse drawer state
+  const timelapseDrawerOpen = useTimelapseStore((s) => s.drawerOpen);
+  const timelapseDrawerWidth = useTimelapseStore((s) => s.drawerWidth);
+  const setTimelapseDrawerWidth = useTimelapseStore((s) => s.setDrawerWidth);
 
-  const handleMouseDown = useCallback((e) => {
+  const [isDraggingChat, setIsDraggingChat] = useState(false);
+  const [isDraggingTimelapse, setIsDraggingTimelapse] = useState(false);
+  const draggingChatRef = useRef(false);
+  const draggingTimelapseRef = useRef(false);
+
+  const handleChatMouseDown = useCallback((e) => {
     e.preventDefault();
-    setIsDragging(true);
-    draggingRef.current = true;
+    setIsDraggingChat(true);
+    draggingChatRef.current = true;
 
     const onMouseMove = (e) => {
-      if (!draggingRef.current) return;
+      if (!draggingChatRef.current) return;
       const newWidth = window.innerWidth - e.clientX;
       const clamped = Math.max(384, Math.min(newWidth, window.innerWidth * 0.5));
       setChatDrawerWidth(clamped);
     };
 
     const onMouseUp = () => {
-      draggingRef.current = false;
-      setIsDragging(false);
+      draggingChatRef.current = false;
+      setIsDraggingChat(false);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -54,6 +62,30 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, [setChatDrawerWidth]);
+
+  const handleTimelapseMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsDraggingTimelapse(true);
+    draggingTimelapseRef.current = true;
+
+    const onMouseMove = (e) => {
+      if (!draggingTimelapseRef.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      const clamped = Math.max(400, Math.min(newWidth, window.innerWidth * 0.7));
+      setTimelapseDrawerWidth(clamped);
+    };
+
+    const onMouseUp = () => {
+      draggingTimelapseRef.current = false;
+      setIsDraggingTimelapse(false);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [setTimelapseDrawerWidth]);
+
   const user = useAuthStore((s) => s.user);
   const checkSession = useAuthStore((s) => s.checkSession);
 
@@ -62,6 +94,8 @@ export default function App() {
   }, [checkSession]);
 
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
+  const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
+  const isDragging = isDraggingChat || isDraggingTimelapse;
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
@@ -119,10 +153,28 @@ export default function App() {
           {showChat && (
             <>
               <div
-                onMouseDown={handleMouseDown}
+                onMouseDown={handleChatMouseDown}
                 className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
               />
               <AiChatPanel />
+            </>
+          )}
+        </div>
+
+        {/* Timelapse Drawer */}
+        <div
+          className={`bg-slate-800 border-l border-slate-700 flex flex-col shrink-0 overflow-hidden relative ${
+            isDragging ? '' : 'transition-all duration-300'
+          }`}
+          style={{ width: showTimelapse ? timelapseDrawerWidth : 0 }}
+        >
+          {showTimelapse && (
+            <>
+              <div
+                onMouseDown={handleTimelapseMouseDown}
+                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-cyan-500/30 active:bg-cyan-500/50 transition-colors"
+              />
+              <TimelapsePanel />
             </>
           )}
         </div>
@@ -132,9 +184,6 @@ export default function App() {
       <LoginDialog />
       <PasswordChangeDialog />
       <AdminPanel />
-
-      {/* Timelapse drawer (renders as overlay) */}
-      <TimelapseDrawer />
     </div>
   );
 }

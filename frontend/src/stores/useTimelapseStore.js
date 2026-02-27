@@ -4,7 +4,8 @@ const API = '/api/timelapse';
 
 export const useTimelapseStore = create((set, get) => ({
   // Drawer state
-  drawerOpen: false,
+  drawerOpen: JSON.parse(localStorage.getItem('timelapseDrawerOpen') || 'false'),
+  drawerWidth: parseInt(localStorage.getItem('timelapseDrawerWidth') || '500', 10),
   activeTab: 'cameras', // 'cameras' | 'player' | 'exports'
 
   // Camera subscriptions
@@ -26,9 +27,23 @@ export const useTimelapseStore = create((set, get) => ({
   exportsLoading: false,
 
   // Actions
-  openDrawer: () => set({ drawerOpen: true }),
-  closeDrawer: () => set({ drawerOpen: false }),
-  toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),
+  openDrawer: () => {
+    localStorage.setItem('timelapseDrawerOpen', 'true');
+    set({ drawerOpen: true });
+  },
+  closeDrawer: () => {
+    localStorage.setItem('timelapseDrawerOpen', 'false');
+    set({ drawerOpen: false });
+  },
+  toggleDrawer: () => set((s) => {
+    const next = !s.drawerOpen;
+    localStorage.setItem('timelapseDrawerOpen', JSON.stringify(next));
+    return { drawerOpen: next };
+  }),
+  setDrawerWidth: (width) => {
+    localStorage.setItem('timelapseDrawerWidth', String(width));
+    set({ drawerWidth: width });
+  },
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   setSelectedCamera: (camera) => set({
@@ -78,24 +93,42 @@ export const useTimelapseStore = create((set, get) => ({
     }
   },
 
-  // Unsubscribe from a camera
-  unsubscribe: async (cameraId) => {
+  // Check if can unsubscribe (returns info for confirmation dialog)
+  checkUnsubscribe: async (cameraId) => {
     try {
-      const res = await fetch(`${API}/subscribe/${cameraId}`, {
+      const res = await fetch(`${API}/subscribe/${cameraId}/check`, { credentials: 'include' });
+      if (!res.ok) {
+        const data = await res.json();
+        return { canUnsubscribe: false, error: data.error };
+      }
+      return await res.json();
+    } catch (err) {
+      return { canUnsubscribe: false, error: err.message };
+    }
+  },
+
+  // Unsubscribe from a camera
+  unsubscribe: async (cameraId, force = false) => {
+    try {
+      const url = force ? `${API}/subscribe/${cameraId}?force=true` : `${API}/subscribe/${cameraId}`;
+      const res = await fetch(url, {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to unsubscribe');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to unsubscribe');
+      }
 
       // Update local state
       set((s) => ({
         cameras: s.cameras.filter((c) => c.cameraId !== cameraId),
         selectedCamera: s.selectedCamera?.cameraId === cameraId ? null : s.selectedCamera,
       }));
-      return true;
+      return { success: true };
     } catch (err) {
       set({ error: err.message });
-      return false;
+      return { success: false, error: err.message };
     }
   },
 
