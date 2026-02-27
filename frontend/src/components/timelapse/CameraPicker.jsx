@@ -169,41 +169,50 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, lang, isAdmin
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [thumbnailError, setThumbnailError] = useState(false);
 
-  // Load thumbnail with fetch to include credentials (cache bust with timestamp)
+  // Load thumbnail with fetch to include credentials
+  const loadThumbnail = useCallback(async () => {
+    try {
+      // Add cache-busting param to always get latest frame
+      const cacheBust = Date.now();
+      const res = await fetch(`/api/timelapse/frame/${camera.cameraId}/latest.jpg?t=${cacheBust}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('Failed to load');
+      const blob = await res.blob();
+      // Revoke old URL before setting new one
+      setThumbnailUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(blob);
+      });
+      setThumbnailError(false);
+    } catch {
+      setThumbnailError(true);
+    }
+  }, [camera.cameraId]);
+
+  // Initial load
   useEffect(() => {
-    let cancelled = false;
-    const loadThumbnail = async () => {
-      try {
-        // Add cache-busting param to always get latest frame
-        const cacheBust = Date.now();
-        const res = await fetch(`/api/timelapse/frame/${camera.cameraId}/latest.jpg?t=${cacheBust}`, {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (!res.ok) throw new Error('Failed to load');
-        const blob = await res.blob();
-        if (!cancelled) {
-          // Revoke old URL before setting new one
-          if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
-          setThumbnailUrl(URL.createObjectURL(blob));
-          setThumbnailError(false);
-        }
-      } catch {
-        if (!cancelled) setThumbnailError(true);
-      }
-    };
     loadThumbnail();
-    return () => {
-      cancelled = true;
-    };
-  }, [camera.cameraId, camera.lastFrameAt]); // Refetch when lastFrameAt changes
+  }, [loadThumbnail]);
+
+  // Auto-refresh thumbnail every 60s for LIVE cameras
+  useEffect(() => {
+    if (!camera.isCapturing) return;
+
+    const interval = setInterval(() => {
+      loadThumbnail();
+    }, 60000); // Refresh every 60 seconds (frames are captured every minute)
+
+    return () => clearInterval(interval);
+  }, [camera.isCapturing, loadThumbnail]);
 
   // Cleanup blob URL on unmount
   useEffect(() => {
     return () => {
       if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
     };
-  }, [thumbnailUrl]);
+  }, []);
 
   const formatTime = (iso) => {
     if (!iso) return '--';
