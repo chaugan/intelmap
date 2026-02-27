@@ -30,6 +30,12 @@ export default function WebcamLayer() {
   const webcamPins = useMemo(() => webcamPinsRaw, [webcamPinKey]);
   const [infoPopup, setInfoPopup] = useState(null);
 
+  // Get recording camera IDs from timelapse store
+  const timelapseCameras = useTimelapseStore((s) => s.cameras);
+  const recordingCameraIds = useMemo(() => {
+    return new Set(timelapseCameras.filter(c => c.isCapturing).map(c => c.cameraId));
+  }, [timelapseCameras]);
+
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
   // Map pin IDs to webcam IDs for saved pins
@@ -239,12 +245,15 @@ export default function WebcamLayer() {
       {cameras.map((cam) => {
         const [lon, lat] = cam.geometry.coordinates;
         const id = cam.properties.id;
+        const isRecording = recordingCameraIds.has(id);
         return (
           <Marker key={id} longitude={lon} latitude={lat} anchor="center">
             <div
-              className="cursor-pointer w-6 h-6 bg-cyan-600 border-2 border-white rounded-full shadow-lg flex items-center justify-center"
+              className={`cursor-pointer w-6 h-6 border-2 border-white rounded-full shadow-lg flex items-center justify-center ${
+                isRecording ? 'bg-red-600' : 'bg-cyan-600'
+              }`}
               onClick={(e) => { e.stopPropagation(); toggleCamera(cam); }}
-              title={cam.properties.name}
+              title={cam.properties.name + (isRecording ? (lang === 'no' ? ' (Opptak)' : ' (Recording)') : '')}
             >
               <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
