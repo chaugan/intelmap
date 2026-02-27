@@ -12,22 +12,32 @@ export default function AuroraOverlay() {
     const map = mapRef;
     if (!canvas || !map || !auroraGrid?.data) return;
 
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
+    // Use the map's canvas dimensions to ensure alignment
+    const mapCanvas = map.getCanvas();
+    const w = mapCanvas.width;
+    const h = mapCanvas.height;
     canvas.width = w;
     canvas.height = h;
+    // Also set CSS size to match
+    canvas.style.width = mapCanvas.style.width;
+    canvas.style.height = mapCanvas.style.height;
 
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, w, h);
 
-    // Render at 1/4 resolution for performance
-    const scale = 4;
+    // Render at reduced resolution for performance
+    // Account for device pixel ratio
+    const dpr = window.devicePixelRatio || 1;
+    const scale = Math.max(4, Math.ceil(4 * dpr));
     const sw = Math.ceil(w / scale);
     const sh = Math.ceil(h / scale);
     const imageData = ctx.createImageData(sw, sh);
     const pixels = imageData.data;
 
     const { bounds: b } = auroraGrid;
+
+    // Get the map's visible bounds to check for coordinate issues
+    const mapBounds = map.getBounds();
 
     for (let py = 0; py < sh; py++) {
       for (let px = 0; px < sw; px++) {
@@ -39,11 +49,12 @@ export default function AuroraOverlay() {
         if (lngLat.lat < b.south || lngLat.lat > b.north) continue;
 
         const intensity = getAuroraIntensity(auroraGrid, lngLat.lng, lngLat.lat);
-        // Show faint base color for very low intensity areas (smooth edges)
         const effectiveIntensity = intensity === null ? 0 : intensity;
-        if (effectiveIntensity < 1) continue; // Only skip if essentially zero
 
-        const color = intensityToColor(effectiveIntensity);
+        // Always draw something in the aurora zone - use minimum intensity of 2 for visibility
+        const displayIntensity = Math.max(effectiveIntensity, 2);
+
+        const color = intensityToColor(displayIntensity);
         const idx = (py * sw + px) * 4;
         pixels[idx] = color[0];
         pixels[idx + 1] = color[1];
