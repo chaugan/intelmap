@@ -77,34 +77,36 @@ export default function TimelapsePanel() {
         ))}
       </div>
 
-      {/* Map marker filter toggle */}
-      <div className="px-4 py-2 border-b border-slate-700 shrink-0 flex items-center justify-between bg-slate-800/50">
-        <span className="text-xs text-slate-400">
-          {lang === 'no' ? 'Vis på kart:' : 'Show on map:'}
-        </span>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setShowOnlyMine(true)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              showOnlyMine
-                ? 'bg-cyan-600 text-white'
-                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }`}
-          >
-            {lang === 'no' ? 'Kun mine' : 'Only mine'}
-          </button>
-          <button
-            onClick={() => setShowOnlyMine(false)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              !showOnlyMine
-                ? 'bg-cyan-600 text-white'
-                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }`}
-          >
-            {lang === 'no' ? 'Alle opptak' : 'All recording'}
-          </button>
+      {/* Map marker filter toggle - only show on cameras tab */}
+      {activeTab === 'cameras' && (
+        <div className="px-4 py-2 border-b border-slate-700 shrink-0 flex items-center justify-between bg-slate-800/50">
+          <span className="text-xs text-slate-400">
+            {lang === 'no' ? 'Vis på kart:' : 'Show on map:'}
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setShowOnlyMine(true)}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                showOnlyMine
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+            >
+              {lang === 'no' ? 'Kun mine' : 'Only mine'}
+            </button>
+            <button
+              onClick={() => setShowOnlyMine(false)}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                !showOnlyMine
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+            >
+              {lang === 'no' ? 'Alle opptak' : 'All recording'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Error message */}
       {error && (
