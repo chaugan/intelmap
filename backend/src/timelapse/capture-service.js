@@ -268,8 +268,14 @@ class CaptureService {
     `).all();
 
     return cameras.map(c => ({
-      ...c,
+      cameraId: c.camera_id,
+      name: c.name,
+      isProtected: !!c.is_protected,
       isCapturing: this.activeCameras.has(c.camera_id),
+      subscriberCount: c.subscriber_count,
+      lastFrameAt: c.last_frame_at,
+      availableFrom: c.available_from,
+      availableTo: c.available_to,
       frameCount: this.getFrames(c.camera_id).length,
     }));
   }
