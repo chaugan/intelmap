@@ -12,26 +12,33 @@ export default function AuroraOverlay() {
     const map = mapRef;
     if (!canvas || !map || !auroraGrid?.data) return;
 
-    // Get CSS dimensions (what screenPointToLocation expects)
-    const mapCanvas = map.getCanvas();
-    const cssWidth = mapCanvas.clientWidth;
-    const cssHeight = mapCanvas.clientHeight;
+    // Get the visible map bounds
+    const mapBounds = map.getBounds();
+    const west = mapBounds.getWest();
+    const east = mapBounds.getEast();
+    const north = mapBounds.getNorth();
+    const south = mapBounds.getSouth();
 
-    // Set canvas buffer size (may be scaled by DPR)
+    // Get canvas dimensions from parent container
+    const container = canvas.parentElement;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+
+    // Set canvas size
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = cssWidth * dpr;
-    canvas.height = cssHeight * dpr;
-    canvas.style.width = cssWidth + 'px';
-    canvas.style.height = cssHeight + 'px';
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
 
     const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr); // Scale context to match DPR
-    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
 
-    // Render at reduced resolution for performance (in CSS pixels)
+    // Render at reduced resolution for performance
     const scale = 4;
-    const sw = Math.ceil(cssWidth / scale);
-    const sh = Math.ceil(cssHeight / scale);
+    const sw = Math.ceil(w / scale);
+    const sh = Math.ceil(h / scale);
     const imageData = ctx.createImageData(sw, sh);
     const pixels = imageData.data;
 
@@ -39,15 +46,16 @@ export default function AuroraOverlay() {
 
     for (let py = 0; py < sh; py++) {
       for (let px = 0; px < sw; px++) {
-        // Use CSS pixel coordinates for screenPointToLocation
-        const screenX = px * scale;
-        const screenY = py * scale;
-        const lngLat = map.transform.screenPointToLocation({ x: screenX, y: screenY });
+        // Interpolate lat/lng from map bounds (not screen coordinates)
+        const t_x = px / (sw - 1);
+        const t_y = py / (sh - 1);
+        const lng = west + t_x * (east - west);
+        const lat = north - t_y * (north - south); // Y is inverted (top = north)
 
         // Check if within aurora latitude zone (50-90°N)
-        if (lngLat.lat < b.south || lngLat.lat > b.north) continue;
+        if (lat < b.south || lat > b.north) continue;
 
-        const intensity = getAuroraIntensity(auroraGrid, lngLat.lng, lngLat.lat);
+        const intensity = getAuroraIntensity(auroraGrid, lng, lat);
         const effectiveIntensity = intensity === null ? 0 : intensity;
 
         // Always draw something in the aurora zone - use minimum intensity of 2 for visibility
@@ -69,7 +77,7 @@ export default function AuroraOverlay() {
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(offscreen, 0, 0, sw, sh, 0, 0, cssWidth, cssHeight);
+    ctx.drawImage(offscreen, 0, 0, sw, sh, 0, 0, w, h);
   }, [mapRef, auroraGrid]);
 
   // Re-render on map move
@@ -83,11 +91,13 @@ export default function AuroraOverlay() {
   }, [mapRef, auroraGrid, renderAurora]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-[5]"
-      style={{ opacity: auroraOpacity }}
-    />
+    <div className="absolute inset-0 pointer-events-none z-[5]">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ opacity: auroraOpacity }}
+      />
+    </div>
   );
 }
 
