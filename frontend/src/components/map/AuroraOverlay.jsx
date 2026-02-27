@@ -12,35 +12,34 @@ export default function AuroraOverlay() {
     const map = mapRef;
     if (!canvas || !map || !auroraGrid?.data) return;
 
-    // Use the map's canvas dimensions to ensure alignment
+    // Get CSS dimensions (what screenPointToLocation expects)
     const mapCanvas = map.getCanvas();
-    const w = mapCanvas.width;
-    const h = mapCanvas.height;
-    canvas.width = w;
-    canvas.height = h;
-    // Also set CSS size to match
-    canvas.style.width = mapCanvas.style.width;
-    canvas.style.height = mapCanvas.style.height;
+    const cssWidth = mapCanvas.clientWidth;
+    const cssHeight = mapCanvas.clientHeight;
+
+    // Set canvas buffer size (may be scaled by DPR)
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
 
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
+    ctx.scale(dpr, dpr); // Scale context to match DPR
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    // Render at reduced resolution for performance
-    // Account for device pixel ratio
-    const dpr = window.devicePixelRatio || 1;
-    const scale = Math.max(4, Math.ceil(4 * dpr));
-    const sw = Math.ceil(w / scale);
-    const sh = Math.ceil(h / scale);
+    // Render at reduced resolution for performance (in CSS pixels)
+    const scale = 4;
+    const sw = Math.ceil(cssWidth / scale);
+    const sh = Math.ceil(cssHeight / scale);
     const imageData = ctx.createImageData(sw, sh);
     const pixels = imageData.data;
 
     const { bounds: b } = auroraGrid;
 
-    // Get the map's visible bounds to check for coordinate issues
-    const mapBounds = map.getBounds();
-
     for (let py = 0; py < sh; py++) {
       for (let px = 0; px < sw; px++) {
+        // Use CSS pixel coordinates for screenPointToLocation
         const screenX = px * scale;
         const screenY = py * scale;
         const lngLat = map.transform.screenPointToLocation({ x: screenX, y: screenY });
@@ -70,7 +69,7 @@ export default function AuroraOverlay() {
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(offscreen, 0, 0, sw, sh, 0, 0, w, h);
+    ctx.drawImage(offscreen, 0, 0, sw, sh, 0, 0, cssWidth, cssHeight);
   }, [mapRef, auroraGrid]);
 
   // Re-render on map move
