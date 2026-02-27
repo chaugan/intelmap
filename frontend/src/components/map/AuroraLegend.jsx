@@ -79,7 +79,7 @@ export default function AuroraLegend({ kpData }) {
         <div
           className="h-3 rounded-sm"
           style={{
-            background: 'linear-gradient(to right, rgba(0,100,0,0.3), rgba(0,180,0,0.5), rgba(0,255,100,0.7), rgba(100,255,150,0.8), rgba(150,255,200,0.9))',
+            background: 'linear-gradient(to right, rgba(0,40,0,0.4), rgba(0,100,20,0.7), rgba(0,180,50,0.85), rgba(50,255,100,0.95), rgba(140,255,160,1))',
           }}
         />
         <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">

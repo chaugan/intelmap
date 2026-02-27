@@ -137,31 +137,58 @@ export default function AuroraPanel() {
             </Section>
           )}
 
-          {/* 24-hour Kp chart */}
+          {/* 24-hour Kp chart with gradient bars */}
           {kpData.hourly?.length > 0 && (
             <Section title={lang === 'no' ? '24-timers Kp-prognose' : '24-Hour Kp Forecast'}>
-              <div className="h-24 flex items-end gap-px">
-                {kpData.hourly.slice(0, 24).map((entry, i) => {
-                  const height = Math.max(5, (entry.kp / 9) * 100);
-                  const color = KP_COLORS[Math.min(Math.floor(entry.kp), 9)];
-                  const hour = new Date(entry.time).getHours();
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center">
-                      <div
-                        className="w-full rounded-t-sm transition-all"
-                        style={{ height: `${height}%`, backgroundColor: color }}
-                        title={`${hour}:00 - Kp ${entry.kp.toFixed(1)}`}
+              <div className="bg-slate-900 rounded p-2">
+                <svg width="100%" height="100" viewBox="0 0 240 100" preserveAspectRatio="none">
+                  <defs>
+                    {/* Gradient definitions for each bar */}
+                    {kpData.hourly.slice(0, 24).map((entry, i) => {
+                      const kpVal = Math.min(Math.floor(entry.kp), 9);
+                      const topColor = KP_COLORS[kpVal];
+                      return (
+                        <linearGradient key={`grad-${i}`} id={`bar-grad-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor={topColor} stopOpacity="1" />
+                          <stop offset="50%" stopColor={topColor} stopOpacity="0.6" />
+                          <stop offset="100%" stopColor={topColor} stopOpacity="0.1" />
+                        </linearGradient>
+                      );
+                    })}
+                  </defs>
+                  {/* Grid lines */}
+                  <line x1="0" y1="25" x2="240" y2="25" stroke="#334155" strokeWidth="0.5" />
+                  <line x1="0" y1="50" x2="240" y2="50" stroke="#334155" strokeWidth="0.5" />
+                  <line x1="0" y1="75" x2="240" y2="75" stroke="#334155" strokeWidth="0.5" />
+                  {/* Bars */}
+                  {kpData.hourly.slice(0, 24).map((entry, i) => {
+                    const barWidth = 240 / 24;
+                    const x = i * barWidth;
+                    const height = Math.max(5, (entry.kp / 9) * 90);
+                    const y = 95 - height;
+                    return (
+                      <rect
+                        key={i}
+                        x={x + 1}
+                        y={y}
+                        width={barWidth - 2}
+                        height={height}
+                        fill={`url(#bar-grad-${i})`}
+                        rx="1"
                       />
-                      {i % 6 === 0 && (
-                        <span className="text-[8px] text-slate-500 mt-0.5">{hour}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between text-[8px] text-slate-500 mt-1">
-                <span>{lang === 'no' ? 'Nå' : 'Now'}</span>
-                <span>+24h</span>
+                    );
+                  })}
+                  {/* Kp scale labels on right */}
+                  <text x="235" y="28" fill="#64748b" fontSize="7" textAnchor="end">6</text>
+                  <text x="235" y="53" fill="#64748b" fontSize="7" textAnchor="end">4</text>
+                  <text x="235" y="78" fill="#64748b" fontSize="7" textAnchor="end">2</text>
+                </svg>
+                {/* Hour labels */}
+                <div className="flex justify-between text-[8px] text-slate-500 mt-1 px-0.5">
+                  {[0, 6, 12, 18, 24].map((h) => (
+                    <span key={h}>{h === 24 ? '+24h' : `${h}:00`}</span>
+                  ))}
+                </div>
               </div>
             </Section>
           )}
@@ -181,15 +208,6 @@ export default function AuroraPanel() {
                   <span className="text-slate-300">{item.label[lang === 'no' ? 'no' : 'en']}</span>
                 </div>
               ))}
-            </div>
-          </Section>
-
-          {/* Best viewing info */}
-          <Section title={t('aurora.bestViewing', lang)}>
-            <div className="text-xs text-slate-300 leading-relaxed">
-              {lang === 'no'
-                ? 'Best sjanser 22:00-02:00 med klar himmel bort fra bybelysning. Se mot nord.'
-                : 'Best chances 22:00-02:00 with clear skies away from city lights. Look north.'}
             </div>
           </Section>
 

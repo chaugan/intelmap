@@ -344,7 +344,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               <div className="flex justify-between items-center">
                 <span className="text-slate-400 text-xs">{lang === 'no' ? 'Nordlys' : 'Aurora'}</span>
                 <span className="text-green-400 text-xs font-mono">
-                  {auroraData[lang === 'no' ? 'no' : 'en']} ({auroraData.intensity}/25)
+                  Kp {auroraData.kp?.toFixed(1) || '?'}
                 </span>
               </div>
             ) : (
