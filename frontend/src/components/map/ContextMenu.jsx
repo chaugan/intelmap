@@ -59,6 +59,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const [auroraData, setAuroraData] = useState(null);
   const [loadingAurora, setLoadingAurora] = useState(true);
   const auroraVisible = useMapStore((s) => s.auroraVisible);
+  const toggleAurora = useMapStore((s) => s.toggleAurora);
   const pinned = externalPinned || false;
   const ref = useRef(null);
 
@@ -121,16 +122,12 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
       .catch(() => setAvalancheRisk(null))
       .finally(() => setLoadingAval(false));
 
-    // Aurora data (only if aurora layer is visible)
-    if (auroraVisible) {
-      fetch(`/api/aurora/at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`)
-        .then(r => r.json())
-        .then(d => setAuroraData(d))
-        .catch(() => setAuroraData(null))
-        .finally(() => setLoadingAurora(false));
-    } else {
-      setLoadingAurora(false);
-    }
+    // Aurora data (always fetch for context menu)
+    fetch(`/api/aurora/at?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`)
+      .then(r => r.json())
+      .then(d => setAuroraData(d))
+      .catch(() => setAuroraData(null))
+      .finally(() => setLoadingAurora(false));
 
     // Street View coverage check
     fetch(`/api/streetview/check?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`, { credentials: 'include' })
@@ -143,7 +140,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
         }
       })
       .catch(() => {});
-  }, [lat, lng, auroraVisible]);
+  }, [lat, lng]);
 
   const isVisibleRef = useRef(true);
 
@@ -334,28 +331,38 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
           </div>
         )}
 
-        {/* Aurora info (only when aurora layer is visible) */}
-        {auroraVisible && (
-          <>
-            <div className="border-t border-slate-600 my-1" />
-            {loadingAurora ? (
-              <div className="text-slate-400 text-xs">{lang === 'no' ? 'Henter nordlysdata...' : 'Loading aurora data...'}</div>
-            ) : auroraData && !auroraData.isOutside ? (
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400 text-xs">{lang === 'no' ? 'Nordlys' : 'Aurora'}</span>
-                <span className="text-green-400 text-xs font-mono">
-                  Kp {auroraData.kp?.toFixed(1) || '?'}
-                </span>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400 text-xs">{lang === 'no' ? 'Nordlys' : 'Aurora'}</span>
-                <span className="text-slate-500 text-xs font-mono">
-                  {lang === 'no' ? 'Utenfor prognoseområde' : 'Outside forecast area'}
-                </span>
-              </div>
-            )}
-          </>
+        {/* Aurora info (always shown, clickable to enable layer) */}
+        <div className="border-t border-slate-600 my-1" />
+        {loadingAurora ? (
+          <div className="text-slate-400 text-xs">{lang === 'no' ? 'Henter nordlysdata...' : 'Loading aurora data...'}</div>
+        ) : auroraData && !auroraData.isOutside ? (
+          <div
+            className={`flex justify-between items-center ${!auroraVisible ? 'cursor-pointer hover:bg-slate-700/50 -mx-1 px-1 py-0.5 rounded transition-colors' : ''}`}
+            onClick={() => { if (!auroraVisible) toggleAurora(); }}
+            title={!auroraVisible ? (lang === 'no' ? 'Klikk for å aktivere nordlyslaget' : 'Click to enable aurora layer') : undefined}
+          >
+            <span className="text-slate-400 text-xs flex items-center gap-1">
+              {lang === 'no' ? 'Nordlys' : 'Aurora'}
+              {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
+            </span>
+            <span className="text-green-400 text-xs font-mono">
+              Kp {auroraData.kp?.toFixed(1) || '?'}
+            </span>
+          </div>
+        ) : (
+          <div
+            className={`flex justify-between items-center ${!auroraVisible ? 'cursor-pointer hover:bg-slate-700/50 -mx-1 px-1 py-0.5 rounded transition-colors' : ''}`}
+            onClick={() => { if (!auroraVisible) toggleAurora(); }}
+            title={!auroraVisible ? (lang === 'no' ? 'Klikk for å aktivere nordlyslaget' : 'Click to enable aurora layer') : undefined}
+          >
+            <span className="text-slate-400 text-xs flex items-center gap-1">
+              {lang === 'no' ? 'Nordlys' : 'Aurora'}
+              {!auroraVisible && <span className="text-[9px] text-slate-500">({lang === 'no' ? 'klikk for å vise' : 'click to show'})</span>}
+            </span>
+            <span className="text-slate-500 text-xs font-mono">
+              {lang === 'no' ? 'Utenfor prognoseområde' : 'Outside forecast area'}
+            </span>
+          </div>
         )}
 
         {/* Actions */}
