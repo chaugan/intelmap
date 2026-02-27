@@ -28,7 +28,7 @@ router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
 
     // Get user's subscriptions with camera info
     const subs = db.prepare(`
-      SELECT s.*, c.name, c.is_capturing, c.is_protected, c.subscriber_count, c.last_frame_at, c.available_from, c.available_to
+      SELECT s.*, c.name, c.lat, c.lon, c.is_capturing, c.is_protected, c.subscriber_count, c.last_frame_at, c.available_from, c.available_to
       FROM timelapse_subscriptions s
       JOIN timelapse_cameras c ON s.camera_id = c.camera_id
       WHERE s.user_id = ? AND s.is_active = 1
@@ -38,6 +38,8 @@ router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
     res.json(subs.map(s => ({
       cameraId: s.camera_id,
       name: s.name,
+      lat: s.lat,
+      lon: s.lon,
       isCapturing: !!s.is_capturing,
       isProtected: !!s.is_protected,
       subscriberCount: s.subscriber_count,
@@ -55,8 +57,8 @@ router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
 router.post('/subscribe/:cameraId', requireAuth, requireTimelapseAccess, async (req, res) => {
   try {
     const { cameraId } = req.params;
-    const { name } = req.body;
-    const result = await captureService.subscribe(req.user.id, cameraId, name || '');
+    const { name, lat, lon } = req.body;
+    const result = await captureService.subscribe(req.user.id, cameraId, name || '', lat, lon);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

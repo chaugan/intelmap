@@ -24,6 +24,14 @@ export function runMigration() {
     console.log('Added timelapse_enabled column to users table');
   }
 
+  // Add lat/lon columns to timelapse_cameras table (if not exists)
+  const timelapseCols = db.prepare("PRAGMA table_info(timelapse_cameras)").all();
+  if (timelapseCols.length > 0 && !timelapseCols.some(c => c.name === 'lat')) {
+    db.prepare("ALTER TABLE timelapse_cameras ADD COLUMN lat REAL").run();
+    db.prepare("ALTER TABLE timelapse_cameras ADD COLUMN lon REAL").run();
+    console.log('Added lat/lon columns to timelapse_cameras table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

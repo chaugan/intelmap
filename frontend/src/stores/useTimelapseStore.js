@@ -72,13 +72,13 @@ export const useTimelapseStore = create((set, get) => ({
   },
 
   // Subscribe to a camera
-  subscribe: async (cameraId, cameraName = '') => {
+  subscribe: async (cameraId, cameraName = '', lat = null, lon = null) => {
     try {
       const res = await fetch(`${API}/subscribe/${cameraId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name: cameraName }),
+        body: JSON.stringify({ name: cameraName, lat, lon }),
       });
       if (!res.ok) {
         const data = await res.json();

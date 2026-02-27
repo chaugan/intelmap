@@ -142,6 +142,8 @@ CREATE TABLE IF NOT EXISTS map_themes (
 CREATE TABLE IF NOT EXISTS timelapse_cameras (
   camera_id TEXT PRIMARY KEY,
   name TEXT NOT NULL DEFAULT '',
+  lat REAL,
+  lon REAL,
   is_protected INTEGER NOT NULL DEFAULT 0,
   is_capturing INTEGER NOT NULL DEFAULT 0,
   subscriber_count INTEGER NOT NULL DEFAULT 0,

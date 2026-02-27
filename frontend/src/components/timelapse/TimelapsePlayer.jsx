@@ -26,6 +26,20 @@ export default function TimelapsePlayer() {
   const [loading, setLoading] = useState(true);
   const [loop, setLoop] = useState(true); // Loop enabled by default
 
+  // Reset playback state when camera changes - video should always start paused
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(null);
+    setDuration(0);
+  }, [selectedCamera?.cameraId, setIsPlaying]);
+
+  // Pause video when component unmounts (leaving player tab)
+  useEffect(() => {
+    return () => {
+      setIsPlaying(false);
+    };
+  }, [setIsPlaying]);
+
   // Initialize HLS.js
   useEffect(() => {
     if (!selectedCamera || !videoRef.current) return;

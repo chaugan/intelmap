@@ -499,8 +499,9 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                   setSelectedCamera(cameras.find((c) => c.cameraId === id));
                   openDrawer();
                 } else {
-                  // Subscribe and open drawer
-                  await subscribe(id, camera.properties.name);
+                  // Subscribe with coordinates and open drawer
+                  const [lon, lat] = camera.geometry.coordinates;
+                  await subscribe(id, camera.properties.name, lat, lon);
                   openDrawer();
                 }
               }}

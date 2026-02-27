@@ -15,7 +15,7 @@ class CaptureService {
    * Subscribe a user to a camera's timelapse
    * Starts capture if this is the first subscriber
    */
-  async subscribe(userId, cameraId, cameraName = '') {
+  async subscribe(userId, cameraId, cameraName = '', lat = null, lon = null) {
     const db = getDb();
     const subId = crypto.randomUUID();
 
@@ -26,12 +26,15 @@ class CaptureService {
       ON CONFLICT(user_id, camera_id) DO UPDATE SET is_active = 1
     `).run(subId, userId, cameraId);
 
-    // Ensure camera record exists
+    // Ensure camera record exists with coordinates
     db.prepare(`
-      INSERT INTO timelapse_cameras (camera_id, name, created_at)
-      VALUES (?, ?, datetime('now'))
-      ON CONFLICT(camera_id) DO UPDATE SET name = COALESCE(NULLIF(name, ''), ?)
-    `).run(cameraId, cameraName, cameraName);
+      INSERT INTO timelapse_cameras (camera_id, name, lat, lon, created_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(camera_id) DO UPDATE SET
+        name = COALESCE(NULLIF(name, ''), ?),
+        lat = COALESCE(lat, ?),
+        lon = COALESCE(lon, ?)
+    `).run(cameraId, cameraName, lat, lon, cameraName, lat, lon);
 
     // Update subscriber count
     const count = db.prepare(`
@@ -250,7 +253,7 @@ class CaptureService {
   getUserSubscriptions(userId) {
     const db = getDb();
     return db.prepare(`
-      SELECT s.*, c.name, c.is_capturing, c.last_frame_at, c.available_from, c.available_to
+      SELECT s.*, c.name, c.lat, c.lon, c.is_capturing, c.last_frame_at, c.available_from, c.available_to
       FROM timelapse_subscriptions s
       JOIN timelapse_cameras c ON s.camera_id = c.camera_id
       WHERE s.user_id = ? AND s.is_active = 1
@@ -270,6 +273,8 @@ class CaptureService {
     return cameras.map(c => ({
       cameraId: c.camera_id,
       name: c.name,
+      lat: c.lat,
+      lon: c.lon,
       isProtected: !!c.is_protected,
       isCapturing: this.activeCameras.has(c.camera_id),
       subscriberCount: c.subscriber_count,
