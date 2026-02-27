@@ -24,6 +24,7 @@ export default function TimelapsePlayer() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loop, setLoop] = useState(true); // Loop enabled by default
 
   // Initialize HLS.js
   useEffect(() => {
@@ -91,6 +92,13 @@ export default function TimelapsePlayer() {
       videoRef.current.pause();
     }
   }, [isPlaying]);
+
+  // Handle loop state
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.loop = loop;
+    }
+  }, [loop]);
 
   // Track video time
   const handleTimeUpdate = useCallback(() => {
@@ -184,6 +192,7 @@ export default function TimelapsePlayer() {
             onPause={() => setIsPlaying(false)}
             playsInline
             muted
+            loop={loop}
           />
         </div>
 
@@ -239,6 +248,23 @@ export default function TimelapsePlayer() {
               </button>
             ))}
           </div>
+
+          {/* Loop toggle */}
+          <button
+            onClick={() => setLoop(!loop)}
+            className={`px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-1 ${
+              loop
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+            title={loop
+              ? (lang === 'no' ? 'Loop aktivert' : 'Loop enabled')
+              : (lang === 'no' ? 'Loop deaktivert' : 'Loop disabled')}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
 
           {/* Live button */}
           <button

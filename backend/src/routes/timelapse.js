@@ -243,6 +243,24 @@ router.get('/frames/:cameraId', requireAuth, requireTimelapseAccess, (req, res) 
   }
 });
 
+// Get latest frame (must come before :timestamp route to match first)
+router.get('/frame/:cameraId/latest.jpg', requireAuth, requireTimelapseAccess, (req, res) => {
+  try {
+    const { cameraId } = req.params;
+
+    const frame = captureService.getLatestFrame(cameraId);
+    if (!frame) {
+      return res.status(404).json({ error: 'No frames available' });
+    }
+
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(frame.path);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get a specific frame (for download/save)
 router.get('/frame/:cameraId/:timestamp.jpg', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
@@ -256,24 +274,6 @@ router.get('/frame/:cameraId/:timestamp.jpg', requireAuth, requireTimelapseAcces
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Disposition', `attachment; filename="${cameraId}_${timestamp}.jpg"`);
     res.sendFile(framePath);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get latest frame
-router.get('/frame/:cameraId/latest.jpg', requireAuth, requireTimelapseAccess, (req, res) => {
-  try {
-    const { cameraId } = req.params;
-
-    const frame = captureService.getLatestFrame(cameraId);
-    if (!frame) {
-      return res.status(404).json({ error: 'No frames available' });
-    }
-
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'no-cache');
-    res.sendFile(frame.path);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
