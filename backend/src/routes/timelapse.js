@@ -99,31 +99,10 @@ router.get('/subscribe/:cameraId/check', requireAuth, requireTimelapseAccess, (r
     `).get(cameraId, req.user.id).c;
 
     const isProtected = !!camera.is_protected;
+    // Capture only stops if this is the last subscriber AND camera is not protected
     const willStopCapture = otherSubscribers === 0 && !isProtected;
 
-    // Non-admin users can't stop capture if others are subscribed
-    if (!isAdmin && otherSubscribers > 0) {
-      return res.json({
-        canUnsubscribe: false,
-        error: 'Other users are subscribed to this camera',
-        otherSubscribers,
-        isProtected,
-        willStopCapture: false,
-      });
-    }
-
-    // Non-admin users can't unsubscribe from protected cameras if it would stop capture
-    if (!isAdmin && isProtected && otherSubscribers === 0) {
-      return res.json({
-        canUnsubscribe: false,
-        error: 'This camera is protected by admin',
-        otherSubscribers,
-        isProtected,
-        willStopCapture: false,
-      });
-    }
-
-    // Admins can always unsubscribe but get warnings
+    // Users can always unsubscribe themselves - recording continues if others are subscribed or protected
     res.json({
       canUnsubscribe: true,
       otherSubscribers,

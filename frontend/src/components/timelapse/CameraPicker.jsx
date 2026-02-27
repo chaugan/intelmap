@@ -41,8 +41,8 @@ export default function CameraPicker() {
       return;
     }
 
-    if (check.otherSubscribers > 0 || check.isProtected) {
-      // Show warning dialog
+    // Only show warning if capture will actually stop (user is last subscriber and not protected)
+    if (check.willStopCapture) {
       setConfirmDialog({
         camera,
         type: 'warning',
@@ -52,7 +52,7 @@ export default function CameraPicker() {
         isAdmin,
       });
     } else {
-      // Just unsubscribe directly
+      // Others are subscribed or camera is protected - just unsubscribe, recording continues
       await unsubscribe(camera.cameraId);
     }
   }, [checkUnsubscribe, unsubscribe, lang, isAdmin]);
