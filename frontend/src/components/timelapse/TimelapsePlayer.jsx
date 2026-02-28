@@ -193,7 +193,8 @@ export default function TimelapsePlayer() {
     if (!selectedCamera) return;
 
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+      // Exclude inputs, textareas, and buttons (buttons would double-toggle via click)
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) {
         e.preventDefault();
         setIsPlaying((prev) => !prev);
       }
