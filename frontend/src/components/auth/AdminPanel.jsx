@@ -7,6 +7,14 @@ import { t } from '../../lib/i18n.js';
 const API = '/api/admin';
 const GROUPS_API = '/api/groups';
 
+function formatStorageSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const size = bytes / Math.pow(1024, i);
+  return `${size.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
+}
+
 export default function AdminPanel() {
   const adminPanelOpen = useAuthStore((s) => s.adminPanelOpen);
   const setAdminPanelOpen = useAuthStore((s) => s.setAdminPanelOpen);
@@ -906,6 +914,12 @@ function TimelapseAdminTab({ lang }) {
                     </span>
                     <span className={cam.isCapturing ? 'text-emerald-400' : 'text-slate-500'}>
                       {cam.isCapturing ? (lang === 'no' ? 'Aktiv' : 'Active') : (lang === 'no' ? 'Inaktiv' : 'Inactive')}
+                    </span>
+                    <span>
+                      {cam.frameCount} {lang === 'no' ? 'bilder' : 'frames'}
+                    </span>
+                    <span className="text-cyan-400">
+                      {formatStorageSize(cam.storageSize)}
                     </span>
                     {cam.lastFrameAt && (
                       <span>

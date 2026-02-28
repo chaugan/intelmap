@@ -262,6 +262,30 @@ class CaptureService {
   }
 
   /**
+   * Get storage size for a camera (frames + segments)
+   */
+  getStorageSize(cameraId) {
+    const cameraDir = path.join(this.dataDir, cameraId);
+    if (!fs.existsSync(cameraDir)) return 0;
+
+    let totalSize = 0;
+    const countDir = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      for (const file of fs.readdirSync(dir)) {
+        const filePath = path.join(dir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.isFile()) totalSize += stat.size;
+        } catch {}
+      }
+    };
+
+    countDir(path.join(cameraDir, 'frames'));
+    countDir(path.join(cameraDir, 'segments'));
+    return totalSize;
+  }
+
+  /**
    * Get all cameras (for admin)
    */
   getAllCameras() {
@@ -282,6 +306,7 @@ class CaptureService {
       availableFrom: c.available_from,
       availableTo: c.available_to,
       frameCount: this.getFrames(c.camera_id).length,
+      storageSize: this.getStorageSize(c.camera_id),
     }));
   }
 
