@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { useWeatherReport } from '../../hooks/useWeatherReport.js';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -18,6 +18,15 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const [exporting, setExporting] = useState(false);
 
   const { data, loading, error } = useWeatherReport(lat, lon, true);
+
+  // Close on Esc key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const isDark = theme === 'dark';
   const showAurora = lat > 58;
@@ -257,7 +266,7 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
           </div>
         </div>
         <div className={`text-base font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
-          {lang === 'no' ? 'Vær nå' : 'Weather now'}<br />
+          {lang === 'no' ? 'Været nå' : 'Weather now'}<br />
           <span className={`text-sm font-normal ${textMuted}`}>{nowStr}</span>
         </div>
       </div>

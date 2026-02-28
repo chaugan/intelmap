@@ -54,9 +54,19 @@ export default function WeatherPanel() {
 
   if (loading) {
     return (
-      <div className="p-3 text-sm text-slate-400">
-        {t('weather.loading', lang)}
-      </div>
+      <>
+        <div className="p-3 text-sm text-slate-400">
+          {t('weather.loading', lang)}
+        </div>
+        {/* Keep report modal open during loading */}
+        {showReport && (
+          <WeatherReportModal
+            lat={location?.lat || latitude}
+            lon={location?.lon || longitude}
+            onClose={() => setShowReport(false)}
+          />
+        )}
+      </>
     );
   }
 
