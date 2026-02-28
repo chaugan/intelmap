@@ -107,38 +107,37 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 {/* Header */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
-                {/* Top section: Current + Aurora + Trends */}
-                <div className="grid grid-cols-12 gap-3 mt-3" style={{ flex: '0 0 auto', height: '35%' }}>
-                  {/* Left: Current conditions */}
-                  <div className="col-span-2">
-                    <CurrentConditionsHero
-                      current={data.current}
-                      snowDepth={data.snowDepth}
-                      lang={lang}
-                      isDark={isDark}
-                      bgCard={bgCard}
-                      textMuted={textMuted}
-                    />
-                  </div>
-
-                  {/* Middle: Aurora (moved here from left) */}
-                  <div className="col-span-2">
-                    {showAurora && data.kp ? (
-                      <AuroraSection
-                        kp={data.kp}
+                {/* Top section: Left (Current + Aurora stacked) + Right (Trends) */}
+                <div className="grid grid-cols-12 gap-3 mt-3" style={{ flex: '0 0 auto', height: '38%' }}>
+                  {/* Left column: Current conditions (top) + Aurora (bottom) */}
+                  <div className="col-span-4 flex flex-col gap-3">
+                    {/* Current conditions - horizontal layout */}
+                    <div className="flex-1">
+                      <CurrentConditionsHero
+                        current={data.current}
+                        snowDepth={data.snowDepth}
                         lang={lang}
                         isDark={isDark}
                         bgCard={bgCard}
                         textMuted={textMuted}
                       />
-                    ) : (
-                      <div className={`${bgCard} rounded-lg p-3 h-full flex items-center justify-center`}>
-                        <span className={textMuted}>{lang === 'no' ? 'Nordlys ikke tilgjengelig' : 'Aurora not available'}</span>
+                    </div>
+
+                    {/* Aurora below current conditions */}
+                    {showAurora && data.kp && (
+                      <div className="flex-1">
+                        <AuroraSectionHorizontal
+                          kp={data.kp}
+                          lang={lang}
+                          isDark={isDark}
+                          bgCard={bgCard}
+                          textMuted={textMuted}
+                        />
                       </div>
                     )}
                   </div>
 
-                  {/* Right: Trends (bigger now) */}
+                  {/* Right: Trends */}
                   <div className="col-span-8">
                     <TrendCharts
                       daily={data.daily}
@@ -150,8 +149,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
                 </div>
 
-                {/* Middle section: 7-day forecast (horizontal, full width) */}
-                <div className="mt-3 flex-1 min-h-0">
+                {/* 7-day forecast (horizontal, full width) - fixed height */}
+                <div className="mt-3" style={{ flex: '0 0 auto', height: '28%' }}>
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -163,7 +162,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Bottom row: Moon and Sun */}
-                <div className="grid grid-cols-2 gap-3 mt-3 shrink-0">
+                <div className="grid grid-cols-2 gap-3 mt-3 flex-1 min-h-0">
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -603,6 +602,79 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
                 <g key={i}>
                   <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="2" />
                   <text x={x + barWidth / 2} y={y - 3} fontSize="10" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Horizontal Aurora section for the new layout
+function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
+  const currentKp = kp?.current || 0;
+  const kpForecast = kp?.hourly?.slice(0, 8) || [];
+
+  const getKpColor = (k) => {
+    if (k < 3) return '#22c55e';
+    if (k < 5) return '#eab308';
+    if (k < 7) return '#f97316';
+    return '#ef4444';
+  };
+
+  const getActivityLevel = (k) => {
+    if (k < 2) return lang === 'no' ? 'Rolig' : 'Quiet';
+    if (k < 4) return lang === 'no' ? 'Lav' : 'Low';
+    if (k < 6) return lang === 'no' ? 'Moderat' : 'Moderate';
+    if (k < 8) return lang === 'no' ? 'Aktiv' : 'Active';
+    return lang === 'no' ? 'Storm' : 'Storm';
+  };
+
+  // Chart dimensions
+  const chartWidth = 280;
+  const chartHeight = 50;
+  const padding = { top: 14, right: 8, bottom: 4, left: 8 };
+  const w = chartWidth - padding.left - padding.right;
+  const h = chartHeight - padding.top - padding.bottom;
+  const barWidth = (w / kpForecast.length) * 0.75;
+
+  return (
+    <div className={`${bgCard} rounded-lg p-3 h-full flex items-center gap-4 ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
+      {/* Kp gauge */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="relative w-14 h-14">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={isDark ? '#475569' : '#e2e8f0'} strokeWidth="10" />
+            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={getKpColor(currentKp)} strokeWidth="10" strokeDasharray={`${(currentKp / 9) * 188} 188`} />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center pt-2">
+            <span className="text-xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
+          </div>
+        </div>
+        <div>
+          <h3 className={`text-sm font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+            {lang === 'no' ? 'Nordlys' : 'Aurora'}
+          </h3>
+          <div className="text-base font-semibold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
+          <div className={`text-xs ${textMuted}`}>Kp-indeks</div>
+        </div>
+      </div>
+
+      {/* Forecast chart */}
+      {kpForecast.length > 0 && (
+        <div className="flex-1">
+          <div className={`text-xs ${textMuted} mb-1`}>{lang === 'no' ? 'Neste 24t' : 'Next 24h'}</div>
+          <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="xMidYMid meet">
+            {kpForecast.map((k, i) => {
+              const barH = (k.kp / 9) * h;
+              const x = padding.left + (i / kpForecast.length) * w + (w / kpForecast.length - barWidth) / 2;
+              const y = padding.top + h - barH;
+              return (
+                <g key={i}>
+                  <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="2" />
+                  <text x={x + barWidth / 2} y={y - 2} fontSize="9" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
                 </g>
               );
             })}

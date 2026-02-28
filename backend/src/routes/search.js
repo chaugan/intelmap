@@ -31,40 +31,60 @@ router.get('/', async (req, res) => {
 });
 
 // Reverse geocode - find nearest place name for coordinates
+// Prioritizes larger geographical areas (valleys, mountains, regions) over small features
 router.get('/reverse', async (req, res) => {
   try {
     const { lat, lon } = req.query;
     if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
 
     // Fetch multiple results (max radius 5000m per API limit)
-    const url = `https://api.kartverket.no/stedsnavn/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258&radius=5000&treffPerSide=10`;
+    const url = `https://api.kartverket.no/stedsnavn/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258&radius=5000&treffPerSide=50`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Kartverket ${response.status}`);
     const data = await response.json();
 
     const places = data.navn || [];
 
-    // Prefer certain place types (natural areas, populated places) over streets/buildings
-    const preferredTypes = ['By', 'Tettsted', 'Grend', 'Bygd', 'Fjell', 'Fjord', 'Elv', 'Vann', 'Dal', 'Øy', 'Halvøy', 'Nes', 'Vik', 'Strand', 'Skog', 'Myr', 'Hei', 'Mo', 'Vidde'];
+    // Priority tiers for place types (higher tier = more preferred)
+    // Tier 3: Large geographical areas - most preferred
+    const tier3 = ['Dal', 'Vidde', 'Fjellområde', 'Halvøy', 'Øy', 'Fjord', 'Innsjø', 'Bre'];
+    // Tier 2: Populated places and notable features
+    const tier2 = ['By', 'Tettsted', 'Bygd', 'Grend', 'Fjell', 'Nes', 'Vik'];
+    // Tier 1: Natural features - least preferred but still good
+    const tier1 = ['Elv', 'Vann', 'Strand', 'Skog', 'Myr', 'Hei', 'Mo', 'Bukt'];
+    // Everything else (roads, buildings, small features) gets tier 0
 
-    // Sort by type preference, then by proximity (first in list is closest)
+    const getTier = (type) => {
+      if (!type) return 0;
+      const typeLower = type.toLowerCase();
+      if (tier3.some(t => typeLower.includes(t.toLowerCase()))) return 3;
+      if (tier2.some(t => typeLower.includes(t.toLowerCase()))) return 2;
+      if (tier1.some(t => typeLower.includes(t.toLowerCase()))) return 1;
+      return 0;
+    };
+
+    // Sort by tier (descending), then keep original order (proximity)
     const sorted = [...places].sort((a, b) => {
-      const aPreferred = preferredTypes.some(t => a.navneobjekttype?.toLowerCase().includes(t.toLowerCase()));
-      const bPreferred = preferredTypes.some(t => b.navneobjekttype?.toLowerCase().includes(t.toLowerCase()));
-      if (aPreferred && !bPreferred) return -1;
-      if (!aPreferred && bPreferred) return 1;
-      return 0; // Keep original order (proximity)
+      const tierA = getTier(a.navneobjekttype);
+      const tierB = getTier(b.navneobjekttype);
+      return tierB - tierA; // Higher tier first
     });
 
+    // Find the best match from top tier
     const place = sorted[0];
     if (place) {
-      // Name is in stedsnavn array
       const nameObj = place.stedsnavn?.[0];
       const name = nameObj?.skrivemåte || null;
+      const municipality = place.kommuner?.[0]?.kommunenavn || '';
+
+      // If we only found low-tier places, append municipality for context
+      const tier = getTier(place.navneobjekttype);
+      const displayName = tier === 0 && municipality ? `${name}, ${municipality}` : name;
+
       res.json({
-        name,
+        name: displayName,
         type: place.navneobjekttype || '',
-        municipality: place.kommuner?.[0]?.kommunenavn || '',
+        municipality,
       });
     } else {
       res.json({ name: null });
