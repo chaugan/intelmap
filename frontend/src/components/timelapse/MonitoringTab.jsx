@@ -160,18 +160,26 @@ export default function MonitoringTab() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* ntfy channel info */}
       <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-700 shrink-0">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="text-xs text-slate-400">
             {lang === 'no' ? 'Abonner i ntfy-appen:' : 'Subscribe in ntfy app:'}
           </div>
-          <button
-            onClick={() => navigator.clipboard.writeText(ntfyChannel)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 font-mono"
-            title={lang === 'no' ? 'Kopier til utklippstavle' : 'Copy to clipboard'}
+          <a
+            href="https://docs.ntfy.sh/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-cyan-400 hover:text-cyan-300 underline"
           >
-            {ntfyChannel?.split('/').pop()}
-          </button>
+            {lang === 'no' ? 'ntfy-dokumentasjon' : 'ntfy docs'}
+          </a>
         </div>
+        <button
+          onClick={() => navigator.clipboard.writeText(ntfyChannel)}
+          className="w-full text-sm text-cyan-400 hover:text-cyan-300 font-mono bg-slate-800 rounded px-3 py-2 text-left break-all"
+          title={lang === 'no' ? 'Kopier til utklippstavle' : 'Copy to clipboard'}
+        >
+          {ntfyChannel}
+        </button>
       </div>
 
       {/* Error message */}

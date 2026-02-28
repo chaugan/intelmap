@@ -71,6 +71,13 @@ export default function LabelSelector({ selected = [], onChange, lang }) {
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && availableLabels.length > 0) {
+              e.preventDefault();
+              toggleLabel(availableLabels[0]);
+              setFilter('');
+            }
+          }}
           placeholder={lang === 'no' ? 'Søk etiketter...' : 'Search labels...'}
           className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-cyan-500"
         />

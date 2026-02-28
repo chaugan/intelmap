@@ -19,7 +19,7 @@ export const YOLO_LABELS = [
 ];
 
 export const SNOOZE_OPTIONS = [
-  { value: 0, labelNo: 'Ingen slumring', labelEn: 'No snooze' },
+  { value: 0, labelNo: 'Ingen slumring, motta alle varsler', labelEn: 'No snooze, receive all alerts' },
   { value: 15, labelNo: '15 minutter', labelEn: '15 minutes' },
   { value: 60, labelNo: '1 time', labelEn: '1 hour' },
   { value: 360, labelNo: '6 timer', labelEn: '6 hours' },
