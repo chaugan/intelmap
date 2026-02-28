@@ -130,6 +130,13 @@ router.delete('/:cameraId', async (req, res) => {
   }
 });
 
+// Get detection summary for a camera (total per label, last detection)
+router.get('/:cameraId/summary', (req, res) => {
+  const { cameraId } = req.params;
+  const summary = monitorService.getDetectionSummary(req.user.id, cameraId);
+  res.json(summary);
+});
+
 // Get detection history for a camera
 router.get('/:cameraId/detections', (req, res) => {
   const { cameraId } = req.params;

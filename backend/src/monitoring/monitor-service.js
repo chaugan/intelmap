@@ -289,6 +289,47 @@ class MonitorService {
   }
 
   /**
+   * Get detection summary for a camera (total per label, last detection)
+   * @param {string} userId - User ID
+   * @param {string} cameraId - Camera ID
+   * @returns {Object} - { totalCount, lastDetection, labelCounts }
+   */
+  getDetectionSummary(userId, cameraId) {
+    const db = getDb();
+
+    // Get total count and last detection
+    const stats = db.prepare(`
+      SELECT COUNT(*) as total, MAX(detected_at) as lastDetection
+      FROM monitor_detections
+      WHERE user_id = ? AND camera_id = ?
+    `).get(userId, cameraId);
+
+    if (stats.total === 0) {
+      return { totalCount: 0, lastDetection: null, labelCounts: {} };
+    }
+
+    // Get all detections to aggregate label counts
+    const detections = db.prepare(`
+      SELECT labels_detected FROM monitor_detections
+      WHERE user_id = ? AND camera_id = ?
+    `).all(userId, cameraId);
+
+    const labelCounts = {};
+    for (const det of detections) {
+      const labels = JSON.parse(det.labels_detected || '[]');
+      for (const l of labels) {
+        labelCounts[l.label] = (labelCounts[l.label] || 0) + l.count;
+      }
+    }
+
+    return {
+      totalCount: stats.total,
+      lastDetection: stats.lastDetection,
+      labelCounts,
+    };
+  }
+
+  /**
    * Check if user is snoozed for a camera
    * @param {string} userId - User ID
    * @param {string} cameraId - Camera ID
@@ -529,7 +570,7 @@ class MonitorService {
       'Message': labelSummary,
       'Tags': 'camera,warning',
       'Filename': `detection-${cameraId}.jpg`,
-      'Click': `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`,
+      'X-Click': `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`,
     };
 
     if (token) {
@@ -559,8 +600,6 @@ class MonitorService {
       if (!response.ok) {
         const errText = await response.text();
         eventLogger.notification.error(`Failed to send alert: ${response.status} - ${errText}`, { cameraId, userId });
-      } else {
-        eventLogger.notification.info(`Alert sent for ${displayName}`, { labels: matches.map(m => m.label) });
       }
     } catch (err) {
       eventLogger.notification.error(`ntfy error: ${err.message}`, { cameraId, userId });

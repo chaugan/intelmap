@@ -26,6 +26,9 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [detectionsTotalCount, setDetectionsTotalCount] = useState(0);
   const [detectionsLoading, setDetectionsLoading] = useState(false);
 
+  // Detection summary (total per label, last detection)
+  const [summary, setSummary] = useState(null);
+
   // Fetch detections for this card only
   const fetchDetections = useCallback(async (page = 1) => {
     setDetectionsLoading(true);
@@ -50,6 +53,19 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
     }
   }, [showHistory, fetchDetections]);
 
+  // Fetch detection summary on mount
+  useEffect(() => {
+    async function fetchSummary() {
+      try {
+        const res = await fetch(`/api/monitoring/${subscription.cameraId}/summary`, { credentials: 'include' });
+        if (res.ok) {
+          setSummary(await res.json());
+        }
+      } catch {}
+    }
+    fetchSummary();
+  }, [subscription.cameraId]);
+
   // Clear detection history
   async function handleClearHistory() {
     setClearingHistory(true);
@@ -62,6 +78,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
         setDetections([]);
         setDetectionsTotalCount(0);
         setConfirmClearHistory(false);
+        setSummary(null); // Clear summary
       }
     } catch {}
     setClearingHistory(false);
@@ -206,6 +223,34 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
             >
               {saving ? t('general.loading', lang) : t('general.save', lang)}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Detection summary */}
+      {!isEditing && summary && summary.totalCount > 0 && (
+        <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/30">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-slate-400">
+              {lang === 'no' ? 'Totalt' : 'Total'}: {summary.totalCount} {lang === 'no' ? 'hendelser' : 'detections'}
+            </span>
+            <span className="text-slate-500">
+              {lang === 'no' ? 'Sist' : 'Last'}: {new Date(summary.lastDetection).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+              })}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(summary.labelCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, count]) => (
+              <span key={label} className="px-1.5 py-0.5 bg-amber-900/40 rounded text-xs text-amber-300">
+                {count}x {label}
+              </span>
+            ))}
+            {Object.keys(summary.labelCounts).length > 6 && (
+              <span className="px-1.5 py-0.5 text-xs text-slate-500">
+                +{Object.keys(summary.labelCounts).length - 6}
+              </span>
+            )}
           </div>
         </div>
       )}
