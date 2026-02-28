@@ -4,9 +4,11 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 import LabelSelector from './LabelSelector.jsx';
 
-export default function MonitorCard({ subscription, lang }) {
+export default function MonitorCard({ subscription, lang, isHighlighted = false }) {
   const { updateSubscription, unsubscribe, fetchDetections, detections, detectionsPage, detectionsTotalCount, detectionsLoading, selectedCameraId } = useMonitoringStore();
   const mapRef = useMapStore((s) => s.mapRef);
+  const webcamsVisible = useMapStore((s) => s.webcamsVisible);
+  const toggleWebcams = useMapStore((s) => s.toggleWebcams);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editLabels, setEditLabels] = useState(subscription.labels || []);
@@ -43,13 +45,23 @@ export default function MonitorCard({ subscription, lang }) {
         zoom: 14,
         duration: 1500,
       });
+      // Enable webcams overlay after animation finishes
+      mapRef.once('idle', () => {
+        if (!webcamsVisible) {
+          toggleWebcams();
+        }
+      });
     }
   }
 
   const snoozeLabel = SNOOZE_OPTIONS.find(o => o.value === subscription.snoozeMinutes);
 
   return (
-    <div className="bg-slate-900 rounded border border-slate-700 overflow-hidden">
+    <div className={`bg-slate-900 rounded border overflow-hidden transition-all duration-300 ${
+      isHighlighted
+        ? 'border-green-500 ring-2 ring-green-500/50 animate-pulse'
+        : 'border-slate-700'
+    }`}>
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-slate-700">
         <div className="flex-1 min-w-0">

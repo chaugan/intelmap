@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
+import { useMonitoringStore } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
@@ -9,12 +10,26 @@ export default function CameraPicker() {
   const loading = useTimelapseStore((s) => s.loading);
   const selectedCamera = useTimelapseStore((s) => s.selectedCamera);
   const setSelectedCamera = useTimelapseStore((s) => s.setSelectedCamera);
+  const setActiveTab = useTimelapseStore((s) => s.setActiveTab);
   const checkUnsubscribe = useTimelapseStore((s) => s.checkUnsubscribe);
   const unsubscribe = useTimelapseStore((s) => s.unsubscribe);
   const lang = useMapStore((s) => s.lang);
   const mapRef = useMapStore((s) => s.mapRef);
+  const webcamsVisible = useMapStore((s) => s.webcamsVisible);
+  const toggleWebcams = useMapStore((s) => s.toggleWebcams);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+
+  // Get monitored camera IDs and highlight function
+  const monitoredCameraIds = useMonitoringStore((s) => s.monitoredCameraIds);
+  const setHighlightCamera = useMonitoringStore((s) => s.setHighlightCamera);
+  const monitoringEnabled = useMonitoringStore((s) => s.enabled);
+  const fetchMonitoredCameras = useMonitoringStore((s) => s.fetchMonitoredCameras);
+
+  // Fetch monitored cameras on mount
+  useEffect(() => {
+    fetchMonitoredCameras();
+  }, [fetchMonitoredCameras]);
 
   const zoomToCamera = useCallback((camera) => {
     if (!mapRef || !camera.lat || !camera.lon) return;
@@ -23,7 +38,19 @@ export default function CameraPicker() {
       zoom: 14,
       duration: 1500,
     });
-  }, [mapRef]);
+    // Enable webcams overlay after animation finishes
+    mapRef.once('idle', () => {
+      if (!webcamsVisible) {
+        toggleWebcams();
+      }
+    });
+  }, [mapRef, webcamsVisible, toggleWebcams]);
+
+  // Handle clicking on monitor icon - switch to monitoring tab and highlight the camera
+  const handleMonitorClick = useCallback((cameraId) => {
+    setHighlightCamera(cameraId);
+    setActiveTab('monitoring');
+  }, [setHighlightCamera, setActiveTab]);
 
   const [confirmDialog, setConfirmDialog] = useState(null);
 
@@ -103,6 +130,8 @@ export default function CameraPicker() {
             onSelect={() => setSelectedCamera(camera)}
             onUnsubscribe={() => handleUnsubscribe(camera)}
             onZoom={() => zoomToCamera(camera)}
+            isMonitored={monitoringEnabled && monitoredCameraIds.includes(camera.cameraId)}
+            onMonitorClick={() => handleMonitorClick(camera.cameraId)}
             lang={lang}
             isAdmin={isAdmin}
           />
@@ -176,7 +205,7 @@ export default function CameraPicker() {
   );
 }
 
-function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, lang, isAdmin }) {
+function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, isMonitored, onMonitorClick, lang, isAdmin }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [thumbnailError, setThumbnailError] = useState(false);
 
@@ -328,6 +357,22 @@ function CameraCard({ camera, isSelected, onSelect, onUnsubscribe, onZoom, lang,
             {camera.name || camera.cameraId}
           </h3>
           <div className="flex items-center gap-2 ml-2">
+            {/* Monitoring indicator - click to go to monitor */}
+            {isMonitored && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMonitorClick();
+                }}
+                className="text-green-400 hover:text-green-300 p-1 cursor-pointer hover:bg-slate-700 rounded transition-colors"
+                title={lang === 'no' ? 'Vis monitorering' : 'View monitoring'}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            )}
             {/* Zoom to camera button */}
             {camera.lat && camera.lon && (
               <button

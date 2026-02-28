@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMonitoringStore, SNOOZE_OPTIONS } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
@@ -15,12 +15,17 @@ export default function MonitoringTab() {
     loading,
     error,
     preselectCamera,
+    highlightCameraId,
     fetchConfig,
     fetchSubscriptions,
     subscribe,
     clearError,
     clearPreselectCamera,
+    clearHighlightCamera,
   } = useMonitoringStore();
+
+  // Refs for scrolling to highlighted camera
+  const cardRefs = useRef({});
 
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +68,17 @@ export default function MonitoringTab() {
       return () => clearTimeout(timer);
     }
   }, [error, clearError]);
+
+  // Handle highlight camera - scroll to it and clear after animation
+  useEffect(() => {
+    if (highlightCameraId && cardRefs.current[highlightCameraId]) {
+      // Scroll to the camera card
+      cardRefs.current[highlightCameraId].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Clear highlight after animation completes
+      const timer = setTimeout(clearHighlightCamera, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightCameraId, clearHighlightCamera]);
 
   // Search webcams
   async function handleSearch(query) {
@@ -333,7 +349,13 @@ export default function MonitoringTab() {
         )}
 
         {subscriptions.map((sub) => (
-          <MonitorCard key={sub.cameraId} subscription={sub} lang={lang} />
+          <div key={sub.cameraId} ref={(el) => (cardRefs.current[sub.cameraId] = el)}>
+            <MonitorCard
+              subscription={sub}
+              lang={lang}
+              isHighlighted={highlightCameraId === sub.cameraId}
+            />
+          </div>
         ))}
       </div>
     </div>

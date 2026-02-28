@@ -50,6 +50,9 @@ export const useMonitoringStore = create((set, get) => ({
   detectionsTotalCount: 0,
   detectionsLoading: false,
 
+  // Highlight camera (for cross-tab navigation)
+  highlightCameraId: null,
+
   // Fetch monitoring config
   fetchConfig: async () => {
     try {
@@ -188,4 +191,10 @@ export const useMonitoringStore = create((set, get) => ({
 
   // Clear preselect camera
   clearPreselectCamera: () => set({ preselectCamera: null }),
+
+  // Set highlight camera (for cross-tab navigation from Cameras tab)
+  setHighlightCamera: (cameraId) => set({ highlightCameraId: cameraId }),
+
+  // Clear highlight camera
+  clearHighlightCamera: () => set({ highlightCameraId: null }),
 }));
