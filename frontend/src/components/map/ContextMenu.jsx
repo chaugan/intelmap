@@ -244,9 +244,14 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
     visibility: clampedPos.ready ? 'visible' : 'hidden',
   };
 
+  const activePanel = useMapStore((s) => s.activePanel);
+
   const handleWeatherPanel = () => {
     fetchWeather(lat.toFixed(4), lng.toFixed(4));
-    setActivePanel('weather');
+    // Only set panel if not already on weather (setActivePanel toggles)
+    if (activePanel !== 'weather') {
+      setActivePanel('weather');
+    }
     if (!pinned) onClose();
   };
 
