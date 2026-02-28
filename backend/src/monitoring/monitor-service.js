@@ -22,6 +22,8 @@ class MonitorService {
   constructor() {
     this.processingCameras = new Set(); // Cameras currently being processed
     this.detectionsDir = path.join(config.dataDir, 'detections');
+    // Bound callback reference (same instance for register/unregister)
+    this.boundOnFrame = this.onFrame.bind(this);
   }
 
   /**
@@ -116,7 +118,7 @@ class MonitorService {
 
     // Register with frame manager for this camera
     const consumerId = `monitor:${cameraId}`;
-    frameManager.registerConsumer(cameraId, consumerId, this.onFrame.bind(this));
+    frameManager.registerConsumer(cameraId, consumerId, this.boundOnFrame);
 
     return { subscribed: true, cameraId, labels };
   }
@@ -141,7 +143,7 @@ class MonitorService {
     // If no more subscribers, unregister from frame manager
     if (remaining === 0) {
       const consumerId = `monitor:${cameraId}`;
-      frameManager.unregisterConsumer(cameraId, consumerId, this.onFrame.bind(this));
+      frameManager.unregisterConsumer(cameraId, consumerId, this.boundOnFrame);
     }
 
     return { unsubscribed: true, cameraId };
@@ -429,22 +431,25 @@ class MonitorService {
     const channel = this.getUserNtfyChannel(userId, username);
     const token = getNtfyToken();
 
-    // Build message
+    // Build message with labels
     const labelSummary = matches
       .map(m => `${m.count}x ${m.label} (${Math.round(m.maxConfidence * 100)}%)`)
       .join(', ');
 
-    const title = `Detection: ${cameraName || cameraId}`;
+    const displayName = cameraName || cameraId;
+    const title = `Detection: ${displayName}`;
 
     // Read image
     const imageBuffer = fs.readFileSync(annotatedPath);
 
-    // URL-encode headers with non-ASCII characters (ntfy requirement)
+    // Use PUT with raw UTF-8 headers (no encoding)
+    // ntfy supports UTF-8 headers natively in modern versions
     const headers = {
-      'X-Title': encodeURIComponent(title),
-      'X-Tags': 'camera,warning',
-      'X-Filename': `detection-${cameraId}.jpg`,
-      'X-Message': encodeURIComponent(labelSummary),
+      'Title': title,
+      'Message': labelSummary,
+      'Tags': 'camera,warning',
+      'Filename': `detection-${cameraId}.jpg`,
+      'Content-Type': 'image/jpeg',
     };
 
     if (token) {
@@ -453,15 +458,16 @@ class MonitorService {
 
     try {
       const response = await fetch(channel, {
-        method: 'POST',
+        method: 'PUT',
         headers,
         body: imageBuffer,
       });
 
       if (!response.ok) {
-        eventLogger.notification.error(`Failed to send alert: ${response.status}`, { cameraId, userId });
+        const errText = await response.text();
+        eventLogger.notification.error(`Failed to send alert: ${response.status} - ${errText}`, { cameraId, userId });
       } else {
-        eventLogger.notification.info(`Alert sent for ${cameraName || cameraId}`, { labels: matches.map(m => m.label) });
+        eventLogger.notification.info(`Alert sent for ${displayName}`, { labels: matches.map(m => m.label) });
       }
     } catch (err) {
       eventLogger.notification.error(`ntfy error: ${err.message}`, { cameraId, userId });
@@ -519,7 +525,6 @@ class MonitorService {
       db.prepare(`
         UPDATE monitor_cameras SET last_check_at = ? WHERE camera_id = ?
       `).run(now, cameraId);
-      eventLogger.inference.info(`No detections for ${cameraId}`, { labels: allLabels });
       return;
     }
 
@@ -529,11 +534,6 @@ class MonitorService {
       SET last_check_at = ?, last_detection_at = ?
       WHERE camera_id = ?
     `).run(now, now, cameraId);
-
-    eventLogger.inference.info(`Detections for ${cameraId}`, {
-      count: result.detections.length,
-      labels: result.detections.map(d => d.label),
-    });
 
     // Get all active subscriptions for this camera
     const subs = db.prepare(`
@@ -600,7 +600,7 @@ class MonitorService {
 
     for (const { camera_id } of cameras) {
       const consumerId = `monitor:${camera_id}`;
-      frameManager.registerConsumer(camera_id, consumerId, this.onFrame.bind(this));
+      frameManager.registerConsumer(camera_id, consumerId, this.boundOnFrame);
     }
 
     if (cameras.length > 0) {

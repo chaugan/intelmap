@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMonitoringStore, SNOOZE_OPTIONS } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 import LabelSelector from './LabelSelector.jsx';
 
 export default function MonitorCard({ subscription, lang, isHighlighted = false }) {
-  const { updateSubscription, unsubscribe, fetchDetections, detections, detectionsPage, detectionsTotalCount, detectionsLoading, selectedCameraId } = useMonitoringStore();
+  const { updateSubscription, unsubscribe } = useMonitoringStore();
   const mapRef = useMapStore((s) => s.mapRef);
   const webcamsVisible = useMapStore((s) => s.webcamsVisible);
   const toggleWebcams = useMapStore((s) => s.toggleWebcams);
@@ -16,21 +16,37 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [viewingImage, setViewingImage] = useState(null); // Detection ID for fullscreen image
+  const [viewingImage, setViewingImage] = useState(null);
 
-  // Auto-collapse history when another camera is selected
-  useEffect(() => {
-    if (showHistory && selectedCameraId && selectedCameraId !== subscription.cameraId) {
-      setShowHistory(false);
+  // Local detection state per card (allows multiple histories open simultaneously)
+  const [detections, setDetections] = useState([]);
+  const [detectionsPage, setDetectionsPage] = useState(1);
+  const [detectionsTotalCount, setDetectionsTotalCount] = useState(0);
+  const [detectionsLoading, setDetectionsLoading] = useState(false);
+
+  // Fetch detections for this card only
+  const fetchDetections = useCallback(async (page = 1) => {
+    setDetectionsLoading(true);
+    try {
+      const res = await fetch(`/api/monitoring/${subscription.cameraId}/detections?page=${page}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setDetections(data.detections);
+        setDetectionsPage(data.page);
+        setDetectionsTotalCount(data.totalCount);
+      }
+    } catch {
+      // Silently fail
     }
-  }, [selectedCameraId, subscription.cameraId, showHistory]);
+    setDetectionsLoading(false);
+  }, [subscription.cameraId]);
 
   // Load detection history when expanded
   useEffect(() => {
     if (showHistory) {
-      fetchDetections(subscription.cameraId, 1);
+      fetchDetections(1);
     }
-  }, [showHistory, subscription.cameraId, fetchDetections]);
+  }, [showHistory, fetchDetections]);
 
   async function handleSave() {
     if (editLabels.length === 0) return;
@@ -196,15 +212,15 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
       {/* Detection history */}
       {showHistory && !isEditing && (
         <div className="max-h-48 overflow-y-auto">
-          {detectionsLoading && selectedCameraId === subscription.cameraId ? (
+          {detectionsLoading ? (
             <div className="p-3 text-xs text-slate-400 text-center">
               {t('general.loading', lang)}
             </div>
-          ) : selectedCameraId === subscription.cameraId && detections.length === 0 ? (
+          ) : detections.length === 0 ? (
             <div className="p-3 text-xs text-slate-400 text-center">
               {t('monitoring.noDetections', lang)}
             </div>
-          ) : selectedCameraId === subscription.cameraId ? (
+          ) : (
             <div className="divide-y divide-slate-700">
               {detections.map((det) => (
                 <div key={det.id} className="px-3 py-2">
@@ -244,14 +260,14 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
               ))}
               {detectionsTotalCount > detectionsPage * 20 && (
                 <button
-                  onClick={() => fetchDetections(subscription.cameraId, detectionsPage + 1)}
+                  onClick={() => fetchDetections(detectionsPage + 1)}
                   className="w-full px-3 py-2 text-xs text-cyan-400 hover:bg-slate-800 transition-colors"
                 >
                   {lang === 'no' ? 'Last mer...' : 'Load more...'}
                 </button>
               )}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
