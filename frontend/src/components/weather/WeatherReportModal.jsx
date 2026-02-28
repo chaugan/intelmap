@@ -243,21 +243,22 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
   return (
     <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
-      {/* Header */}
-      <div className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
-        {lang === 'no' ? 'Vær nå' : 'Weather now'}, {nowStr}
-      </div>
-
-      {/* Temperature row - icon, temp, and description side by side */}
-      <div className="flex items-center gap-2 mb-2 shrink-0">
-        {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
-        <div className={`text-3xl font-bold ${tempColor}`}>
-          {current.temperature?.toFixed(1)}°C
+      {/* Temperature row - icon, temp, description on left; Weather now on right */}
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <div className="flex items-center gap-2">
+          {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
+          <div className={`text-3xl font-bold ${tempColor}`}>
+            {current.temperature?.toFixed(1)}°C
+          </div>
+          <div className="ml-2">
+            {current.symbol && (
+              <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
+            )}
+          </div>
         </div>
-        <div className="ml-2">
-          {current.symbol && (
-            <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
-          )}
+        <div className={`text-base font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+          {lang === 'no' ? 'Vær nå' : 'Weather now'}<br />
+          <span className={`text-sm font-normal ${textMuted}`}>{nowStr}</span>
         </div>
       </div>
 
