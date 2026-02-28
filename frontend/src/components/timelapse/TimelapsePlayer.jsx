@@ -1,125 +1,198 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Hls from 'hls.js';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
-import TimelineSlider from './TimelineSlider.jsx';
 
+/**
+ * Frame-based timelapse player
+ * Loads individual frames as images for perfect seeking and speed control
+ */
 export default function TimelapsePlayer() {
   const selectedCamera = useTimelapseStore((s) => s.selectedCamera);
   const playbackSpeed = useTimelapseStore((s) => s.playbackSpeed);
   const setPlaybackSpeed = useTimelapseStore((s) => s.setPlaybackSpeed);
   const isPlaying = useTimelapseStore((s) => s.isPlaying);
   const setIsPlaying = useTimelapseStore((s) => s.setIsPlaying);
-  const isLive = useTimelapseStore((s) => s.isLive);
-  const goLive = useTimelapseStore((s) => s.goLive);
-  const getPlaylistUrl = useTimelapseStore((s) => s.getPlaylistUrl);
-  const getFrameUrl = useTimelapseStore((s) => s.getFrameUrl);
   const setActiveTab = useTimelapseStore((s) => s.setActiveTab);
   const lang = useMapStore((s) => s.lang);
 
-  const videoRef = useRef(null);
-  const hlsRef = useRef(null);
-  const [currentTime, setCurrentTime] = useState(null);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState(null);
+  // Frame data
+  const [frames, setFrames] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loop, setLoop] = useState(true); // Loop enabled by default
+  const [error, setError] = useState(null);
+  const [loop, setLoop] = useState(true);
 
-  // Reset playback state when camera changes - video should always start paused
+  // Preloaded images for smooth playback
+  const preloadedImages = useRef(new Map());
+  const playIntervalRef = useRef(null);
+  const canvasRef = useRef(null);
+  const currentImageRef = useRef(null);
+
+  // Reset when camera changes - always start from beginning
   useEffect(() => {
     setIsPlaying(false);
-    setCurrentTime(null);
-    setDuration(0);
+    setCurrentIndex(0);
+    setFrames([]);
+    preloadedImages.current.clear();
   }, [selectedCamera?.cameraId, setIsPlaying]);
 
-  // Pause video when component unmounts (leaving player tab)
+  // Pause when component unmounts
   useEffect(() => {
     return () => {
       setIsPlaying(false);
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+      }
     };
   }, [setIsPlaying]);
 
-  // Initialize HLS.js
+  // Fetch frame list
   useEffect(() => {
-    if (!selectedCamera || !videoRef.current) return;
+    if (!selectedCamera) return;
 
-    const video = videoRef.current;
-    const playlistUrl = getPlaylistUrl(selectedCamera.cameraId);
+    const fetchFrames = async () => {
+      setLoading(true);
+      setError(null);
 
-    setLoading(true);
-    setError(null);
+      try {
+        // Fetch frame list (up to 10000 frames for 7 days)
+        const res = await fetch(`/api/timelapse/frames/${selectedCamera.cameraId}?limit=10000`, {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('Failed to fetch frames');
 
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-      });
-
-      hls.loadSource(playlistUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLoading(false);
-        if (isPlaying) video.play();
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          setError(lang === 'no' ? 'Kunne ikke laste video' : 'Failed to load video');
-          setLoading(false);
+        const data = await res.json();
+        if (data.length === 0) {
+          throw new Error(lang === 'no' ? 'Ingen bilder tilgjengelig' : 'No frames available');
         }
-      });
 
-      hlsRef.current = hls;
-
-      return () => {
-        hls.destroy();
-        hlsRef.current = null;
-      };
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
-      video.src = playlistUrl;
-      video.addEventListener('loadedmetadata', () => {
+        setFrames(data);
+        setCurrentIndex(0); // Always start from beginning
         setLoading(false);
-        if (isPlaying) video.play();
+
+        // Preload first few frames
+        preloadFrames(data, 0, 10);
+      } catch (err) {
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchFrames();
+  }, [selectedCamera, lang]);
+
+  // Preload frames around current position
+  const preloadFrames = useCallback((frameList, startIdx, count) => {
+    if (!selectedCamera) return;
+
+    const toLoad = [];
+    for (let i = startIdx; i < Math.min(startIdx + count, frameList.length); i++) {
+      const frame = frameList[i];
+      if (!preloadedImages.current.has(frame.filename)) {
+        toLoad.push(frame);
+      }
+    }
+
+    toLoad.forEach((frame) => {
+      const img = new Image();
+      img.src = `/api/timelapse/frame/${selectedCamera.cameraId}/${frame.timestamp}.jpg`;
+      img.onload = () => {
+        preloadedImages.current.set(frame.filename, img);
+        // Limit cache size to prevent memory issues
+        if (preloadedImages.current.size > 200) {
+          const firstKey = preloadedImages.current.keys().next().value;
+          preloadedImages.current.delete(firstKey);
+        }
+      };
+    });
+  }, [selectedCamera]);
+
+  // Display current frame
+  useEffect(() => {
+    if (frames.length === 0 || !selectedCamera || !canvasRef.current) return;
+
+    const frame = frames[currentIndex];
+    if (!frame) return;
+
+    const displayFrame = (img) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+
+      // Set canvas size to match image
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+
+      ctx.drawImage(img, 0, 0);
+      currentImageRef.current = img;
+    };
+
+    // Check if preloaded
+    const cached = preloadedImages.current.get(frame.filename);
+    if (cached && cached.complete) {
+      displayFrame(cached);
+    } else {
+      // Load on demand
+      const img = new Image();
+      img.src = `/api/timelapse/frame/${selectedCamera.cameraId}/${frame.timestamp}.jpg`;
+      img.onload = () => {
+        preloadedImages.current.set(frame.filename, img);
+        displayFrame(img);
+      };
+      img.onerror = () => {
+        console.error('Failed to load frame:', frame.filename);
+      };
+    }
+
+    // Preload upcoming frames
+    preloadFrames(frames, currentIndex + 1, 20);
+  }, [currentIndex, frames, selectedCamera, preloadFrames]);
+
+  // Playback control
+  useEffect(() => {
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
+
+    if (!isPlaying || frames.length === 0) return;
+
+    // Base: 1 frame per 100ms at 1x speed (10 fps)
+    // At 8x: 1 frame per 12.5ms
+    const intervalMs = Math.max(10, 100 / playbackSpeed);
+
+    playIntervalRef.current = setInterval(() => {
+      setCurrentIndex((prev) => {
+        const next = prev + 1;
+        if (next >= frames.length) {
+          if (loop) {
+            return 0; // Loop back to start
+          } else {
+            setIsPlaying(false);
+            return prev; // Stay at end
+          }
+        }
+        return next;
       });
-    } else {
-      setError(lang === 'no' ? 'HLS ikke støttet i denne nettleseren' : 'HLS not supported in this browser');
-      setLoading(false);
-    }
-  }, [selectedCamera, getPlaylistUrl, lang]);
+    }, intervalMs);
 
-  // Update playback rate
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed]);
-
-  // Handle play/pause state
-  useEffect(() => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.play().catch(() => {});
-    } else {
-      videoRef.current.pause();
-    }
-  }, [isPlaying]);
-
-  // Handle loop state
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.loop = loop;
-    }
-  }, [loop]);
+    return () => {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+    };
+  }, [isPlaying, playbackSpeed, frames.length, loop, setIsPlaying]);
 
   // Spacebar play/pause toggle
   useEffect(() => {
     if (!selectedCamera) return;
 
     const handleKeyDown = (e) => {
-      // Only handle spacebar, ignore if typing in an input
       if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
         e.preventDefault();
         setIsPlaying((prev) => !prev);
@@ -130,65 +203,9 @@ export default function TimelapsePlayer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedCamera, setIsPlaying]);
 
-  // Track video time
-  const handleTimeUpdate = useCallback(() => {
-    if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
-    setDuration(videoRef.current.duration || 0);
-  }, []);
-
-  // Get duration as soon as metadata loads (before play)
-  const handleLoadedMetadata = useCallback(() => {
-    if (!videoRef.current) return;
-    setDuration(videoRef.current.duration || 0);
-    setLoading(false);
-  }, []);
-
-  // Seek to time
-  const handleSeek = useCallback((time) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-    }
-  }, []);
-
-  // Pause video (called when user interacts with timeline)
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, [setIsPlaying]);
-
-  // Calculate time per frame in video (frames are captured every 60 seconds)
-  const getFrameDuration = useCallback(() => {
-    if (!selectedCamera?.availableFrom || !selectedCamera?.availableTo || !duration) return null;
-    const realDurationMs = new Date(selectedCamera.availableTo) - new Date(selectedCamera.availableFrom);
-    const frameCount = Math.max(1, Math.floor(realDurationMs / 60000)); // frames captured every 60 seconds
-    return duration / frameCount;
-  }, [selectedCamera, duration]);
-
-  // Step to next frame
-  const stepForward = useCallback(() => {
-    if (!videoRef.current || !duration) return;
-    const frameDuration = getFrameDuration();
-    if (!frameDuration) return;
-
-    const newTime = Math.min(videoRef.current.currentTime + frameDuration, duration);
-    videoRef.current.currentTime = newTime;
-    setIsPlaying(false);
-  }, [duration, getFrameDuration, setIsPlaying]);
-
-  // Step to previous frame
-  const stepBackward = useCallback(() => {
-    if (!videoRef.current) return;
-    const frameDuration = getFrameDuration();
-    if (!frameDuration) return;
-
-    const newTime = Math.max(videoRef.current.currentTime - frameDuration, 0);
-    videoRef.current.currentTime = newTime;
-    setIsPlaying(false);
-  }, [getFrameDuration, setIsPlaying]);
-
-  // Keyboard shortcuts for stepping (arrow keys)
+  // Arrow key stepping
   useEffect(() => {
-    if (!selectedCamera) return;
+    if (!selectedCamera || frames.length === 0) return;
 
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -204,39 +221,52 @@ export default function TimelapsePlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCamera, stepForward, stepBackward]);
+  }, [selectedCamera, frames.length]);
 
-  // Save current frame (captures from video canvas, not server)
+  const stepForward = useCallback(() => {
+    setIsPlaying(false);
+    setCurrentIndex((prev) => Math.min(prev + 1, frames.length - 1));
+  }, [frames.length, setIsPlaying]);
+
+  const stepBackward = useCallback(() => {
+    setIsPlaying(false);
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  }, [setIsPlaying]);
+
+  // Seek to specific time (from timeline slider)
+  const handleSeek = useCallback((percent) => {
+    if (frames.length === 0) return;
+    const index = Math.round(percent * (frames.length - 1));
+    setCurrentIndex(Math.max(0, Math.min(index, frames.length - 1)));
+  }, [frames.length]);
+
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+  }, [setIsPlaying]);
+
+  // Go to live (end of video)
+  const goLive = useCallback(() => {
+    if (frames.length > 0) {
+      setCurrentIndex(frames.length - 1);
+    }
+  }, [frames.length]);
+
+  // Save current frame
   const saveFrame = useCallback(() => {
-    if (!selectedCamera || !videoRef.current) return;
+    if (!selectedCamera || !currentImageRef.current || frames.length === 0) return;
 
-    const video = videoRef.current;
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.error('Video not ready');
-      return;
-    }
+    const frame = frames[currentIndex];
+    if (!frame) return;
 
-    // Create canvas and draw current video frame
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = currentImageRef.current.width;
+    canvas.height = currentImageRef.current.height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(currentImageRef.current, 0, 0);
 
-    // Generate timestamp for filename based on video position
-    const videoTime = video.currentTime || 0;
-    const availableFrom = selectedCamera.availableFrom ? new Date(selectedCamera.availableFrom) : null;
-    let frameDate;
-    if (availableFrom && duration > 0) {
-      // Calculate actual timestamp of this frame
-      const msPerSecond = (new Date(selectedCamera.availableTo) - availableFrom) / duration;
-      frameDate = new Date(availableFrom.getTime() + videoTime * msPerSecond);
-    } else {
-      frameDate = new Date();
-    }
-    const timestamp = `${frameDate.getFullYear()}-${String(frameDate.getMonth() + 1).padStart(2, '0')}-${String(frameDate.getDate()).padStart(2, '0')}_${String(frameDate.getHours()).padStart(2, '0')}-${String(frameDate.getMinutes()).padStart(2, '0')}-${String(frameDate.getSeconds()).padStart(2, '0')}`;
+    // Use frame timestamp for filename
+    const timestamp = frame.timestamp.replace(/[:.]/g, '-').slice(0, 19);
 
-    // Download as JPEG
     canvas.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement('a');
@@ -245,7 +275,12 @@ export default function TimelapsePlayer() {
       a.click();
       URL.revokeObjectURL(a.href);
     }, 'image/jpeg', 0.95);
-  }, [selectedCamera, duration]);
+  }, [selectedCamera, currentIndex, frames]);
+
+  // Calculate current time info for timeline
+  const currentFrame = frames[currentIndex];
+  const currentTimestamp = currentFrame ? new Date(currentFrame.timestamp) : null;
+  const progress = frames.length > 1 ? currentIndex / (frames.length - 1) : 0;
 
   if (!selectedCamera) {
     return (
@@ -267,13 +302,13 @@ export default function TimelapsePlayer() {
     );
   }
 
-  const speeds = [0.5, 1, 2, 4, 8];
+  const speeds = [0.5, 1, 2, 4, 8, 16];
 
   return (
     <div className="flex flex-col h-full">
-      {/* Video */}
+      {/* Video / Frame display */}
       <div className="relative bg-black flex-shrink-0">
-        <div className="aspect-video relative">
+        <div className="aspect-video relative flex items-center justify-center">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
               <svg className="w-8 h-8 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
@@ -286,24 +321,12 @@ export default function TimelapsePlayer() {
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-red-400">
               <div className="text-center p-4">
                 <p>{error}</p>
-                <p className="text-sm text-slate-500 mt-2">
-                  {lang === 'no'
-                    ? 'Tidslapse-data genereres kanskje fortsatt...'
-                    : 'Timelapse data may still be generating...'}
-                </p>
               </div>
             </div>
           )}
-          <video
-            ref={videoRef}
-            className="w-full h-full"
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            playsInline
-            muted
-            loop={loop}
+          <canvas
+            ref={canvasRef}
+            className="max-w-full max-h-full object-contain"
           />
         </div>
 
@@ -311,16 +334,30 @@ export default function TimelapsePlayer() {
         <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 rounded text-white text-sm">
           {selectedCamera.name || selectedCamera.cameraId}
         </div>
+
+        {/* Current timestamp overlay */}
+        {currentTimestamp && (
+          <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 rounded text-white text-sm font-mono">
+            {currentTimestamp.toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
+        )}
       </div>
 
       {/* Timeline */}
       <div className="p-4 bg-slate-850 border-t border-slate-700">
-        <TimelineSlider
+        <FrameTimelineSlider
           camera={selectedCamera}
-          currentTime={currentTime}
-          duration={duration}
+          frames={frames}
+          currentIndex={currentIndex}
+          progress={progress}
           onSeek={handleSeek}
           onPause={handlePause}
+          lang={lang}
         />
       </div>
 
@@ -332,7 +369,8 @@ export default function TimelapsePlayer() {
             {/* Step backward */}
             <button
               onClick={stepBackward}
-              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+              disabled={currentIndex === 0}
+              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors disabled:opacity-50"
               title={lang === 'no' ? 'Forrige bilde (←)' : 'Previous frame (←)'}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -343,7 +381,8 @@ export default function TimelapsePlayer() {
             {/* Play/Pause */}
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
+              disabled={frames.length === 0}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-cyan-600 hover:bg-cyan-500 text-white transition-colors disabled:opacity-50"
             >
               {isPlaying ? (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -359,7 +398,8 @@ export default function TimelapsePlayer() {
             {/* Step forward */}
             <button
               onClick={stepForward}
-              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+              disabled={currentIndex >= frames.length - 1}
+              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors disabled:opacity-50"
               title={lang === 'no' ? 'Neste bilde (→)' : 'Next frame (→)'}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -407,7 +447,7 @@ export default function TimelapsePlayer() {
           <button
             onClick={goLive}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              isLive
+              currentIndex === frames.length - 1
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
             }`}
@@ -418,7 +458,8 @@ export default function TimelapsePlayer() {
           {/* Save frame */}
           <button
             onClick={saveFrame}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors"
+            disabled={frames.length === 0}
+            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors disabled:opacity-50"
             title={t('timelapse.saveFrame', lang)}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -427,11 +468,11 @@ export default function TimelapsePlayer() {
           </button>
         </div>
 
-        {/* Current time display */}
+        {/* Frame counter */}
         <div className="mt-2 text-center text-xs text-slate-400">
-          {currentTime !== null && duration > 0 && (
+          {frames.length > 0 && (
             <span>
-              {formatDuration(currentTime)} / {formatDuration(duration)}
+              {lang === 'no' ? 'Bilde' : 'Frame'} {currentIndex + 1} / {frames.length}
             </span>
           )}
         </div>
@@ -440,12 +481,193 @@ export default function TimelapsePlayer() {
   );
 }
 
-function formatDuration(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+/**
+ * Simplified timeline slider for frame-based player
+ */
+function FrameTimelineSlider({ camera, frames, currentIndex, progress, onSeek, onPause, lang }) {
+  const sliderRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoverPercent, setHoverPercent] = useState(null);
+  const [hoverX, setHoverX] = useState(0);
+
+  const availableFrom = camera?.availableFrom ? new Date(camera.availableFrom) : null;
+  const availableTo = camera?.availableTo ? new Date(camera.availableTo) : null;
+  const timeRangeMs = availableFrom && availableTo ? (availableTo - availableFrom) : 0;
+
+  const handleInteraction = useCallback((clientX) => {
+    if (!sliderRef.current || frames.length === 0) return;
+
+    const rect = sliderRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percent = x / rect.width;
+    onSeek(percent);
+  }, [frames.length, onSeek]);
+
+  const handleMouseDown = useCallback((e) => {
+    setIsDragging(true);
+    if (onPause) onPause();
+    handleInteraction(e.clientX);
+  }, [handleInteraction, onPause]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!sliderRef.current) return;
+
+    const rect = sliderRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(x / rect.width, 1));
+
+    setHoverX(x);
+    setHoverPercent(percent);
+
+    if (isDragging) {
+      handleInteraction(e.clientX);
+    }
+  }, [isDragging, handleInteraction]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverPercent(null);
+    if (!isDragging) setIsDragging(false);
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (isDragging) {
+      const handleGlobalMove = (e) => handleMouseMove(e);
+      const handleGlobalUp = () => setIsDragging(false);
+
+      document.addEventListener('mousemove', handleGlobalMove);
+      document.addEventListener('mouseup', handleGlobalUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMove);
+        document.removeEventListener('mouseup', handleGlobalUp);
+      };
+    }
+  }, [isDragging, handleMouseMove]);
+
+  // Get timestamp at percent
+  const getDateAtPercent = (percent) => {
+    if (frames.length === 0) return null;
+    const index = Math.round(percent * (frames.length - 1));
+    const frame = frames[Math.max(0, Math.min(index, frames.length - 1))];
+    return frame ? new Date(frame.timestamp) : null;
+  };
+
+  // Generate day markers
+  const dayMarkers = [];
+  if (availableFrom && availableTo && timeRangeMs > 0) {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const rangeDays = Math.ceil(timeRangeMs / dayMs);
+
+    for (let i = 0; i <= Math.min(rangeDays, 7); i++) {
+      const date = new Date(availableFrom.getTime() + i * dayMs);
+      date.setHours(0, 0, 0, 0);
+
+      if (date >= availableFrom && date <= availableTo) {
+        const percent = (date - availableFrom) / timeRangeMs;
+        dayMarkers.push({
+          percent,
+          label: date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-US', {
+            month: 'short',
+            day: 'numeric',
+          }),
+        });
+      }
+    }
   }
-  return `${m}:${String(s).padStart(2, '0')}`;
+
+  const formatDateTime = (date) => {
+    if (!date) return '--';
+    return date.toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const formatDurationHuman = (ms) => {
+    if (!ms || ms <= 0) return '--';
+    const totalMinutes = Math.floor(ms / 60000);
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} ${lang === 'no' ? (days === 1 ? 'dag' : 'dager') : (days === 1 ? 'day' : 'days')}`);
+    if (hours > 0) parts.push(`${hours} ${lang === 'no' ? (hours === 1 ? 'time' : 'timer') : (hours === 1 ? 'hour' : 'hours')}`);
+    if (minutes > 0 || parts.length === 0) parts.push(`${minutes} min`);
+
+    return parts.join(', ');
+  };
+
+  return (
+    <div className="space-y-2">
+      {timeRangeMs > 0 && (
+        <div className="text-center text-xs text-cyan-400 mb-1">
+          {lang === 'no' ? 'Varighet' : 'Duration'}: {formatDurationHuman(timeRangeMs)}
+        </div>
+      )}
+
+      <div
+        ref={sliderRef}
+        className="relative h-6 bg-slate-700 rounded-full cursor-pointer"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        {/* Progress fill */}
+        <div
+          className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full transition-all"
+          style={{ width: `${progress * 100}%` }}
+        />
+
+        {/* Day markers */}
+        {dayMarkers.map((marker, i) => (
+          <div
+            key={i}
+            className="absolute top-0 h-full w-px bg-slate-500/50"
+            style={{ left: `${marker.percent * 100}%` }}
+          />
+        ))}
+
+        {/* Thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg border-2 border-cyan-500 transition-all"
+          style={{ left: `calc(${progress * 100}% - 8px)` }}
+        />
+
+        {/* Hover tooltip */}
+        {hoverPercent !== null && !isDragging && (
+          <div
+            className="absolute -top-10 transform -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-10"
+            style={{ left: hoverX }}
+          >
+            {formatDateTime(getDateAtPercent(hoverPercent))}
+          </div>
+        )}
+      </div>
+
+      {dayMarkers.length > 0 && (
+        <div className="relative h-4">
+          {dayMarkers.map((marker, i) => (
+            <span
+              key={i}
+              className="absolute text-[10px] text-slate-500 transform -translate-x-1/2"
+              style={{ left: `${marker.percent * 100}%` }}
+            >
+              {marker.label}
+            </span>
+          ))}
+          <span className="absolute right-0 text-[10px] text-emerald-400 font-medium">
+            {lang === 'no' ? 'NÅ' : 'NOW'}
+          </span>
+        </div>
+      )}
+
+      <div className="flex justify-between text-xs text-slate-500">
+        <span>{formatDateTime(availableFrom)}</span>
+        <span>{formatDateTime(availableTo)}</span>
+      </div>
+    </div>
+  );
 }
