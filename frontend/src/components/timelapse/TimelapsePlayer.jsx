@@ -553,8 +553,11 @@ function FrameTimelineSlider({ camera, frames, currentIndex, progress, onSeek, o
   const [hoverPercent, setHoverPercent] = useState(null);
   const [hoverX, setHoverX] = useState(0);
 
-  const availableFrom = camera?.availableFrom ? new Date(camera.availableFrom) : null;
-  const availableTo = camera?.availableTo ? new Date(camera.availableTo) : null;
+  // Use actual frame timestamps for accurate time range (updates in live mode)
+  const firstFrame = frames.length > 0 ? frames[0] : null;
+  const lastFrame = frames.length > 0 ? frames[frames.length - 1] : null;
+  const availableFrom = firstFrame ? new Date(firstFrame.timestamp) : (camera?.availableFrom ? new Date(camera.availableFrom) : null);
+  const availableTo = lastFrame ? new Date(lastFrame.timestamp) : (camera?.availableTo ? new Date(camera.availableTo) : null);
   const timeRangeMs = availableFrom && availableTo ? (availableTo - availableFrom) : 0;
 
   const handleInteraction = useCallback((clientX) => {
