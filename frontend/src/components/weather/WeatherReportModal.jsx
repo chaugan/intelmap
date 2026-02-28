@@ -103,16 +103,23 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
             )}
 
             {data && !loading && (
-              <div className="h-full p-4 flex flex-col overflow-hidden">
-                {/* Header */}
+              <div
+                className="h-full p-4 overflow-hidden"
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: 'auto 44% 1fr 100px auto',
+                  gap: '12px'
+                }}
+              >
+                {/* Row 1: Header (auto height) */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
-                {/* Top section: Left (Current + Aurora stacked) + Right (Trends) */}
-                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0 overflow-hidden" style={{ height: '44%' }}>
+                {/* Row 2: Top section - 44% of container */}
+                <div className="overflow-hidden grid grid-cols-12 gap-3">
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
                   <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
                     {/* Current conditions - horizontal layout */}
-                    <div className="flex-1 min-h-0">
+                    <div className="flex-1 min-h-0 overflow-hidden">
                       <CurrentConditionsHero
                         current={data.current}
                         snowDepth={data.snowDepth}
@@ -125,7 +132,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
 
                     {/* Aurora below current conditions */}
                     {showAurora && data.kp && (
-                      <div className="flex-1 min-h-0">
+                      <div className="flex-1 min-h-0 overflow-hidden">
                         <AuroraSectionHorizontal
                           kp={data.kp}
                           lang={lang}
@@ -138,7 +145,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
 
                   {/* Right: Trends */}
-                  <div className="col-span-8">
+                  <div className="col-span-8 overflow-hidden">
                     <TrendCharts
                       daily={data.daily}
                       lang={lang}
@@ -149,8 +156,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
                 </div>
 
-                {/* 7-day forecast (horizontal, full width) - fills remaining space */}
-                <div className="mt-3 flex-1 min-h-0 overflow-hidden">
+                {/* Row 3: 7-day forecast - fills remaining space (1fr) */}
+                <div className="overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -161,8 +168,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   />
                 </div>
 
-                {/* Bottom row: Moon and Sun - compact fixed height */}
-                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '100px' }}>
+                {/* Row 4: Moon and Sun - fixed 100px height */}
+                <div className="overflow-hidden grid grid-cols-2 gap-3">
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -179,8 +186,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   />
                 </div>
 
-                {/* Footer */}
-                <div className={`text-center text-sm ${textMuted} pt-2 mt-2 border-t ${border} shrink-0`}>
+                {/* Row 5: Footer (auto height) */}
+                <div className={`text-center text-sm ${textMuted} pt-2 border-t ${border}`}>
                   IntelMap {lang === 'no' ? 'Værrapport' : 'Weather Report'} &bull; {new Date().toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB')}
                 </div>
               </div>
