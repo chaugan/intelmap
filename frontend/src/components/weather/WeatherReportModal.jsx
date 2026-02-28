@@ -301,7 +301,7 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
           return (
             <div
               key={day.date}
-              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
+              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50' : 'bg-blue-50') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
               {/* Day and date */}
               <div className="text-center shrink-0">
