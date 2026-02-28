@@ -210,9 +210,6 @@ function ReportHeader({ data, lang, accent, textMuted }) {
       </div>
       <div className="text-right">
         <div className={`text-sm ${textMuted}`}>{dateStr}</div>
-        <div className={`text-xs font-medium ${textMuted}`}>
-          IntelMap {lang === 'no' ? 'Værrapport' : 'Weather Report'}
-        </div>
       </div>
     </div>
   );
@@ -269,11 +266,11 @@ function StatBox({ icon, label, value, isDark }) {
 
 function SevenDayForecast({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col`}>
-      <h2 className={`text-sm font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+    <div className={`${bgCard} rounded-lg p-3`}>
+      <h2 className={`text-sm font-semibold mb-2 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
-      <div className="flex-1 flex flex-col justify-between">
+      <div className="space-y-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
           const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
@@ -317,7 +314,7 @@ function TrendCharts({ daily, lang, isDark, bgCard, textMuted }) {
       <h2 className={`text-sm font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? 'Trender' : 'Trends'}
       </h2>
-      <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2 min-h-0">
+      <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-1 min-h-0">
         <div className="flex flex-col min-h-0">
           <div className={`text-xs font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Temperatur (°C)' : 'Temperature (°C)'}</div>
           <div className="flex-1 min-h-0"><TemperatureChart data={temps} isDark={isDark} lang={lang} /></div>
@@ -344,7 +341,7 @@ function TemperatureChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 120;
+  const height = 140;
   const padding = { top: 12, right: 12, bottom: 20, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -390,7 +387,7 @@ function WindChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 120;
+  const height = 140;
   const padding = { top: 18, right: 12, bottom: 20, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -432,7 +429,7 @@ function PrecipChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 120;
+  const height = 140;
   const padding = { top: 18, right: 12, bottom: 20, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -480,7 +477,7 @@ function CloudChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 120;
+  const height = 140;
   const padding = { top: 12, right: 12, bottom: 20, left: 32 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -550,7 +547,7 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
   const barWidth = (w / kpForecast.length) * 0.8;
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 flex-1 ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
+    <div className={`${bgCard} rounded-lg p-3 ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
       <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
         {lang === 'no' ? 'Nordlys' : 'Aurora'}
       </h3>
