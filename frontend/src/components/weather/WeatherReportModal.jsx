@@ -150,7 +150,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* 7-day forecast (horizontal, full width) - fills remaining space */}
-                <div className="mt-3 flex-1 min-h-0">
+                <div className="mt-3 flex-1 min-h-0 relative">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -277,7 +277,7 @@ function StatBox({ icon, label, value, isDark }) {
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col overflow-hidden`}>
+    <div className={`${bgCard} rounded-lg p-3 flex flex-col`} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
       <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
