@@ -59,4 +59,26 @@ export function getBarentsWatchClientSecret() {
   return process.env.BARENTSWATCH_CLIENT_SECRET || '';
 }
 
+export function getNtfyToken() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_token'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.NTFY_TOKEN || '';
+}
+
+export function getNtfyUrl() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_url'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.NTFY_URL || 'https://ntfy.intelmap.no';
+}
+
 export default config;

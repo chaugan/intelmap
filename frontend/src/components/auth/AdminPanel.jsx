@@ -47,6 +47,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'ais'} onClick={() => setActiveTab('ais')}>
                 AIS
               </TabButton>
+              <TabButton active={activeTab === 'ntfy'} onClick={() => setActiveTab('ntfy')}>
+                ntfy
+              </TabButton>
               <TabButton active={activeTab === 'timelapse'} onClick={() => setActiveTab('timelapse')}>
                 {lang === 'no' ? 'Tidslapse' : 'Timelapse'}
               </TabButton>
@@ -65,6 +68,7 @@ export default function AdminPanel() {
           {activeTab === 'ai' && <AiConfigTab lang={lang} />}
           {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
           {activeTab === 'ais' && <AisConfigTab lang={lang} />}
+          {activeTab === 'ntfy' && <NtfyConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
         </div>
       </div>
@@ -784,6 +788,132 @@ function AisConfigTab({ lang }) {
             className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
           >
             {lang === 'no' ? 'Fjern legitimasjon' : 'Remove credentials'}
+          </button>
+        )}
+
+        {status && <p className="text-emerald-400 text-sm">{status}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- ntfy Config Tab ---
+function NtfyConfigTab({ lang }) {
+  const [config, setConfig] = useState(null);
+  const [token, setToken] = useState('');
+  const [url, setUrl] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/ntfy-config`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+        setUrl(data.url || '');
+      }
+    } catch {}
+  }
+
+  async function saveCredentials(e) {
+    e.preventDefault();
+    setError(''); setStatus('');
+    if (!token.trim() && !url.trim()) return;
+    try {
+      const body = {};
+      if (token.trim()) body.token = token.trim();
+      if (url.trim()) body.url = url.trim();
+      const res = await fetch(`${API}/ntfy-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(body),
+      });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setToken('');
+      setStatus(lang === 'no' ? 'Innstillinger lagret' : 'Settings saved');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function removeCredentials() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/ntfy-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'Innstillinger fjernet' : 'Settings removed');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-amber-400">
+          {lang === 'no' ? 'ntfy Push-varsler' : 'ntfy Push Notifications'}
+        </h3>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">{lang === 'no' ? 'Token' : 'Token'}:</span>
+          <span className={config.hasToken ? 'text-emerald-400' : 'text-red-400'}>
+            {config.hasToken
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'ntfy brukes til å sende push-varsler fra serveren. Opprett en token på ntfy-serveren.'
+            : 'ntfy is used to send push notifications from the server. Create a token on the ntfy server.'}
+        </p>
+
+        <form onSubmit={saveCredentials} className="space-y-2">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {lang === 'no' ? 'Server-URL' : 'Server URL'}
+            </label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://ntfy.intelmap.no"
+              className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {config.hasToken
+                ? (lang === 'no' ? 'Erstatt token' : 'Replace token')
+                : (lang === 'no' ? 'Sett token' : 'Set token')}
+            </label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="tk_..."
+              className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!token.trim() && !url.trim()}
+            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+          >
+            {t('general.save', lang)}
+          </button>
+        </form>
+
+        {config.hasToken && (
+          <button
+            onClick={removeCredentials}
+            className="text-red-400 hover:text-red-300 text-sm"
+          >
+            {lang === 'no' ? 'Fjern innstillinger' : 'Remove settings'}
           </button>
         )}
 

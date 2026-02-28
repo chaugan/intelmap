@@ -240,4 +240,45 @@ router.delete('/ais-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- ntfy Configuration ---
+
+// Get ntfy config (whether token is set)
+router.get('/ntfy-config', (req, res) => {
+  const db = getDb();
+  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_token'").get();
+  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_url'").get();
+  res.json({
+    hasToken: !!(tokenRow?.value),
+    url: urlRow?.value || 'https://ntfy.intelmap.no',
+  });
+});
+
+// Set ntfy credentials
+router.put('/ntfy-config', (req, res) => {
+  const { token, url } = req.body;
+
+  const db = getDb();
+  if (token && typeof token === 'string' && token.trim().length >= 1) {
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_token', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(token.trim());
+  }
+  if (url && typeof url === 'string' && url.trim().length >= 1) {
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_url', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(url.trim());
+  }
+
+  res.json({ ok: true });
+});
+
+// Remove ntfy credentials
+router.delete('/ntfy-config', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key IN ('ntfy_token', 'ntfy_url')").run();
+  res.json({ ok: true });
+});
+
 export default router;
