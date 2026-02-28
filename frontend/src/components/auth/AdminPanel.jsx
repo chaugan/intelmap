@@ -884,9 +884,16 @@ function TimelapseAdminTab({ lang }) {
   return (
     <div className="space-y-4">
       <div className="bg-slate-900 rounded p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-cyan-400">
-          {lang === 'no' ? 'Aktive kameraer' : 'Active Cameras'}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-cyan-400">
+            {lang === 'no' ? 'Aktive kameraer' : 'Active Cameras'}
+          </h3>
+          {cameras.length > 0 && (
+            <span className="text-sm font-medium text-amber-400">
+              {lang === 'no' ? 'Totalt' : 'Total'}: {formatStorageSize(cameras.reduce((sum, c) => sum + (c.storageSize || 0), 0))}
+            </span>
+          )}
+        </div>
 
         <p className="text-xs text-slate-500">
           {lang === 'no'
