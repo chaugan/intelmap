@@ -374,7 +374,7 @@ function TemperatureChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 600;
-  const height = 140;
+  const height = 190;
   const padding = { top: 12, right: 8, bottom: 22, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -392,7 +392,7 @@ function TemperatureChart({ data, isDark, lang }) {
   for (let v = Math.ceil(minT / stepSize) * stepSize; v <= maxT; v += stepSize) ySteps.push(v);
 
   return (
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={yScale(v)} x2={width - padding.right} y2={yScale(v)} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
@@ -420,7 +420,7 @@ function WindChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 600;
-  const height = 140;
+  const height = 190;
   const padding = { top: 18, right: 8, bottom: 22, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -432,7 +432,7 @@ function WindChart({ data, isDark, lang }) {
   for (let v = 0; v <= maxW; v += 5) ySteps.push(v);
 
   return (
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={padding.top + h - (v / maxW) * h} x2={width - padding.right} y2={padding.top + h - (v / maxW) * h} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
@@ -462,7 +462,7 @@ function PrecipChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 600;
-  const height = 140;
+  const height = 190;
   const padding = { top: 18, right: 8, bottom: 22, left: 28 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -475,7 +475,7 @@ function PrecipChart({ data, isDark, lang }) {
   for (let v = 0; v <= maxP; v += stepSize) ySteps.push(v);
 
   return (
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id="precipGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#3b82f6" />
@@ -510,7 +510,7 @@ function CloudChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 600;
-  const height = 140;
+  const height = 190;
   const padding = { top: 12, right: 8, bottom: 22, left: 32 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
@@ -523,7 +523,7 @@ function CloudChart({ data, isDark, lang }) {
   const areaPath = `M ${xScale(0)},${padding.top + h} L ${points} L ${xScale(data.length - 1)},${padding.top + h} Z`;
 
   return (
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id="cloudGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={isDark ? '#94a3b8' : '#64748b'} stopOpacity="0.5" />
