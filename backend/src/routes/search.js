@@ -36,8 +36,8 @@ router.get('/reverse', async (req, res) => {
     const { lat, lon } = req.query;
     if (!lat || !lon) return res.status(400).json({ error: 'lat and lon required' });
 
-    // Fetch multiple results with larger radius for better coverage
-    const url = `https://api.kartverket.no/stedsnavn/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258&radius=10000&treffPerSide=10`;
+    // Fetch multiple results (max radius 5000m per API limit)
+    const url = `https://api.kartverket.no/stedsnavn/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258&radius=5000&treffPerSide=10`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Kartverket ${response.status}`);
     const data = await response.json();
@@ -58,8 +58,11 @@ router.get('/reverse', async (req, res) => {
 
     const place = sorted[0];
     if (place) {
+      // Name is in stedsnavn array
+      const nameObj = place.stedsnavn?.[0];
+      const name = nameObj?.skrivemåte || null;
       res.json({
-        name: typeof place.skrivemåte === 'string' ? place.skrivemåte : (place.skrivemåte?.[0]?.langnavn || place.skrivemåte?.[0]?.skrivemåte || null),
+        name,
         type: place.navneobjekttype || '',
         municipality: place.kommuner?.[0]?.kommunenavn || '',
       });
