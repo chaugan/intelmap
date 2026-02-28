@@ -108,7 +108,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
                 {/* Top section: Left (Current + Aurora stacked) + Right (Trends) */}
-                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0 relative z-10" style={{ height: '44%' }}>
+                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0 overflow-hidden" style={{ height: '44%' }}>
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
                   <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
                     {/* Current conditions - horizontal layout */}
@@ -150,7 +150,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* 7-day forecast (horizontal, full width) - fills remaining space */}
-                <div className="mt-3 flex-1 min-h-0 relative z-0 overflow-hidden">
+                <div className="mt-3 flex-1 min-h-0 overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -277,11 +277,11 @@ function StatBox({ icon, label, value, isDark }) {
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 flex flex-col`} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
+    <div className={`${bgCard} rounded-lg p-3 flex flex-col overflow-hidden`} style={{ height: '100%' }}>
       <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
-      <div className="flex-1 flex gap-2 min-h-0">
+      <div className="flex-1 flex gap-2 min-h-0 overflow-hidden">
         {daily.map((day, i) => {
           const date = new Date(day.date);
           const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
@@ -294,7 +294,7 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
           return (
             <div
               key={day.date}
-              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
+              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
               {/* Day and date */}
               <div className="text-center shrink-0">
