@@ -805,6 +805,7 @@ function NtfyConfigTab({ lang }) {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchConfig(); }, []);
 
@@ -822,20 +823,28 @@ function NtfyConfigTab({ lang }) {
   async function saveCredentials(e) {
     e.preventDefault();
     setError(''); setStatus('');
-    if (!token.trim() && !url.trim()) return;
+    if (!url.trim()) {
+      setError(lang === 'no' ? 'URL er påkrevd' : 'URL is required');
+      return;
+    }
+    setSaving(true);
     try {
-      const body = {};
+      const body = { url: url.trim() };
       if (token.trim()) body.token = token.trim();
-      if (url.trim()) body.url = url.trim();
       const res = await fetch(`${API}/ntfy-config`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(body),
       });
-      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error);
+        return;
+      }
       setToken('');
-      setStatus(lang === 'no' ? 'Innstillinger lagret' : 'Settings saved');
+      setStatus(data.message || (lang === 'no' ? 'Tilkoblet' : 'Connected'));
       fetchConfig();
     } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   }
 
   async function removeCredentials() {
@@ -844,11 +853,14 @@ function NtfyConfigTab({ lang }) {
       const res = await fetch(`${API}/ntfy-config`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) { const data = await res.json(); setError(data.error); return; }
       setStatus(lang === 'no' ? 'Innstillinger fjernet' : 'Settings removed');
+      setUrl('');
       fetchConfig();
     } catch (err) { setError(err.message); }
   }
 
   if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  const isConfigured = !!config.url;
 
   return (
     <div className="space-y-4">
@@ -858,38 +870,44 @@ function NtfyConfigTab({ lang }) {
         </h3>
 
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-slate-400">{lang === 'no' ? 'Token' : 'Token'}:</span>
-          <span className={config.hasToken ? 'text-emerald-400' : 'text-red-400'}>
-            {config.hasToken
-              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
-              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          <span className="text-slate-400">{lang === 'no' ? 'Status' : 'Status'}:</span>
+          <span className={isConfigured ? 'text-emerald-400' : 'text-slate-500'}>
+            {isConfigured
+              ? (config.hasToken
+                  ? (lang === 'no' ? 'Konfigurert (med autentisering)' : 'Configured (with auth)')
+                  : (lang === 'no' ? 'Konfigurert (åpen)' : 'Configured (open)'))
+              : (lang === 'no' ? 'Ikke konfigurert' : 'Not configured')}
           </span>
         </div>
 
+        {isConfigured && (
+          <div className="text-xs text-slate-400">
+            URL: <span className="font-mono text-slate-300">{config.url}</span>
+          </div>
+        )}
+
         <p className="text-xs text-slate-500">
           {lang === 'no'
-            ? 'ntfy brukes til å sende push-varsler fra serveren. Opprett en token på ntfy-serveren.'
-            : 'ntfy is used to send push notifications from the server. Create a token on the ntfy server.'}
+            ? 'ntfy brukes til å sende push-varsler fra serveren. Token er valgfritt hvis serveren tillater åpen tilgang.'
+            : 'ntfy is used to send push notifications from the server. Token is optional if the server allows open access.'}
         </p>
 
         <form onSubmit={saveCredentials} className="space-y-2">
           <div>
             <label className="block text-xs text-slate-400 mb-1">
-              {lang === 'no' ? 'Server-URL' : 'Server URL'}
+              {lang === 'no' ? 'Server-URL (påkrevd)' : 'Server URL (required)'}
             </label>
             <input
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://ntfy.intelmap.no"
+              placeholder="https://ntfy.example.com"
               className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">
-              {config.hasToken
-                ? (lang === 'no' ? 'Erstatt token' : 'Replace token')
-                : (lang === 'no' ? 'Sett token' : 'Set token')}
+              {lang === 'no' ? 'Token (valgfritt)' : 'Token (optional)'}
             </label>
             <input
               type="password"
@@ -901,14 +919,16 @@ function NtfyConfigTab({ lang }) {
           </div>
           <button
             type="submit"
-            disabled={!token.trim() && !url.trim()}
+            disabled={!url.trim() || saving}
             className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
           >
-            {t('general.save', lang)}
+            {saving
+              ? (lang === 'no' ? 'Tester tilkobling...' : 'Testing connection...')
+              : (lang === 'no' ? 'Test og lagre' : 'Test & Save')}
           </button>
         </form>
 
-        {config.hasToken && (
+        {isConfigured && (
           <button
             onClick={removeCredentials}
             className="text-red-400 hover:text-red-300 text-sm"

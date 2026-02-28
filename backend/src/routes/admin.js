@@ -249,29 +249,84 @@ router.get('/ntfy-config', (req, res) => {
   const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_url'").get();
   res.json({
     hasToken: !!(tokenRow?.value),
-    url: urlRow?.value || 'https://ntfy.intelmap.no',
+    url: urlRow?.value || '',
   });
 });
 
-// Set ntfy credentials
-router.put('/ntfy-config', (req, res) => {
+// Validate and set ntfy credentials
+router.put('/ntfy-config', async (req, res) => {
   const { token, url } = req.body;
 
-  const db = getDb();
-  if (token && typeof token === 'string' && token.trim().length >= 1) {
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_token', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(token.trim());
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'URL is required' });
   }
-  if (url && typeof url === 'string' && url.trim().length >= 1) {
+
+  const ntfyUrl = url.trim().replace(/\/$/, ''); // Remove trailing slash
+  const ntfyToken = token?.trim() || '';
+
+  // Test connection by publishing to a test topic
+  const testTopic = `_intelmap_config_test_${Date.now()}`;
+  const testUrl = `${ntfyUrl}/${testTopic}`;
+
+  try {
+    const headers = { 'Content-Type': 'text/plain' };
+    if (ntfyToken) {
+      headers['Authorization'] = `Bearer ${ntfyToken}`;
+    }
+
+    const response = await fetch(testUrl, {
+      method: 'POST',
+      headers,
+      body: 'IntelMap configuration test',
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      if (!ntfyToken) {
+        return res.status(400).json({
+          error: 'This ntfy server requires authentication. Please provide a token.',
+          requiresAuth: true
+        });
+      } else {
+        return res.status(400).json({
+          error: 'Invalid token. The server rejected the provided token.',
+          invalidToken: true
+        });
+      }
+    }
+
+    if (!response.ok) {
+      return res.status(400).json({
+        error: `Failed to connect to ntfy server: ${response.status} ${response.statusText}`
+      });
+    }
+
+    // Connection successful, save settings
+    const db = getDb();
     db.prepare(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_url', ?, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(url.trim());
-  }
+    ).run(ntfyUrl);
 
-  res.json({ ok: true });
+    if (ntfyToken) {
+      db.prepare(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_token', ?, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+      ).run(ntfyToken);
+    } else {
+      // Remove any existing token if not provided
+      db.prepare("DELETE FROM app_settings WHERE key = 'ntfy_token'").run();
+    }
+
+    res.json({
+      ok: true,
+      message: ntfyToken ? 'Connected with authentication' : 'Connected (no authentication required)'
+    });
+
+  } catch (err) {
+    return res.status(400).json({
+      error: `Failed to connect to ntfy server: ${err.message}`
+    });
+  }
 });
 
 // Remove ntfy credentials
