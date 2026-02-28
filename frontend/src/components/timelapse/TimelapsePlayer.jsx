@@ -267,8 +267,9 @@ export default function TimelapsePlayer() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(currentImageRef.current, 0, 0);
 
-    // Use frame timestamp for filename
-    const timestamp = frame.timestamp.replace(/[:.]/g, '-').slice(0, 19);
+    // Use frame timestamp for filename (convert to local time)
+    const date = new Date(frame.timestamp);
+    const timestamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}`;
 
     canvas.toBlob((blob) => {
       if (!blob) return;
