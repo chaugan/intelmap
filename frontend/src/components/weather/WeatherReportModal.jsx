@@ -277,7 +277,7 @@ function StatBox({ icon, label, value, isDark }) {
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col`}>
+    <div className={`${bgCard} rounded-lg p-3 flex flex-col overflow-hidden`} style={{ height: '100%', maxHeight: '100%' }}>
       <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
@@ -707,7 +707,7 @@ function MoonPhasesSection({ daily, lang, isDark, bgCard, textMuted }) {
       <div className="flex justify-between items-center flex-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
           const illum = day.moonphase != null ? getIllumination(day.moonphase) : null;
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
@@ -742,7 +742,7 @@ function SunTimesSection({ daily, lang, isDark, bgCard, textMuted }) {
       <div className="flex justify-between items-center flex-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
               <div className="text-xs font-medium">{dayName}</div>
