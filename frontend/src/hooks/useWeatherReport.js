@@ -36,8 +36,15 @@ export function useWeatherReport(lat, lon, enabled = true) {
         fetch('/api/aurora/kp'),
       ]);
 
+      // Parse responses
+      const forecast = forecastRes.ok ? await forecastRes.json() : null;
+      const snow = snowRes.ok ? await snowRes.json() : null;
+      const place = placeRes.ok ? await placeRes.json() : null;
+      const aurora = auroraRes.ok ? await auroraRes.json() : null;
+      const kp = kpRes.ok ? await kpRes.json() : null;
+
       // Fetch sun/moon for each of 7 days
-      const sunMoonPromises = dates.map(async (date) => {
+      const sunMoonData = await Promise.all(dates.map(async (date) => {
         const [sunRes, moonRes] = await Promise.all([
           fetch(`/api/weather/sun?lat=${latStr}&lon=${lonStr}&date=${date}`),
           fetch(`/api/weather/moon?lat=${latStr}&lon=${lonStr}&date=${date}`),
@@ -47,16 +54,7 @@ export function useWeatherReport(lat, lon, enabled = true) {
           sun: sunRes.ok ? await sunRes.json() : null,
           moon: moonRes.ok ? await moonRes.json() : null,
         };
-      });
-
-      const [forecast, snow, place, aurora, kp, ...sunMoonData] = await Promise.all([
-        forecastRes.ok ? forecastRes.json() : null,
-        snowRes.ok ? snowRes.json() : null,
-        placeRes.ok ? placeRes.json() : null,
-        auroraRes.ok ? auroraRes.json() : null,
-        kpRes.ok ? kpRes.json() : null,
-        ...sunMoonPromises,
-      ]);
+      }));
 
       // Process forecast timeseries into daily summaries
       const timeseries = forecast?.properties?.timeseries || [];
