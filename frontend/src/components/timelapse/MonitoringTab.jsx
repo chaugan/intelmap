@@ -180,6 +180,7 @@ export default function MonitoringTab() {
         >
           {ntfyChannel}
         </button>
+        <TestNotificationButton lang={lang} />
       </div>
 
       {/* Error message */}
@@ -336,5 +337,76 @@ export default function MonitoringTab() {
         ))}
       </div>
     </div>
+  );
+}
+
+function TestNotificationButton({ lang }) {
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState(null); // 'success' | 'error' | null
+
+  async function sendTest() {
+    setSending(true);
+    setStatus(null);
+    try {
+      const res = await fetch('/api/monitoring/test-notification', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setStatus('success');
+      } else {
+        setStatus('error');
+      }
+    } catch {
+      setStatus('error');
+    }
+    setSending(false);
+    // Clear status after 3 seconds
+    setTimeout(() => setStatus(null), 3000);
+  }
+
+  return (
+    <button
+      onClick={sendTest}
+      disabled={sending}
+      className={`mt-2 w-full px-3 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+        status === 'success'
+          ? 'bg-green-700 text-white'
+          : status === 'error'
+            ? 'bg-red-700 text-white'
+            : 'bg-slate-700 hover:bg-slate-600 text-white'
+      }`}
+    >
+      {sending ? (
+        <>
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          {lang === 'no' ? 'Sender...' : 'Sending...'}
+        </>
+      ) : status === 'success' ? (
+        <>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          {lang === 'no' ? 'Sendt!' : 'Sent!'}
+        </>
+      ) : status === 'error' ? (
+        <>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          {lang === 'no' ? 'Feil ved sending' : 'Failed to send'}
+        </>
+      ) : (
+        <>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          {lang === 'no' ? 'Send testvarsel' : 'Send test notification'}
+        </>
+      )}
+    </button>
   );
 }

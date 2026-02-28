@@ -351,6 +351,37 @@ class MonitorService {
   }
 
   /**
+   * Send test notification to user's ntfy channel
+   * @param {string} userId - User ID
+   * @param {string} username - Username
+   */
+  async sendTestNotification(userId, username) {
+    const channel = this.getUserNtfyChannel(userId, username);
+    const token = getNtfyToken();
+
+    const headers = {
+      'Title': 'IntelMap Test Notification',
+      'Tags': 'white_check_mark,test',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(channel, {
+      method: 'POST',
+      headers,
+      body: 'This is a test notification from IntelMap monitoring. If you see this, your setup is working correctly!',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to send test notification: ${response.status}`);
+    }
+
+    return true;
+  }
+
+  /**
    * Send ntfy alert with annotated image
    * @param {string} userId - User ID
    * @param {string} username - Username

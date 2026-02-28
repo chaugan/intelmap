@@ -155,6 +155,20 @@ router.get('/cameras', (req, res) => {
   res.json({ cameraIds });
 });
 
+// Send test notification to user's ntfy channel
+router.post('/test-notification', async (req, res) => {
+  if (!monitorService.isEnabled()) {
+    return res.status(400).json({ error: 'Monitoring is not enabled' });
+  }
+
+  try {
+    await monitorService.sendTestNotification(req.user.id, req.user.username);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get all camera IDs being monitored by anyone (for map markers)
 router.get('/cameras/all', (req, res) => {
   const cameraIds = monitorService.getAllMonitoredCameraIds();
