@@ -48,18 +48,18 @@ export default function TimelapsePanel() {
 
   const tabs = [
     { id: 'cameras', label: t('timelapse.cameras', lang) },
-    { id: 'player', label: t('timelapse.player', lang) },
-    { id: 'exports', label: t('timelapse.exports', lang) },
     ...(monitoringConfigLoaded && monitoringEnabled
       ? [{ id: 'monitoring', label: t('monitoring.title', lang) }]
       : []),
+    { id: 'player', label: t('timelapse.player', lang) },
+    { id: 'exports', label: t('timelapse.exports', lang) },
   ];
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
-        <h2 className="text-lg font-bold text-cyan-400">{t('timelapse.title', lang)}</h2>
+        <h2 className="text-lg font-bold text-cyan-400">{t('monitoring.title', lang)}</h2>
         <button
           onClick={closeDrawer}
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-white"

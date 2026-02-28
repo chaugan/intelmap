@@ -82,9 +82,9 @@ class YoloClient {
     const result = await response.json();
 
     // Filter detections if labels specified
-    let detections = result.detections || [];
+    let detections = (result.detections || []).filter(d => d?.label);
     if (filterLabels && filterLabels.length > 0) {
-      const labelSet = new Set(filterLabels.map(l => l.toLowerCase()));
+      const labelSet = new Set(filterLabels.map(l => l?.toLowerCase()).filter(Boolean));
       detections = detections.filter(d => labelSet.has(d.label.toLowerCase()));
     }
 
@@ -132,10 +132,12 @@ class YoloClient {
    * @returns {Array} - Grouped matches: [{ label, count, maxConfidence }]
    */
   matchLabels(detections, monitoredLabels) {
-    const monitoredSet = new Set(monitoredLabels.map(l => l.toLowerCase()));
+    if (!detections || !monitoredLabels) return [];
+    const monitoredSet = new Set(monitoredLabels.map(l => l?.toLowerCase()).filter(Boolean));
     const matches = new Map();
 
     for (const d of detections) {
+      if (!d?.label) continue;
       const label = d.label.toLowerCase();
       if (monitoredSet.has(label)) {
         if (!matches.has(label)) {
@@ -143,7 +145,7 @@ class YoloClient {
         }
         const m = matches.get(label);
         m.count++;
-        m.maxConfidence = Math.max(m.maxConfidence, d.confidence);
+        m.maxConfidence = Math.max(m.maxConfidence, d.confidence || 0);
       }
     }
 
