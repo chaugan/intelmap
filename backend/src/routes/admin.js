@@ -367,8 +367,8 @@ router.put('/yolo-config', async (req, res) => {
   const yoloToken = token.trim();
   const yoloProjectId = (projectId?.trim() || 'fac23eeac522');
 
-  // Test connection by calling the API health endpoint
-  const testUrl = `${yoloUrl}/api/v1/health`;
+  // Test connection by calling the API status endpoint
+  const testUrl = `${yoloUrl}/api/v1/status`;
 
   try {
     const response = await fetch(testUrl, {
