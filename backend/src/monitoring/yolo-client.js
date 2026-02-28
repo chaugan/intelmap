@@ -81,8 +81,16 @@ class YoloClient {
 
     const result = await response.json();
 
+    // Normalize detections - API returns class_name, we use label internally
+    let detections = (result.detections || [])
+      .map(d => ({
+        label: d.class_name || d.label, // API returns class_name
+        confidence: d.confidence,
+        bbox: { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 },
+      }))
+      .filter(d => d.label);
+
     // Filter detections if labels specified
-    let detections = (result.detections || []).filter(d => d?.label);
     if (filterLabels && filterLabels.length > 0) {
       const labelSet = new Set(filterLabels.map(l => l?.toLowerCase()).filter(Boolean));
       detections = detections.filter(d => labelSet.has(d.label.toLowerCase()));
@@ -91,7 +99,7 @@ class YoloClient {
     return {
       jobId: result.job_id,
       detections,
-      inferenceTime: result.inference_time,
+      inferenceTime: result.inference_time_ms,
     };
   }
 
