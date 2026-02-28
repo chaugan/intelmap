@@ -165,6 +165,31 @@ export const useMonitoringStore = create((set, get) => ({
     }
   },
 
+  // Toggle pause state for a camera
+  togglePause: async (cameraId) => {
+    try {
+      const res = await fetch(`${API}/${cameraId}/pause`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to toggle pause');
+      }
+      const { isPaused } = await res.json();
+      // Update subscription in state
+      set((s) => ({
+        subscriptions: s.subscriptions.map((sub) =>
+          sub.cameraId === cameraId ? { ...sub, isPaused } : sub
+        ),
+      }));
+      return isPaused;
+    } catch (err) {
+      set({ error: err.message });
+      return null;
+    }
+  },
+
   // Fetch detection history for a camera
   fetchDetections: async (cameraId, page = 1) => {
     set({ detectionsLoading: true, selectedCameraId: cameraId });

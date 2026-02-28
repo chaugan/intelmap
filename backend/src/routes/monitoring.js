@@ -51,6 +51,7 @@ router.get('/subscriptions', (req, res) => {
     lon: s.lon,
     labels: JSON.parse(s.labels || '[]'),
     snoozeMinutes: s.snooze_minutes,
+    isPaused: !!s.is_paused,
     createdAt: s.created_at,
   })));
 });
@@ -125,6 +126,18 @@ router.delete('/:cameraId', async (req, res) => {
   try {
     await monitorService.unsubscribe(req.user.id, cameraId);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggle pause state for a camera subscription
+router.post('/:cameraId/pause', (req, res) => {
+  const { cameraId } = req.params;
+
+  try {
+    const result = monitorService.togglePause(req.user.id, cameraId);
+    res.json({ ok: true, isPaused: result.isPaused });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

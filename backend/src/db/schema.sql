@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS monitor_subscriptions (
   labels TEXT NOT NULL DEFAULT '[]',
   snooze_minutes INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1,
+  is_paused INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(user_id, camera_id)
 );

@@ -5,12 +5,13 @@ import { t } from '../../lib/i18n.js';
 import LabelSelector from './LabelSelector.jsx';
 
 export default function MonitorCard({ subscription, lang, isHighlighted = false }) {
-  const { updateSubscription, unsubscribe } = useMonitoringStore();
+  const { updateSubscription, unsubscribe, togglePause } = useMonitoringStore();
   const mapRef = useMapStore((s) => s.mapRef);
   const webcamsVisible = useMapStore((s) => s.webcamsVisible);
   const toggleWebcams = useMapStore((s) => s.toggleWebcams);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [editLabels, setEditLabels] = useState(subscription.labels || []);
   const [editSnooze, setEditSnooze] = useState(subscription.snoozeMinutes || 0);
   const [saving, setSaving] = useState(false);
@@ -98,6 +99,12 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
     await unsubscribe(subscription.cameraId);
   }
 
+  async function handleTogglePause() {
+    setPausing(true);
+    await togglePause(subscription.cameraId);
+    setPausing(false);
+  }
+
   function flyToCamera() {
     if (mapRef && subscription.lat && subscription.lon) {
       mapRef.flyTo({
@@ -126,10 +133,15 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
       <div className="flex items-center justify-between p-3 border-b border-slate-700">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <div className={`w-2 h-2 rounded-full ${subscription.isPaused ? 'bg-amber-500' : 'bg-green-500 animate-pulse'}`} />
             <h3 className="text-sm font-medium text-white truncate">
               {subscription.cameraName || subscription.cameraId}
             </h3>
+            {subscription.isPaused && (
+              <span className="px-1.5 py-0.5 bg-amber-900/50 rounded text-xs text-amber-400">
+                {lang === 'no' ? 'Pauset' : 'Paused'}
+              </span>
+            )}
           </div>
           {!isEditing && (
             <div className="mt-1 flex flex-wrap gap-1">
@@ -148,6 +160,27 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
         </div>
 
         <div className="flex items-center gap-1 shrink-0 ml-2">
+          {/* Pause/Resume button */}
+          <button
+            onClick={handleTogglePause}
+            disabled={pausing}
+            className={`p-1.5 rounded hover:bg-slate-700 ${subscription.isPaused ? 'text-amber-400' : 'text-slate-400 hover:text-white'} disabled:opacity-50`}
+            title={subscription.isPaused
+              ? (lang === 'no' ? 'Gjenoppta varsler' : 'Resume notifications')
+              : (lang === 'no' ? 'Pause varsler' : 'Pause notifications')
+            }
+          >
+            {subscription.isPaused ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </button>
           {subscription.lat && subscription.lon && (
             <button
               onClick={flyToCamera}

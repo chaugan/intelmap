@@ -47,6 +47,12 @@ export function runMigration() {
     console.log('Added camera_name, lat, lon columns to monitor_subscriptions table');
   }
 
+  // Add is_paused column to monitor_subscriptions (for pausing notifications per camera)
+  if (monitorSubsCols.length > 0 && !monitorSubsCols.some(c => c.name === 'is_paused')) {
+    db.prepare("ALTER TABLE monitor_subscriptions ADD COLUMN is_paused INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added is_paused column to monitor_subscriptions table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

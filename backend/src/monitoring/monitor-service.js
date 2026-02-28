@@ -42,6 +42,22 @@ class MonitorService {
   }
 
   /**
+   * Transliterate Norwegian characters for ntfy compatibility
+   * @param {string} text - Text to transliterate
+   * @returns {string} - Transliterated text
+   */
+  transliterateNorwegian(text) {
+    if (!text) return text;
+    return text
+      .replace(/ø/g, 'oe')
+      .replace(/Ø/g, 'Oe')
+      .replace(/æ/g, 'ae')
+      .replace(/Æ/g, 'Ae')
+      .replace(/å/g, 'aa')
+      .replace(/Å/g, 'Aa');
+  }
+
+  /**
    * Generate a permanent ntfy hash for a user
    * @returns {string} - 8 character alphanumeric hash
    */
@@ -169,6 +185,34 @@ class MonitorService {
     this.updateCameraLabels(cameraId);
 
     return { updated: true };
+  }
+
+  /**
+   * Toggle pause state for a subscription
+   * @param {string} userId - User ID
+   * @param {string} cameraId - Camera ID
+   * @returns {Object} - { isPaused: boolean }
+   */
+  togglePause(userId, cameraId) {
+    const db = getDb();
+
+    // Get current state
+    const sub = db.prepare(`
+      SELECT is_paused FROM monitor_subscriptions
+      WHERE user_id = ? AND camera_id = ? AND is_active = 1
+    `).get(userId, cameraId);
+
+    if (!sub) {
+      throw new Error('Subscription not found');
+    }
+
+    const newPaused = sub.is_paused ? 0 : 1;
+    db.prepare(`
+      UPDATE monitor_subscriptions SET is_paused = ?
+      WHERE user_id = ? AND camera_id = ? AND is_active = 1
+    `).run(newPaused, userId, cameraId);
+
+    return { isPaused: !!newPaused };
   }
 
   /**
@@ -564,13 +608,11 @@ class MonitorService {
 
     // Use PUT with file body - this uploads the image directly to ntfy
     // which works better for self-hosted ntfy on iOS
-    // Click header makes notification open image URL (for iOS which doesn't show image attachments)
     const headers = {
-      'Title': title,
-      'Message': labelSummary,
+      'Title': this.transliterateNorwegian(title),
+      'Message': this.transliterateNorwegian(labelSummary),
       'Tags': 'camera,warning',
       'Filename': `detection-${cameraId}.jpg`,
-      'X-Click': `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`,
     };
 
     if (token) {
@@ -693,13 +735,15 @@ class MonitorService {
 
       if (matches.length === 0) continue;
 
+      const isPaused = !!sub.is_paused;
       const isSnoozed = this.isSnoozed(sub.user_id, cameraId);
+      const shouldNotify = !isPaused && !isSnoozed;
 
       // Log detection and save annotated image - returns detection ID
-      const detectionId = this.logDetection(sub.user_id, cameraId, userLabels, matches, !isSnoozed, annotatedPath);
+      const detectionId = this.logDetection(sub.user_id, cameraId, userLabels, matches, shouldNotify, annotatedPath);
 
-      if (!isSnoozed && annotatedPath) {
-        // Send alert with public image URL
+      if (shouldNotify && annotatedPath) {
+        // Send alert
         await this.sendAlert(sub.user_id, sub.username, cameraId, sub.camera_name, matches, detectionId);
 
         // Update snooze state
