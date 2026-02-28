@@ -108,9 +108,9 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
                 {/* Top section: Left (Current + Aurora stacked) + Right (Trends) */}
-                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0" style={{ height: '44%' }}>
+                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0 relative z-10" style={{ height: '44%' }}>
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
-                  <div className="col-span-4 flex flex-col gap-3">
+                  <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
                     {/* Current conditions - horizontal layout */}
                     <div className="flex-1 min-h-0">
                       <CurrentConditionsHero
@@ -150,7 +150,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* 7-day forecast (horizontal, full width) - fills remaining space */}
-                <div className="mt-3 flex-1 min-h-0 relative">
+                <div className="mt-3 flex-1 min-h-0 relative z-0 overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
