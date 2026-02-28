@@ -112,7 +112,7 @@ export default function TimelapsePanel() {
                   : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
               }`}
             >
-              {lang === 'no' ? 'Alle opptak' : 'All recording'}
+              {lang === 'no' ? 'Alle opptak' : 'All recordings'}
             </button>
           </div>
         </div>
