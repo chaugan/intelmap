@@ -6,7 +6,10 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 
 export default function CameraPicker() {
-  const cameras = useTimelapseStore((s) => s.cameras);
+  const myCameras = useTimelapseStore((s) => s.cameras);
+  const allRecordingCameras = useTimelapseStore((s) => s.allRecordingCameras);
+  const showOnlyMine = useTimelapseStore((s) => s.showOnlyMine);
+  const fetchAllRecordingCameras = useTimelapseStore((s) => s.fetchAllRecordingCameras);
   const loading = useTimelapseStore((s) => s.loading);
   const selectedCamera = useTimelapseStore((s) => s.selectedCamera);
   const setSelectedCamera = useTimelapseStore((s) => s.setSelectedCamera);
@@ -19,6 +22,16 @@ export default function CameraPicker() {
   const toggleWebcams = useMapStore((s) => s.toggleWebcams);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+
+  // Fetch all recording cameras when showing all
+  useEffect(() => {
+    if (!showOnlyMine) {
+      fetchAllRecordingCameras();
+    }
+  }, [showOnlyMine, fetchAllRecordingCameras]);
+
+  // Choose which cameras to display based on toggle
+  const cameras = showOnlyMine ? myCameras : allRecordingCameras;
 
   // Get monitored camera IDs and highlight function
   const monitoredCameraIds = useMonitoringStore((s) => s.monitoredCameraIds);

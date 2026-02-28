@@ -16,6 +16,9 @@ export const useTimelapseStore = create((set, get) => ({
   // All currently recording camera IDs (for map markers)
   recordingCameraIds: [],
 
+  // All currently recording cameras with full details (for "All recordings" list)
+  allRecordingCameras: [],
+
   // Show only user's timelapses on map (vs all recording)
   showOnlyMine: JSON.parse(localStorage.getItem('timelapseShowOnlyMine') ?? 'true'),
 
@@ -88,6 +91,18 @@ export const useTimelapseStore = create((set, get) => ({
       if (!res.ok) return; // Silently fail - user may not have access
       const data = await res.json();
       set({ recordingCameraIds: data });
+    } catch {
+      // Silently fail
+    }
+  },
+
+  // Fetch all recording cameras with full details (for "All recordings" list)
+  fetchAllRecordingCameras: async () => {
+    try {
+      const res = await fetch(`${API}/recording/all`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      set({ allRecordingCameras: data });
     } catch {
       // Silently fail
     }

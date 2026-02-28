@@ -18,6 +18,7 @@ export default function TimelapsePanel() {
   const clearError = useTimelapseStore((s) => s.clearError);
   const showOnlyMine = useTimelapseStore((s) => s.showOnlyMine);
   const setShowOnlyMine = useTimelapseStore((s) => s.setShowOnlyMine);
+  const fetchAllRecordingCameras = useTimelapseStore((s) => s.fetchAllRecordingCameras);
   const lang = useMapStore((s) => s.lang);
 
   const monitoringEnabled = useMonitoringStore((s) => s.enabled);
@@ -27,16 +28,18 @@ export default function TimelapsePanel() {
   // Fetch cameras on mount and periodically refresh (every 60s for live updates)
   useEffect(() => {
     fetchCameras();
+    fetchAllRecordingCameras();
     fetchExports();
     fetchMonitoringConfig();
 
     // Refresh camera data every 60 seconds to get updated availableTo timestamps
     const interval = setInterval(() => {
       fetchCameras();
+      fetchAllRecordingCameras();
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [fetchCameras, fetchExports, fetchMonitoringConfig]);
+  }, [fetchCameras, fetchAllRecordingCameras, fetchExports, fetchMonitoringConfig]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {

@@ -34,6 +34,33 @@ router.get('/recording', requireAuth, requireTimelapseAccess, (req, res) => {
   }
 });
 
+// Get all currently recording cameras with full details (for "All recordings" view)
+router.get('/recording/all', requireAuth, requireTimelapseAccess, (req, res) => {
+  try {
+    const db = getDb();
+    const cameras = db.prepare(`
+      SELECT camera_id, name, lat, lon, is_capturing, is_protected, subscriber_count, last_frame_at, available_from, available_to
+      FROM timelapse_cameras WHERE is_capturing = 1
+      ORDER BY name ASC
+    `).all();
+
+    res.json(cameras.map(c => ({
+      cameraId: c.camera_id,
+      name: c.name,
+      lat: c.lat,
+      lon: c.lon,
+      isCapturing: !!c.is_capturing,
+      isProtected: !!c.is_protected,
+      subscriberCount: c.subscriber_count,
+      lastFrameAt: c.last_frame_at,
+      availableFrom: c.available_from,
+      availableTo: c.available_to,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get user's subscribed cameras (with extra info)
 router.get('/cameras', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
