@@ -150,7 +150,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* 7-day forecast (horizontal, full width) - grows to fill space */}
-                <div className="mt-3 flex-1 min-h-0">
+                <div className="mt-3 flex-1 min-h-0 overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -161,8 +161,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   />
                 </div>
 
-                {/* Bottom row: Moon and Sun - fill remaining space */}
-                <div className="grid grid-cols-2 gap-3 mt-3 flex-1 min-h-0">
+                {/* Bottom row: Moon and Sun - compact fixed height */}
+                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '100px' }}
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -616,7 +616,7 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
   );
 }
 
-// Horizontal Aurora section for the new layout
+// Horizontal Aurora section - two rows: top (gauge+info), bottom (bar chart)
 function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
   const currentKp = kp?.current || 0;
   const kpForecast = kp?.hourly?.slice(0, 8) || [];
@@ -636,9 +636,7 @@ function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
     return lang === 'no' ? 'Storm' : 'Storm';
   };
 
-  // Visibility estimate based on Kp
   const getVisibilityLat = (k) => {
-    // Approximate auroral oval latitude
     if (k < 2) return 70;
     if (k < 4) return 65;
     if (k < 6) return 60;
@@ -647,57 +645,53 @@ function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
   };
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
-      {/* Left: Large Kp gauge */}
-      <div className="flex flex-col items-center justify-center shrink-0 pr-3">
-        <div className="relative w-20 h-20">
+    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
+      {/* Top row: Kp gauge + info text side by side */}
+      <div className="flex items-center gap-3 shrink-0">
+        {/* Kp gauge */}
+        <div className="relative w-14 h-14 shrink-0">
           <svg viewBox="0 0 100 100" className="w-full h-full">
-            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={isDark ? '#475569' : '#e2e8f0'} strokeWidth="10" />
-            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={getKpColor(currentKp)} strokeWidth="10" strokeDasharray={`${(currentKp / 9) * 188} 188`} />
+            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={isDark ? '#475569' : '#e2e8f0'} strokeWidth="12" />
+            <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={getKpColor(currentKp)} strokeWidth="12" strokeDasharray={`${(currentKp / 9) * 188} 188`} />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center pt-2">
-            <span className="text-3xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
+          <div className="absolute inset-0 flex items-center justify-center pt-1">
+            <span className="text-xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
           </div>
         </div>
-        <div className={`text-sm ${textMuted} mt-1`}>Kp-indeks</div>
-      </div>
-
-      {/* Right: Info and forecast */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Title and activity */}
-        <div className="flex items-baseline gap-2 mb-1">
-          <h3 className={`text-base font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-            {lang === 'no' ? 'Nordlys' : 'Aurora'}
-          </h3>
-          <div className="text-lg font-bold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
-        </div>
-
-        {/* Visibility info */}
-        <div className={`text-sm ${textMuted} mb-2`}>
-          {lang === 'no' ? 'Synlig ned til' : 'Visible down to'} ~{getVisibilityLat(currentKp)}°N
-        </div>
-
-        {/* Forecast mini-chart - fills remaining space */}
-        {kpForecast.length > 0 && (
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className={`text-xs ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Neste 24 timer' : 'Next 24 hours'}</div>
-            <div className="flex-1 flex items-end gap-1 min-h-0">
-              {kpForecast.map((k, i) => {
-                const barH = Math.max(4, (k.kp / 9) * 100);
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
-                    <div className="text-xs font-semibold mb-1" style={{ color: getKpColor(k.kp) }}>{k.kp.toFixed(1)}</div>
-                    <div
-                      className="w-full rounded-t"
-                      style={{ height: `${barH}%`, backgroundColor: getKpColor(k.kp), minHeight: '4px' }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+        {/* Info text */}
+        <div className="flex-1">
+          <div className="flex items-baseline gap-2">
+            <h3 className={`text-base font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+              {lang === 'no' ? 'Nordlys' : 'Aurora'}
+            </h3>
+            <span className="text-base font-bold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</span>
           </div>
-        )}
+          <div className={`text-sm ${textMuted}`}>
+            Kp-indeks &bull; {lang === 'no' ? 'Synlig ned til' : 'Visible to'} ~{getVisibilityLat(currentKp)}°N
+          </div>
+        </div>
       </div>
+
+      {/* Bottom row: Forecast bar chart - fills remaining space */}
+      {kpForecast.length > 0 && (
+        <div className="flex-1 flex flex-col mt-2 min-h-0">
+          <div className={`text-xs ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Neste 24 timer' : 'Next 24 hours'}</div>
+          <div className="flex-1 flex items-end gap-1">
+            {kpForecast.map((k, i) => {
+              const barH = Math.max(8, (k.kp / 9) * 100);
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div className="text-xs font-semibold mb-0.5" style={{ color: getKpColor(k.kp) }}>{k.kp.toFixed(1)}</div>
+                  <div
+                    className="w-full rounded-t"
+                    style={{ height: `${barH}%`, backgroundColor: getKpColor(k.kp), minHeight: '6px' }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -706,24 +700,22 @@ function MoonPhasesSection({ daily, lang, isDark, bgCard, textMuted }) {
   const getIllumination = (deg) => Math.round((1 - Math.cos(deg * Math.PI / 180)) / 2 * 100);
 
   return (
-    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col`}>
-      <h3 className={`text-base font-semibold mb-3 shrink-0 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+    <div className={`${bgCard} rounded-lg px-3 py-2 h-full flex flex-col`}>
+      <h3 className={`text-sm font-semibold mb-1 shrink-0 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
         {lang === 'no' ? 'Månefaser' : 'Moon Phases'}
       </h3>
       <div className="flex justify-between items-center flex-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
-          const dateNum = date.getDate();
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
           const illum = day.moonphase != null ? getIllumination(day.moonphase) : null;
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-sm font-medium">{dayName}</div>
-              <div className={`text-xs ${textMuted}`}>{dateNum}</div>
-              <div className="my-2 flex justify-center">
-                {day.moonphase != null ? <MoonPhaseIcon degree={day.moonphase} size={36} /> : <div className="w-9 h-9 rounded-full bg-slate-600" />}
+              <div className="text-xs font-medium">{dayName}</div>
+              <div className="flex justify-center my-0.5">
+                {day.moonphase != null ? <MoonPhaseIcon degree={day.moonphase} size={28} /> : <div className="w-7 h-7 rounded-full bg-slate-600" />}
               </div>
-              {illum != null && <div className="text-sm font-semibold">{illum}%</div>}
+              {illum != null && <div className="text-xs">{illum}%</div>}
             </div>
           );
         })}
@@ -743,23 +735,19 @@ function SunTimesSection({ daily, lang, isDark, bgCard, textMuted }) {
   };
 
   return (
-    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col`}>
-      <h3 className={`text-base font-semibold mb-3 shrink-0 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
-        {lang === 'no' ? 'Soloppgang / Solnedgang' : 'Sunrise / Sunset'}
+    <div className={`${bgCard} rounded-lg px-3 py-2 h-full flex flex-col`}>
+      <h3 className={`text-sm font-semibold mb-1 shrink-0 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+        {lang === 'no' ? 'Sol' : 'Sun'}
       </h3>
       <div className="flex justify-between items-center flex-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
-          const dateNum = date.getDate();
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-sm font-medium">{dayName}</div>
-              <div className={`text-xs ${textMuted}`}>{dateNum}</div>
-              <div className="mt-2">
-                <div className="text-sm text-yellow-500 font-semibold">{formatTime(day.sunrise)}</div>
-                <div className="text-sm text-orange-500 font-semibold">{formatTime(day.sunset)}</div>
-              </div>
+              <div className="text-xs font-medium">{dayName}</div>
+              <div className="text-xs text-yellow-500">{formatTime(day.sunrise)}</div>
+              <div className="text-xs text-orange-500">{formatTime(day.sunset)}</div>
             </div>
           );
         })}
