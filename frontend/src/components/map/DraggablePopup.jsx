@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 
 /**
@@ -68,37 +68,58 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   let posX = canvasX + mapOffset.left;
   let posY = canvasY + mapOffset.top;
 
+  // State for clamped position (calculated after first render)
+  const [clampedPos, setClampedPos] = useState({ posX, posY, canvasX, canvasY, ready: false });
+
   // Clamp popup position to stay within viewport (all edges)
-  const popupEl = containerRef.current;
-  if (popupEl && !isDragged) {
+  useLayoutEffect(() => {
+    const popupEl = containerRef.current;
+    if (!popupEl || isDragged) {
+      setClampedPos({ posX, posY, canvasX, canvasY, ready: true });
+      return;
+    }
+
     const rect = popupEl.getBoundingClientRect();
     const popupH = rect.height || 200;
     const popupW = rect.width || 260;
     const padding = 10;
 
-    // Clamp bottom edge (popup appears above cursor by default)
-    if (posY + popupH > window.innerHeight - padding) {
-      const shift = posY + popupH - (window.innerHeight - padding);
-      canvasY -= shift;
-      posY -= shift;
+    let newPosX = posX;
+    let newPosY = posY;
+    let newCanvasX = canvasX;
+    let newCanvasY = canvasY;
+
+    // Clamp bottom edge
+    if (newPosY + popupH > window.innerHeight - padding) {
+      const shift = newPosY + popupH - (window.innerHeight - padding);
+      newCanvasY -= shift;
+      newPosY -= shift;
     }
     // Clamp top edge
-    if (posY < padding) {
-      const shift = padding - posY;
-      canvasY += shift;
-      posY += shift;
+    if (newPosY < padding) {
+      const shift = padding - newPosY;
+      newCanvasY += shift;
+      newPosY += shift;
     }
     // Clamp right edge
-    if (posX + popupW > window.innerWidth - padding) {
-      posX = window.innerWidth - popupW - padding;
-      canvasX = posX - mapOffset.left;
+    if (newPosX + popupW > window.innerWidth - padding) {
+      newPosX = window.innerWidth - popupW - padding;
+      newCanvasX = newPosX - mapOffset.left;
     }
     // Clamp left edge
-    if (posX < padding) {
-      posX = padding;
-      canvasX = posX - mapOffset.left;
+    if (newPosX < padding) {
+      newPosX = padding;
+      newCanvasX = newPosX - mapOffset.left;
     }
-  }
+
+    setClampedPos({ posX: newPosX, posY: newPosY, canvasX: newCanvasX, canvasY: newCanvasY, ready: true });
+  }, [posX, posY, canvasX, canvasY, isDragged, mapOffset.left]);
+
+  // Use clamped position for rendering
+  const finalPosX = clampedPos.ready ? clampedPos.posX : posX;
+  const finalPosY = clampedPos.ready ? clampedPos.posY : posY;
+  const finalCanvasX = clampedPos.ready ? clampedPos.canvasX : canvasX;
+  const finalCanvasY = clampedPos.ready ? clampedPos.canvasY : canvasY;
 
   // Force re-render when map moves so origin tracks the geo-coordinate
   const [, forceUpdate] = useState(0);
@@ -238,8 +259,8 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
           <line
             x1={origin.x}
             y1={origin.y}
-            x2={canvasX + 120}
-            y2={canvasY + 20}
+            x2={finalCanvasX + 120}
+            y2={finalCanvasY + 20}
             stroke="#000000"
             strokeWidth="3.5"
             strokeDasharray="8 5"
@@ -252,10 +273,11 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
         ref={containerRef}
         style={{
           position: 'fixed',
-          left: posX,
-          top: posY,
+          left: finalPosX,
+          top: finalPosY,
           zIndex: 50,
           cursor: 'default',
+          visibility: clampedPos.ready ? 'visible' : 'hidden',
         }}
       >
         {children}

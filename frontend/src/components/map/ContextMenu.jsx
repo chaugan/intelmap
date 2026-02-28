@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useWeather } from '../../hooks/useWeather.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
@@ -200,10 +200,15 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
   const isWrapped = x === 0 && y === 0;
 
   // Calculate clamped position to keep dialog within viewport
-  const [clampedPos, setClampedPos] = useState({ left: x, top: y });
+  const [clampedPos, setClampedPos] = useState({ left: x, top: y, ready: false });
 
-  useEffect(() => {
-    if (isWrapped || !ref.current) return;
+  // Use useLayoutEffect to calculate position before browser paints
+  useLayoutEffect(() => {
+    if (isWrapped) {
+      setClampedPos({ left: 0, top: 0, ready: true });
+      return;
+    }
+    if (!ref.current) return;
 
     const rect = ref.current.getBoundingClientRect();
     const padding = 10;
@@ -228,7 +233,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
       top = padding;
     }
 
-    setClampedPos({ left, top });
+    setClampedPos({ left, top, ready: true });
   }, [x, y, isWrapped]);
 
   const style = isWrapped ? {} : {
@@ -236,6 +241,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
     left: clampedPos.left,
     top: clampedPos.top,
     zIndex: 50,
+    visibility: clampedPos.ready ? 'visible' : 'hidden',
   };
 
   const handleWeatherPanel = () => {

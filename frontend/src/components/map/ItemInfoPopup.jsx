@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../stores/useProjectStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -42,9 +42,10 @@ export default function ItemInfoPopup({ projectId, layerId, x, y, onClose }) {
   }, [onClose]);
 
   // Calculate clamped position to keep dialog within viewport
-  const [clampedPos, setClampedPos] = useState({ left: x, top: y });
+  const [clampedPos, setClampedPos] = useState({ left: x, top: y, ready: false });
 
-  useEffect(() => {
+  // Use useLayoutEffect to calculate position before browser paints
+  useLayoutEffect(() => {
     if (!popupRef.current) return;
 
     const rect = popupRef.current.getBoundingClientRect();
@@ -70,14 +71,14 @@ export default function ItemInfoPopup({ projectId, layerId, x, y, onClose }) {
       top = padding;
     }
 
-    setClampedPos({ left, top });
+    setClampedPos({ left, top, ready: true });
   }, [x, y]);
 
   return (
     <div
       ref={popupRef}
       className="fixed z-[60] bg-slate-800 border border-slate-600 rounded-lg shadow-xl px-3 py-2 min-w-[180px]"
-      style={{ left: clampedPos.left, top: clampedPos.top }}
+      style={{ left: clampedPos.left, top: clampedPos.top, visibility: clampedPos.ready ? 'visible' : 'hidden' }}
     >
       <div className="flex items-center gap-2 text-xs mb-1">
         <span className="text-slate-400 shrink-0">{t('info.project', lang)}:</span>
