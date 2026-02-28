@@ -162,7 +162,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Bottom row: Moon and Sun - compact fixed height */}
-                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '100px' }}
+                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '100px' }}>
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
