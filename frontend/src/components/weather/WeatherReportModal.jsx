@@ -375,7 +375,7 @@ function TemperatureChart({ data, isDark, lang }) {
 
   const width = 400;
   const height = 160;
-  const padding = { top: 15, right: 15, bottom: 24, left: 35 };
+  const padding = { top: 15, right: 5, bottom: 24, left: 25 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
@@ -421,7 +421,7 @@ function WindChart({ data, isDark, lang }) {
 
   const width = 400;
   const height = 160;
-  const padding = { top: 22, right: 15, bottom: 24, left: 35 };
+  const padding = { top: 22, right: 5, bottom: 24, left: 25 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
@@ -463,7 +463,7 @@ function PrecipChart({ data, isDark, lang }) {
 
   const width = 400;
   const height = 160;
-  const padding = { top: 22, right: 15, bottom: 24, left: 35 };
+  const padding = { top: 22, right: 5, bottom: 24, left: 25 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
@@ -511,7 +511,7 @@ function CloudChart({ data, isDark, lang }) {
 
   const width = 400;
   const height = 160;
-  const padding = { top: 15, right: 15, bottom: 24, left: 40 };
+  const padding = { top: 15, right: 5, bottom: 24, left: 30 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
