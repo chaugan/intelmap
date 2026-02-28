@@ -338,30 +338,37 @@ router.delete('/ntfy-config', (req, res) => {
 
 // --- YOLO Configuration ---
 
-// Get YOLO config (whether token is set + project ID)
+// Get YOLO config (whether token is set + project ID + URL)
 router.get('/yolo-config', (req, res) => {
   const db = getDb();
   const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
   const projectRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
+  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
   res.json({
     hasToken: !!(tokenRow?.value),
     projectId: projectRow?.value || 'fac23eeac522',
+    url: urlRow?.value || '',
   });
 });
 
 // Validate and set YOLO credentials
 router.put('/yolo-config', async (req, res) => {
-  const { token, projectId } = req.body;
+  const { token, projectId, url } = req.body;
+
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
 
   if (!token || typeof token !== 'string' || token.trim().length < 10) {
     return res.status(400).json({ error: 'Invalid API token' });
   }
 
+  const yoloUrl = url.trim().replace(/\/$/, ''); // Remove trailing slash
   const yoloToken = token.trim();
   const yoloProjectId = (projectId?.trim() || 'fac23eeac522');
 
-  // Test connection by calling the API
-  const testUrl = 'https://yolo.intelmap.no/api/v1/health';
+  // Test connection by calling the API health endpoint
+  const testUrl = `${yoloUrl}/api/v1/health`;
 
   try {
     const response = await fetch(testUrl, {
@@ -385,6 +392,11 @@ router.put('/yolo-config', async (req, res) => {
     // Connection successful, save settings
     const db = getDb();
     db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_url', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(yoloUrl);
+
+    db.prepare(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_api_token', ?, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
     ).run(yoloToken);
@@ -406,7 +418,7 @@ router.put('/yolo-config', async (req, res) => {
 // Remove YOLO credentials
 router.delete('/yolo-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key IN ('yolo_api_token', 'yolo_project_id')").run();
+  db.prepare("DELETE FROM app_settings WHERE key IN ('yolo_api_token', 'yolo_project_id', 'yolo_url')").run();
   res.json({ ok: true });
 });
 

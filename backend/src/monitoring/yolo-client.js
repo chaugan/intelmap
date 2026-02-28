@@ -1,9 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { getYoloApiToken, getYoloProjectId } from '../config.js';
-
-const YOLO_BASE_URL = 'https://yolo.intelmap.no';
+import { getYoloApiToken, getYoloProjectId, getYoloUrl } from '../config.js';
 
 /**
  * YoloClient - Integration with YOLO inference API
@@ -15,7 +13,11 @@ const YOLO_BASE_URL = 'https://yolo.intelmap.no';
  */
 class YoloClient {
   constructor() {
-    this.baseUrl = YOLO_BASE_URL;
+    // URL is fetched dynamically from config
+  }
+
+  getBaseUrl() {
+    return getYoloUrl() || 'https://yolo.intelmap.no';
   }
 
   /**
@@ -63,7 +65,7 @@ class YoloClient {
 
     const fullBody = Buffer.concat(parts);
 
-    const response = await fetch(`${this.baseUrl}/api/v1/infer`, {
+    const response = await fetch(`${this.getBaseUrl()}/api/v1/infer`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -105,7 +107,7 @@ class YoloClient {
       throw new Error('YOLO API not configured');
     }
 
-    const response = await fetch(`${this.baseUrl}/api/v1/jobs/${jobId}/annotated`, {
+    const response = await fetch(`${this.getBaseUrl()}/api/v1/jobs/${jobId}/annotated`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

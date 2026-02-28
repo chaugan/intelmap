@@ -103,4 +103,15 @@ export function getYoloProjectId() {
   return process.env.YOLO_PROJECT_ID || 'fac23eeac522';
 }
 
+export function getYoloUrl() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.YOLO_URL || 'https://yolo.intelmap.no';
+}
+
 export default config;
