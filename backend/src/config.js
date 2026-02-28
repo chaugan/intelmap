@@ -81,4 +81,26 @@ export function getNtfyUrl() {
   return process.env.NTFY_URL || 'https://ntfy.intelmap.no';
 }
 
+export function getYoloApiToken() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.YOLO_API_TOKEN || '';
+}
+
+export function getYoloProjectId() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.YOLO_PROJECT_ID || 'fac23eeac522';
+}
+
 export default config;

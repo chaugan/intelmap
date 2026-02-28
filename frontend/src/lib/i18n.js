@@ -257,6 +257,19 @@ const translations = {
     'timelapse.speed': 'Hastighet',
     'timelapse.exportMp4': 'Eksporter MP4',
 
+    // Monitoring
+    'monitoring.title': 'Monitorering',
+    'monitoring.addCamera': 'Legg til kamera',
+    'monitoring.searchCamera': 'Soek etter kamera',
+    'monitoring.labels': 'Etiketter',
+    'monitoring.selectLabels': 'Velg etiketter aa overvake',
+    'monitoring.snooze': 'Ignorer varsler',
+    'monitoring.history': 'Historikk',
+    'monitoring.noDetections': 'Ingen funn ennaa',
+    'monitoring.remove': 'Fjern overvaking',
+    'monitoring.view': 'Vis monitorering',
+    'monitoring.addMonitor': 'Overvaak',
+
     // Aurora
     'layer.aurora': 'Nordlys',
     'aurora.title': 'Nordlysprognose',
@@ -538,6 +551,19 @@ const translations = {
     'timelapse.noSubs': 'No cameras subscribed',
     'timelapse.speed': 'Speed',
     'timelapse.exportMp4': 'Export MP4',
+
+    // Monitoring
+    'monitoring.title': 'Monitoring',
+    'monitoring.addCamera': 'Add camera',
+    'monitoring.searchCamera': 'Search for camera',
+    'monitoring.labels': 'Labels',
+    'monitoring.selectLabels': 'Select labels to monitor',
+    'monitoring.snooze': 'Snooze alerts',
+    'monitoring.history': 'History',
+    'monitoring.noDetections': 'No detections yet',
+    'monitoring.remove': 'Remove monitor',
+    'monitoring.view': 'View monitoring',
+    'monitoring.addMonitor': 'Monitor',
 
     // Aurora
     'layer.aurora': 'Aurora',

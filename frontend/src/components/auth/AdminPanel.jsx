@@ -50,6 +50,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'ntfy'} onClick={() => setActiveTab('ntfy')}>
                 ntfy
               </TabButton>
+              <TabButton active={activeTab === 'yolo'} onClick={() => setActiveTab('yolo')}>
+                YOLO
+              </TabButton>
               <TabButton active={activeTab === 'timelapse'} onClick={() => setActiveTab('timelapse')}>
                 {lang === 'no' ? 'Tidslapse' : 'Timelapse'}
               </TabButton>
@@ -69,6 +72,7 @@ export default function AdminPanel() {
           {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
           {activeTab === 'ais' && <AisConfigTab lang={lang} />}
           {activeTab === 'ntfy' && <NtfyConfigTab lang={lang} />}
+          {activeTab === 'yolo' && <YoloConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
         </div>
       </div>
@@ -929,6 +933,149 @@ function NtfyConfigTab({ lang }) {
         </form>
 
         {isConfigured && (
+          <button
+            onClick={removeCredentials}
+            className="text-red-400 hover:text-red-300 text-sm"
+          >
+            {lang === 'no' ? 'Fjern innstillinger' : 'Remove settings'}
+          </button>
+        )}
+
+        {status && <p className="text-emerald-400 text-sm">{status}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- YOLO Config Tab ---
+function YoloConfigTab({ lang }) {
+  const [config, setConfig] = useState(null);
+  const [token, setToken] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/yolo-config`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+        setProjectId(data.projectId || 'fac23eeac522');
+      }
+    } catch {}
+  }
+
+  async function saveCredentials(e) {
+    e.preventDefault();
+    setError(''); setStatus('');
+    if (!token.trim()) {
+      setError(lang === 'no' ? 'API-token er paakrevd' : 'API token is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = {
+        token: token.trim(),
+        projectId: projectId.trim() || 'fac23eeac522',
+      };
+      const res = await fetch(`${API}/yolo-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error);
+        return;
+      }
+      setToken('');
+      setStatus(data.message || (lang === 'no' ? 'Konfigurert' : 'Configured'));
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function removeCredentials() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/yolo-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'Innstillinger fjernet' : 'Settings removed');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-amber-400">
+          {lang === 'no' ? 'YOLO Objektdeteksjon' : 'YOLO Object Detection'}
+        </h3>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">{lang === 'no' ? 'Status' : 'Status'}:</span>
+          <span className={config.hasToken ? 'text-emerald-400' : 'text-slate-500'}>
+            {config.hasToken
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke konfigurert' : 'Not configured')}
+          </span>
+        </div>
+
+        {config.hasToken && (
+          <div className="text-xs text-slate-400">
+            {lang === 'no' ? 'Prosjekt-ID' : 'Project ID'}: <span className="font-mono text-slate-300">{config.projectId}</span>
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'YOLO brukes til objekt-deteksjon i webcam-bilder for overvaking. Aktiverer Monitorering-fanen i Tidslapse.'
+            : 'YOLO is used for object detection in webcam images for monitoring. Enables the Monitoring tab in Timelapse.'}
+        </p>
+
+        <form onSubmit={saveCredentials} className="space-y-2">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {lang === 'no' ? 'API-token (paakrevd)' : 'API Token (required)'}
+            </label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={config.hasToken ? '********' : 'Bearer token'}
+              className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {lang === 'no' ? 'Prosjekt-ID (valgfritt)' : 'Project ID (optional)'}
+            </label>
+            <input
+              type="text"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              placeholder="fac23eeac522"
+              className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!token.trim() || saving}
+            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+          >
+            {saving
+              ? (lang === 'no' ? 'Tester tilkobling...' : 'Testing connection...')
+              : (lang === 'no' ? 'Test og lagre' : 'Test & Save')}
+          </button>
+        </form>
+
+        {config.hasToken && (
           <button
             onClick={removeCredentials}
             className="text-red-400 hover:text-red-300 text-sm"

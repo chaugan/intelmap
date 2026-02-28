@@ -7,6 +7,7 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisiblePins } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
+import { useMonitoringStore } from '../../stores/useMonitoringStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
 import DraggablePopup from './DraggablePopup.jsx';
@@ -39,6 +40,12 @@ export default function WebcamLayer() {
   const fetchRecordingCameras = useTimelapseStore((s) => s.fetchRecordingCameras);
   const fetchUserCameras = useTimelapseStore((s) => s.fetchCameras);
 
+  // Get monitored camera IDs from monitoring store
+  const monitoringEnabled = useMonitoringStore((s) => s.enabled);
+  const monitoredCameraIdsList = useMonitoringStore((s) => s.monitoredCameraIds);
+  const fetchMonitoredCameras = useMonitoringStore((s) => s.fetchMonitoredCameras);
+  const fetchMonitoringConfig = useMonitoringStore((s) => s.fetchConfig);
+
   // Determine which cameras to show as red based on filter setting
   const recordingCameraIds = useMemo(() => {
     if (!canTimelapse) return new Set();
@@ -50,13 +57,21 @@ export default function WebcamLayer() {
     return new Set(recordingCameraIdsList);
   }, [recordingCameraIdsList, userCameras, showOnlyMine, canTimelapse]);
 
+  // Monitored camera IDs set
+  const monitoredCameraIds = useMemo(() => {
+    return new Set(monitoredCameraIdsList);
+  }, [monitoredCameraIdsList]);
+
   // Fetch cameras on mount if user has access
   useEffect(() => {
     if (canTimelapse) {
       fetchRecordingCameras();
       fetchUserCameras();
     }
-  }, [canTimelapse, fetchRecordingCameras, fetchUserCameras]);
+    // Always try to fetch monitoring config (will silently fail if not enabled)
+    fetchMonitoringConfig();
+    fetchMonitoredCameras();
+  }, [canTimelapse, fetchRecordingCameras, fetchUserCameras, fetchMonitoringConfig, fetchMonitoredCameras]);
 
   // Track which camera IDs are pinned
   const [pinnedIds, setPinnedIds] = useState(new Set());
@@ -268,14 +283,32 @@ export default function WebcamLayer() {
         const [lon, lat] = cam.geometry.coordinates;
         const id = cam.properties.id;
         const isRecording = recordingCameraIds.has(id);
+        const isMonitoring = monitoredCameraIds.has(id);
+
+        // Determine marker style based on state
+        let markerClasses = 'cursor-pointer w-6 h-6 border-2 border-white rounded-full shadow-lg flex items-center justify-center';
+        let titleSuffix = '';
+
+        if (isRecording && isMonitoring) {
+          // Split color: half red, half green (using gradient)
+          markerClasses += ' bg-gradient-to-r from-red-600 to-green-600';
+          titleSuffix = lang === 'no' ? ' (Opptak + Monitorering)' : ' (Recording + Monitoring)';
+        } else if (isRecording) {
+          markerClasses += ' bg-red-600';
+          titleSuffix = lang === 'no' ? ' (Opptak)' : ' (Recording)';
+        } else if (isMonitoring) {
+          markerClasses += ' bg-green-600';
+          titleSuffix = lang === 'no' ? ' (Monitorering)' : ' (Monitoring)';
+        } else {
+          markerClasses += ' bg-cyan-600';
+        }
+
         return (
           <Marker key={id} longitude={lon} latitude={lat} anchor="center">
             <div
-              className={`cursor-pointer w-6 h-6 border-2 border-white rounded-full shadow-lg flex items-center justify-center ${
-                isRecording ? 'bg-red-600' : 'bg-cyan-600'
-              }`}
+              className={markerClasses}
               onClick={(e) => { e.stopPropagation(); toggleCamera(cam); }}
-              title={cam.properties.name + (isRecording ? (lang === 'no' ? ' (Opptak)' : ' (Recording)') : '')}
+              title={cam.properties.name + titleSuffix}
             >
               <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -395,14 +428,20 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
 
   // Timelapse integration
   const user = useAuthStore((s) => s.user);
-  const cameras = useTimelapseStore((s) => s.cameras);
+  const timelapseUserCameras = useTimelapseStore((s) => s.cameras);
   const recordingCameraIds = useTimelapseStore((s) => s.recordingCameraIds);
-  const subscribe = useTimelapseStore((s) => s.subscribe);
+  const timelapseSubscribe = useTimelapseStore((s) => s.subscribe);
   const openDrawer = useTimelapseStore((s) => s.openDrawer);
   const setSelectedCamera = useTimelapseStore((s) => s.setSelectedCamera);
-  const hasTimelapseSub = cameras.some((c) => c.cameraId === id);
+  const setActiveTab = useTimelapseStore((s) => s.setActiveTab);
+  const hasTimelapseSub = timelapseUserCameras.some((c) => c.cameraId === id);
   const isRecording = recordingCameraIds.includes(id);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
+
+  // Monitoring integration
+  const monitoringEnabled = useMonitoringStore((s) => s.enabled);
+  const monitoredCameraIds = useMonitoringStore((s) => s.monitoredCameraIds);
+  const hasMonitorSub = monitoredCameraIds.includes(id);
 
   // Track whether popup is visible on screen
   useEffect(() => {
@@ -509,12 +548,12 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                 e.stopPropagation();
                 if (hasTimelapseSub) {
                   // Already subscribed, open player
-                  setSelectedCamera(cameras.find((c) => c.cameraId === id));
+                  setSelectedCamera(timelapseUserCameras.find((c) => c.cameraId === id));
                   openDrawer();
                 } else {
                   // Subscribe with coordinates and open drawer
                   const [lon, lat] = camera.geometry.coordinates;
-                  await subscribe(id, camera.properties.name, lat, lon);
+                  await timelapseSubscribe(id, camera.properties.name, lat, lon);
                   openDrawer();
                 }
               }}
@@ -528,6 +567,30 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                 : isRecording
                   ? t('timelapse.addToMine', lang)
                   : t('timelapse.start', lang)}
+            </button>
+          )}
+
+          {/* Monitor button */}
+          {monitoringEnabled && canTimelapse && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('monitoring');
+                openDrawer();
+              }}
+              className={`mt-2 w-full px-3 py-1.5 rounded text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                hasMonitorSub
+                  ? 'bg-green-700 hover:bg-green-600'
+                  : 'bg-slate-700 hover:bg-slate-600'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              {hasMonitorSub
+                ? t('monitoring.view', lang)
+                : t('monitoring.addMonitor', lang)}
             </button>
           )}
         </div>

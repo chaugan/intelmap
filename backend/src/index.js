@@ -11,6 +11,8 @@ import { initDb } from './db/index.js';
 import { cleanExpiredSessions } from './auth/sessions.js';
 import { captureService } from './timelapse/capture-service.js';
 import { startPurgeScheduler } from './timelapse/purge-service.js';
+import { frameManager } from './monitoring/frame-manager.js';
+import { monitorService } from './monitoring/monitor-service.js';
 
 const app = express();
 const server = createServer(app);
@@ -45,6 +47,10 @@ setInterval(cleanExpiredSessions, 60 * 60 * 1000);
 // Initialize timelapse services
 captureService.resumeCaptures();
 startPurgeScheduler();
+
+// Initialize monitoring services
+frameManager.init();
+monitorService.resumeMonitoring();
 
 server.listen(config.port, () => {
   console.log(`IntelMap backend listening on port ${config.port}`);

@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
+import { useMonitoringStore } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 import CameraPicker from './CameraPicker.jsx';
 import TimelapsePlayer from './TimelapsePlayer.jsx';
 import ExportPanel from './ExportPanel.jsx';
+import MonitoringTab from './MonitoringTab.jsx';
 
 export default function TimelapsePanel() {
   const closeDrawer = useTimelapseStore((s) => s.closeDrawer);
@@ -18,10 +20,15 @@ export default function TimelapsePanel() {
   const setShowOnlyMine = useTimelapseStore((s) => s.setShowOnlyMine);
   const lang = useMapStore((s) => s.lang);
 
+  const monitoringEnabled = useMonitoringStore((s) => s.enabled);
+  const monitoringConfigLoaded = useMonitoringStore((s) => s.configLoaded);
+  const fetchMonitoringConfig = useMonitoringStore((s) => s.fetchConfig);
+
   // Fetch cameras on mount and periodically refresh (every 60s for live updates)
   useEffect(() => {
     fetchCameras();
     fetchExports();
+    fetchMonitoringConfig();
 
     // Refresh camera data every 60 seconds to get updated availableTo timestamps
     const interval = setInterval(() => {
@@ -29,7 +36,7 @@ export default function TimelapsePanel() {
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [fetchCameras, fetchExports]);
+  }, [fetchCameras, fetchExports, fetchMonitoringConfig]);
 
   // Auto-clear errors after 5 seconds
   useEffect(() => {
@@ -43,6 +50,9 @@ export default function TimelapsePanel() {
     { id: 'cameras', label: t('timelapse.cameras', lang) },
     { id: 'player', label: t('timelapse.player', lang) },
     { id: 'exports', label: t('timelapse.exports', lang) },
+    ...(monitoringConfigLoaded && monitoringEnabled
+      ? [{ id: 'monitoring', label: t('monitoring.title', lang) }]
+      : []),
   ];
 
   return (
@@ -120,6 +130,7 @@ export default function TimelapsePanel() {
         {activeTab === 'cameras' && <CameraPicker />}
         {activeTab === 'player' && <TimelapsePlayer />}
         {activeTab === 'exports' && <ExportPanel />}
+        {activeTab === 'monitoring' && <MonitoringTab />}
       </div>
     </div>
   );

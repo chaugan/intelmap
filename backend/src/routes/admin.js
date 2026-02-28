@@ -336,4 +336,78 @@ router.delete('/ntfy-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- YOLO Configuration ---
+
+// Get YOLO config (whether token is set + project ID)
+router.get('/yolo-config', (req, res) => {
+  const db = getDb();
+  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
+  const projectRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
+  res.json({
+    hasToken: !!(tokenRow?.value),
+    projectId: projectRow?.value || 'fac23eeac522',
+  });
+});
+
+// Validate and set YOLO credentials
+router.put('/yolo-config', async (req, res) => {
+  const { token, projectId } = req.body;
+
+  if (!token || typeof token !== 'string' || token.trim().length < 10) {
+    return res.status(400).json({ error: 'Invalid API token' });
+  }
+
+  const yoloToken = token.trim();
+  const yoloProjectId = (projectId?.trim() || 'fac23eeac522');
+
+  // Test connection by calling the API
+  const testUrl = 'https://yolo.intelmap.no/api/v1/health';
+
+  try {
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${yoloToken}` },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return res.status(400).json({
+        error: 'Invalid API token. The server rejected the provided token.',
+        invalidToken: true
+      });
+    }
+
+    if (!response.ok) {
+      return res.status(400).json({
+        error: `Failed to connect to YOLO API: ${response.status} ${response.statusText}`
+      });
+    }
+
+    // Connection successful, save settings
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_api_token', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(yoloToken);
+
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_project_id', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(yoloProjectId);
+
+    res.json({ ok: true, message: 'YOLO API configured successfully' });
+
+  } catch (err) {
+    return res.status(400).json({
+      error: `Failed to connect to YOLO API: ${err.message}`
+    });
+  }
+});
+
+// Remove YOLO credentials
+router.delete('/yolo-config', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key IN ('yolo_api_token', 'yolo_project_id')").run();
+  res.json({ ok: true });
+});
+
 export default router;

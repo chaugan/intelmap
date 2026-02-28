@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   must_change_password INTEGER NOT NULL DEFAULT 1,
   locked INTEGER NOT NULL DEFAULT 0,
   ai_chat_enabled INTEGER NOT NULL DEFAULT 0,
+  ntfy_hash TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -182,3 +183,52 @@ CREATE TABLE IF NOT EXISTS timelapse_exports (
 CREATE INDEX IF NOT EXISTS idx_timelapse_subs_camera ON timelapse_subscriptions(camera_id);
 CREATE INDEX IF NOT EXISTS idx_timelapse_subs_user ON timelapse_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_timelapse_exports_user ON timelapse_exports(user_id);
+
+-- YOLO Monitoring: user subscriptions (one per user per camera)
+CREATE TABLE IF NOT EXISTS monitor_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  camera_id TEXT NOT NULL,
+  labels TEXT NOT NULL DEFAULT '[]',
+  snooze_minutes INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, camera_id)
+);
+
+-- YOLO Monitoring: detection history (metadata only, no images)
+CREATE TABLE IF NOT EXISTS monitor_detections (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  camera_id TEXT NOT NULL,
+  labels_monitored TEXT NOT NULL,
+  labels_detected TEXT NOT NULL,
+  total_detections INTEGER NOT NULL,
+  detected_at TEXT NOT NULL,
+  notified INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- YOLO Monitoring: snooze state (when user was last notified per camera)
+CREATE TABLE IF NOT EXISTS monitor_snooze_state (
+  user_id TEXT NOT NULL,
+  camera_id TEXT NOT NULL,
+  last_notified_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, camera_id)
+);
+
+-- YOLO Monitoring: active camera monitors (aggregated across all users)
+CREATE TABLE IF NOT EXISTS monitor_cameras (
+  camera_id TEXT PRIMARY KEY,
+  labels TEXT NOT NULL DEFAULT '[]',
+  subscriber_count INTEGER NOT NULL DEFAULT 0,
+  is_capturing INTEGER NOT NULL DEFAULT 0,
+  last_check_at TEXT,
+  last_detection_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_monitor_subs_camera ON monitor_subscriptions(camera_id);
+CREATE INDEX IF NOT EXISTS idx_monitor_subs_user ON monitor_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_monitor_detections_user ON monitor_detections(user_id);
+CREATE INDEX IF NOT EXISTS idx_monitor_detections_camera ON monitor_detections(camera_id);

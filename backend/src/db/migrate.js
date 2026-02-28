@@ -24,6 +24,12 @@ export function runMigration() {
     console.log('Added timelapse_enabled column to users table');
   }
 
+  // Add ntfy_hash column to users table (if not exists)
+  if (!userCols.some(c => c.name === 'ntfy_hash')) {
+    db.prepare("ALTER TABLE users ADD COLUMN ntfy_hash TEXT").run();
+    console.log('Added ntfy_hash column to users table');
+  }
+
   // Add lat/lon columns to timelapse_cameras table (if not exists)
   const timelapseCols = db.prepare("PRAGMA table_info(timelapse_cameras)").all();
   if (timelapseCols.length > 0 && !timelapseCols.some(c => c.name === 'lat')) {
