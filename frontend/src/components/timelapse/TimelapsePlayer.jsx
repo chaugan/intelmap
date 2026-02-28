@@ -196,7 +196,9 @@ export default function TimelapsePlayer() {
       // Exclude inputs, textareas, and buttons (buttons would double-toggle via click)
       if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) {
         e.preventDefault();
-        setIsPlaying((prev) => !prev);
+        // Get current state from store and toggle
+        const current = useTimelapseStore.getState().isPlaying;
+        setIsPlaying(!current);
       }
     };
 
