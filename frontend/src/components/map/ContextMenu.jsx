@@ -366,7 +366,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               {lang === 'no' ? 'Nordlys' : 'Aurora'}
             </span>
             <span className="text-slate-500 text-xs font-mono">
-              {lang === 'no' ? 'Utenfor prognoseområde' : 'Outside forecast area'}
+              {lang === 'no' ? 'Ingen nordlysaktivitet' : 'No aurora activity'}
             </span>
           </div>
         )}
