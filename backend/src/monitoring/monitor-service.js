@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../db/index.js';
-import config, { getNtfyToken, getNtfyUrl, getYoloApiToken, getPublicUrl } from '../config.js';
+import config, { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
 import { frameManager } from './frame-manager.js';
 import { yoloClient } from './yolo-client.js';
 import { eventLogger } from '../lib/event-logger.js';
@@ -498,46 +498,36 @@ class MonitorService {
   }
 
   /**
-   * Send ntfy alert with image URL attachment
+   * Send ntfy alert with image attachment
    * @param {string} userId - User ID
    * @param {string} username - Username
    * @param {string} cameraId - Camera ID
    * @param {string} cameraName - Camera name
    * @param {Array} matches - Matched labels
-   * @param {string} detectionId - Detection ID (for public image URL)
+   * @param {string} detectionId - Detection ID (for image file)
    */
   async sendAlert(userId, username, cameraId, cameraName, matches, detectionId) {
     const channel = this.getUserNtfyChannel(userId, username);
     const token = getNtfyToken();
 
-    // Build message with labels (ASCII only for iOS compatibility)
+    // Build message with labels
     const labelSummary = matches
       .map(m => `${m.count}x ${m.label} (${Math.round(m.maxConfidence * 100)}%)`)
       .join(', ');
 
     const displayName = cameraName || cameraId;
-    // Transliterate Norwegian chars for iOS compatibility
-    const safeDisplayName = displayName
-      .replace(/æ/gi, 'ae')
-      .replace(/ø/gi, 'o')
-      .replace(/å/gi, 'a');
-    const title = `Detection: ${safeDisplayName}`;
+    const title = `Detection: ${displayName}`;
 
-    // Build public image URL
-    const publicUrl = `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`;
+    // Get the saved image file
+    const imagePath = this.getDetectionImagePath(detectionId);
 
-    // Use POST with JSON body for proper UTF-8 support and URL-based attachment
-    const body = {
-      topic: channel.split('/').pop(),
-      title: title,
-      message: labelSummary,
-      tags: ['camera', 'warning'],
-      attach: publicUrl,
-      filename: `detection-${cameraId}.jpg`,
-    };
-
+    // Use PUT with file body - this uploads the image directly to ntfy
+    // which works better for self-hosted ntfy on iOS
     const headers = {
-      'Content-Type': 'application/json',
+      'Title': title,
+      'Message': labelSummary,
+      'Tags': 'camera,warning',
+      'Filename': `detection-${cameraId}.jpg`,
     };
 
     if (token) {
@@ -545,14 +535,24 @@ class MonitorService {
     }
 
     try {
-      // Use the ntfy server base URL (without topic)
-      const ntfyBaseUrl = getNtfyUrl();
+      let response;
 
-      const response = await fetch(ntfyBaseUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
+      if (imagePath && fs.existsSync(imagePath)) {
+        // Upload image directly to ntfy
+        const imageBuffer = fs.readFileSync(imagePath);
+        response = await fetch(channel, {
+          method: 'PUT',
+          headers,
+          body: imageBuffer,
+        });
+      } else {
+        // No image - just send text notification
+        response = await fetch(channel, {
+          method: 'POST',
+          headers,
+          body: labelSummary,
+        });
+      }
 
       if (!response.ok) {
         const errText = await response.text();
