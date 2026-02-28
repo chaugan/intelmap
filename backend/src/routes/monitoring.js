@@ -175,4 +175,28 @@ router.get('/cameras/all', (req, res) => {
   res.json({ cameraIds });
 });
 
+// Get annotated image for a detection
+router.get('/detections/:id/image', (req, res) => {
+  const { id } = req.params;
+
+  // Verify this detection belongs to the user
+  const db = getDb();
+  const detection = db.prepare('SELECT user_id FROM monitor_detections WHERE id = ?').get(id);
+
+  if (!detection) {
+    return res.status(404).json({ error: 'Detection not found' });
+  }
+
+  if (detection.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const imagePath = monitorService.getDetectionImagePath(id);
+  if (!imagePath) {
+    return res.status(404).json({ error: 'Image not found' });
+  }
+
+  res.sendFile(imagePath);
+});
+
 export default router;

@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import { getDb } from '../db/index.js';
-import { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
+import config, { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
 import { frameManager } from './frame-manager.js';
 import { yoloClient } from './yolo-client.js';
 import { eventLogger } from '../lib/event-logger.js';
@@ -20,6 +21,14 @@ import { eventLogger } from '../lib/event-logger.js';
 class MonitorService {
   constructor() {
     this.processingCameras = new Set(); // Cameras currently being processed
+    this.detectionsDir = path.join(config.dataDir, 'detections');
+  }
+
+  /**
+   * Initialize the monitor service (create directories)
+   */
+  init() {
+    fs.mkdirSync(this.detectionsDir, { recursive: true });
   }
 
   /**
@@ -326,29 +335,54 @@ class MonitorService {
   }
 
   /**
-   * Log a detection
+   * Log a detection and optionally save annotated image
    * @param {string} userId - User ID
    * @param {string} cameraId - Camera ID
    * @param {string[]} labelsMonitored - Labels user was monitoring
    * @param {Array} labelsDetected - Matched labels with counts
    * @param {boolean} notified - Whether user was notified (or snoozed)
+   * @param {string} annotatedPath - Path to annotated image (optional)
+   * @returns {string} - Detection ID
    */
-  logDetection(userId, cameraId, labelsMonitored, labelsDetected, notified) {
+  logDetection(userId, cameraId, labelsMonitored, labelsDetected, notified, annotatedPath = null) {
     const db = getDb();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const totalDetections = labelsDetected.reduce((sum, l) => sum + l.count, 0);
 
+    // Save annotated image if provided
+    let hasImage = 0;
+    if (annotatedPath && fs.existsSync(annotatedPath)) {
+      const destPath = path.join(this.detectionsDir, `${id}.jpg`);
+      fs.copyFileSync(annotatedPath, destPath);
+      hasImage = 1;
+    }
+
     db.prepare(`
       INSERT INTO monitor_detections
-        (id, user_id, camera_id, labels_monitored, labels_detected, total_detections, detected_at, notified, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, user_id, camera_id, labels_monitored, labels_detected, total_detections, detected_at, notified, has_image, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, userId, cameraId,
       JSON.stringify(labelsMonitored),
       JSON.stringify(labelsDetected),
-      totalDetections, now, notified ? 1 : 0, now
+      totalDetections, now, notified ? 1 : 0, hasImage, now
     );
+
+    return id;
+  }
+
+  /**
+   * Get path to detection image
+   * @param {string} detectionId - Detection ID
+   * @returns {string|null} - Path to image or null if not found
+   */
+  getDetectionImagePath(detectionId) {
+    const imagePath = path.join(this.detectionsDir, `${detectionId}.jpg`);
+    if (fs.existsSync(imagePath)) {
+      return imagePath;
+    }
+    return null;
   }
 
   /**
@@ -512,8 +546,13 @@ class MonitorService {
       WHERE s.camera_id = ? AND s.is_active = 1
     `).all(cameraId);
 
-    // Get annotated image (we'll share it across notifications)
+    // Pre-fetch annotated image (shared across all subscribers)
     let annotatedPath = null;
+    try {
+      annotatedPath = await yoloClient.getAnnotated(result.jobId);
+    } catch (err) {
+      eventLogger.inference.error(`Failed to get annotated image: ${err.message}`, { cameraId, jobId: result.jobId });
+    }
 
     for (const sub of subs) {
       const userLabels = JSON.parse(sub.labels || '[]');
@@ -523,20 +562,10 @@ class MonitorService {
 
       const isSnoozed = this.isSnoozed(sub.user_id, cameraId);
 
-      // Log detection
-      this.logDetection(sub.user_id, cameraId, userLabels, matches, !isSnoozed);
+      // Log detection and save annotated image
+      this.logDetection(sub.user_id, cameraId, userLabels, matches, !isSnoozed, annotatedPath);
 
-      if (!isSnoozed) {
-        // Get annotated image if not already fetched
-        if (!annotatedPath) {
-          try {
-            annotatedPath = await yoloClient.getAnnotated(result.jobId);
-          } catch (err) {
-            eventLogger.inference.error(`Failed to get annotated image: ${err.message}`, { cameraId, jobId: result.jobId });
-            continue;
-          }
-        }
-
+      if (!isSnoozed && annotatedPath) {
         // Send alert
         await this.sendAlert(sub.user_id, sub.username, cameraId, sub.camera_name, matches, annotatedPath);
 
@@ -545,7 +574,7 @@ class MonitorService {
       }
     }
 
-    // Clean up annotated image
+    // Clean up temp annotated image (we've saved copies to detections dir)
     if (annotatedPath && fs.existsSync(annotatedPath)) {
       try {
         fs.unlinkSync(annotatedPath);

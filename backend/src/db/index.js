@@ -54,6 +54,12 @@ export function initDb() {
     db.prepare("UPDATE projects_v2 SET group_id = NULL WHERE group_id IS NOT NULL").run();
   }
 
+  // Add has_image column to monitor_detections if not exists
+  const detectionCols = db.prepare("PRAGMA table_info(monitor_detections)").all();
+  if (!detectionCols.find(c => c.name === 'has_image')) {
+    db.prepare("ALTER TABLE monitor_detections ADD COLUMN has_image INTEGER NOT NULL DEFAULT 0").run();
+  }
+
   return db;
 }
 

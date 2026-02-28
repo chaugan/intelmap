@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS monitor_subscriptions (
   UNIQUE(user_id, camera_id)
 );
 
--- YOLO Monitoring: detection history (metadata only, no images)
+-- YOLO Monitoring: detection history (with annotated images)
 CREATE TABLE IF NOT EXISTS monitor_detections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -209,6 +209,7 @@ CREATE TABLE IF NOT EXISTS monitor_detections (
   total_detections INTEGER NOT NULL,
   detected_at TEXT NOT NULL,
   notified INTEGER NOT NULL DEFAULT 1,
+  has_image INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

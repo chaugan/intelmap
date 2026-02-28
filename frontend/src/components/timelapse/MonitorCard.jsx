@@ -16,6 +16,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null); // Detection ID for fullscreen image
 
   // Load detection history when expanded
   useEffect(() => {
@@ -209,11 +210,21 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
                         minute: '2-digit',
                       })}
                     </span>
-                    {det.notified ? (
-                      <span className="text-green-400">+</span>
-                    ) : (
-                      <span className="text-slate-500" title={lang === 'no' ? 'Ignorert (snooze)' : 'Snoozed'}>-</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {det.has_image ? (
+                        <button
+                          onClick={() => setViewingImage(det.id)}
+                          className="text-cyan-400 hover:text-cyan-300 underline"
+                        >
+                          {lang === 'no' ? 'Vis bilde' : 'View image'}
+                        </button>
+                      ) : null}
+                      {det.notified ? (
+                        <span className="text-green-400">+</span>
+                      ) : (
+                        <span className="text-slate-500" title={lang === 'no' ? 'Ignorert (snooze)' : 'Snoozed'}>-</span>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {det.labelsDetected.map((l, i) => (
@@ -266,6 +277,29 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
           </div>
         )}
       </div>
+
+      {/* Fullscreen detection image modal */}
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setViewingImage(null)}
+        >
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-white"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={`/api/monitoring/detections/${viewingImage}/image`}
+            alt="Detection"
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

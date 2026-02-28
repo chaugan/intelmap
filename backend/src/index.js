@@ -50,6 +50,7 @@ startPurgeScheduler();
 
 // Initialize monitoring services
 frameManager.init();
+monitorService.init();
 monitorService.resumeMonitoring();
 
 server.listen(config.port, () => {
