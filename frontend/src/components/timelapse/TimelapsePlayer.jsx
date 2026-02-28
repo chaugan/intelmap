@@ -471,15 +471,6 @@ export default function TimelapsePlayer() {
             </svg>
           </button>
         </div>
-
-        {/* Frame counter */}
-        <div className="mt-2 text-center text-xs text-slate-400">
-          {frames.length > 0 && (
-            <span>
-              {lang === 'no' ? 'Bilde' : 'Frame'} {currentIndex + 1} / {frames.length}
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );
