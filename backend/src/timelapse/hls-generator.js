@@ -171,9 +171,10 @@ export class HlsGenerator {
 
     const now = new Date();
     const currentHourKey = this.getHourKey(now.toISOString());
-    let generatedCount = 0;
 
-    // Process each hour that has frames
+    // Collect hours that need segment generation
+    const hoursToGenerate = [];
+
     for (const hour of hours) {
       const hourKey = this.getHourKey(hour);
       const segmentName = this.getSegmentName(hourKey);
@@ -181,7 +182,6 @@ export class HlsGenerator {
       const existingSegment = this.getSegmentInfo(cameraId, segmentName);
 
       // Skip if segment exists and is not the current hour
-      // Current hour may have new frames, so always regenerate it
       if (existingSegment && hourKey !== currentHourKey && fs.existsSync(segmentPath)) {
         continue;
       }
@@ -194,11 +194,25 @@ export class HlsGenerator {
         continue;
       }
 
-      try {
-        await this.generateHourSegment(cameraId, hourKey);
-        generatedCount++;
-      } catch (err) {
-        console.error(`[HLS] Error generating segment for ${cameraId}/${hourKey}:`, err.message);
+      hoursToGenerate.push(hourKey);
+    }
+
+    // Generate segments in parallel batches (4 concurrent FFmpeg processes)
+    const BATCH_SIZE = 4;
+    let generatedCount = 0;
+
+    for (let i = 0; i < hoursToGenerate.length; i += BATCH_SIZE) {
+      const batch = hoursToGenerate.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(hourKey => this.generateHourSegment(cameraId, hourKey))
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        if (results[j].status === 'fulfilled') {
+          generatedCount++;
+        } else {
+          console.error(`[HLS] Error generating segment for ${cameraId}/${batch[j]}:`, results[j].reason?.message);
+        }
       }
     }
 

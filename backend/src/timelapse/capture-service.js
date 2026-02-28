@@ -5,6 +5,16 @@ import config from '../config.js';
 import { getDb } from '../db/index.js';
 import { frameIndexer } from './frame-indexer.js';
 
+// Lazy import to avoid circular dependency (hlsGenerator imports frameIndexer)
+let _hlsGenerator = null;
+async function getHlsGenerator() {
+  if (!_hlsGenerator) {
+    const module = await import('./hls-generator.js');
+    _hlsGenerator = module.hlsGenerator;
+  }
+  return _hlsGenerator;
+}
+
 // Singleton capture service - ONE capture job per camera, shared by all subscribers
 class CaptureService {
   constructor() {
@@ -158,7 +168,8 @@ class CaptureService {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const framesDir = path.join(this.dataDir, cameraId, 'frames');
     const framePath = path.join(framesDir, `${timestamp}.jpg`);
 
@@ -170,7 +181,7 @@ class CaptureService {
 
     // Update database
     const db = getDb();
-    const now = new Date().toISOString();
+    const nowIso = now.toISOString();
 
     db.prepare(`
       UPDATE timelapse_cameras
@@ -178,9 +189,31 @@ class CaptureService {
           available_from = COALESCE(available_from, ?),
           available_to = ?
       WHERE camera_id = ?
-    `).run(now, now, now, cameraId);
+    `).run(nowIso, nowIso, nowIso, cameraId);
+
+    // Proactively generate/update current hour segment in background
+    // This ensures segments are ready before user requests playlist
+    this.updateCurrentSegment(cameraId, now).catch(err => {
+      console.error(`[Timelapse] Segment update error for ${cameraId}:`, err.message);
+    });
 
     return framePath;
+  }
+
+  /**
+   * Update the current hour's segment (called after each frame capture)
+   * Runs in background, doesn't block frame capture
+   */
+  async updateCurrentSegment(cameraId, timestamp) {
+    const hls = await getHlsGenerator();
+    const hourKey = timestamp.toISOString().slice(0, 13); // e.g., "2026-02-28T14"
+
+    try {
+      await hls.generateHourSegment(cameraId, hourKey);
+    } catch (err) {
+      // Ignore errors - segment generation is best-effort
+      // Will be retried on next frame or on playlist request
+    }
   }
 
   /**
@@ -387,6 +420,28 @@ class CaptureService {
 
     if (cameras.length > 0) {
       console.log(`[Timelapse] Resumed capture for ${cameras.length} camera(s)`);
+
+      // Pre-generate segments for all cameras in background
+      // This ensures instant playlist loading after server restart
+      this.pregenerateSegments(cameras.map(c => c.camera_id));
+    }
+  }
+
+  /**
+   * Pre-generate all missing segments for cameras (runs in background)
+   */
+  async pregenerateSegments(cameraIds) {
+    const hls = await getHlsGenerator();
+
+    for (const cameraId of cameraIds) {
+      try {
+        const result = await hls.generateStream(cameraId);
+        if (result.generated > 0) {
+          console.log(`[Timelapse] Pre-generated ${result.generated} segments for ${cameraId}`);
+        }
+      } catch (err) {
+        console.error(`[Timelapse] Pre-generation error for ${cameraId}:`, err.message);
+      }
     }
   }
 }
