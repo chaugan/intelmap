@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config.js';
 import { getDb } from '../db/index.js';
+import { eventLogger } from '../lib/event-logger.js';
 
 /**
  * FrameManager - Shared frame infrastructure for timelapse and monitoring
@@ -113,12 +114,12 @@ class FrameManager {
             try {
               await cb(cameraId, framePath);
             } catch (err) {
-              console.error(`[FrameManager] Callback error for ${cameraId}:`, err.message);
+              eventLogger.monitoring.error(`Frame callback error for ${cameraId}: ${err.message}`);
             }
           }
         }
       } catch (err) {
-        console.error(`[FrameManager] Capture error for ${cameraId}:`, err.message);
+        eventLogger.timelapse.error(`Frame capture error for ${cameraId}: ${err.message}`);
         entry.lastError = err.message;
       }
     };

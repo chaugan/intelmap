@@ -235,3 +235,17 @@ CREATE INDEX IF NOT EXISTS idx_monitor_subs_camera ON monitor_subscriptions(came
 CREATE INDEX IF NOT EXISTS idx_monitor_subs_user ON monitor_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitor_detections_user ON monitor_detections(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitor_detections_camera ON monitor_detections(camera_id);
+
+-- Admin Event Log: system events for admin console
+CREATE TABLE IF NOT EXISTS admin_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  level TEXT NOT NULL CHECK(level IN ('error', 'warning', 'info')),
+  category TEXT NOT NULL,
+  message TEXT NOT NULL,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_events_level ON admin_events(level);
+CREATE INDEX IF NOT EXISTS idx_admin_events_category ON admin_events(category);
+CREATE INDEX IF NOT EXISTS idx_admin_events_created ON admin_events(created_at DESC);

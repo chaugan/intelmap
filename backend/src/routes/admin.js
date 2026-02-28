@@ -5,6 +5,7 @@ import { sanitizeUsername, validatePassword } from '../auth/sanitize.js';
 import { deleteUserSessions } from '../auth/sessions.js';
 import { requireAdmin } from '../auth/middleware.js';
 import { disconnectUser } from '../socket/index.js';
+import { eventLogger } from '../lib/event-logger.js';
 import config from '../config.js';
 
 const router = Router();
@@ -419,7 +420,78 @@ router.put('/yolo-config', async (req, res) => {
 router.delete('/yolo-config', (req, res) => {
   const db = getDb();
   db.prepare("DELETE FROM app_settings WHERE key IN ('yolo_api_token', 'yolo_project_id', 'yolo_url')").run();
+  eventLogger.config.info('YOLO credentials removed');
   res.json({ ok: true });
+});
+
+// --- Admin Events ---
+
+// Get recent events
+router.get('/events', (req, res) => {
+  const db = getDb();
+  const level = req.query.level; // filter by level
+  const category = req.query.category; // filter by category
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+
+  let query = 'SELECT * FROM admin_events WHERE 1=1';
+  const params = [];
+
+  if (level) {
+    query += ' AND level = ?';
+    params.push(level);
+  }
+  if (category) {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(limit);
+
+  const events = db.prepare(query).all(...params);
+  res.json(events.map(e => ({
+    ...e,
+    details: e.details ? JSON.parse(e.details) : null,
+  })));
+});
+
+// Clear events (optionally by level or category)
+router.delete('/events', (req, res) => {
+  const db = getDb();
+  const level = req.query.level;
+  const category = req.query.category;
+
+  let query = 'DELETE FROM admin_events WHERE 1=1';
+  const params = [];
+
+  if (level) {
+    query += ' AND level = ?';
+    params.push(level);
+  }
+  if (category) {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+
+  const result = db.prepare(query).run(...params);
+  eventLogger.config.info(`Cleared ${result.changes} events`);
+  res.json({ ok: true, deleted: result.changes });
+});
+
+// Get event counts by level
+router.get('/events/counts', (req, res) => {
+  const db = getDb();
+  const counts = db.prepare(`
+    SELECT level, COUNT(*) as count
+    FROM admin_events
+    GROUP BY level
+  `).all();
+
+  const result = { error: 0, warning: 0, info: 0 };
+  for (const row of counts) {
+    result[row.level] = row.count;
+  }
+  res.json(result);
 });
 
 export default router;

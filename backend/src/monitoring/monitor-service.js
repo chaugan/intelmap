@@ -4,6 +4,7 @@ import { getDb } from '../db/index.js';
 import { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
 import { frameManager } from './frame-manager.js';
 import { yoloClient } from './yolo-client.js';
+import { eventLogger } from '../lib/event-logger.js';
 
 /**
  * MonitorService - Core monitoring logic
@@ -423,10 +424,12 @@ class MonitorService {
       });
 
       if (!response.ok) {
-        console.error(`[MonitorService] Failed to send ntfy alert: ${response.status}`);
+        eventLogger.notification.error(`Failed to send alert: ${response.status}`, { cameraId, userId });
+      } else {
+        eventLogger.notification.info(`Alert sent for ${cameraName || cameraId}`, { labels: matches.map(m => m.label) });
       }
     } catch (err) {
-      console.error(`[MonitorService] ntfy error:`, err.message);
+      eventLogger.notification.error(`ntfy error: ${err.message}`, { cameraId, userId });
     }
   }
 
@@ -470,7 +473,7 @@ class MonitorService {
     try {
       result = await yoloClient.infer(framePath, allLabels);
     } catch (err) {
-      console.error(`[MonitorService] Inference failed for ${cameraId}:`, err.message);
+      eventLogger.inference.error(`Inference failed for ${cameraId}: ${err.message}`);
       return;
     }
 
@@ -516,7 +519,7 @@ class MonitorService {
           try {
             annotatedPath = await yoloClient.getAnnotated(result.jobId);
           } catch (err) {
-            console.error(`[MonitorService] Failed to get annotated image:`, err.message);
+            eventLogger.inference.error(`Failed to get annotated image: ${err.message}`, { cameraId, jobId: result.jobId });
             continue;
           }
         }
@@ -543,7 +546,7 @@ class MonitorService {
    */
   resumeMonitoring() {
     if (!this.isEnabled()) {
-      console.log('[MonitorService] Monitoring disabled (YOLO or ntfy not configured)');
+      eventLogger.monitoring.warning('Monitoring disabled (YOLO or ntfy not configured)');
       return;
     }
 
@@ -558,7 +561,7 @@ class MonitorService {
     }
 
     if (cameras.length > 0) {
-      console.log(`[MonitorService] Resumed monitoring for ${cameras.length} camera(s)`);
+      eventLogger.monitoring.info(`Resumed monitoring for ${cameras.length} camera(s)`);
     }
   }
 }

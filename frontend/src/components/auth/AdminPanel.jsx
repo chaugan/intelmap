@@ -56,6 +56,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'timelapse'} onClick={() => setActiveTab('timelapse')}>
                 {lang === 'no' ? 'Tidslapse' : 'Timelapse'}
               </TabButton>
+              <TabButton active={activeTab === 'events'} onClick={() => setActiveTab('events')}>
+                {lang === 'no' ? 'Hendelser' : 'Events'}
+              </TabButton>
             </div>
           </div>
           <button onClick={() => setAdminPanelOpen(false)} className="text-slate-400 hover:text-white">
@@ -74,6 +77,7 @@ export default function AdminPanel() {
           {activeTab === 'ntfy' && <NtfyConfigTab lang={lang} />}
           {activeTab === 'yolo' && <YoloConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
+          {activeTab === 'events' && <EventsTab lang={lang} />}
         </div>
       </div>
     </div>
@@ -1371,6 +1375,203 @@ function TimelapseAdminTab({ lang }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- Events Tab ---
+function EventsTab({ lang }) {
+  const [events, setEvents] = useState([]);
+  const [counts, setCounts] = useState({ error: 0, warning: 0, info: 0 });
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all'); // 'all', 'error', 'warning', 'info'
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const levelParam = filter !== 'all' ? `?level=${filter}` : '';
+      const [eventsRes, countsRes] = await Promise.all([
+        fetch(`${API}/events${levelParam}`, { credentials: 'include' }),
+        fetch(`${API}/events/counts`, { credentials: 'include' }),
+      ]);
+
+      if (eventsRes.ok) setEvents(await eventsRes.json());
+      if (countsRes.ok) setCounts(await countsRes.json());
+    } catch {}
+    setLoading(false);
+  }, [filter]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(fetchEvents, 10000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchEvents]);
+
+  async function clearEvents() {
+    const levelParam = filter !== 'all' ? `?level=${filter}` : '';
+    await fetch(`${API}/events${levelParam}`, { method: 'DELETE', credentials: 'include' });
+    fetchEvents();
+  }
+
+  function formatTime(isoStr) {
+    const d = new Date(isoStr);
+    return d.toLocaleString(lang === 'no' ? 'nb-NO' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+
+  const levelColors = {
+    error: 'bg-red-900/50 border-red-700 text-red-300',
+    warning: 'bg-amber-900/50 border-amber-700 text-amber-300',
+    info: 'bg-slate-800 border-slate-600 text-slate-300',
+  };
+
+  const levelIcons = {
+    error: (
+      <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    warning: (
+      <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    ),
+    info: (
+      <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header with counts */}
+      <div className="bg-slate-900 rounded p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-cyan-400">
+            {lang === 'no' ? 'Systemhendelser' : 'System Events'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs text-slate-400">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="w-3 h-3"
+              />
+              {lang === 'no' ? 'Auto-oppdater' : 'Auto-refresh'}
+            </label>
+            <button
+              onClick={fetchEvents}
+              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700"
+              title={lang === 'no' ? 'Oppdater' : 'Refresh'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Counts */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              filter === 'all' ? 'bg-cyan-700 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            {lang === 'no' ? 'Alle' : 'All'} ({counts.error + counts.warning + counts.info})
+          </button>
+          <button
+            onClick={() => setFilter('error')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+              filter === 'error' ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            {levelIcons.error}
+            {lang === 'no' ? 'Feil' : 'Errors'} ({counts.error})
+          </button>
+          <button
+            onClick={() => setFilter('warning')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+              filter === 'warning' ? 'bg-amber-700 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            {levelIcons.warning}
+            {lang === 'no' ? 'Advarsler' : 'Warnings'} ({counts.warning})
+          </button>
+          <button
+            onClick={() => setFilter('info')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+              filter === 'info' ? 'bg-slate-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            {levelIcons.info}
+            Info ({counts.info})
+          </button>
+        </div>
+
+        {/* Clear button */}
+        {events.length > 0 && (
+          <button
+            onClick={clearEvents}
+            className="text-xs text-red-400 hover:text-red-300"
+          >
+            {filter === 'all'
+              ? (lang === 'no' ? 'Tøm alle hendelser' : 'Clear all events')
+              : (lang === 'no' ? `Tøm ${filter}-hendelser` : `Clear ${filter} events`)}
+          </button>
+        )}
+      </div>
+
+      {/* Events list */}
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {loading ? (
+          <p className="text-slate-400 text-sm">{lang === 'no' ? 'Laster...' : 'Loading...'}</p>
+        ) : events.length === 0 ? (
+          <p className="text-slate-500 text-sm">
+            {lang === 'no' ? 'Ingen hendelser' : 'No events'}
+          </p>
+        ) : (
+          events.map((event) => (
+            <div
+              key={event.id}
+              className={`p-3 rounded border ${levelColors[event.level]}`}
+            >
+              <div className="flex items-start gap-2">
+                {levelIcons[event.level]}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium uppercase tracking-wide opacity-60">
+                      {event.category}
+                    </span>
+                    <span className="text-xs opacity-50">
+                      {formatTime(event.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm">{event.message}</p>
+                  {event.details && (
+                    <pre className="mt-1 text-xs opacity-70 overflow-x-auto">
+                      {JSON.stringify(event.details, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
