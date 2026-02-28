@@ -107,12 +107,12 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 {/* Header */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
-                {/* Top section: Left (Current + Aurora stacked) + Right (Trends) - fixed 38% */}
-                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0" style={{ height: '38%' }}>
+                {/* Top section: Left (Current + Aurora stacked) + Right (Trends) */}
+                <div className="grid grid-cols-12 gap-3 mt-3 shrink-0" style={{ height: '44%' }}>
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
-                  <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
+                  <div className="col-span-4 flex flex-col gap-3">
                     {/* Current conditions - horizontal layout */}
-                    <div className="flex-1 min-h-0 overflow-hidden">
+                    <div className="flex-1 min-h-0">
                       <CurrentConditionsHero
                         current={data.current}
                         snowDepth={data.snowDepth}
@@ -125,7 +125,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
 
                     {/* Aurora below current conditions */}
                     {showAurora && data.kp && (
-                      <div className="flex-1 min-h-0 overflow-hidden">
+                      <div className="flex-1 min-h-0">
                         <AuroraSectionHorizontal
                           kp={data.kp}
                           lang={lang}
@@ -138,7 +138,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
 
                   {/* Right: Trends */}
-                  <div className="col-span-8 overflow-hidden">
+                  <div className="col-span-8">
                     <TrendCharts
                       daily={data.daily}
                       lang={lang}
@@ -149,8 +149,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
                 </div>
 
-                {/* 7-day forecast (horizontal, full width) - fixed 35% */}
-                <div className="mt-3 shrink-0 overflow-hidden" style={{ height: '35%' }}>
+                {/* 7-day forecast (horizontal, full width) - fills remaining space */}
+                <div className="mt-3 flex-1 min-h-0">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -162,7 +162,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Bottom row: Moon and Sun - compact fixed height */}
-                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '90px' }}>
+                <div className="grid grid-cols-2 gap-3 mt-2 shrink-0" style={{ height: '100px' }}>
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -277,7 +277,7 @@ function StatBox({ icon, label, value, isDark }) {
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 flex flex-col overflow-hidden`} style={{ height: '100%', maxHeight: '100%' }}>
+    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col overflow-hidden`}>
       <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
