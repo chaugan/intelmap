@@ -65,12 +65,9 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="relative flex flex-col w-full h-full max-w-[95vw] max-h-[95vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative flex flex-col w-full h-full max-w-[95vw] max-h-[95vh]">
         {/* Actions bar (outside capture area) */}
-        <div className="flex items-center justify-end gap-2 mb-2 shrink-0">
+        <div className="flex items-center justify-end gap-2 mb-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             className="px-4 py-2 text-sm rounded bg-slate-700 hover:bg-slate-600 text-white"
@@ -98,6 +95,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
             ref={reportRef}
             className={`${bg} ${text} rounded-lg shadow-2xl overflow-hidden`}
             style={{ aspectRatio: '16/10', height: '100%', maxHeight: 'calc(95vh - 60px)' }}
+            onClick={(e) => e.stopPropagation()}
           >
             {loading && (
               <div className="flex items-center justify-center h-full">
