@@ -153,6 +153,9 @@ class MonitorService {
       WHERE user_id = ? AND camera_id = ?
     `).run(userId, cameraId);
 
+    // Clear detection history and images for this user/camera
+    this.clearDetectionHistory(userId, cameraId);
+
     // Update aggregated labels
     const remaining = this.updateCameraLabels(cameraId);
 
