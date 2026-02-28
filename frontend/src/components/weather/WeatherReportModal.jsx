@@ -234,9 +234,20 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
   const tempColor = current.temperature < 0 ? 'text-blue-400' : current.temperature > 20 ? 'text-orange-400' : '';
   const windDir = getWindDir(current.windDirection, lang);
+  const nowStr = new Date().toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   return (
     <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
+      {/* Header */}
+      <div className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+        {lang === 'no' ? 'Vær nå' : 'Weather now'}, {nowStr}
+      </div>
+
       {/* Temperature row - icon, temp, and description side by side */}
       <div className="flex items-center gap-2 mb-2 shrink-0">
         {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
@@ -247,11 +258,6 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
           {current.symbol && (
             <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
           )}
-          {current.feelsLike != null && Math.abs(current.feelsLike - current.temperature) > 1 && (
-            <div className={`text-xs ${textMuted}`}>
-              {lang === 'no' ? 'Føles som' : 'Feels like'} {current.feelsLike.toFixed(1)}°C
-            </div>
-          )}
         </div>
       </div>
 
@@ -259,7 +265,7 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
       <div className="grid grid-cols-3 gap-2 flex-1">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
-        <StatBox icon={<PressureIcon />} label={lang === 'no' ? 'Trykk' : 'Pressure'} value={`${current.pressure?.toFixed(0)} hPa`} isDark={isDark} />
+        <StatBox icon={<WindChillIcon />} label={lang === 'no' ? 'Føles som' : 'Feels like'} value={current.feelsLike != null ? `${current.feelsLike.toFixed(1)}°C` : '-'} isDark={isDark} />
         <StatBox icon={<CloudIcon />} label={lang === 'no' ? 'Skyer' : 'Clouds'} value={`${current.cloudCover?.toFixed(0)}%`} isDark={isDark} />
         {snowDepth ? (
           <StatBox icon={<SnowflakeIcon />} label={lang === 'no' ? 'Snødybde' : 'Snow'} value={snowDepth.label?.[lang] || snowDepth.depth} isDark={isDark} />
@@ -781,11 +787,11 @@ function HumidityIcon() {
   );
 }
 
-function PressureIcon() {
+function WindChillIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 6v6l4 2" />
+      <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z" />
+      <path d="M2 10h3M2 14h3M19 10h3M19 14h3" />
     </svg>
   );
 }
