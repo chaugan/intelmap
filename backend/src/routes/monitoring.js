@@ -175,7 +175,7 @@ router.get('/cameras/all', (req, res) => {
   res.json({ cameraIds });
 });
 
-// Get annotated image for a detection
+// Get annotated image for a detection (authenticated)
 router.get('/detections/:id/image', (req, res) => {
   const { id } = req.params;
 
@@ -199,4 +199,33 @@ router.get('/detections/:id/image', (req, res) => {
   res.sendFile(imagePath);
 });
 
+// Clear detection history for a camera
+router.delete('/:cameraId/detections', (req, res) => {
+  const { cameraId } = req.params;
+
+  try {
+    const deletedCount = monitorService.clearDetectionHistory(req.user.id, cameraId);
+    res.json({ ok: true, deleted: deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
+// Public endpoint for detection images (no auth, used for ntfy attachments)
+// This needs to be registered separately in api.js since it bypasses auth
+export function registerPublicRoutes(app) {
+  app.get('/api/monitoring/detections/:id/image/public', (req, res) => {
+    const { id } = req.params;
+
+    const imagePath = monitorService.getDetectionImagePath(id);
+    if (!imagePath) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    // Set cache headers to prevent excessive requests
+    res.set('Cache-Control', 'public, max-age=86400'); // 24 hours
+    res.sendFile(imagePath);
+  });
+}

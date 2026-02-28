@@ -13,6 +13,7 @@ import { captureService } from './timelapse/capture-service.js';
 import { startPurgeScheduler } from './timelapse/purge-service.js';
 import { frameManager } from './monitoring/frame-manager.js';
 import { monitorService } from './monitoring/monitor-service.js';
+import { registerPublicRoutes } from './routes/monitoring.js';
 
 const app = express();
 const server = createServer(app);
@@ -26,6 +27,9 @@ app.use(cookieParser(config.sessionSecret));
 
 // Make io accessible to routes
 app.set('io', io);
+
+// Register public routes (no auth required)
+registerPublicRoutes(app);
 
 app.use('/api', apiRouter);
 

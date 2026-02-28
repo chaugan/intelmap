@@ -17,6 +17,8 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [showHistory, setShowHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
 
   // Local detection state per card (allows multiple histories open simultaneously)
   const [detections, setDetections] = useState([]);
@@ -47,6 +49,23 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
       fetchDetections(1);
     }
   }, [showHistory, fetchDetections]);
+
+  // Clear detection history
+  async function handleClearHistory() {
+    setClearingHistory(true);
+    try {
+      const res = await fetch(`/api/monitoring/${subscription.cameraId}/detections`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setDetections([]);
+        setDetectionsTotalCount(0);
+        setConfirmClearHistory(false);
+      }
+    } catch {}
+    setClearingHistory(false);
+  }
 
   async function handleSave() {
     if (editLabels.length === 0) return;
@@ -266,6 +285,36 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
                   {lang === 'no' ? 'Last mer...' : 'Load more...'}
                 </button>
               )}
+              {/* Clear history button */}
+              <div className="px-3 py-2 border-t border-slate-700">
+                {!confirmClearHistory ? (
+                  <button
+                    onClick={() => setConfirmClearHistory(true)}
+                    className="text-xs text-amber-400 hover:text-amber-300"
+                  >
+                    {lang === 'no' ? 'Tøm historikk' : 'Clear history'}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      {lang === 'no' ? 'Slette all historikk og bilder?' : 'Delete all history and images?'}
+                    </span>
+                    <button
+                      onClick={() => setConfirmClearHistory(false)}
+                      className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded"
+                    >
+                      {t('general.cancel', lang)}
+                    </button>
+                    <button
+                      onClick={handleClearHistory}
+                      disabled={clearingHistory}
+                      className="px-2 py-1 text-xs bg-amber-700 hover:bg-amber-600 rounded disabled:opacity-50"
+                    >
+                      {clearingHistory ? '...' : (lang === 'no' ? 'Slett' : 'Delete')}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

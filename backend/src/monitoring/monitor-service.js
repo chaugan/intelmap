@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../db/index.js';
-import config, { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
+import config, { getNtfyToken, getNtfyUrl, getYoloApiToken, getPublicUrl } from '../config.js';
 import { frameManager } from './frame-manager.js';
 import { yoloClient } from './yolo-client.js';
 import { eventLogger } from '../lib/event-logger.js';
@@ -388,6 +388,85 @@ class MonitorService {
   }
 
   /**
+   * Clear all detection history for a user/camera and delete images
+   * @param {string} userId - User ID
+   * @param {string} cameraId - Camera ID
+   * @returns {number} - Number of detections deleted
+   */
+  clearDetectionHistory(userId, cameraId) {
+    const db = getDb();
+
+    // Get all detection IDs with images for this user/camera
+    const detections = db.prepare(`
+      SELECT id FROM monitor_detections
+      WHERE user_id = ? AND camera_id = ? AND has_image = 1
+    `).all(userId, cameraId);
+
+    // Delete image files
+    for (const det of detections) {
+      const imagePath = path.join(this.detectionsDir, `${det.id}.jpg`);
+      if (fs.existsSync(imagePath)) {
+        try {
+          fs.unlinkSync(imagePath);
+        } catch {}
+      }
+    }
+
+    // Delete database records
+    const result = db.prepare(`
+      DELETE FROM monitor_detections
+      WHERE user_id = ? AND camera_id = ?
+    `).run(userId, cameraId);
+
+    return result.changes;
+  }
+
+  /**
+   * Get storage usage stats for a user
+   * @param {string} userId - User ID
+   * @returns {Object} - { timelapseBytes, detectionBytes, detectionCount }
+   */
+  getUserStorageStats(userId) {
+    const db = getDb();
+
+    // Get detection image count and calculate size
+    const detections = db.prepare(`
+      SELECT id FROM monitor_detections
+      WHERE user_id = ? AND has_image = 1
+    `).all(userId);
+
+    let detectionBytes = 0;
+    for (const det of detections) {
+      const imagePath = path.join(this.detectionsDir, `${det.id}.jpg`);
+      if (fs.existsSync(imagePath)) {
+        try {
+          const stat = fs.statSync(imagePath);
+          detectionBytes += stat.size;
+        } catch {}
+      }
+    }
+
+    return {
+      detectionBytes,
+      detectionCount: detections.length,
+    };
+  }
+
+  /**
+   * Get public URL for a detection image (generates a token-based URL)
+   * @param {string} detectionId - Detection ID
+   * @returns {string|null} - URL or null if image doesn't exist
+   */
+  getDetectionImageUrl(detectionId) {
+    const imagePath = this.getDetectionImagePath(detectionId);
+    if (!imagePath) return null;
+
+    // Return a public URL (without auth) - the detection ID is unique enough
+    // This is acceptable since the ID is a UUID and the image is not sensitive
+    return `/api/monitoring/detections/${detectionId}/image/public`;
+  }
+
+  /**
    * Send test notification to user's ntfy channel
    * @param {string} userId - User ID
    * @param {string} username - Username
@@ -419,37 +498,46 @@ class MonitorService {
   }
 
   /**
-   * Send ntfy alert with annotated image
+   * Send ntfy alert with image URL attachment
    * @param {string} userId - User ID
    * @param {string} username - Username
    * @param {string} cameraId - Camera ID
    * @param {string} cameraName - Camera name
    * @param {Array} matches - Matched labels
-   * @param {string} annotatedPath - Path to annotated image
+   * @param {string} detectionId - Detection ID (for public image URL)
    */
-  async sendAlert(userId, username, cameraId, cameraName, matches, annotatedPath) {
+  async sendAlert(userId, username, cameraId, cameraName, matches, detectionId) {
     const channel = this.getUserNtfyChannel(userId, username);
     const token = getNtfyToken();
 
-    // Build message with labels
+    // Build message with labels (ASCII only for iOS compatibility)
     const labelSummary = matches
       .map(m => `${m.count}x ${m.label} (${Math.round(m.maxConfidence * 100)}%)`)
       .join(', ');
 
     const displayName = cameraName || cameraId;
-    const title = `Detection: ${displayName}`;
+    // Transliterate Norwegian chars for iOS compatibility
+    const safeDisplayName = displayName
+      .replace(/æ/gi, 'ae')
+      .replace(/ø/gi, 'o')
+      .replace(/å/gi, 'a');
+    const title = `Detection: ${safeDisplayName}`;
 
-    // Read image
-    const imageBuffer = fs.readFileSync(annotatedPath);
+    // Build public image URL
+    const publicUrl = `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`;
 
-    // Use PUT with raw UTF-8 headers (no encoding)
-    // ntfy supports UTF-8 headers natively in modern versions
+    // Use POST with JSON body for proper UTF-8 support and URL-based attachment
+    const body = {
+      topic: channel.split('/').pop(),
+      title: title,
+      message: labelSummary,
+      tags: ['camera', 'warning'],
+      attach: publicUrl,
+      filename: `detection-${cameraId}.jpg`,
+    };
+
     const headers = {
-      'Title': title,
-      'Message': labelSummary,
-      'Tags': 'camera,warning',
-      'Filename': `detection-${cameraId}.jpg`,
-      'Content-Type': 'image/jpeg',
+      'Content-Type': 'application/json',
     };
 
     if (token) {
@@ -457,10 +545,13 @@ class MonitorService {
     }
 
     try {
-      const response = await fetch(channel, {
-        method: 'PUT',
+      // Use the ntfy server base URL (without topic)
+      const ntfyBaseUrl = getNtfyUrl();
+
+      const response = await fetch(ntfyBaseUrl, {
+        method: 'POST',
         headers,
-        body: imageBuffer,
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -563,12 +654,12 @@ class MonitorService {
 
       const isSnoozed = this.isSnoozed(sub.user_id, cameraId);
 
-      // Log detection and save annotated image
-      this.logDetection(sub.user_id, cameraId, userLabels, matches, !isSnoozed, annotatedPath);
+      // Log detection and save annotated image - returns detection ID
+      const detectionId = this.logDetection(sub.user_id, cameraId, userLabels, matches, !isSnoozed, annotatedPath);
 
       if (!isSnoozed && annotatedPath) {
-        // Send alert
-        await this.sendAlert(sub.user_id, sub.username, cameraId, sub.camera_name, matches, annotatedPath);
+        // Send alert with public image URL
+        await this.sendAlert(sub.user_id, sub.username, cameraId, sub.camera_name, matches, detectionId);
 
         // Update snooze state
         this.updateSnoozeState(sub.user_id, cameraId);

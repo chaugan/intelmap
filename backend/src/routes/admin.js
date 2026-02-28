@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { getDb } from '../db/index.js';
 import { hashPassword } from '../auth/passwords.js';
 import { sanitizeUsername, validatePassword } from '../auth/sanitize.js';
@@ -6,24 +8,55 @@ import { deleteUserSessions } from '../auth/sessions.js';
 import { requireAdmin } from '../auth/middleware.js';
 import { disconnectUser } from '../socket/index.js';
 import { eventLogger } from '../lib/event-logger.js';
+import { monitorService } from '../monitoring/monitor-service.js';
 import config from '../config.js';
 
 const router = Router();
 router.use(requireAdmin);
 
-// List all users (no hashes)
+// List all users (no hashes) with storage stats
 router.get('/users', (req, res) => {
   const db = getDb();
   const users = db.prepare(
     'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, created_at, updated_at FROM users ORDER BY created_at'
   ).all();
-  res.json(users.map(u => ({
-    ...u,
-    mustChangePassword: !!u.must_change_password,
-    locked: !!u.locked,
-    aiChatEnabled: !!u.ai_chat_enabled,
-    timelapseEnabled: !!u.timelapse_enabled,
-  })));
+
+  // Calculate storage for each user
+  const result = users.map(u => {
+    // Get detection storage stats
+    const detectionStats = monitorService.getUserStorageStats(u.id);
+
+    // Get timelapse storage (files in user's timelapse exports)
+    let timelapseBytes = 0;
+    const timelapseDir = path.join(config.dataDir, 'exports', u.id);
+    if (fs.existsSync(timelapseDir)) {
+      try {
+        const files = fs.readdirSync(timelapseDir);
+        for (const file of files) {
+          const filePath = path.join(timelapseDir, file);
+          try {
+            const stat = fs.statSync(filePath);
+            if (stat.isFile()) {
+              timelapseBytes += stat.size;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
+    return {
+      ...u,
+      mustChangePassword: !!u.must_change_password,
+      locked: !!u.locked,
+      aiChatEnabled: !!u.ai_chat_enabled,
+      timelapseEnabled: !!u.timelapse_enabled,
+      timelapseBytes,
+      detectionBytes: detectionStats.detectionBytes,
+      detectionCount: detectionStats.detectionCount,
+    };
+  });
+
+  res.json(result);
 });
 
 // Create user

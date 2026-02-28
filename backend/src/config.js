@@ -114,4 +114,15 @@ export function getYoloUrl() {
   return process.env.YOLO_URL || 'https://yolo.intelmap.no';
 }
 
+export function getPublicUrl() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'public_url'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return process.env.PUBLIC_URL || 'https://intelmap.homeprem.no';
+}
+
 export default config;

@@ -197,6 +197,7 @@ function UsersTab({ lang, currentUser }) {
               <th className="pb-2">{t('admin.status', lang)}</th>
               <th className="pb-2">AI Chat</th>
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
+              <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
           </thead>
@@ -226,6 +227,16 @@ function UsersTab({ lang, currentUser }) {
                     className={`px-2 py-0.5 rounded text-xs transition-colors ${u.timelapseEnabled ? 'bg-cyan-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                     {u.timelapseEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                   </button>
+                </td>
+                <td className="py-2">
+                  <div className="text-xs text-slate-400 space-y-0.5">
+                    <div title={lang === 'no' ? 'Tidslapse eksporter' : 'Timelapse exports'}>
+                      📹 {formatStorageSize(u.timelapseBytes || 0)}
+                    </div>
+                    <div title={lang === 'no' ? `${u.detectionCount || 0} deteksjonsbilder` : `${u.detectionCount || 0} detection images`}>
+                      🔍 {formatStorageSize(u.detectionBytes || 0)}
+                    </div>
+                  </div>
                 </td>
                 <td className="py-2">
                   <div className="flex gap-2 flex-wrap">
