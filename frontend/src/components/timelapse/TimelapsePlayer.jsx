@@ -156,6 +156,56 @@ export default function TimelapsePlayer() {
     setIsPlaying(false);
   }, [setIsPlaying]);
 
+  // Calculate time per frame in video (frames are captured every 60 seconds)
+  const getFrameDuration = useCallback(() => {
+    if (!selectedCamera?.availableFrom || !selectedCamera?.availableTo || !duration) return null;
+    const realDurationMs = new Date(selectedCamera.availableTo) - new Date(selectedCamera.availableFrom);
+    const frameCount = Math.max(1, Math.floor(realDurationMs / 60000)); // frames captured every 60 seconds
+    return duration / frameCount;
+  }, [selectedCamera, duration]);
+
+  // Step to next frame
+  const stepForward = useCallback(() => {
+    if (!videoRef.current || !duration) return;
+    const frameDuration = getFrameDuration();
+    if (!frameDuration) return;
+
+    const newTime = Math.min(videoRef.current.currentTime + frameDuration, duration);
+    videoRef.current.currentTime = newTime;
+    setIsPlaying(false);
+  }, [duration, getFrameDuration, setIsPlaying]);
+
+  // Step to previous frame
+  const stepBackward = useCallback(() => {
+    if (!videoRef.current) return;
+    const frameDuration = getFrameDuration();
+    if (!frameDuration) return;
+
+    const newTime = Math.max(videoRef.current.currentTime - frameDuration, 0);
+    videoRef.current.currentTime = newTime;
+    setIsPlaying(false);
+  }, [getFrameDuration, setIsPlaying]);
+
+  // Keyboard shortcuts for stepping (arrow keys)
+  useEffect(() => {
+    if (!selectedCamera) return;
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        stepForward();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        stepBackward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCamera, stepForward, stepBackward]);
+
   // Save current frame (captures from video canvas, not server)
   const saveFrame = useCallback(() => {
     if (!selectedCamera || !videoRef.current) return;
@@ -277,21 +327,46 @@ export default function TimelapsePlayer() {
       {/* Controls */}
       <div className="px-4 py-3 bg-slate-900 border-t border-slate-700 shrink-0">
         <div className="flex items-center justify-between">
-          {/* Play/Pause */}
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
-          >
-            {isPlaying ? (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+          {/* Playback controls group */}
+          <div className="flex items-center gap-1">
+            {/* Step backward */}
+            <button
+              onClick={stepBackward}
+              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+              title={lang === 'no' ? 'Forrige bilde (←)' : 'Previous frame (←)'}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" />
               </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
+            >
+              {isPlaying ? (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+
+            {/* Step forward */}
+            <button
+              onClick={stepForward}
+              className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+              title={lang === 'no' ? 'Neste bilde (→)' : 'Next frame (→)'}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
               </svg>
-            )}
-          </button>
+            </button>
+          </div>
 
           {/* Speed selector */}
           <div className="flex items-center gap-1">
