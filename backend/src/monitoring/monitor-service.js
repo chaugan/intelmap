@@ -477,15 +477,28 @@ class MonitorService {
       return;
     }
 
-    if (result.detections.length === 0) return;
-
-    // Update last_check_at and last_detection_at
+    // Always update last_check_at to show the system is checking
     const now = new Date().toISOString();
+    if (result.detections.length === 0) {
+      // No detections - just update last_check_at
+      db.prepare(`
+        UPDATE monitor_cameras SET last_check_at = ? WHERE camera_id = ?
+      `).run(now, cameraId);
+      eventLogger.inference.info(`No detections for ${cameraId}`, { labels: allLabels });
+      return;
+    }
+
+    // Update both timestamps when there are detections
     db.prepare(`
       UPDATE monitor_cameras
       SET last_check_at = ?, last_detection_at = ?
       WHERE camera_id = ?
     `).run(now, now, cameraId);
+
+    eventLogger.inference.info(`Detections for ${cameraId}`, {
+      count: result.detections.length,
+      labels: result.detections.map(d => d.label),
+    });
 
     // Get all active subscriptions for this camera
     const subs = db.prepare(`
