@@ -26,14 +26,42 @@ router.get('/users', (req, res) => {
     // Get detection storage stats
     const detectionStats = monitorService.getUserStorageStats(u.id);
 
-    // Get timelapse storage (files in user's timelapse exports)
+    // Get timelapse storage: frames from subscribed cameras + exports
     let timelapseBytes = 0;
-    const timelapseDir = path.join(config.dataDir, 'exports', u.id);
-    if (fs.existsSync(timelapseDir)) {
+
+    // Get user's active timelapse subscriptions
+    const subs = db.prepare(`
+      SELECT camera_id FROM timelapse_subscriptions
+      WHERE user_id = ? AND is_active = 1
+    `).all(u.id);
+
+    // Sum frames storage for each subscribed camera
+    for (const sub of subs) {
+      const framesDir = path.join(config.dataDir, 'timelapse', sub.camera_id, 'frames');
+      if (fs.existsSync(framesDir)) {
+        try {
+          const files = fs.readdirSync(framesDir);
+          for (const file of files) {
+            if (!file.endsWith('.jpg')) continue;
+            const filePath = path.join(framesDir, file);
+            try {
+              const stat = fs.statSync(filePath);
+              if (stat.isFile()) {
+                timelapseBytes += stat.size;
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    }
+
+    // Also add exports storage
+    const exportsDir = path.join(config.dataDir, 'exports', u.id);
+    if (fs.existsSync(exportsDir)) {
       try {
-        const files = fs.readdirSync(timelapseDir);
+        const files = fs.readdirSync(exportsDir);
         for (const file of files) {
-          const filePath = path.join(timelapseDir, file);
+          const filePath = path.join(exportsDir, file);
           try {
             const stat = fs.statSync(filePath);
             if (stat.isFile()) {
