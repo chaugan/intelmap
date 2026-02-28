@@ -521,6 +521,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                 </svg>
               </button>
               <button
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); onClose(); }}
                 className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-base [@media(pointer:coarse)]:w-10 [@media(pointer:coarse)]:h-10"
               >
