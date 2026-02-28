@@ -217,13 +217,18 @@ router.get('/stream/:cameraId/playlist.m3u8', requireAuth, requireTimelapseAcces
   }
 });
 
-// Get HLS segment (supports both /segments/:name and /:name for FFmpeg-generated relative URLs)
+// Get HLS segment (supports both old format and new timestamp-based format)
 router.get('/stream/:cameraId/:segmentName', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
     const { cameraId, segmentName } = req.params;
 
     // Validate segment name to prevent path traversal
-    if (!segmentName.match(/^segment_\d{4}\.ts$/)) {
+    // Old format: segment_0001.ts
+    // New format: seg_2026-02-28T14.ts (timestamp-based)
+    const validOldFormat = /^segment_\d{4}\.ts$/;
+    const validNewFormat = /^seg_\d{4}-\d{2}-\d{2}T\d{2}\.ts$/;
+
+    if (!validOldFormat.test(segmentName) && !validNewFormat.test(segmentName)) {
       return res.status(400).json({ error: 'Invalid segment name' });
     }
 

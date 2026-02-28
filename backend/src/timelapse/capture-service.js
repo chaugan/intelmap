@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import config from '../config.js';
 import { getDb } from '../db/index.js';
+import { frameIndexer } from './frame-indexer.js';
 
 // Singleton capture service - ONE capture job per camera, shared by all subscribers
 class CaptureService {
@@ -163,6 +164,10 @@ class CaptureService {
 
     fs.writeFileSync(framePath, buffer);
 
+    // Index the frame for fast lookups
+    const filename = `${timestamp}.jpg`;
+    frameIndexer.indexFrame(cameraId, filename, buffer.length);
+
     // Update database
     const db = getDb();
     const now = new Date().toISOString();
@@ -180,29 +185,16 @@ class CaptureService {
 
   /**
    * Get list of available frames for a camera within a time range
+   * Uses indexed database query - O(log n) instead of O(n) filesystem scan
    */
   getFrames(cameraId, startTime = null, endTime = null) {
     const framesDir = path.join(this.dataDir, cameraId, 'frames');
-    if (!fs.existsSync(framesDir)) return [];
+    const frames = frameIndexer.getFrames(cameraId, startTime, endTime);
 
-    let files = fs.readdirSync(framesDir)
-      .filter(f => f.endsWith('.jpg'))
-      .sort();
-
-    if (startTime) {
-      const startStr = new Date(startTime).toISOString().replace(/[:.]/g, '-');
-      files = files.filter(f => f >= startStr);
-    }
-
-    if (endTime) {
-      const endStr = new Date(endTime).toISOString().replace(/[:.]/g, '-');
-      files = files.filter(f => f <= endStr);
-    }
-
-    return files.map(f => ({
-      filename: f,
-      timestamp: f.replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 19 ? ':' : '.'),
-      path: path.join(framesDir, f),
+    return frames.map(f => ({
+      filename: f.filename,
+      timestamp: f.timestamp,
+      path: path.join(framesDir, f.filename),
     }));
   }
 
@@ -218,15 +210,23 @@ class CaptureService {
 
   /**
    * Get latest frame for a camera
+   * Uses indexed database query - O(1) instead of O(n) filesystem scan
    */
   getLatestFrame(cameraId) {
-    const frames = this.getFrames(cameraId);
-    if (frames.length === 0) return null;
-    return frames[frames.length - 1];
+    const frame = frameIndexer.getLatestFrame(cameraId);
+    if (!frame) return null;
+
+    const framesDir = path.join(this.dataDir, cameraId, 'frames');
+    return {
+      filename: frame.filename,
+      timestamp: frame.timestamp,
+      path: path.join(framesDir, frame.filename),
+    };
   }
 
   /**
    * Get camera status
+   * Uses indexed database queries - O(1) instead of O(n) filesystem scan
    */
   getCameraStatus(cameraId) {
     const db = getDb();
@@ -235,15 +235,17 @@ class CaptureService {
     `).get(cameraId);
 
     const entry = this.activeCameras.get(cameraId);
-    const frames = this.getFrames(cameraId);
+    const frameCount = frameIndexer.getFrameCount(cameraId);
+    const oldest = frameIndexer.getOldestFrame(cameraId);
+    const newest = frameIndexer.getLatestFrame(cameraId);
 
     return {
       ...camera,
       isCapturing: !!entry,
       lastError: entry?.lastError || null,
-      frameCount: frames.length,
-      oldestFrame: frames[0]?.timestamp || null,
-      newestFrame: frames[frames.length - 1]?.timestamp || null,
+      frameCount,
+      oldestFrame: oldest?.timestamp || null,
+      newestFrame: newest?.timestamp || null,
     };
   }
 
@@ -287,6 +289,7 @@ class CaptureService {
 
   /**
    * Get all cameras (for admin)
+   * Uses indexed frame counts - O(1) per camera instead of O(n)
    */
   getAllCameras() {
     const db = getDb();
@@ -305,7 +308,7 @@ class CaptureService {
       lastFrameAt: c.last_frame_at,
       availableFrom: c.available_from,
       availableTo: c.available_to,
-      frameCount: this.getFrames(c.camera_id).length,
+      frameCount: frameIndexer.getFrameCount(c.camera_id),
       storageSize: this.getStorageSize(c.camera_id),
     }));
   }
@@ -334,20 +337,24 @@ class CaptureService {
       SELECT COUNT(*) as c FROM timelapse_subscriptions WHERE camera_id = ?
     `).get(cameraId).c;
 
+    // Get frame count from index before deleting
+    const deletedFrames = frameIndexer.getFrameCount(cameraId);
+
+    // Delete index entries
+    frameIndexer.deleteAllFrames(cameraId);
+
+    // Delete segment index entries
+    db.prepare('DELETE FROM timelapse_segments WHERE camera_id = ?').run(cameraId);
+
     // Delete subscriptions
     db.prepare('DELETE FROM timelapse_subscriptions WHERE camera_id = ?').run(cameraId);
 
     // Delete camera record
     db.prepare('DELETE FROM timelapse_cameras WHERE camera_id = ?').run(cameraId);
 
-    // Delete frame files
+    // Delete frame and segment files
     const cameraDir = path.join(this.dataDir, cameraId);
-    let deletedFrames = 0;
     if (fs.existsSync(cameraDir)) {
-      const framesDir = path.join(cameraDir, 'frames');
-      if (fs.existsSync(framesDir)) {
-        deletedFrames = fs.readdirSync(framesDir).length;
-      }
       fs.rmSync(cameraDir, { recursive: true, force: true });
     }
 
@@ -363,6 +370,10 @@ class CaptureService {
    */
   resumeCaptures() {
     const db = getDb();
+
+    // Migrate existing frames to index (one-time operation)
+    frameIndexer.migrateAll();
+
     const cameras = db.prepare(`
       SELECT camera_id FROM timelapse_cameras
       WHERE subscriber_count > 0 OR is_protected = 1

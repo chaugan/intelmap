@@ -184,6 +184,30 @@ CREATE INDEX IF NOT EXISTS idx_timelapse_subs_camera ON timelapse_subscriptions(
 CREATE INDEX IF NOT EXISTS idx_timelapse_subs_user ON timelapse_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_timelapse_exports_user ON timelapse_exports(user_id);
 
+-- Timelapse: frame index for fast lookups (replaces filesystem scans)
+CREATE TABLE IF NOT EXISTS timelapse_frames (
+  id INTEGER PRIMARY KEY,
+  camera_id TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  UNIQUE(camera_id, filename)
+);
+CREATE INDEX IF NOT EXISTS idx_frames_camera_ts ON timelapse_frames(camera_id, timestamp);
+
+-- Timelapse: HLS segment tracking for incremental generation
+CREATE TABLE IF NOT EXISTS timelapse_segments (
+  id INTEGER PRIMARY KEY,
+  camera_id TEXT NOT NULL,
+  segment_name TEXT NOT NULL,
+  start_timestamp TEXT NOT NULL,
+  end_timestamp TEXT NOT NULL,
+  frame_count INTEGER NOT NULL,
+  duration_seconds REAL NOT NULL,
+  UNIQUE(camera_id, segment_name)
+);
+CREATE INDEX IF NOT EXISTS idx_segments_camera ON timelapse_segments(camera_id, start_timestamp);
+
 -- YOLO Monitoring: user subscriptions (one per user per camera)
 CREATE TABLE IF NOT EXISTS monitor_subscriptions (
   id TEXT PRIMARY KEY,

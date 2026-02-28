@@ -2,12 +2,15 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config.js';
 import { getDb } from '../db/index.js';
+import { frameIndexer } from './frame-indexer.js';
+import { hlsGenerator } from './hls-generator.js';
 
 const DATA_DIR = path.join(config.dataDir, 'timelapse');
 const RETENTION_DAYS = 7;
 
 /**
  * Purge old timelapse frames (7-day rolling window)
+ * Also cleans up frame index entries and orphaned segments
  * Skips protected cameras
  */
 export function purgeOldFrames() {
@@ -21,8 +24,10 @@ export function purgeOldFrames() {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
   const cutoffStr = cutoff.toISOString().replace(/[:.]/g, '-');
+  const cutoffIso = cutoff.toISOString();
 
   let totalDeleted = 0;
+  let totalSegmentsDeleted = 0;
 
   for (const { camera_id } of cameras) {
     const framesDir = path.join(DATA_DIR, camera_id, 'frames');
@@ -40,21 +45,24 @@ export function purgeOldFrames() {
       }
     }
 
-    // Update available_from timestamp
-    const remaining = fs.readdirSync(framesDir).filter(f => f.endsWith('.jpg')).sort();
-    if (remaining.length > 0) {
-      // Convert filename back to ISO timestamp
-      // Filename: 2026-02-27T12-59-40-366Z.jpg -> 2026-02-27T12:59:40.366Z
-      // Dashes at positions: 4,7 (date), 13,16 (time), 19 (ms)
-      const oldest = remaining[0].replace('.jpg', '').replace(/-/g, (m, i) => i < 10 ? '-' : i < 19 ? ':' : '.');
+    // Clean up frame index entries
+    frameIndexer.deleteOldFrames(camera_id, cutoffIso);
+
+    // Clean up orphaned segments (their frames are gone)
+    const segmentsDeleted = hlsGenerator.deleteOldSegments(camera_id, cutoffIso);
+    totalSegmentsDeleted += segmentsDeleted;
+
+    // Update available_from timestamp from index
+    const oldest = frameIndexer.getOldestFrame(camera_id);
+    if (oldest) {
       db.prepare(`
         UPDATE timelapse_cameras SET available_from = ? WHERE camera_id = ?
-      `).run(oldest, camera_id);
+      `).run(oldest.timestamp, camera_id);
     }
   }
 
   if (totalDeleted > 0) {
-    console.log(`[Timelapse] Purged ${totalDeleted} old frames`);
+    console.log(`[Timelapse] Purged ${totalDeleted} old frames, ${totalSegmentsDeleted} segments`);
   }
 
   return totalDeleted;
