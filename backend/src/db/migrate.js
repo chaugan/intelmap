@@ -38,6 +38,15 @@ export function runMigration() {
     console.log('Added lat/lon columns to timelapse_cameras table');
   }
 
+  // Add camera_name, lat, lon columns to monitor_subscriptions table (if not exists)
+  const monitorSubsCols = db.prepare("PRAGMA table_info(monitor_subscriptions)").all();
+  if (monitorSubsCols.length > 0 && !monitorSubsCols.some(c => c.name === 'camera_name')) {
+    db.prepare("ALTER TABLE monitor_subscriptions ADD COLUMN camera_name TEXT").run();
+    db.prepare("ALTER TABLE monitor_subscriptions ADD COLUMN lat REAL").run();
+    db.prepare("ALTER TABLE monitor_subscriptions ADD COLUMN lon REAL").run();
+    console.log('Added camera_name, lat, lon columns to monitor_subscriptions table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

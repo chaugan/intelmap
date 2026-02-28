@@ -79,21 +79,27 @@ class MonitorService {
    * @param {string} cameraId - Camera ID
    * @param {string[]} labels - Labels to monitor
    * @param {number} snoozeMinutes - Snooze duration (0 = all alerts)
+   * @param {string} cameraName - Camera name
+   * @param {number} lat - Latitude
+   * @param {number} lon - Longitude
    * @returns {Object}
    */
-  async subscribe(userId, cameraId, labels = [], snoozeMinutes = 0) {
+  async subscribe(userId, cameraId, labels = [], snoozeMinutes = 0, cameraName = null, lat = null, lon = null) {
     const db = getDb();
     const subId = crypto.randomUUID();
 
     // Upsert subscription
     db.prepare(`
-      INSERT INTO monitor_subscriptions (id, user_id, camera_id, labels, snooze_minutes, is_active, created_at)
-      VALUES (?, ?, ?, ?, ?, 1, datetime('now'))
+      INSERT INTO monitor_subscriptions (id, user_id, camera_id, camera_name, lat, lon, labels, snooze_minutes, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
       ON CONFLICT(user_id, camera_id) DO UPDATE SET
         labels = excluded.labels,
         snooze_minutes = excluded.snooze_minutes,
+        camera_name = COALESCE(excluded.camera_name, monitor_subscriptions.camera_name),
+        lat = COALESCE(excluded.lat, monitor_subscriptions.lat),
+        lon = COALESCE(excluded.lon, monitor_subscriptions.lon),
         is_active = 1
-    `).run(subId, userId, cameraId, JSON.stringify(labels), snoozeMinutes);
+    `).run(subId, userId, cameraId, cameraName, lat, lon, JSON.stringify(labels), snoozeMinutes);
 
     // Update aggregated monitor_cameras
     this.updateCameraLabels(cameraId);
@@ -197,9 +203,7 @@ class MonitorService {
     return db.prepare(`
       SELECT
         s.*,
-        c.name,
-        c.lat,
-        c.lon
+        COALESCE(s.camera_name, c.name) as name
       FROM monitor_subscriptions s
       LEFT JOIN timelapse_cameras c ON s.camera_id = c.camera_id
       WHERE s.user_id = ? AND s.is_active = 1
@@ -454,7 +458,7 @@ class MonitorService {
       SELECT
         s.*,
         u.username,
-        c.name as camera_name
+        COALESCE(s.camera_name, c.name) as camera_name
       FROM monitor_subscriptions s
       JOIN users u ON s.user_id = u.id
       LEFT JOIN timelapse_cameras c ON s.camera_id = c.camera_id

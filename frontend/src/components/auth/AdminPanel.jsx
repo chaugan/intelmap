@@ -976,11 +976,11 @@ function YoloConfigTab({ lang }) {
     e.preventDefault();
     setError(''); setStatus('');
     if (!url.trim()) {
-      setError(lang === 'no' ? 'URL er paakrevd' : 'URL is required');
+      setError(lang === 'no' ? 'URL er påkrevd' : 'URL is required');
       return;
     }
     if (!token.trim()) {
-      setError(lang === 'no' ? 'API-token er paakrevd' : 'API token is required');
+      setError(lang === 'no' ? 'API-token er påkrevd' : 'API token is required');
       return;
     }
     setSaving(true);
@@ -1050,14 +1050,14 @@ function YoloConfigTab({ lang }) {
 
         <p className="text-xs text-slate-500">
           {lang === 'no'
-            ? 'YOLO brukes til objekt-deteksjon i webcam-bilder for overvaking. Aktiverer Monitorering-fanen i Tidslapse.'
+            ? 'YOLO brukes til objekt-deteksjon i webcam-bilder for overvåking. Aktiverer Monitorering-fanen i Tidslapse.'
             : 'YOLO is used for object detection in webcam images for monitoring. Enables the Monitoring tab in Timelapse.'}
         </p>
 
         <form onSubmit={saveCredentials} className="space-y-2">
           <div>
             <label className="block text-xs text-slate-400 mb-1">
-              {lang === 'no' ? 'Server-URL (paakrevd)' : 'Server URL (required)'}
+              {lang === 'no' ? 'Server-URL (påkrevd)' : 'Server URL (required)'}
             </label>
             <input
               type="text"
@@ -1069,7 +1069,7 @@ function YoloConfigTab({ lang }) {
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">
-              {lang === 'no' ? 'API-token (paakrevd)' : 'API Token (required)'}
+              {lang === 'no' ? 'API-token (påkrevd)' : 'API Token (required)'}
             </label>
             <input
               type="password"

@@ -258,17 +258,17 @@ const translations = {
     'timelapse.exportMp4': 'Eksporter MP4',
 
     // Monitoring
-    'monitoring.title': 'Monitorering',
+    'monitoring.title': 'Overvåking',
     'monitoring.addCamera': 'Legg til kamera',
-    'monitoring.searchCamera': 'Soek etter kamera',
+    'monitoring.searchCamera': 'Søk etter kamera',
     'monitoring.labels': 'Etiketter',
-    'monitoring.selectLabels': 'Velg etiketter aa overvake',
+    'monitoring.selectLabels': 'Velg etiketter å overvåke',
     'monitoring.snooze': 'Ignorer varsler',
     'monitoring.history': 'Historikk',
-    'monitoring.noDetections': 'Ingen funn ennaa',
-    'monitoring.remove': 'Fjern overvaking',
-    'monitoring.view': 'Vis monitorering',
-    'monitoring.addMonitor': 'Overvaak',
+    'monitoring.noDetections': 'Ingen funn ennå',
+    'monitoring.remove': 'Fjern overvåking',
+    'monitoring.view': 'Vis overvåking',
+    'monitoring.addMonitor': 'Overvåk',
 
     // Aurora
     'layer.aurora': 'Nordlys',

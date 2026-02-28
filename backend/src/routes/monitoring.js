@@ -61,7 +61,7 @@ router.post('/subscribe', async (req, res) => {
     return res.status(400).json({ error: 'Monitoring is not enabled' });
   }
 
-  const { cameraId, labels, snoozeMinutes = 0 } = req.body;
+  const { cameraId, cameraName, lat, lon, labels, snoozeMinutes = 0 } = req.body;
 
   if (!cameraId) {
     return res.status(400).json({ error: 'Camera ID is required' });
@@ -85,7 +85,7 @@ router.post('/subscribe', async (req, res) => {
   const snooze = validSnooze.includes(snoozeMinutes) ? snoozeMinutes : 0;
 
   try {
-    await monitorService.subscribe(req.user.id, cameraId, validLabels, snooze);
+    await monitorService.subscribe(req.user.id, cameraId, validLabels, snooze, cameraName, lat, lon);
     res.json({ ok: true, cameraId, labels: validLabels, snoozeMinutes: snooze });
   } catch (err) {
     res.status(500).json({ error: err.message });

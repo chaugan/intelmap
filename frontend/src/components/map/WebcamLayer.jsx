@@ -441,6 +441,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   // Monitoring integration
   const monitoringEnabled = useMonitoringStore((s) => s.enabled);
   const monitoredCameraIds = useMonitoringStore((s) => s.monitoredCameraIds);
+  const setPreselectCamera = useMonitoringStore((s) => s.setPreselectCamera);
   const hasMonitorSub = monitoredCameraIds.includes(id);
 
   // Track whether popup is visible on screen
@@ -575,6 +576,17 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (!hasMonitorSub) {
+                  // Preselect this camera in the monitoring tab
+                  const [lon, lat] = camera.geometry.coordinates;
+                  setPreselectCamera({
+                    id: camera.properties.id,
+                    name: camera.properties.name,
+                    road: camera.properties.road,
+                    lat,
+                    lon,
+                  });
+                }
                 setActiveTab('monitoring');
                 openDrawer();
               }}

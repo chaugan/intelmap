@@ -40,6 +40,9 @@ export const useMonitoringStore = create((set, get) => ({
   // All monitored camera IDs (for map markers)
   monitoredCameraIds: [],
 
+  // Preselect camera from map popup
+  preselectCamera: null,
+
   // Detection history for selected camera
   selectedCameraId: null,
   detections: [],
@@ -92,13 +95,13 @@ export const useMonitoringStore = create((set, get) => ({
   },
 
   // Subscribe to monitor a camera
-  subscribe: async (cameraId, labels, snoozeMinutes = 0) => {
+  subscribe: async (cameraId, labels, snoozeMinutes = 0, cameraName = null, lat = null, lon = null) => {
     try {
       const res = await fetch(`${API}/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ cameraId, labels, snoozeMinutes }),
+        body: JSON.stringify({ cameraId, cameraName, lat, lon, labels, snoozeMinutes }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -179,4 +182,10 @@ export const useMonitoringStore = create((set, get) => ({
 
   // Clear error
   clearError: () => set({ error: null }),
+
+  // Set preselect camera (from map popup)
+  setPreselectCamera: (camera) => set({ preselectCamera: camera }),
+
+  // Clear preselect camera
+  clearPreselectCamera: () => set({ preselectCamera: null }),
 }));

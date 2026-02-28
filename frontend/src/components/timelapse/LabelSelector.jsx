@@ -71,7 +71,7 @@ export default function LabelSelector({ selected = [], onChange, lang }) {
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder={lang === 'no' ? 'Soek etiketter...' : 'Search labels...'}
+          placeholder={lang === 'no' ? 'Søk etiketter...' : 'Search labels...'}
           className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-cyan-500"
         />
         <button

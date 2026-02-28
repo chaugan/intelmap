@@ -14,10 +14,12 @@ export default function MonitoringTab() {
     subscriptions,
     loading,
     error,
+    preselectCamera,
     fetchConfig,
     fetchSubscriptions,
     subscribe,
     clearError,
+    clearPreselectCamera,
   } = useMonitoringStore();
 
   const [showAddCamera, setShowAddCamera] = useState(false);
@@ -33,6 +35,26 @@ export default function MonitoringTab() {
     fetchConfig();
     fetchSubscriptions();
   }, [fetchConfig, fetchSubscriptions]);
+
+  // Handle preselect camera from map popup
+  useEffect(() => {
+    if (preselectCamera && enabled) {
+      // Check if already subscribed
+      const isAlreadySubscribed = subscriptions.some(s => s.cameraId === preselectCamera.id);
+      if (!isAlreadySubscribed) {
+        setShowAddCamera(true);
+        setSelectedCamera({
+          id: preselectCamera.id,
+          title: preselectCamera.name,
+          road: preselectCamera.road,
+          lat: preselectCamera.lat,
+          lon: preselectCamera.lon,
+        });
+        setSearchQuery(preselectCamera.name || preselectCamera.id);
+      }
+      clearPreselectCamera();
+    }
+  }, [preselectCamera, enabled, subscriptions, clearPreselectCamera]);
 
   // Auto-clear errors
   useEffect(() => {
@@ -52,13 +74,38 @@ export default function MonitoringTab() {
 
     setSearching(true);
     try {
-      const res = await fetch(`/api/webcams?search=${encodeURIComponent(query)}`, { credentials: 'include' });
+      // Fetch all webcams (GeoJSON format)
+      const res = await fetch('/api/webcams', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        // Filter out already subscribed cameras
+        // data is GeoJSON: { type: 'FeatureCollection', features: [...] }
+        const features = data.features || [];
+
+        // Filter by search query and exclude already subscribed
         const subscribedIds = new Set(subscriptions.map(s => s.cameraId));
-        const filtered = data.filter(cam => !subscribedIds.has(cam.id));
-        setSearchResults(filtered.slice(0, 10));
+        const queryLower = query.toLowerCase();
+
+        const filtered = features
+          .filter(f => {
+            const id = f.properties?.id;
+            const name = f.properties?.name || '';
+            const road = f.properties?.road || '';
+            // Match against name, id, or road
+            const matchesQuery = name.toLowerCase().includes(queryLower) ||
+              id?.toLowerCase().includes(queryLower) ||
+              road.toLowerCase().includes(queryLower);
+            return matchesQuery && !subscribedIds.has(id);
+          })
+          .map(f => ({
+            id: f.properties.id,
+            title: f.properties.name,
+            road: f.properties.road,
+            lat: f.geometry?.coordinates?.[1],
+            lon: f.geometry?.coordinates?.[0],
+          }))
+          .slice(0, 10);
+
+        setSearchResults(filtered);
       }
     } catch {}
     setSearching(false);
@@ -68,7 +115,14 @@ export default function MonitoringTab() {
   async function handleAddMonitor() {
     if (!selectedCamera || newLabels.length === 0) return;
     setAdding(true);
-    const success = await subscribe(selectedCamera.id, newLabels, newSnooze);
+    const success = await subscribe(
+      selectedCamera.id,
+      newLabels,
+      newSnooze,
+      selectedCamera.title || selectedCamera.name,
+      selectedCamera.lat,
+      selectedCamera.lon
+    );
     setAdding(false);
     if (success) {
       setShowAddCamera(false);
@@ -94,7 +148,7 @@ export default function MonitoringTab() {
         <div className="bg-slate-900 rounded p-4 text-center">
           <p className="text-slate-400 text-sm">
             {lang === 'no'
-              ? 'Monitorering er ikke aktivert. Administrator maa konfigurere YOLO og ntfy.'
+              ? 'Monitorering er ikke aktivert. Administrator må konfigurere YOLO og ntfy.'
               : 'Monitoring is not enabled. Administrator must configure YOLO and ntfy.'}
           </p>
         </div>
@@ -150,7 +204,7 @@ export default function MonitoringTab() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                placeholder={lang === 'no' ? 'Soek etter kamera...' : 'Search for camera...'}
+                placeholder={lang === 'no' ? 'Søk etter kamera...' : 'Search for camera...'}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-cyan-500"
               />
             </div>
@@ -264,7 +318,7 @@ export default function MonitoringTab() {
         {!loading && subscriptions.length === 0 && (
           <div className="text-slate-400 text-sm text-center py-4">
             {lang === 'no'
-              ? 'Ingen kameraer overvakes. Klikk "Legg til kamera" for aa starte.'
+              ? 'Ingen kameraer overvåkes. Klikk "Legg til kamera" for å starte.'
               : 'No cameras monitored. Click "Add camera" to start.'}
           </div>
         )}
