@@ -27,11 +27,11 @@ export default function AdminPanel() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setAdminPanelOpen(false)}>
-      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-bold text-amber-400">{t('admin.title', lang)}</h2>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5 flex-wrap">
               <TabButton active={activeTab === 'users'} onClick={() => setActiveTab('users')}>
                 {lang === 'no' ? 'Brukere' : 'Users'}
               </TabButton>
@@ -224,7 +224,7 @@ function UsersTab({ lang, currentUser }) {
                   </button>
                 </td>
                 <td className="py-2">
-                  <div className="flex gap-1 flex-wrap">
+                  <div className="flex gap-2 flex-wrap">
                     {u.id !== currentUser?.id && (
                       <>
                         <button onClick={() => toggleAdmin(u.id)} className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors">
