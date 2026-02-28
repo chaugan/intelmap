@@ -18,12 +18,19 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewingImage, setViewingImage] = useState(null); // Detection ID for fullscreen image
 
+  // Auto-collapse history when another camera is selected
+  useEffect(() => {
+    if (showHistory && selectedCameraId && selectedCameraId !== subscription.cameraId) {
+      setShowHistory(false);
+    }
+  }, [selectedCameraId, subscription.cameraId, showHistory]);
+
   // Load detection history when expanded
   useEffect(() => {
-    if (showHistory && selectedCameraId !== subscription.cameraId) {
+    if (showHistory) {
       fetchDetections(subscription.cameraId, 1);
     }
-  }, [showHistory, subscription.cameraId, selectedCameraId, fetchDetections]);
+  }, [showHistory, subscription.cameraId, fetchDetections]);
 
   async function handleSave() {
     if (editLabels.length === 0) return;

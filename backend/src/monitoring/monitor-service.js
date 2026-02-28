@@ -395,8 +395,8 @@ class MonitorService {
     const token = getNtfyToken();
 
     const headers = {
-      'Title': 'IntelMap Test Notification',
-      'Tags': 'white_check_mark,test',
+      'X-Title': 'IntelMap Test Notification',
+      'X-Tags': 'white_check_mark,test',
     };
 
     if (token) {
@@ -435,15 +435,16 @@ class MonitorService {
       .join(', ');
 
     const title = `Detection: ${cameraName || cameraId}`;
-    const message = labelSummary;
 
     // Read image
     const imageBuffer = fs.readFileSync(annotatedPath);
 
+    // URL-encode headers with non-ASCII characters (ntfy requirement)
     const headers = {
-      'Title': title,
-      'Tags': 'camera,warning',
-      'Filename': `detection-${cameraId}.jpg`,
+      'X-Title': encodeURIComponent(title),
+      'X-Tags': 'camera,warning',
+      'X-Filename': `detection-${cameraId}.jpg`,
+      'X-Message': encodeURIComponent(labelSummary),
     };
 
     if (token) {
