@@ -50,10 +50,17 @@ router.get('/reverse', async (req, res) => {
     const getTier = (type) => {
       if (!type) return 0;
       const typeLower = type.toLowerCase();
-      if (tier4.some(t => typeLower.includes(t.toLowerCase()))) return 4;
-      if (tier3.some(t => typeLower.includes(t.toLowerCase()))) return 3;
-      if (tier2.some(t => typeLower.includes(t.toLowerCase()))) return 2;
-      if (tier1.some(t => typeLower.includes(t.toLowerCase()))) return 1;
+      // Check if type matches any term as a whole word (not as substring of longer word)
+      const matchesAny = (list) => list.some(t => {
+        const tLower = t.toLowerCase();
+        // Split type into words and check if any matches
+        const words = typeLower.split(/[\s(),]+/).filter(Boolean);
+        return words.includes(tLower) || typeLower === tLower;
+      });
+      if (matchesAny(tier4)) return 4;
+      if (matchesAny(tier3)) return 3;
+      if (matchesAny(tier2)) return 2;
+      if (matchesAny(tier1)) return 1;
       return 0;
     };
 
@@ -75,46 +82,67 @@ router.get('/reverse', async (req, res) => {
     let bestPlace = sorted[0];
     let bestTier = bestPlace ? getTier(bestPlace.navneobjekttype) : -1;
 
-    // If no high-tier result found, search for nearby settlements by name
+    // If no high-tier result found, search for nearby settlements
     // (Tettsted/By often don't appear in point searches)
     if (bestTier < 3) {
-      // Get municipality from point search to narrow down
-      const kommune = places[0]?.kommuner?.[0]?.kommunenavn;
-      if (kommune) {
-        // Search for settlements in this municipality
-        const nameUrl = `https://api.kartverket.no/stedsnavn/v1/navn?sok=${encodeURIComponent(kommune)}&fuzzy=false&treffPerSide=20&utkoordsys=4258`;
-        const nameRes = await fetch(nameUrl);
-        if (nameRes.ok) {
-          const nameData = await nameRes.json();
-          const settlements = (nameData.navn || []).filter(n =>
-            n.navneobjekttype === 'Tettsted' || n.navneobjekttype === 'By'
-          );
+      const latNum = parseFloat(lat);
+      const lonNum = parseFloat(lon);
 
-          // Find closest settlement within reasonable distance (15km)
-          const latNum = parseFloat(lat);
-          const lonNum = parseFloat(lon);
-          for (const s of settlements) {
-            const rep = s.representasjonspunkt || {};
-            const sLat = rep.nord || rep.lat;
-            const sLon = rep.øst || rep.lon;
-            if (sLat && sLon) {
-              // Approximate distance in meters
-              const dLat = (sLat - latNum) * 111320;
-              const dLon = (sLon - lonNum) * 111320 * Math.cos(latNum * Math.PI / 180);
-              const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-              if (dist < 15000) { // Within 15km
+      try {
+        // Get the kommune (municipality) number from the kommuneinfo API
+        const kommuneUrl = `https://ws.geonorge.no/kommuneinfo/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258`;
+        const kommuneRes = await fetch(kommuneUrl);
+        if (kommuneRes.ok) {
+          const kommuneData = await kommuneRes.json();
+          const kommunenummer = kommuneData.kommunenummer;
+          const kommunenavn = kommuneData.kommunenavn;
+
+          if (kommunenummer) {
+            // Search for all places in this kommune, then filter for settlements
+            const searchUrl = `https://api.kartverket.no/stedsnavn/v1/navn?knr=${kommunenummer}&treffPerSide=200&utkoordsys=4258`;
+            const searchRes = await fetch(searchUrl);
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              const settlements = (searchData.navn || []).filter(n =>
+                n.navneobjekttype === 'Tettsted' || n.navneobjekttype === 'By'
+              );
+
+              // Find closest settlement within 15km
+              let closestDist = Infinity;
+              let closestSettlement = null;
+
+              for (const s of settlements) {
+                const rep = s.representasjonspunkt || {};
+                const sLat = rep.nord || rep.lat;
+                const sLon = rep.øst || rep.lon;
+                if (sLat && sLon) {
+                  const dLat = (sLat - latNum) * 111320;
+                  const dLon = (sLon - lonNum) * 111320 * Math.cos(latNum * Math.PI / 180);
+                  const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                  if (dist < 15000 && dist < closestDist) {
+                    closestDist = dist;
+                    closestSettlement = s;
+                  }
+                }
+              }
+
+              if (closestSettlement) {
+                const name = typeof closestSettlement.skrivemåte === 'string'
+                  ? closestSettlement.skrivemåte
+                  : closestSettlement.skrivemåte?.[0]?.langnavn || closestSettlement.skrivemåte?.[0]?.skrivemåte;
                 bestPlace = {
-                  stedsnavn: [{ skrivemåte: typeof s.skrivemåte === 'string' ? s.skrivemåte : s.skrivemåte?.[0]?.langnavn || s.skrivemåte?.[0]?.skrivemåte }],
-                  navneobjekttype: s.navneobjekttype,
-                  kommuner: s.kommuner,
-                  meterFraPunkt: Math.round(dist),
+                  stedsnavn: [{ skrivemåte: name }],
+                  navneobjekttype: closestSettlement.navneobjekttype,
+                  kommuner: closestSettlement.kommuner || [{ kommunenavn }],
+                  meterFraPunkt: Math.round(closestDist),
                 };
                 bestTier = 4;
-                break;
               }
             }
           }
         }
+      } catch (e) {
+        // Ignore secondary search errors
       }
     }
 
