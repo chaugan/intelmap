@@ -270,7 +270,7 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
           </button>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-base [@media(pointer:coarse)]:w-10 [@media(pointer:coarse)]:h-10">✕</button>
+          <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-base [@media(pointer:coarse)]:w-10 [@media(pointer:coarse)]:h-10">✕</button>
         </div>
       </div>
 

@@ -521,7 +521,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                 </svg>
               </button>
               <button
-                onClick={onClose}
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
                 className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-600 text-slate-400 hover:text-white text-base [@media(pointer:coarse)]:w-10 [@media(pointer:coarse)]:h-10"
               >
                 ✕
@@ -619,7 +619,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
           onClick={() => setFullscreen(false)}
         >
           <button
-            onClick={() => setFullscreen(false)}
+            onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}
             className="absolute top-4 right-4 w-10 h-10 bg-slate-800/80 hover:bg-slate-700 rounded-full text-white text-xl flex items-center justify-center z-[10000]"
           >
             ✕
