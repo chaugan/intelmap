@@ -442,6 +442,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   const monitoringEnabled = useMonitoringStore((s) => s.enabled);
   const monitoredCameraIds = useMonitoringStore((s) => s.monitoredCameraIds);
   const setPreselectCamera = useMonitoringStore((s) => s.setPreselectCamera);
+  const setHighlightCamera = useMonitoringStore((s) => s.setHighlightCamera);
   const hasMonitorSub = monitoredCameraIds.includes(id);
 
   // Track whether popup is visible on screen
@@ -576,7 +577,10 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!hasMonitorSub) {
+                if (hasMonitorSub) {
+                  // Highlight this camera in the monitoring tab
+                  setHighlightCamera(id);
+                } else {
                   // Preselect this camera in the monitoring tab
                   const [lon, lat] = camera.geometry.coordinates;
                   setPreselectCamera({
