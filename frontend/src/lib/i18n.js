@@ -94,6 +94,7 @@ const translations = {
     'weather.loading': 'Henter værdata...',
     'weather.windChill': 'Vindavkjøling',
     'weather.clickMap': 'Klikk på kartet for vær',
+    'weather.fullReport': 'Full rapport',
 
     // Search
     'search.title': 'Stedssøk',
@@ -391,6 +392,7 @@ const translations = {
     'weather.loading': 'Loading weather data...',
     'weather.windChill': 'Wind Chill',
     'weather.clickMap': 'Click map for weather',
+    'weather.fullReport': 'Full Report',
 
     'search.title': 'Place Search',
     'search.placeholder': 'Search location...',

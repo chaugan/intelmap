@@ -7,6 +7,7 @@ import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import { calcWindChill } from '../../lib/weather-utils.js';
 import WeatherIcon from './WeatherIcon.jsx';
 import MoonPhaseIcon from '../map/MoonPhaseIcon.jsx';
+import WeatherReportModal from '../weather/WeatherReportModal.jsx';
 
 export default function WeatherPanel() {
   const lang = useMapStore((s) => s.lang);
@@ -18,6 +19,8 @@ export default function WeatherPanel() {
   const loading = useWeatherStore((s) => s.loading);
   const location = useWeatherStore((s) => s.location);
   const [snowDepth, setSnowDepth] = useState(null);
+  const [placeName, setPlaceName] = useState(null);
+  const [showReport, setShowReport] = useState(false);
   const { fetchWeather } = useWeather();
 
   useEffect(() => {
@@ -34,6 +37,19 @@ export default function WeatherPanel() {
       .then(r => r.json())
       .then(d => setSnowDepth(d.depth ? d : null))
       .catch(() => setSnowDepth(null));
+  }, [location?.lat, location?.lon, latitude, longitude]);
+
+  // Fetch place name via reverse geocoding
+  useEffect(() => {
+    const lat = location?.lat || latitude;
+    const lon = location?.lon || longitude;
+    if (lat && lon) {
+      setPlaceName(null);
+      fetch(`/api/search/reverse?lat=${parseFloat(lat).toFixed(4)}&lon=${parseFloat(lon).toFixed(4)}`)
+        .then(r => r.json())
+        .then(d => setPlaceName(d.name || null))
+        .catch(() => setPlaceName(null));
+    }
   }, [location?.lat, location?.lon, latitude, longitude]);
 
   if (loading) {
@@ -64,11 +80,16 @@ export default function WeatherPanel() {
 
       {/* Location info */}
       {location && (
-        <div className="text-[10px] text-slate-400 mb-2">
-          {lang === 'no' ? 'Posisjon' : 'Location'}: {parseFloat(location.lat).toFixed(4)}°N, {parseFloat(location.lon).toFixed(4)}°E
-          <span className="text-slate-500 ml-1">(
-            {lang === 'no' ? 'høyreklikk kartet for vær et annet sted' : 'right-click map for weather elsewhere'}
-          )</span>
+        <div className="mb-2">
+          {placeName && (
+            <div className="text-sm font-semibold text-emerald-400">{placeName}</div>
+          )}
+          <div className="text-[10px] text-slate-400">
+            {parseFloat(location.lat).toFixed(4)}°N, {parseFloat(location.lon).toFixed(4)}°E
+            <span className="text-slate-500 ml-1">
+              ({lang === 'no' ? 'høyreklikk kartet for vær et annet sted' : 'right-click map for weather elsewhere'})
+            </span>
+          </div>
         </div>
       )}
 
@@ -79,6 +100,14 @@ export default function WeatherPanel() {
         >
           {lang === 'no' ? 'Oppdater (kartmidt)' : 'Refresh (map center)'}
         </button>
+        {forecast && (
+          <button
+            onClick={() => setShowReport(true)}
+            className="text-xs bg-emerald-700 hover:bg-emerald-600 px-2 py-1 rounded"
+          >
+            {t('weather.fullReport', lang)}
+          </button>
+        )}
       </div>
 
       {!forecast ? (
@@ -157,6 +186,15 @@ export default function WeatherPanel() {
             })}
           </div>
         </>
+      )}
+
+      {/* Weather Report Modal */}
+      {showReport && (
+        <WeatherReportModal
+          lat={location?.lat || latitude}
+          lon={location?.lon || longitude}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );
