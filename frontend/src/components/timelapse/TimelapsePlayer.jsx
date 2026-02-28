@@ -22,27 +22,34 @@ export default function TimelapsePlayer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loop, setLoop] = useState(true);
+  const [liveMode, setLiveMode] = useState(false);
 
   // Preloaded images for smooth playback
   const preloadedImages = useRef(new Map());
   const playIntervalRef = useRef(null);
+  const liveIntervalRef = useRef(null);
   const canvasRef = useRef(null);
   const currentImageRef = useRef(null);
 
   // Reset when camera changes - always start from beginning
   useEffect(() => {
     setIsPlaying(false);
+    setLiveMode(false);
     setCurrentIndex(0);
     setFrames([]);
     preloadedImages.current.clear();
   }, [selectedCamera?.cameraId, setIsPlaying]);
 
-  // Pause when component unmounts
+  // Cleanup when component unmounts
   useEffect(() => {
     return () => {
       setIsPlaying(false);
+      setLiveMode(false);
       if (playIntervalRef.current) {
         clearInterval(playIntervalRef.current);
+      }
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current);
       }
     };
   }, [setIsPlaying]);
@@ -228,31 +235,92 @@ export default function TimelapsePlayer() {
 
   const stepForward = useCallback(() => {
     setIsPlaying(false);
+    setLiveMode(false); // Exit live mode when stepping
     setCurrentIndex((prev) => Math.min(prev + 1, frames.length - 1));
   }, [frames.length, setIsPlaying]);
 
   const stepBackward = useCallback(() => {
     setIsPlaying(false);
+    setLiveMode(false); // Exit live mode when stepping
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }, [setIsPlaying]);
 
   // Seek to specific time (from timeline slider)
   const handleSeek = useCallback((percent) => {
     if (frames.length === 0) return;
+    setLiveMode(false); // Exit live mode when seeking
     const index = Math.round(percent * (frames.length - 1));
     setCurrentIndex(Math.max(0, Math.min(index, frames.length - 1)));
   }, [frames.length]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
+    setLiveMode(false); // Exit live mode when pausing
   }, [setIsPlaying]);
 
-  // Go to live (end of video)
+  // Go to live mode - show latest frame and keep updating
   const goLive = useCallback(() => {
     if (frames.length > 0) {
       setCurrentIndex(frames.length - 1);
     }
-  }, [frames.length]);
+    setLiveMode(true);
+    setIsPlaying(false); // Not playing through old frames, just showing live
+  }, [frames.length, setIsPlaying]);
+
+  // Exit live mode
+  const exitLiveMode = useCallback(() => {
+    setLiveMode(false);
+  }, []);
+
+  // Live mode: poll for new frames every 10 seconds
+  useEffect(() => {
+    if (!liveMode || !selectedCamera) {
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current);
+        liveIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const pollForNewFrames = async () => {
+      try {
+        const res = await fetch(`/api/timelapse/frames/${selectedCamera.cameraId}?limit=10000`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+
+        const newFrames = await res.json();
+        if (newFrames.length > frames.length) {
+          // New frames available - update and show latest
+          setFrames(newFrames);
+          setCurrentIndex(newFrames.length - 1);
+
+          // Preload the new frame
+          const latestFrame = newFrames[newFrames.length - 1];
+          if (latestFrame) {
+            const img = new Image();
+            img.src = `/api/timelapse/frame/${selectedCamera.cameraId}/${latestFrame.timestamp}.jpg`;
+            img.onload = () => {
+              preloadedImages.current.set(latestFrame.filename, img);
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Live mode poll error:', err);
+      }
+    };
+
+    // Poll immediately, then every 10 seconds
+    pollForNewFrames();
+    liveIntervalRef.current = setInterval(pollForNewFrames, 10000);
+
+    return () => {
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current);
+        liveIntervalRef.current = null;
+      }
+    };
+  }, [liveMode, selectedCamera, frames.length]);
 
   // Save current frame
   const saveFrame = useCallback(() => {
@@ -451,12 +519,12 @@ export default function TimelapsePlayer() {
           <button
             onClick={goLive}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              currentIndex === frames.length - 1
-                ? 'bg-red-600 text-white'
+              liveMode
+                ? 'bg-red-600 text-white animate-pulse'
                 : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
             }`}
           >
-            LIVE
+            {liveMode ? '● LIVE' : 'LIVE'}
           </button>
 
           {/* Save frame */}
