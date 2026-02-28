@@ -209,10 +209,11 @@ export default function MapControls() {
   );
 }
 
+// Data overlays counted in badge (excludes terrain: hillshade, 3D)
 const VISIBILITY_KEYS = [
-  'sunlightVisible', 'windVisible', 'webcamsVisible', 'avalancheVisible',
-  'avalancheWarningsVisible', 'snowDepthVisible', 'aircraftVisible', 'vesselsVisible',
-  'hillshadeVisible', 'terrainVisible',
+  'auroraVisible', 'sunlightVisible', 'windVisible', 'webcamsVisible',
+  'avalancheVisible', 'avalancheWarningsVisible', 'snowDepthVisible',
+  'aircraftVisible', 'vesselsVisible',
 ];
 
 function ActiveLayerBadge() {
