@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../db/index.js';
-import config, { getNtfyToken, getNtfyUrl, getYoloApiToken } from '../config.js';
+import config, { getNtfyToken, getNtfyUrl, getYoloApiToken, getPublicUrl } from '../config.js';
 import { frameManager } from './frame-manager.js';
 import { yoloClient } from './yolo-client.js';
 import { eventLogger } from '../lib/event-logger.js';
@@ -523,11 +523,13 @@ class MonitorService {
 
     // Use PUT with file body - this uploads the image directly to ntfy
     // which works better for self-hosted ntfy on iOS
+    // Click header makes notification open image URL (for iOS which doesn't show image attachments)
     const headers = {
       'Title': title,
       'Message': labelSummary,
       'Tags': 'camera,warning',
       'Filename': `detection-${cameraId}.jpg`,
+      'Click': `${getPublicUrl()}/api/monitoring/detections/${detectionId}/image/public`,
     };
 
     if (token) {
