@@ -132,6 +132,8 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
 
   const onMouseDown = useCallback((e) => {
     if (!e.target.closest('.context-menu-header') && !e.target.closest('.draggable-header')) return;
+    // Don't trigger drag/pin when clicking buttons (close, pin, etc.)
+    if (e.target.closest('button')) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -188,6 +190,8 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
 
   const onTouchDown = useCallback((e) => {
     if (!e.target.closest('.context-menu-header') && !e.target.closest('.draggable-header')) return;
+    // Don't trigger drag/pin when tapping buttons (close, pin, etc.)
+    if (e.target.closest('button')) return;
     const touch = e.touches[0];
     e.preventDefault();
 
