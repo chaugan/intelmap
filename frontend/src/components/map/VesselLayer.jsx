@@ -72,6 +72,10 @@ async function fetchAndDrawTrace(map, mmsi, currentCoords) {
     const geojson = await res.json();
     if (!geojson.geometry?.coordinates?.length) return null;
 
+    // Historical data from BarentsWatch comes newest-first; reverse to oldest-first
+    // so the gradient (cyan→red) correctly shows oldest→newest
+    geojson.geometry.coordinates.reverse();
+
     // Append vessel's current live position so the line connects to the icon
     if (currentCoords) {
       geojson.geometry.coordinates.push(currentCoords);
