@@ -107,10 +107,10 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 {/* Header */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
-                {/* Main content grid - 3 columns */}
-                <div className="flex-1 grid grid-cols-12 gap-3 mt-3 min-h-0">
-                  {/* Left column: Current + Aurora */}
-                  <div className="col-span-3 flex flex-col gap-3">
+                {/* Top section: Current + Aurora + Trends */}
+                <div className="grid grid-cols-12 gap-3 mt-3" style={{ flex: '0 0 auto', height: '35%' }}>
+                  {/* Left: Current conditions */}
+                  <div className="col-span-2">
                     <CurrentConditionsHero
                       current={data.current}
                       snowDepth={data.snowDepth}
@@ -119,7 +119,11 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                       bgCard={bgCard}
                       textMuted={textMuted}
                     />
-                    {showAurora && data.kp && (
+                  </div>
+
+                  {/* Middle: Aurora (moved here from left) */}
+                  <div className="col-span-2">
+                    {showAurora && data.kp ? (
                       <AuroraSection
                         kp={data.kp}
                         lang={lang}
@@ -127,23 +131,15 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                         bgCard={bgCard}
                         textMuted={textMuted}
                       />
+                    ) : (
+                      <div className={`${bgCard} rounded-lg p-3 h-full flex items-center justify-center`}>
+                        <span className={textMuted}>{lang === 'no' ? 'Nordlys ikke tilgjengelig' : 'Aurora not available'}</span>
+                      </div>
                     )}
                   </div>
 
-                  {/* Middle column: 7-day forecast */}
-                  <div className="col-span-3 flex flex-col">
-                    <SevenDayForecast
-                      daily={data.daily}
-                      lang={lang}
-                      isDark={isDark}
-                      bgCard={bgCard}
-                      textMuted={textMuted}
-                      border={border}
-                    />
-                  </div>
-
-                  {/* Right column: Trends */}
-                  <div className="col-span-6 flex flex-col">
+                  {/* Right: Trends (bigger now) */}
+                  <div className="col-span-8">
                     <TrendCharts
                       daily={data.daily}
                       lang={lang}
@@ -152,6 +148,18 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                       textMuted={textMuted}
                     />
                   </div>
+                </div>
+
+                {/* Middle section: 7-day forecast (horizontal, full width) */}
+                <div className="mt-3 flex-1 min-h-0">
+                  <SevenDayForecastHorizontal
+                    daily={data.daily}
+                    lang={lang}
+                    isDark={isDark}
+                    bgCard={bgCard}
+                    textMuted={textMuted}
+                    border={border}
+                  />
                 </div>
 
                 {/* Bottom row: Moon and Sun */}
@@ -173,7 +181,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Footer */}
-                <div className={`text-center text-xs ${textMuted} pt-2 mt-2 border-t ${border} shrink-0`}>
+                <div className={`text-center text-sm ${textMuted} pt-2 mt-2 border-t ${border} shrink-0`}>
                   IntelMap {lang === 'no' ? 'Værrapport' : 'Weather Report'} &bull; {new Date().toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB')}
                 </div>
               </div>
@@ -201,15 +209,15 @@ function ReportHeader({ data, lang, accent, textMuted }) {
   return (
     <div className="flex items-center justify-between shrink-0">
       <div>
-        <h1 className={`text-xl font-bold ${accent}`}>
+        <h1 className={`text-2xl font-bold ${accent}`}>
           {locationName || coords}
         </h1>
         {locationName && (
-          <div className={`text-sm ${textMuted}`}>{coords}</div>
+          <div className={`text-base ${textMuted}`}>{coords}</div>
         )}
       </div>
       <div className="text-right">
-        <div className={`text-sm ${textMuted}`}>{dateStr}</div>
+        <div className={`text-base ${textMuted}`}>{dateStr}</div>
       </div>
     </div>
   );
@@ -222,25 +230,25 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
   const windDir = getWindDir(current.windDirection, lang);
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
-      <div className="flex items-center gap-3 mb-2">
-        {current.symbol && <WeatherIcon symbol={current.symbol} size={48} />}
+    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
+      <div className="flex items-center gap-3 mb-3">
+        {current.symbol && <WeatherIcon symbol={current.symbol} size={56} />}
         <div>
-          <div className={`text-3xl font-bold ${tempColor}`}>
+          <div className={`text-4xl font-bold ${tempColor}`}>
             {current.temperature?.toFixed(1)}°C
           </div>
           {current.symbol && (
-            <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
+            <div className={`text-base ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
           )}
           {current.feelsLike != null && Math.abs(current.feelsLike - current.temperature) > 1 && (
-            <div className={`text-xs ${textMuted}`}>
+            <div className={`text-sm ${textMuted}`}>
               {lang === 'no' ? 'Føles som' : 'Feels like'} {current.feelsLike.toFixed(1)}°C
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-2 flex-1">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
         <StatBox icon={<PressureIcon />} label={lang === 'no' ? 'Trykk' : 'Pressure'} value={`${current.pressure?.toFixed(0)} hPa`} isDark={isDark} />
@@ -256,25 +264,26 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
 function StatBox({ icon, label, value, isDark }) {
   return (
-    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-1.5 text-center`}>
-      <div className="flex justify-center mb-0.5 opacity-70">{icon}</div>
-      <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
-      <div className="font-semibold text-[11px]">{value}</div>
+    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-2 text-center`}>
+      <div className="flex justify-center mb-1 opacity-70">{icon}</div>
+      <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
+      <div className="font-semibold text-sm">{value}</div>
     </div>
   );
 }
 
-function SevenDayForecast({ daily, lang, isDark, bgCard, textMuted, border }) {
+function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3`}>
-      <h2 className={`text-sm font-semibold mb-2 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col`}>
+      <h2 className={`text-base font-semibold mb-3 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
-      <div className="space-y-1">
+      <div className="flex-1 flex gap-2 min-h-0">
         {daily.map((day, i) => {
           const date = new Date(day.date);
           const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
           const dateNum = date.getDate();
+          const month = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { month: 'short' });
 
           const tempHighColor = day.tempHigh < 0 ? 'text-blue-400' : day.tempHigh > 20 ? 'text-orange-400' : '';
           const tempLowColor = day.tempLow < 0 ? 'text-blue-300' : '';
@@ -282,19 +291,33 @@ function SevenDayForecast({ daily, lang, isDark, bgCard, textMuted, border }) {
           return (
             <div
               key={day.date}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-1 ring-cyan-500' : 'bg-blue-50 ring-1 ring-blue-400') : ''}`}
+              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-3 ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
-              <span className="w-8 font-medium">{dayName}</span>
-              <span className={`w-4 text-[10px] ${textMuted}`}>{dateNum}</span>
-              <div className="w-6 flex justify-center">
-                {day.symbol ? <WeatherIcon symbol={day.symbol} size={18} /> : null}
+              {/* Day and date */}
+              <div className="text-center shrink-0">
+                <div className="text-base font-bold">{dayName}</div>
+                <div className={`text-sm ${textMuted}`}>{dateNum}. {month}</div>
               </div>
-              <span className={`w-8 font-bold text-right ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</span>
-              <span className={`w-6 text-right ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</span>
-              <span className={`flex-1 text-right text-blue-400`}>
-                {day.precipitation > 0.1 ? `${day.precipitation.toFixed(1)}mm` : ''}
-              </span>
-              <span className={`w-10 text-right ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</span>
+
+              {/* Weather icon */}
+              <div className="my-2 flex-1 flex items-center justify-center">
+                {day.symbol ? <WeatherIcon symbol={day.symbol} size={48} /> : null}
+              </div>
+
+              {/* Temperatures */}
+              <div className="text-center shrink-0">
+                <div className={`text-2xl font-bold ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
+                <div className={`text-lg ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
+              </div>
+
+              {/* Extra info */}
+              <div className="text-center mt-2 space-y-1 shrink-0">
+                {day.precipitation > 0.1 && (
+                  <div className="text-sm text-blue-400 font-medium">{day.precipitation.toFixed(1)} mm</div>
+                )}
+                <div className={`text-sm ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
+                <div className={`text-xs ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
+              </div>
             </div>
           );
         })}
@@ -310,25 +333,25 @@ function TrendCharts({ daily, lang, isDark, bgCard, textMuted }) {
   const clouds = daily.map(d => ({ value: d.cloudAvg || 0, date: d.date }));
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col`}>
-      <h2 className={`text-sm font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col`}>
+      <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? 'Trender' : 'Trends'}
       </h2>
-      <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-1 min-h-0">
+      <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2 min-h-0">
         <div className="flex flex-col min-h-0">
-          <div className={`text-xs font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Temperatur (°C)' : 'Temperature (°C)'}</div>
+          <div className={`text-sm font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Temperatur (°C)' : 'Temperature (°C)'}</div>
           <div className="flex-1 min-h-0"><TemperatureChart data={temps} isDark={isDark} lang={lang} /></div>
         </div>
         <div className="flex flex-col min-h-0">
-          <div className={`text-xs font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Vind (m/s)' : 'Wind (m/s)'}</div>
+          <div className={`text-sm font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Vind (m/s)' : 'Wind (m/s)'}</div>
           <div className="flex-1 min-h-0"><WindChart data={winds} isDark={isDark} lang={lang} /></div>
         </div>
         <div className="flex flex-col min-h-0">
-          <div className={`text-xs font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Nedbør (mm)' : 'Precipitation (mm)'}</div>
+          <div className={`text-sm font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Nedbør (mm)' : 'Precipitation (mm)'}</div>
           <div className="flex-1 min-h-0"><PrecipChart data={precips} isDark={isDark} lang={lang} /></div>
         </div>
         <div className="flex flex-col min-h-0">
-          <div className={`text-xs font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Skydekke (%)' : 'Cloud Cover (%)'}</div>
+          <div className={`text-sm font-medium ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Skydekke (%)' : 'Cloud Cover (%)'}</div>
           <div className="flex-1 min-h-0"><CloudChart data={clouds} isDark={isDark} lang={lang} /></div>
         </div>
       </div>
@@ -341,8 +364,8 @@ function TemperatureChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 140;
-  const padding = { top: 12, right: 12, bottom: 20, left: 28 };
+  const height = 160;
+  const padding = { top: 15, right: 15, bottom: 24, left: 35 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
@@ -363,19 +386,19 @@ function TemperatureChart({ data, isDark, lang }) {
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={yScale(v)} x2={width - padding.right} y2={yScale(v)} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
-          <text x={padding.left - 3} y={yScale(v) + 3} fontSize="9" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}°</text>
+          <text x={padding.left - 5} y={yScale(v) + 4} fontSize="12" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}°</text>
         </g>
       ))}
-      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.high)}`).join(' ')} fill="none" stroke="#f97316" strokeWidth="2" />
-      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.low)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="2" />
+      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.high)}`).join(' ')} fill="none" stroke="#f97316" strokeWidth="2.5" />
+      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.low)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="2.5" />
       {data.map((d, i) => {
         const date = new Date(d.date);
         const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
         return (
           <g key={i}>
-            <circle cx={xScale(i)} cy={yScale(d.high)} r="3" fill="#f97316" />
-            <circle cx={xScale(i)} cy={yScale(d.low)} r="3" fill="#3b82f6" />
-            <text x={xScale(i)} y={height - 4} fontSize="8" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
+            <circle cx={xScale(i)} cy={yScale(d.high)} r="4" fill="#f97316" />
+            <circle cx={xScale(i)} cy={yScale(d.low)} r="4" fill="#3b82f6" />
+            <text x={xScale(i)} y={height - 6} fontSize="11" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
           </g>
         );
       })}
@@ -387,13 +410,13 @@ function WindChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 140;
-  const padding = { top: 18, right: 12, bottom: 20, left: 28 };
+  const height = 160;
+  const padding = { top: 22, right: 15, bottom: 24, left: 35 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
   const maxW = Math.ceil(Math.max(...data.map(d => d.value), 10) / 5) * 5;
-  const barWidth = (w / data.length) * 0.65;
+  const barWidth = (w / data.length) * 0.6;
 
   const ySteps = [];
   for (let v = 0; v <= maxW; v += 5) ySteps.push(v);
@@ -403,7 +426,7 @@ function WindChart({ data, isDark, lang }) {
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={padding.top + h - (v / maxW) * h} x2={width - padding.right} y2={padding.top + h - (v / maxW) * h} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
-          <text x={padding.left - 3} y={padding.top + h - (v / maxW) * h + 3} fontSize="9" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}</text>
+          <text x={padding.left - 5} y={padding.top + h - (v / maxW) * h + 4} fontSize="12" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}</text>
         </g>
       ))}
       {data.map((d, i) => {
@@ -415,9 +438,9 @@ function WindChart({ data, isDark, lang }) {
         const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
         return (
           <g key={i}>
-            <rect x={x} y={y} width={barWidth} height={barH} fill={color} rx="2" />
-            <text x={x + barWidth / 2} y={y - 2} fontSize="8" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{d.value.toFixed(0)}</text>
-            <text x={x + barWidth / 2} y={height - 4} fontSize="8" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
+            <rect x={x} y={y} width={barWidth} height={barH} fill={color} rx="3" />
+            <text x={x + barWidth / 2} y={y - 4} fontSize="11" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{d.value.toFixed(0)}</text>
+            <text x={x + barWidth / 2} y={height - 6} fontSize="11" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
           </g>
         );
       })}
@@ -429,13 +452,13 @@ function PrecipChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 140;
-  const padding = { top: 18, right: 12, bottom: 20, left: 28 };
+  const height = 160;
+  const padding = { top: 22, right: 15, bottom: 24, left: 35 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
   const maxP = Math.max(Math.ceil(Math.max(...data.map(d => d.value)) / 5) * 5, 5);
-  const barWidth = (w / data.length) * 0.65;
+  const barWidth = (w / data.length) * 0.6;
 
   const ySteps = [];
   const stepSize = maxP > 20 ? 10 : maxP > 10 ? 5 : 2;
@@ -452,7 +475,7 @@ function PrecipChart({ data, isDark, lang }) {
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={padding.top + h - (v / maxP) * h} x2={width - padding.right} y2={padding.top + h - (v / maxP) * h} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
-          <text x={padding.left - 3} y={padding.top + h - (v / maxP) * h + 3} fontSize="9" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}</text>
+          <text x={padding.left - 5} y={padding.top + h - (v / maxP) * h + 4} fontSize="12" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}</text>
         </g>
       ))}
       {data.map((d, i) => {
@@ -463,9 +486,9 @@ function PrecipChart({ data, isDark, lang }) {
         const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
         return (
           <g key={i}>
-            <rect x={x} y={y} width={barWidth} height={barH} fill="url(#precipGrad)" rx="2" />
-            {d.value > 0.1 && <text x={x + barWidth / 2} y={y - 2} fontSize="8" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{d.value.toFixed(1)}</text>}
-            <text x={x + barWidth / 2} y={height - 4} fontSize="8" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
+            <rect x={x} y={y} width={barWidth} height={barH} fill="url(#precipGrad)" rx="3" />
+            {d.value > 0.1 && <text x={x + barWidth / 2} y={y - 4} fontSize="11" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{d.value.toFixed(1)}</text>}
+            <text x={x + barWidth / 2} y={height - 6} fontSize="11" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
           </g>
         );
       })}
@@ -477,8 +500,8 @@ function CloudChart({ data, isDark, lang }) {
   if (!data.length) return null;
 
   const width = 400;
-  const height = 140;
-  const padding = { top: 12, right: 12, bottom: 20, left: 32 };
+  const height = 160;
+  const padding = { top: 15, right: 15, bottom: 24, left: 40 };
   const w = width - padding.left - padding.right;
   const h = height - padding.top - padding.bottom;
 
@@ -500,18 +523,18 @@ function CloudChart({ data, isDark, lang }) {
       {ySteps.map(v => (
         <g key={v}>
           <line x1={padding.left} y1={yScale(v)} x2={width - padding.right} y2={yScale(v)} stroke={isDark ? '#475569' : '#e2e8f0'} strokeDasharray="2,2" />
-          <text x={padding.left - 3} y={yScale(v) + 3} fontSize="9" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}%</text>
+          <text x={padding.left - 5} y={yScale(v) + 4} fontSize="12" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="end">{v}%</text>
         </g>
       ))}
       <path d={areaPath} fill="url(#cloudGrad)" />
-      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.value)}`).join(' ')} fill="none" stroke={isDark ? '#94a3b8' : '#64748b'} strokeWidth="2" />
+      <polyline points={data.map((d, i) => `${xScale(i)},${yScale(d.value)}`).join(' ')} fill="none" stroke={isDark ? '#94a3b8' : '#64748b'} strokeWidth="2.5" />
       {data.map((d, i) => {
         const date = new Date(d.date);
         const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
         return (
           <g key={i}>
-            <circle cx={xScale(i)} cy={yScale(d.value)} r="3" fill={isDark ? '#94a3b8' : '#64748b'} />
-            <text x={xScale(i)} y={height - 4} fontSize="8" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
+            <circle cx={xScale(i)} cy={yScale(d.value)} r="4" fill={isDark ? '#94a3b8' : '#64748b'} />
+            <text x={xScale(i)} y={height - 6} fontSize="11" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{dayName}</text>
           </g>
         );
       })}
@@ -539,38 +562,38 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
   };
 
   // Chart dimensions for aurora forecast
-  const chartWidth = 200;
-  const chartHeight = 60;
-  const padding = { top: 14, right: 8, bottom: 4, left: 8 };
+  const chartWidth = 220;
+  const chartHeight = 80;
+  const padding = { top: 18, right: 8, bottom: 4, left: 8 };
   const w = chartWidth - padding.left - padding.right;
   const h = chartHeight - padding.top - padding.bottom;
-  const barWidth = (w / kpForecast.length) * 0.8;
+  const barWidth = (w / kpForecast.length) * 0.75;
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
-      <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
+      <h3 className={`text-base font-semibold mb-3 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
         {lang === 'no' ? 'Nordlys' : 'Aurora'}
       </h3>
-      <div className="flex items-center gap-2">
-        <div className="relative w-14 h-14 shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="relative w-20 h-20 shrink-0">
           <svg viewBox="0 0 100 100" className="w-full h-full">
             <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={isDark ? '#475569' : '#e2e8f0'} strokeWidth="10" />
             <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={getKpColor(currentKp)} strokeWidth="10" strokeDasharray={`${(currentKp / 9) * 188} 188`} />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center pt-2">
-            <span className="text-lg font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
+            <span className="text-2xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
           </div>
         </div>
         <div className="flex-1">
-          <div className="text-sm font-medium" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
-          <div className={`text-[10px] ${textMuted}`}>Kp-indeks</div>
+          <div className="text-lg font-semibold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
+          <div className={`text-sm ${textMuted}`}>Kp-indeks</div>
         </div>
       </div>
 
-      {/* Aurora forecast bar chart like the aurora overlay */}
+      {/* Aurora forecast bar chart */}
       {kpForecast.length > 0 && (
-        <div className="mt-2">
-          <div className={`text-[10px] ${textMuted} mb-1`}>{lang === 'no' ? 'Neste 24t' : 'Next 24h'}</div>
+        <div className="mt-auto pt-2">
+          <div className={`text-sm ${textMuted} mb-1`}>{lang === 'no' ? 'Neste 24t' : 'Next 24h'}</div>
           <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="xMidYMid meet">
             {kpForecast.map((k, i) => {
               const barH = (k.kp / 9) * h;
@@ -579,7 +602,7 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
               return (
                 <g key={i}>
                   <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="2" />
-                  <text x={x + barWidth / 2} y={y - 2} fontSize="7" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
+                  <text x={x + barWidth / 2} y={y - 3} fontSize="10" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
                 </g>
               );
             })}
@@ -594,8 +617,8 @@ function MoonPhasesSection({ daily, lang, isDark, bgCard, textMuted }) {
   const getIllumination = (deg) => Math.round((1 - Math.cos(deg * Math.PI / 180)) / 2 * 100);
 
   return (
-    <div className={`${bgCard} rounded-lg p-3`}>
-      <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+    <div className={`${bgCard} rounded-lg p-4`}>
+      <h3 className={`text-base font-semibold mb-3 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
         {lang === 'no' ? 'Månefaser' : 'Moon Phases'}
       </h3>
       <div className="flex justify-between items-start">
@@ -606,12 +629,12 @@ function MoonPhasesSection({ daily, lang, isDark, bgCard, textMuted }) {
           const illum = day.moonphase != null ? getIllumination(day.moonphase) : null;
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-xs font-medium">{dayName}</div>
-              <div className={`text-[10px] ${textMuted}`}>{dateNum}</div>
-              <div className="my-1.5 flex justify-center">
-                {day.moonphase != null ? <MoonPhaseIcon degree={day.moonphase} size={28} /> : <div className="w-7 h-7 rounded-full bg-slate-600" />}
+              <div className="text-sm font-medium">{dayName}</div>
+              <div className={`text-xs ${textMuted}`}>{dateNum}</div>
+              <div className="my-2 flex justify-center">
+                {day.moonphase != null ? <MoonPhaseIcon degree={day.moonphase} size={36} /> : <div className="w-9 h-9 rounded-full bg-slate-600" />}
               </div>
-              {illum != null && <div className="text-xs font-medium">{illum}%</div>}
+              {illum != null && <div className="text-sm font-semibold">{illum}%</div>}
             </div>
           );
         })}
@@ -631,8 +654,8 @@ function SunTimesSection({ daily, lang, isDark, bgCard, textMuted }) {
   };
 
   return (
-    <div className={`${bgCard} rounded-lg p-3`}>
-      <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+    <div className={`${bgCard} rounded-lg p-4`}>
+      <h3 className={`text-base font-semibold mb-3 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
         {lang === 'no' ? 'Soloppgang / Solnedgang' : 'Sunrise / Sunset'}
       </h3>
       <div className="flex justify-between items-start">
@@ -642,11 +665,11 @@ function SunTimesSection({ daily, lang, isDark, bgCard, textMuted }) {
           const dateNum = date.getDate();
           return (
             <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-xs font-medium">{dayName}</div>
-              <div className={`text-[10px] ${textMuted}`}>{dateNum}</div>
-              <div className="mt-1.5">
-                <div className="text-xs text-yellow-500 font-medium">{formatTime(day.sunrise)}</div>
-                <div className="text-xs text-orange-500 font-medium">{formatTime(day.sunset)}</div>
+              <div className="text-sm font-medium">{dayName}</div>
+              <div className={`text-xs ${textMuted}`}>{dateNum}</div>
+              <div className="mt-2">
+                <div className="text-sm text-yellow-500 font-semibold">{formatTime(day.sunrise)}</div>
+                <div className="text-sm text-orange-500 font-semibold">{formatTime(day.sunset)}</div>
               </div>
             </div>
           );
