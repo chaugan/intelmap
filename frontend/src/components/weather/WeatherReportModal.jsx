@@ -149,8 +149,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
                 </div>
 
-                {/* 7-day forecast (horizontal, full width) - fixed height */}
-                <div className="mt-3" style={{ flex: '0 0 auto', height: '28%' }}>
+                {/* 7-day forecast (horizontal, full width) */}
+                <div className="mt-3" style={{ flex: '0 0 auto', height: '22%' }}>
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -161,8 +161,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   />
                 </div>
 
-                {/* Bottom row: Moon and Sun */}
-                <div className="grid grid-cols-2 gap-3 mt-3 flex-1 min-h-0">
+                {/* Bottom row: Moon and Sun - fixed height */}
+                <div className="grid grid-cols-2 gap-3 mt-3 shrink-0">
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -229,31 +229,35 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
   const windDir = getWindDir(current.windDirection, lang);
 
   return (
-    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
-      <div className="flex items-center gap-3 mb-3">
-        {current.symbol && <WeatherIcon symbol={current.symbol} size={56} />}
-        <div>
-          <div className={`text-4xl font-bold ${tempColor}`}>
-            {current.temperature?.toFixed(1)}°C
-          </div>
+    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
+      {/* Temperature row - icon, temp, and description side by side */}
+      <div className="flex items-center gap-2 mb-2 shrink-0">
+        {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
+        <div className={`text-3xl font-bold ${tempColor}`}>
+          {current.temperature?.toFixed(1)}°C
+        </div>
+        <div className="ml-2">
           {current.symbol && (
-            <div className={`text-base ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
+            <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
           )}
           {current.feelsLike != null && Math.abs(current.feelsLike - current.temperature) > 1 && (
-            <div className={`text-sm ${textMuted}`}>
+            <div className={`text-xs ${textMuted}`}>
               {lang === 'no' ? 'Føles som' : 'Feels like'} {current.feelsLike.toFixed(1)}°C
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 flex-1">
+      {/* Stat boxes - 3 columns to fill more space */}
+      <div className="grid grid-cols-3 gap-2 flex-1">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
         <StatBox icon={<PressureIcon />} label={lang === 'no' ? 'Trykk' : 'Pressure'} value={`${current.pressure?.toFixed(0)} hPa`} isDark={isDark} />
         <StatBox icon={<CloudIcon />} label={lang === 'no' ? 'Skyer' : 'Clouds'} value={`${current.cloudCover?.toFixed(0)}%`} isDark={isDark} />
-        {snowDepth && (
+        {snowDepth ? (
           <StatBox icon={<SnowflakeIcon />} label={lang === 'no' ? 'Snødybde' : 'Snow'} value={snowDepth.label?.[lang] || snowDepth.depth} isDark={isDark} />
+        ) : (
+          <StatBox icon={<SnowflakeIcon />} label={lang === 'no' ? 'Snødybde' : 'Snow'} value="-" isDark={isDark} />
         )}
         <StatBox icon={<PrecipIcon />} label={lang === 'no' ? 'Nedbør' : 'Precip'} value={`${current.precipitation?.toFixed(1) || '0'} mm`} isDark={isDark} />
       </div>
@@ -263,18 +267,18 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
 function StatBox({ icon, label, value, isDark }) {
   return (
-    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-2 text-center`}>
+    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-2 text-center flex flex-col justify-center`}>
       <div className="flex justify-center mb-1 opacity-70">{icon}</div>
-      <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
-      <div className="font-semibold text-sm">{value}</div>
+      <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
+      <div className="font-semibold text-base">{value}</div>
     </div>
   );
 }
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-4 h-full flex flex-col`}>
-      <h2 className={`text-base font-semibold mb-3 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col`}>
+      <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
       <div className="flex-1 flex gap-2 min-h-0">
@@ -290,32 +294,32 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
           return (
             <div
               key={day.date}
-              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-3 ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
+              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 ${i === 0 ? (isDark ? 'bg-slate-600/50 ring-2 ring-cyan-500' : 'bg-blue-50 ring-2 ring-blue-400') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
               {/* Day and date */}
               <div className="text-center shrink-0">
-                <div className="text-base font-bold">{dayName}</div>
-                <div className={`text-sm ${textMuted}`}>{dateNum}. {month}</div>
+                <div className="text-lg font-bold">{dayName}</div>
+                <div className={`text-base ${textMuted}`}>{dateNum}. {month}</div>
               </div>
 
               {/* Weather icon */}
-              <div className="my-2 flex-1 flex items-center justify-center">
-                {day.symbol ? <WeatherIcon symbol={day.symbol} size={48} /> : null}
+              <div className="my-1 flex items-center justify-center">
+                {day.symbol ? <WeatherIcon symbol={day.symbol} size={40} /> : null}
               </div>
 
               {/* Temperatures */}
               <div className="text-center shrink-0">
                 <div className={`text-2xl font-bold ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
-                <div className={`text-lg ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
+                <div className={`text-xl ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
               </div>
 
               {/* Extra info */}
-              <div className="text-center mt-2 space-y-1 shrink-0">
+              <div className="text-center space-y-0 shrink-0">
                 {day.precipitation > 0.1 && (
-                  <div className="text-sm text-blue-400 font-medium">{day.precipitation.toFixed(1)} mm</div>
+                  <div className="text-base text-blue-400 font-medium">{day.precipitation.toFixed(1)} mm</div>
                 )}
-                <div className={`text-sm ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
-                <div className={`text-xs ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
+                <div className={`text-base ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
+                <div className={`text-sm ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
               </div>
             </div>
           );
@@ -632,53 +636,55 @@ function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
     return lang === 'no' ? 'Storm' : 'Storm';
   };
 
-  // Chart dimensions
-  const chartWidth = 280;
-  const chartHeight = 50;
-  const padding = { top: 14, right: 8, bottom: 4, left: 8 };
+  // Chart dimensions - make it fill the available space
+  const chartWidth = 300;
+  const chartHeight = 80;
+  const padding = { top: 18, right: 10, bottom: 6, left: 10 };
   const w = chartWidth - padding.left - padding.right;
   const h = chartHeight - padding.top - padding.bottom;
-  const barWidth = (w / kpForecast.length) * 0.75;
+  const barWidth = (w / kpForecast.length) * 0.7;
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex items-center gap-4 ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
-      {/* Kp gauge */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="relative w-14 h-14">
+    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-purple-900/30 to-emerald-900/30' : 'bg-gradient-to-br from-purple-50 to-emerald-50'}`}>
+      {/* Top row: Kp gauge and info */}
+      <div className="flex items-center gap-3 shrink-0 mb-2">
+        <div className="relative w-16 h-16 shrink-0">
           <svg viewBox="0 0 100 100" className="w-full h-full">
             <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={isDark ? '#475569' : '#e2e8f0'} strokeWidth="10" />
             <path d="M 10 70 A 40 40 0 1 1 90 70" fill="none" stroke={getKpColor(currentKp)} strokeWidth="10" strokeDasharray={`${(currentKp / 9) * 188} 188`} />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center pt-2">
-            <span className="text-xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
+            <span className="text-2xl font-bold" style={{ color: getKpColor(currentKp) }}>{currentKp.toFixed(1)}</span>
           </div>
         </div>
         <div>
-          <h3 className={`text-sm font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+          <h3 className={`text-base font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
             {lang === 'no' ? 'Nordlys' : 'Aurora'}
           </h3>
-          <div className="text-base font-semibold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
-          <div className={`text-xs ${textMuted}`}>Kp-indeks</div>
+          <div className="text-lg font-semibold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</div>
+          <div className={`text-sm ${textMuted}`}>Kp-indeks</div>
         </div>
       </div>
 
-      {/* Forecast chart */}
+      {/* Forecast chart - fills remaining space */}
       {kpForecast.length > 0 && (
-        <div className="flex-1">
-          <div className={`text-xs ${textMuted} mb-1`}>{lang === 'no' ? 'Neste 24t' : 'Next 24h'}</div>
-          <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="xMidYMid meet">
-            {kpForecast.map((k, i) => {
-              const barH = (k.kp / 9) * h;
-              const x = padding.left + (i / kpForecast.length) * w + (w / kpForecast.length - barWidth) / 2;
-              const y = padding.top + h - barH;
-              return (
-                <g key={i}>
-                  <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="2" />
-                  <text x={x + barWidth / 2} y={y - 2} fontSize="9" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
-                </g>
-              );
-            })}
-          </svg>
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className={`text-sm ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Neste 24t' : 'Next 24h'}</div>
+          <div className="flex-1">
+            <svg width="100%" height="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="xMidYMid meet">
+              {kpForecast.map((k, i) => {
+                const barH = (k.kp / 9) * h;
+                const x = padding.left + (i / kpForecast.length) * w + (w / kpForecast.length - barWidth) / 2;
+                const y = padding.top + h - barH;
+                return (
+                  <g key={i}>
+                    <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="3" />
+                    <text x={x + barWidth / 2} y={y - 3} fontSize="11" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
         </div>
       )}
     </div>
