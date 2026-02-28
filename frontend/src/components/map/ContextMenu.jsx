@@ -198,10 +198,43 @@ export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalP
 
   // Position: when x/y are 0 (wrapped in DraggablePopup), don't apply positioning
   const isWrapped = x === 0 && y === 0;
+
+  // Calculate clamped position to keep dialog within viewport
+  const [clampedPos, setClampedPos] = useState({ left: x, top: y });
+
+  useEffect(() => {
+    if (isWrapped || !ref.current) return;
+
+    const rect = ref.current.getBoundingClientRect();
+    const padding = 10;
+
+    let left = x;
+    let top = y;
+
+    // Clamp right edge
+    if (left + rect.width > window.innerWidth - padding) {
+      left = window.innerWidth - rect.width - padding;
+    }
+    // Clamp left edge
+    if (left < padding) {
+      left = padding;
+    }
+    // Clamp bottom edge
+    if (top + rect.height > window.innerHeight - padding) {
+      top = window.innerHeight - rect.height - padding;
+    }
+    // Clamp top edge
+    if (top < padding) {
+      top = padding;
+    }
+
+    setClampedPos({ left, top });
+  }, [x, y, isWrapped]);
+
   const style = isWrapped ? {} : {
     position: 'absolute',
-    left: Math.min(x, window.innerWidth - 280),
-    top: Math.min(y, window.innerHeight - 350),
+    left: clampedPos.left,
+    top: clampedPos.top,
     zIndex: 50,
   };
 

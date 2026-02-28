@@ -68,19 +68,34 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   let posX = canvasX + mapOffset.left;
   let posY = canvasY + mapOffset.top;
 
-  // Clamp popup position to stay within viewport
+  // Clamp popup position to stay within viewport (all edges)
   const popupEl = containerRef.current;
   if (popupEl && !isDragged) {
     const rect = popupEl.getBoundingClientRect();
     const popupH = rect.height || 200;
     const popupW = rect.width || 260;
-    if (posY - popupH < 0) {
-      const shift = popupH + 20;
+    const padding = 10;
+
+    // Clamp bottom edge (popup appears above cursor by default)
+    if (posY + popupH > window.innerHeight - padding) {
+      const shift = posY + popupH - (window.innerHeight - padding);
+      canvasY -= shift;
+      posY -= shift;
+    }
+    // Clamp top edge
+    if (posY < padding) {
+      const shift = padding - posY;
       canvasY += shift;
       posY += shift;
     }
-    if (posX + popupW > window.innerWidth) {
-      posX = window.innerWidth - popupW - 10;
+    // Clamp right edge
+    if (posX + popupW > window.innerWidth - padding) {
+      posX = window.innerWidth - popupW - padding;
+      canvasX = posX - mapOffset.left;
+    }
+    // Clamp left edge
+    if (posX < padding) {
+      posX = padding;
       canvasX = posX - mapOffset.left;
     }
   }
