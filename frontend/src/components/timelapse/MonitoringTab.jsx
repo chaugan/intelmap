@@ -74,8 +74,8 @@ export default function MonitoringTab() {
     if (highlightCameraId && cardRefs.current[highlightCameraId]) {
       // Scroll to the camera card
       cardRefs.current[highlightCameraId].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Clear highlight after animation completes
-      const timer = setTimeout(clearHighlightCamera, 2000);
+      // Clear highlight after 5 seconds
+      const timer = setTimeout(clearHighlightCamera, 5000);
       return () => clearTimeout(timer);
     }
   }, [highlightCameraId, clearHighlightCamera]);
