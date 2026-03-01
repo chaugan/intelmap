@@ -19,6 +19,25 @@ export default function WasosUploadDialog() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Define handlers before useEffect hooks that reference them
+  const handleClose = () => {
+    setWasosUploadOpen(false);
+    setDescription('');
+    setError('');
+    setSuccess(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await uploadToWasos(description);
+      setSuccess(true);
+    } catch (err) {
+      setError(err.message || t('wasos.uploadFailed', lang));
+    }
+  };
+
   // Reset form when dialog opens
   useEffect(() => {
     if (wasosUploadOpen) {
@@ -39,24 +58,6 @@ export default function WasosUploadDialog() {
   }, [success]);
 
   if (!wasosUploadOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await uploadToWasos(description);
-      setSuccess(true);
-    } catch (err) {
-      setError(err.message || t('wasos.uploadFailed', lang));
-    }
-  };
-
-  const handleClose = () => {
-    setWasosUploadOpen(false);
-    setDescription('');
-    setError('');
-    setSuccess(false);
-  };
 
   return (
     <div
