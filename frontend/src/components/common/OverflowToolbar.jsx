@@ -121,8 +121,12 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {overflowItems.filter((child) => {
-            // Skip dividers marked with data-divider attribute
-            if (child?.props?.['data-divider']) return false;
+            // Skip dividers - check data-divider or if it's an empty div with divider styling
+            const props = child?.props || {};
+            console.log('Overflow child:', child?.type, props);
+            if (props['data-divider'] === 'true' || props['data-divider'] === true) return false;
+            // Fallback: check if className contains divider patterns
+            if (typeof props.className === 'string' && props.className.includes('w-px')) return false;
             return true;
           }).map((child, i) => (
             <div key={i} className="px-2 py-1">
