@@ -158,7 +158,11 @@ router.post('/upload', async (req, res) => {
     const username = getUsername(user);
     const taskuuid = crypto.randomUUID();
     const description = text || 'Transfer from IntelMap';
-    const coords = coordinates || [9.686164855957031, 59.670897004902216];
+    // Ensure coordinates are numbers, not strings
+    const defaultCoords = [9.686164855957031, 59.670897004902216];
+    const coords = coordinates
+      ? [parseFloat(coordinates[0]), parseFloat(coordinates[1])]
+      : defaultCoords;
 
     const metadata = {
       taskuuid,
