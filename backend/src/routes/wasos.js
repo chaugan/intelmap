@@ -179,9 +179,9 @@ router.post('/upload', async (req, res) => {
 
     // Use native FormData with File (Node 20+)
     const formData = new FormData();
-    formData.append('mediadescription', JSON.stringify(metadata));
+    formData.append('metadata', JSON.stringify(metadata));
     const file = new File([imageBuffer], fname, { type: 'image/png' });
-    formData.append('file', file);
+    formData.append('files', file);
 
     console.log('WaSOS upload attempt:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length });
 
