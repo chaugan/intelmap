@@ -114,6 +114,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
       </div>
 
       {/* Overflow menu */}
+      {console.log('Menu state:', { menuOpen, overflowItemsCount: overflowItems.length, hasOverflow, overflowIndex })}
       {menuOpen && overflowItems.length > 0 && createPortal(
         <div
           ref={menuRef}
