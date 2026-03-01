@@ -47,15 +47,7 @@ export default function WasosUploadDialog() {
     }
   }, [wasosUploadOpen]);
 
-  // Auto-close after success
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [success]);
+  // No auto-close - user must click button to dismiss success dialog
 
   if (!wasosUploadOpen) return null;
 
