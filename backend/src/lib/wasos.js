@@ -1,17 +1,37 @@
 /**
  * WaSOS Keycloak OAuth authentication service
  *
- * Handles form-based Keycloak login flow:
- * 1. GET authorization URL -> redirects to login page with session params
- * 2. Parse form action URL from HTML (contains session_code, execution, tab_id)
- * 3. POST username/password to form action
- * 4. Follow redirect chain to callback with ?code=...
- * 5. Exchange code for tokens at token endpoint
+ * Handles form-based Keycloak login flow with PKCE:
+ * 1. Generate PKCE code_verifier and code_challenge
+ * 2. GET authorization URL -> redirects to login page with session params
+ * 3. Parse form action URL from HTML (contains session_code, execution, tab_id)
+ * 4. POST username/password to form action
+ * 5. Follow redirect chain to callback with ?code=...
+ * 6. Exchange code for tokens at token endpoint (with code_verifier)
  */
+
+import crypto from 'crypto';
 
 const AUTH_BASE = 'https://wasos.no/auth/realms/jisr/protocol/openid-connect';
 const CLIENT_ID = 'apisec';
 const REDIRECT_URI = 'https://wasos.no/apisec/callback';
+
+/**
+ * Generate PKCE code verifier and challenge
+ * @returns {{verifier: string, challenge: string}}
+ */
+function generatePKCE() {
+  // Generate random 32 bytes, base64url encode to get ~43 char verifier
+  const verifier = crypto.randomBytes(32)
+    .toString('base64url');
+
+  // SHA256 hash the verifier, then base64url encode
+  const challenge = crypto.createHash('sha256')
+    .update(verifier)
+    .digest('base64url');
+
+  return { verifier, challenge };
+}
 
 /**
  * Perform Keycloak login and obtain access/refresh tokens
@@ -20,12 +40,17 @@ const REDIRECT_URI = 'https://wasos.no/apisec/callback';
  * @returns {Promise<{access_token: string, refresh_token: string, expires_at: number}>}
  */
 export async function wasosLogin(username, password) {
-  // Step 1: Start OAuth flow - get login page
+  // Step 1: Generate PKCE verifier and challenge
+  const pkce = generatePKCE();
+
+  // Step 2: Start OAuth flow - get login page
   const authUrl = `${AUTH_BASE}/auth?` + new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
     scope: 'openid',
+    code_challenge: pkce.challenge,
+    code_challenge_method: 'S256',
   });
 
   // Fetch login page (don't follow redirects automatically for callback)
@@ -48,7 +73,7 @@ export async function wasosLogin(username, password) {
 
   const loginPageHtml = await loginPageRes.text();
 
-  // Step 2: Parse form action URL from HTML
+  // Step 3: Parse form action URL from HTML
   // The form action contains the session_code, execution, tab_id etc.
   const formActionMatch = loginPageHtml.match(/action="([^"]+)"/);
   if (!formActionMatch) {
@@ -64,7 +89,7 @@ export async function wasosLogin(username, password) {
   const cookies = loginPageRes.headers.getSetCookie?.() || [];
   const cookieHeader = cookies.map(c => c.split(';')[0]).join('; ');
 
-  // Step 3: POST credentials to form action
+  // Step 4: POST credentials to form action
   const loginRes = await fetch(formAction, {
     method: 'POST',
     redirect: 'manual',
@@ -80,7 +105,7 @@ export async function wasosLogin(username, password) {
     }),
   });
 
-  // Step 4: Follow redirects to get authorization code
+  // Step 5: Follow redirects to get authorization code
   // On successful login, Keycloak redirects to callback with code
   if (loginRes.status !== 302 && loginRes.status !== 303) {
     // Check if it's an auth error (page returned instead of redirect)
@@ -119,7 +144,7 @@ export async function wasosLogin(username, password) {
     throw new Error('No authorization code in callback');
   }
 
-  // Step 5: Exchange code for tokens
+  // Step 6: Exchange code for tokens (with PKCE verifier)
   const tokenRes = await fetch(`${AUTH_BASE}/token`, {
     method: 'POST',
     headers: {
@@ -131,6 +156,7 @@ export async function wasosLogin(username, password) {
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
       code,
+      code_verifier: pkce.verifier,
     }),
   });
 
