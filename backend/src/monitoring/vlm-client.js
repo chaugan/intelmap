@@ -35,18 +35,21 @@ class VlmClient {
    */
   buildPrompt(labels) {
     const labelList = labels.join(', ');
-    return `For each object in this image, return ALL applicable labels from: ${labelList}
+    return `Detect objects in this image. For each object found, list ALL applicable labels from: ${labelList}
 
-Return EXACTLY this JSON format:
-{"objects": [{"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]}]}
+Return a JSON array where EACH object is a SEPARATE entry:
+{"objects": [
+  {"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]},
+  {"bbox": [x1, y1, x2, y2], "labels": ["label1"]}
+]}
 
-Rules:
-- Each detected object gets ONE entry with ALL matching labels from the list
-- "bbox" MUST be an array of exactly 4 integers: [left, top, right, bottom]
-- "labels" is an array of strings - include EVERY applicable label per object
-- Example: a tank could have labels ["tank", "stridsvogn", "militære kjøretøy"]
-- If nothing is found, return: {"objects": []}
-- Output ONLY valid JSON, no markdown, no explanation`;
+CRITICAL RULES:
+- Each detected object MUST be a SEPARATE {} in the array
+- Do NOT put multiple bbox/labels in the same object
+- "bbox" is 4 integers: [left, top, right, bottom]
+- "labels" lists ALL matching labels for that ONE object
+- If nothing found: {"objects": []}
+- Output ONLY valid JSON`;
   }
 
   /**
@@ -127,6 +130,27 @@ Rules:
       // Fix common JSON errors: missing ] before "labels"
       // e.g., {"bbox": [1, 2, 3, 4, "labels": [...]} -> {"bbox": [1, 2, 3, 4], "labels": [...]}
       responseText = responseText.replace(/\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*"labels"/g, '[$1, $2, $3, $4], "labels"');
+
+      // Fix malformed JSON where VLM puts multiple bbox/labels in same object
+      // e.g., {"objects": [{"bbox": [...], "labels": [...], "bbox": [...], "labels": [...]}]}
+      // Should be: {"objects": [{"bbox": [...], "labels": [...]}, {"bbox": [...], "labels": [...]}]}
+      if (responseText.includes('"labels"') && responseText.includes('"bbox"')) {
+        // Check for repeated bbox pattern in same object (invalid JSON)
+        const repeatedBboxPattern = /\{"bbox":\s*\[[^\]]+\],\s*"labels":\s*\[[^\]]+\],\s*"bbox":/;
+        if (repeatedBboxPattern.test(responseText)) {
+          // Extract all bbox/labels pairs and rebuild properly
+          const pairPattern = /"bbox":\s*(\[[^\]]+\]),\s*"labels":\s*(\[[^\]]+\])/g;
+          const pairs = [];
+          let match;
+          while ((match = pairPattern.exec(responseText)) !== null) {
+            pairs.push(`{"bbox": ${match[1]}, "labels": ${match[2]}}`);
+          }
+          if (pairs.length > 0) {
+            responseText = `{"objects": [${pairs.join(', ')}]}`;
+          }
+        }
+      }
+
       parsed = JSON.parse(responseText);
     } catch (err) {
       throw new Error(`VLM returned invalid JSON: ${result.response}`);
