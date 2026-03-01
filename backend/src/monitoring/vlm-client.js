@@ -69,6 +69,7 @@ Return a JSON array where EACH object is a SEPARATE entry:
 ]}
 
 CRITICAL RULES:
+- Only detect objects you are HIGHLY CONFIDENT about. If unsure, do not include.
 - Maximum 15 objects - prioritize largest/most prominent
 - Each detected object MUST be a SEPARATE {} in the array
 - Do NOT put multiple bbox/labels in the same object
@@ -193,9 +194,16 @@ CRITICAL RULES:
     // Extract detections from the response (new multi-label format)
     const objects = parsed.objects || parsed.object || [];
     const detections = [];
+    const MIN_BBOX_SIZE = 40; // Minimum width/height in pixels to filter tiny/false detections
 
     for (const obj of objects) {
       if (!Array.isArray(obj.bbox) || obj.bbox.length !== 4) continue;
+
+      // Filter out very small bboxes (likely false positives)
+      const [x1, y1, x2, y2] = obj.bbox;
+      const bboxWidth = x2 - x1;
+      const bboxHeight = y2 - y1;
+      if (bboxWidth < MIN_BBOX_SIZE || bboxHeight < MIN_BBOX_SIZE) continue;
 
       // Handle new format: { bbox, labels: [] }
       if (Array.isArray(obj.labels)) {
