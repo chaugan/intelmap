@@ -377,9 +377,9 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
 
               {/* Extra info */}
               <div className="text-center space-y-0 shrink-0">
-                {day.precipitation > 0.1 && (
-                  <div className="text-base text-blue-400 font-medium">{day.precipitation.toFixed(1)} mm</div>
-                )}
+                <div className={`text-base ${day.precipitation > 0.1 ? 'text-blue-400 font-medium' : textMuted}`}>
+                  {(day.precipitation || 0).toFixed(1)} mm
+                </div>
                 <div className={`text-base ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
                 <div className={`text-sm ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
               </div>
