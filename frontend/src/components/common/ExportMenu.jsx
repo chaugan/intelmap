@@ -1,0 +1,104 @@
+import { useState, useRef, useEffect } from 'react';
+import { useMapStore } from '../../stores/useMapStore.js';
+import { t } from '../../lib/i18n.js';
+
+/**
+ * Reusable dropdown menu for export options.
+ * Shows "Save to disk" and "Transfer to WaSOS" options.
+ * "Transfer to WaSOS" is grayed out with tooltip if not logged in.
+ */
+export default function ExportMenu({
+  onSaveToDisk,
+  onTransferToWasos,
+  wasosLoggedIn,
+  buttonIcon,
+  buttonLabel,
+  buttonClassName,
+  disabled,
+}) {
+  const lang = useMapStore((s) => s.lang);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleSaveToDisk = () => {
+    setShowDropdown(false);
+    onSaveToDisk?.();
+  };
+
+  const handleTransferToWasos = () => {
+    if (!wasosLoggedIn) return;
+    setShowDropdown(false);
+    onTransferToWasos?.();
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setShowDropdown(!showDropdown)}
+        disabled={disabled}
+        className={buttonClassName || "px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1"}
+        title={buttonLabel}
+      >
+        {buttonIcon}
+        {buttonLabel && <span className="text-sm">{buttonLabel}</span>}
+      </button>
+
+      {showDropdown && (
+        <div className="absolute top-full mt-1 right-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[180px]">
+          {/* Save to disk option */}
+          <button
+            onClick={handleSaveToDisk}
+            className="block w-full text-left px-3 py-2 hover:bg-slate-600 transition-colors text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              {t('wasos.saveToDisk', lang)}
+            </div>
+          </button>
+
+          {/* Transfer to WaSOS option */}
+          <button
+            onClick={handleTransferToWasos}
+            disabled={!wasosLoggedIn}
+            className={`block w-full text-left px-3 py-2 transition-colors text-sm ${
+              wasosLoggedIn
+                ? 'hover:bg-slate-600'
+                : 'opacity-50 cursor-not-allowed'
+            }`}
+            title={!wasosLoggedIn ? t('wasos.notLoggedIn', lang) : undefined}
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <span>{t('wasos.transfer', lang)}</span>
+              {!wasosLoggedIn && (
+                <svg className="w-3 h-3 ml-auto text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              )}
+            </div>
+            {!wasosLoggedIn && (
+              <div className="text-xs text-slate-400 mt-0.5 ml-6">
+                {t('wasos.notLoggedIn', lang)}
+              </div>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

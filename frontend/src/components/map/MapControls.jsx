@@ -4,6 +4,8 @@ import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
 import { BASE_LAYERS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import html2canvas from 'html2canvas-pro';
+import ExportMenu from '../common/ExportMenu.jsx';
 
 export default function MapControls() {
   const lang = useMapStore((s) => s.lang);
@@ -22,12 +24,17 @@ export default function MapControls() {
   const dataLayersDrawerOpen = useMapStore((s) => s.dataLayersDrawerOpen);
   const toggleDataLayersDrawer = useMapStore((s) => s.toggleDataLayersDrawer);
   const user = useAuthStore((s) => s.user);
+  const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
+  const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
   const timelapseDrawerOpen = useTimelapseStore((s) => s.drawerOpen);
   const toggleTimelapseDrawer = useTimelapseStore((s) => s.toggleDrawer);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
 
   const flyTo = useMapStore((s) => s.flyTo);
   const takeScreenshot = useMapStore((s) => s.takeScreenshot);
+  const mapRef = useMapStore((s) => s.mapRef);
+  const longitude = useMapStore((s) => s.longitude);
+  const latitude = useMapStore((s) => s.latitude);
   const [showBaseDropdown, setShowBaseDropdown] = useState(false);
   const [locating, setLocating] = useState(false);
   const dropdownRef = useRef(null);
@@ -63,6 +70,47 @@ export default function MapControls() {
   };
 
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
+
+  // Capture screenshot and prepare WaSOS upload
+  const handleWasosScreenshot = useCallback(async () => {
+    if (!mapRef) return;
+
+    mapRef.triggerRepaint();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    try {
+      let canvas = null;
+      const mapContainer = document.querySelector('[data-map-container]');
+      if (mapContainer) {
+        try {
+          canvas = await html2canvas(mapContainer, {
+            useCORS: true,
+            backgroundColor: null,
+            scale: 1,
+          });
+        } catch (e) {
+          console.warn('html2canvas failed:', e);
+        }
+      }
+
+      if (!canvas) {
+        const mapCanvas = mapRef.getCanvas();
+        canvas = document.createElement('canvas');
+        canvas.width = mapCanvas.width;
+        canvas.height = mapCanvas.height;
+        canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
+      }
+
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `intelmap-${localTime}.png`;
+
+      prepareWasosUpload(imageData, [longitude, latitude], filename);
+    } catch (e) {
+      console.error('Screenshot capture failed:', e);
+    }
+  }, [mapRef, longitude, latitude, prepareWasosUpload]);
 
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -175,16 +223,30 @@ export default function MapControls() {
       <div className="w-px h-5 bg-slate-600 mx-1" />
 
       {/* Screenshot */}
-      <button
-        onClick={takeScreenshot}
-        className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600"
-        title={lang === 'no' ? 'Skjermbilde' : 'Screenshot'}
-      >
-        <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-      </button>
+      {user?.wasosEnabled ? (
+        <ExportMenu
+          onSaveToDisk={takeScreenshot}
+          onTransferToWasos={handleWasosScreenshot}
+          wasosLoggedIn={wasosLoggedIn}
+          buttonIcon={
+            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          }
+        />
+      ) : (
+        <button
+          onClick={takeScreenshot}
+          className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600"
+          title={lang === 'no' ? 'Skjermbilde' : 'Screenshot'}
+        >
+          <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+        </button>
+      )}
 
       {/* GPS / My location */}
       <button

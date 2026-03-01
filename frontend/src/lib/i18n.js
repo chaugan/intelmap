@@ -95,6 +95,7 @@ const translations = {
     'weather.windChill': 'Vindavkjøling',
     'weather.clickMap': 'Klikk på kartet for vær',
     'weather.fullReport': 'Full rapport',
+    'weather.exportReport': 'Eksporter rapport',
 
     // Search
     'search.title': 'Stedssøk',
@@ -330,6 +331,16 @@ const translations = {
     'wasos.password': 'WaSOS passord',
     'wasos.loginFailed': 'Innlogging feilet',
     'wasos.confirmLogout': 'Logge ut av WaSOS?',
+    'wasos.transfer': 'Overf\u00f8r til WaSOS',
+    'wasos.saveToDisk': 'Lagre p\u00e5 disk',
+    'wasos.notLoggedIn': 'Logg inn p\u00e5 WaSOS f\u00f8rst',
+    'wasos.uploadText': 'Beskrivelse (valgfritt)',
+    'wasos.uploading': 'Laster opp...',
+    'wasos.uploadSuccess': 'Lastet opp til WaSOS',
+    'wasos.uploadFailed': 'Opplasting feilet',
+    'wasos.defaultDescription': 'Overf\u00f8rt fra IntelMap',
+    'wasos.upload': 'Last opp',
+    'wasos.cancel': 'Avbryt',
 
     // General
     'lang.switch': 'English',
@@ -428,6 +439,7 @@ const translations = {
     'weather.windChill': 'Wind Chill',
     'weather.clickMap': 'Click map for weather',
     'weather.fullReport': 'Full Report',
+    'weather.exportReport': 'Export Report',
 
     'search.title': 'Place Search',
     'search.placeholder': 'Search location...',
@@ -661,6 +673,16 @@ const translations = {
     'wasos.password': 'WaSOS password',
     'wasos.loginFailed': 'Login failed',
     'wasos.confirmLogout': 'Log out of WaSOS?',
+    'wasos.transfer': 'Transfer to WaSOS',
+    'wasos.saveToDisk': 'Save to disk',
+    'wasos.notLoggedIn': 'Log in to WaSOS first',
+    'wasos.uploadText': 'Description (optional)',
+    'wasos.uploading': 'Uploading...',
+    'wasos.uploadSuccess': 'Uploaded to WaSOS',
+    'wasos.uploadFailed': 'Upload failed',
+    'wasos.defaultDescription': 'Transfer from IntelMap',
+    'wasos.upload': 'Upload',
+    'wasos.cancel': 'Cancel',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

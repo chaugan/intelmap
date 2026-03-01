@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { useWeatherReport } from '../../hooks/useWeatherReport.js';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import MoonPhaseIcon from '../map/MoonPhaseIcon.jsx';
 import WeatherIcon from '../panels/WeatherIcon.jsx';
+import ExportMenu from '../common/ExportMenu.jsx';
 
 /**
  * Full weather report modal with 7-day forecast, trends, and PNG export.
@@ -13,6 +15,9 @@ import WeatherIcon from '../panels/WeatherIcon.jsx';
  */
 export default function WeatherReportModal({ lat, lon, onClose }) {
   const lang = useMapStore((s) => s.lang);
+  const user = useAuthStore((s) => s.user);
+  const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
+  const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
   const reportRef = useRef(null);
   const [theme, setTheme] = useState('dark');
   const [exporting, setExporting] = useState(false);
@@ -55,6 +60,29 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
     }
   };
 
+  const handleWasosUpload = async () => {
+    if (!reportRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+        useCORS: true,
+        allowTaint: true,
+      });
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `weather_report_${localTime}.png`;
+
+      prepareWasosUpload(imageData, [lon, lat], filename);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Theme classes
   const bg = isDark ? 'bg-slate-800' : 'bg-slate-50';
   const bgCard = isDark ? 'bg-slate-700/60' : 'bg-white';
@@ -74,13 +102,24 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
           >
             {isDark ? (lang === 'no' ? 'Lys' : 'Light') : (lang === 'no' ? 'Mørk' : 'Dark')}
           </button>
-          <button
-            onClick={handleSaveReport}
-            disabled={exporting || loading}
-            className="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
-          >
-            {exporting ? '...' : (lang === 'no' ? 'Lagre rapport' : 'Save Report')}
-          </button>
+          {user?.wasosEnabled ? (
+            <ExportMenu
+              onSaveToDisk={handleSaveReport}
+              onTransferToWasos={handleWasosUpload}
+              wasosLoggedIn={wasosLoggedIn}
+              buttonLabel={exporting ? '...' : t('weather.exportReport', lang)}
+              buttonClassName="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 flex items-center gap-1"
+              disabled={exporting || loading}
+            />
+          ) : (
+            <button
+              onClick={handleSaveReport}
+              disabled={exporting || loading}
+              className="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+            >
+              {exporting ? '...' : t('weather.exportReport', lang)}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-10 h-10 flex items-center justify-center rounded bg-slate-700 hover:bg-red-600 text-white text-xl"

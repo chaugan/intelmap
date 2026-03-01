@@ -17,11 +17,15 @@ export const useAuthStore = create((set, get) => ({
   // WaSOS state
   wasosLoggedIn: false,
   wasosLoading: false,
+  wasosUploadOpen: false,
+  wasosUploadData: null, // { image, coordinates, filename, preview }
+  wasosUploading: false,
 
   setLoginOpen: (v) => set({ loginOpen: v }),
   setPasswordChangeOpen: (v) => set({ passwordChangeOpen: v }),
   setAdminPanelOpen: (v) => set({ adminPanelOpen: v }),
   setWasosLoginOpen: (v) => set({ wasosLoginOpen: v }),
+  setWasosUploadOpen: (v) => set({ wasosUploadOpen: v, ...(v ? {} : { wasosUploadData: null }) }),
 
   checkSession: async () => {
     try {
@@ -140,5 +144,56 @@ export const useAuthStore = create((set, get) => ({
       });
     } catch {}
     set({ wasosLoggedIn: false });
+  },
+
+  // Prepare WaSOS upload - stores data and opens dialog
+  prepareWasosUpload: (imageData, coordinates, filename) => {
+    set({
+      wasosUploadOpen: true,
+      wasosUploadData: {
+        image: imageData,
+        coordinates,
+        filename,
+        preview: imageData, // base64 can be used directly as src
+      },
+    });
+  },
+
+  // Perform WaSOS upload with description
+  uploadToWasos: async (description) => {
+    const { wasosUploadData } = get();
+    if (!wasosUploadData?.image) {
+      throw new Error('No image to upload');
+    }
+
+    set({ wasosUploading: true });
+    try {
+      const res = await fetch(`${WASOS_API}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          text: description || '',
+          coordinates: wasosUploadData.coordinates,
+          image: wasosUploadData.image,
+          filename: wasosUploadData.filename,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      set({
+        wasosUploading: false,
+        wasosUploadOpen: false,
+        wasosUploadData: null,
+      });
+      return true;
+    } catch (err) {
+      set({ wasosUploading: false });
+      throw err;
+    }
   },
 }));

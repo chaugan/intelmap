@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
@@ -93,6 +94,137 @@ router.delete('/logout', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+/**
+ * Get username from stored credentials
+ */
+function getUsername(user) {
+  if (!user?.wasos_credentials) return 'unknown';
+  try {
+    const creds = JSON.parse(decrypt(user.wasos_credentials));
+    return creds.username || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Upload media to WaSOS
+ * Expects: text, coordinates ([lon, lat]), image (base64), filename
+ */
+router.post('/upload', async (req, res) => {
+  const { text, coordinates, image, filename } = req.body;
+
+  if (!image) {
+    return res.status(400).json({ error: 'Image required' });
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT wasos_enabled, wasos_credentials, wasos_session FROM users WHERE id = ?')
+    .get(req.user.id);
+
+  if (!user?.wasos_enabled) {
+    return res.status(403).json({ error: 'WaSOS not enabled' });
+  }
+
+  // Get valid session (auto-refresh if needed)
+  let session;
+  try {
+    session = user.wasos_session ? JSON.parse(user.wasos_session) : null;
+  } catch {
+    session = null;
+  }
+
+  if (!session || !isSessionValid(session)) {
+    // Try auto-login
+    if (user.wasos_credentials) {
+      try {
+        const creds = JSON.parse(decrypt(user.wasos_credentials));
+        session = await wasosLogin(creds.username, creds.password);
+        db.prepare(`
+          UPDATE users SET wasos_session = ?, updated_at = datetime('now') WHERE id = ?
+        `).run(JSON.stringify(session), req.user.id);
+      } catch (err) {
+        console.error('WaSOS auto-login failed:', err.message);
+        return res.status(401).json({ error: 'Session expired, please log in again' });
+      }
+    } else {
+      return res.status(401).json({ error: 'Not logged in to WaSOS' });
+    }
+  }
+
+  try {
+    const username = getUsername(user);
+    const taskuuid = crypto.randomUUID();
+    const description = text || 'Transfer from IntelMap';
+    const coords = coordinates || [9.686164855957031, 59.670897004902216];
+
+    const metadata = JSON.stringify({
+      taskuuid,
+      username,
+      usertext: description,
+      geolocation: {
+        type: 'Point',
+        coordinates: coords,
+      },
+      mediaextra: {
+        callsign: '',
+      },
+    });
+
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+    // Build multipart form
+    const boundary = '----WasosUploadBoundary' + Date.now();
+    const parts = [];
+
+    // Metadata field
+    parts.push(`--${boundary}`);
+    parts.push('Content-Disposition: form-data; name="metadata"');
+    parts.push('Content-Type: application/json');
+    parts.push('');
+    parts.push(metadata);
+
+    // File field
+    parts.push(`--${boundary}`);
+    parts.push(`Content-Disposition: form-data; name="files"; filename="${filename || 'upload.png'}"`);
+    parts.push('Content-Type: image/png');
+    parts.push('');
+
+    const textPart = parts.join('\r\n') + '\r\n';
+    const endPart = `\r\n--${boundary}--\r\n`;
+
+    const body = Buffer.concat([
+      Buffer.from(textPart, 'utf8'),
+      imageBuffer,
+      Buffer.from(endPart, 'utf8'),
+    ]);
+
+    // POST to WaSOS
+    const uploadRes = await fetch('https://wasos.no/wasosdb/media', {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Cookie': session.cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      body,
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      console.error('WaSOS upload failed:', uploadRes.status, errText.substring(0, 200));
+      return res.status(uploadRes.status).json({ error: 'Upload failed' });
+    }
+
+    const result = await uploadRes.json();
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('WaSOS upload error:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
 });
 
 /**
