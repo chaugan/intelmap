@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { getDb } from '../db/index.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
-import { wasosLogin, wasosRefresh, isSessionValid, canRefresh } from '../lib/wasos.js';
+import { wasosLogin, isSessionValid } from '../lib/wasos.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -23,7 +23,7 @@ router.get('/status', (req, res) => {
   if (user?.wasos_session) {
     try {
       const session = JSON.parse(user.wasos_session);
-      loggedIn = isSessionValid(session) || canRefresh(session);
+      loggedIn = isSessionValid(session);
     } catch {}
   }
 
@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
     // Encrypt and store credentials for auto-login
     const credentials = encrypt(JSON.stringify({ username, password }));
 
-    // Store session tokens
+    // Store session (cookies + expiry)
     db.prepare(`
       UPDATE users
       SET wasos_credentials = ?, wasos_session = ?, updated_at = datetime('now')
@@ -96,10 +96,10 @@ router.delete('/logout', (req, res) => {
 });
 
 /**
- * Get valid access token for API calls
- * Automatically refreshes if expired
+ * Get valid session cookies for API calls
+ * Automatically re-logins if session expired
  */
-router.get('/token', async (req, res) => {
+router.get('/session', async (req, res) => {
   const db = getDb();
   const user = db.prepare('SELECT wasos_enabled, wasos_credentials, wasos_session FROM users WHERE id = ?')
     .get(req.user.id);
@@ -108,37 +108,20 @@ router.get('/token', async (req, res) => {
     return res.status(403).json({ error: 'WaSOS not enabled' });
   }
 
-  if (!user.wasos_session) {
+  if (!user.wasos_session && !user.wasos_credentials) {
     return res.status(401).json({ error: 'Not logged in to WaSOS' });
   }
 
   let session;
   try {
-    session = JSON.parse(user.wasos_session);
+    session = user.wasos_session ? JSON.parse(user.wasos_session) : null;
   } catch {
-    return res.status(401).json({ error: 'Invalid session data' });
+    session = null;
   }
 
-  // Check if token is still valid
-  if (isSessionValid(session)) {
-    return res.json({ access_token: session.access_token, expires_at: session.expires_at });
-  }
-
-  // Try to refresh
-  if (canRefresh(session)) {
-    try {
-      const newSession = await wasosRefresh(session.refresh_token);
-      db.prepare(`
-        UPDATE users
-        SET wasos_session = ?, updated_at = datetime('now')
-        WHERE id = ?
-      `).run(JSON.stringify(newSession), req.user.id);
-
-      return res.json({ access_token: newSession.access_token, expires_at: newSession.expires_at });
-    } catch (err) {
-      console.error('WaSOS token refresh failed:', err.message);
-      // Refresh failed, try re-login with stored credentials
-    }
+  // Check if session is still valid
+  if (session && isSessionValid(session)) {
+    return res.json({ cookies: session.cookies, expires_at: session.expires_at });
   }
 
   // Try auto-login with stored credentials
@@ -153,7 +136,7 @@ router.get('/token', async (req, res) => {
         WHERE id = ?
       `).run(JSON.stringify(newSession), req.user.id);
 
-      return res.json({ access_token: newSession.access_token, expires_at: newSession.expires_at });
+      return res.json({ cookies: newSession.cookies, expires_at: newSession.expires_at });
     } catch (err) {
       console.error('WaSOS auto-login failed:', err.message);
       // Clear invalid session
