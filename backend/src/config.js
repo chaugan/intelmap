@@ -136,4 +136,30 @@ export function getPublicUrl() {
   return process.env.PUBLIC_URL || 'https://intelmap.homeprem.no';
 }
 
+export function getAdminNtfyChannel() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'admin_ntfy_channel'").get();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  return '';
+}
+
+export function getAdminNtfyLevels() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'admin_ntfy_levels'").get();
+      if (row?.value) {
+        try {
+          return JSON.parse(row.value);
+        } catch {}
+      }
+    } catch {}
+  }
+  return [];
+}
+
 export default config;

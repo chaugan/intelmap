@@ -9,7 +9,8 @@ import { requireAdmin } from '../auth/middleware.js';
 import { disconnectUser } from '../socket/index.js';
 import { eventLogger } from '../lib/event-logger.js';
 import { monitorService } from '../monitoring/monitor-service.js';
-import config from '../config.js';
+import config, { getNtfyUrl, getNtfyToken, getAdminNtfyChannel, getAdminNtfyLevels } from '../config.js';
+import crypto from 'crypto';
 
 const router = Router();
 router.use(requireAdmin);
@@ -594,6 +595,112 @@ router.get('/events/counts', (req, res) => {
     result[row.level] = row.count;
   }
   res.json(result);
+});
+
+// --- Admin ntfy Channel Configuration ---
+
+function generateAdminChannel() {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let suffix = '';
+  const randomBytes = crypto.randomBytes(6);
+  for (let i = 0; i < 6; i++) {
+    suffix += chars[randomBytes[i] % chars.length];
+  }
+  return `intelmap-admin-${suffix}`;
+}
+
+// Get admin ntfy config
+router.get('/admin-ntfy-config', (req, res) => {
+  const channel = getAdminNtfyChannel();
+  const levels = getAdminNtfyLevels();
+  const ntfyUrl = getNtfyUrl();
+
+  res.json({
+    channel,
+    levels,
+    fullUrl: channel && ntfyUrl ? `${ntfyUrl}/${channel}` : '',
+  });
+});
+
+// Set/update admin ntfy config
+router.put('/admin-ntfy-config', async (req, res) => {
+  const { levels } = req.body;
+
+  // Validate levels
+  const validLevels = ['error', 'warning', 'info'];
+  if (!Array.isArray(levels) || !levels.every(l => validLevels.includes(l))) {
+    return res.status(400).json({ error: 'Invalid levels. Must be array of error/warning/info.' });
+  }
+
+  const db = getDb();
+  let channel = getAdminNtfyChannel();
+
+  // Generate channel name if not exists
+  if (!channel) {
+    channel = generateAdminChannel();
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('admin_ntfy_channel', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(channel);
+  }
+
+  // Save levels
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('admin_ntfy_levels', ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  ).run(JSON.stringify(levels));
+
+  const ntfyUrl = getNtfyUrl();
+  eventLogger.config.info('Admin ntfy channel configured', { channel, levels });
+
+  res.json({
+    ok: true,
+    channel,
+    levels,
+    fullUrl: ntfyUrl ? `${ntfyUrl}/${channel}` : '',
+  });
+});
+
+// Remove admin ntfy config
+router.delete('/admin-ntfy-config', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key IN ('admin_ntfy_channel', 'admin_ntfy_levels')").run();
+  eventLogger.config.info('Admin ntfy channel removed');
+  res.json({ ok: true });
+});
+
+// Test admin ntfy notification
+router.post('/admin-ntfy-config/test', async (req, res) => {
+  const channel = getAdminNtfyChannel();
+  const ntfyUrl = getNtfyUrl();
+  const ntfyToken = getNtfyToken();
+
+  if (!channel || !ntfyUrl) {
+    return res.status(400).json({ error: 'Admin ntfy channel not configured' });
+  }
+
+  try {
+    const headers = {
+      'Title': 'IntelMap Test Notification',
+      'Tags': 'white_check_mark',
+      'Priority': 'default',
+    };
+    if (ntfyToken) headers['Authorization'] = `Bearer ${ntfyToken}`;
+
+    const response = await fetch(`${ntfyUrl}/${channel}`, {
+      method: 'POST',
+      headers,
+      body: 'This is a test notification from IntelMap admin panel.',
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: `Failed to send: ${response.status} ${response.statusText}` });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
+  }
 });
 
 export default router;

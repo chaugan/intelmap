@@ -1511,6 +1511,78 @@ function EventsTab({ lang }) {
   const [filter, setFilter] = useState('all'); // 'all', 'error', 'warning', 'info'
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  // Admin ntfy config state
+  const [ntfyConfig, setNtfyConfig] = useState({ channel: '', levels: [], fullUrl: '' });
+  const [selectedLevels, setSelectedLevels] = useState([]);
+  const [ntfySaving, setNtfySaving] = useState(false);
+  const [ntfyMessage, setNtfyMessage] = useState('');
+
+  // Fetch ntfy config
+  const fetchNtfyConfig = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/admin-ntfy-config`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setNtfyConfig(data);
+        setSelectedLevels(data.levels || []);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchNtfyConfig();
+  }, [fetchNtfyConfig]);
+
+  async function saveNtfyConfig() {
+    setNtfySaving(true);
+    setNtfyMessage('');
+    try {
+      const res = await fetch(`${API}/admin-ntfy-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ levels: selectedLevels }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNtfyConfig({ channel: data.channel, levels: data.levels, fullUrl: data.fullUrl });
+        setNtfyMessage(lang === 'no' ? 'Lagret' : 'Saved');
+        setTimeout(() => setNtfyMessage(''), 2000);
+      }
+    } catch {}
+    setNtfySaving(false);
+  }
+
+  async function removeNtfyConfig() {
+    try {
+      await fetch(`${API}/admin-ntfy-config`, { method: 'DELETE', credentials: 'include' });
+      setNtfyConfig({ channel: '', levels: [], fullUrl: '' });
+      setSelectedLevels([]);
+    } catch {}
+  }
+
+  async function testNtfyConfig() {
+    setNtfyMessage('');
+    try {
+      const res = await fetch(`${API}/admin-ntfy-config/test`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        setNtfyMessage(t('admin.ntfyTestSent', lang));
+      } else {
+        setNtfyMessage(t('admin.ntfyTestFailed', lang));
+      }
+      setTimeout(() => setNtfyMessage(''), 3000);
+    } catch {
+      setNtfyMessage(t('admin.ntfyTestFailed', lang));
+      setTimeout(() => setNtfyMessage(''), 3000);
+    }
+  }
+
+  function toggleLevel(level) {
+    setSelectedLevels(prev =>
+      prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
+    );
+  }
+
   const fetchEvents = useCallback(async () => {
     try {
       const levelParam = filter !== 'all' ? `?level=${filter}` : '';
@@ -1579,6 +1651,122 @@ function EventsTab({ lang }) {
 
   return (
     <div className="space-y-4">
+      {/* Admin ntfy notifications config */}
+      <div className="bg-slate-900 rounded p-4">
+        <h3 className="text-sm font-semibold text-cyan-400 mb-3">
+          {t('admin.ntfyChannel', lang)}
+        </h3>
+
+        {ntfyConfig.channel ? (
+          <>
+            <div className="mb-3">
+              <label className="text-xs text-slate-400 block mb-1">{t('admin.ntfyChannelUrl', lang)}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={ntfyConfig.fullUrl}
+                  className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300 font-mono"
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => navigator.clipboard.writeText(ntfyConfig.fullUrl)}
+                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700"
+                  title="Copy"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="text-xs text-slate-400 block mb-2">{t('admin.ntfyLevels', lang)}</label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedLevels.includes('error')}
+                    onChange={() => toggleLevel('error')}
+                    className="w-3.5 h-3.5 accent-red-500"
+                  />
+                  <span className="text-red-400">{t('admin.ntfyErrors', lang)}</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedLevels.includes('warning')}
+                    onChange={() => toggleLevel('warning')}
+                    className="w-3.5 h-3.5 accent-amber-500"
+                  />
+                  <span className="text-amber-400">{t('admin.ntfyWarnings', lang)}</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedLevels.includes('info')}
+                    onChange={() => toggleLevel('info')}
+                    className="w-3.5 h-3.5 accent-cyan-500"
+                  />
+                  <span className="text-cyan-400">{t('admin.ntfyInfo', lang)}</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveNtfyConfig}
+                disabled={ntfySaving}
+                className="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-xs text-white disabled:opacity-50"
+              >
+                {t('admin.ntfySave', lang)}
+              </button>
+              <button
+                onClick={testNtfyConfig}
+                className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white"
+              >
+                {t('admin.ntfyTest', lang)}
+              </button>
+              <button
+                onClick={removeNtfyConfig}
+                className="px-3 py-1 bg-red-900/50 hover:bg-red-800 rounded text-xs text-red-300"
+              >
+                {t('admin.ntfyRemove', lang)}
+              </button>
+              {ntfyMessage && (
+                <span className="text-xs text-green-400">{ntfyMessage}</span>
+              )}
+            </div>
+          </>
+        ) : (
+          <button
+            onClick={async () => {
+              const defaultLevels = ['error', 'warning'];
+              setSelectedLevels(defaultLevels);
+              setNtfySaving(true);
+              try {
+                const res = await fetch(`${API}/admin-ntfy-config`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ levels: defaultLevels }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setNtfyConfig({ channel: data.channel, levels: data.levels, fullUrl: data.fullUrl });
+                }
+              } catch {}
+              setNtfySaving(false);
+            }}
+            disabled={ntfySaving}
+            className="px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 rounded text-xs text-white disabled:opacity-50"
+          >
+            {t('admin.ntfyEnable', lang)}
+          </button>
+        )}
+      </div>
+
       {/* Header with counts */}
       <div className="bg-slate-900 rounded p-4">
         <div className="flex items-center justify-between mb-3">

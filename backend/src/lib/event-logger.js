@@ -1,10 +1,12 @@
 import { getDb } from '../db/index.js';
+import { getNtfyUrl, getNtfyToken, getAdminNtfyChannel, getAdminNtfyLevels } from '../config.js';
 
 /**
  * EventLogger - Structured logging for admin console
  *
  * Writes events to both console and database for admin visibility.
  * Automatically truncates old events to prevent unbounded growth.
+ * Sends ntfy notifications to admin channel when configured.
  */
 
 const CATEGORIES = {
@@ -28,6 +30,34 @@ const LEVELS = {
 const MAX_EVENTS = 1000;
 
 let cleanupScheduled = false;
+
+async function sendAdminNotification(level, category, message) {
+  const ntfyUrl = getNtfyUrl();
+  const ntfyToken = getNtfyToken();
+  const channel = getAdminNtfyChannel();
+
+  if (!ntfyUrl || !channel) return;
+
+  const tags = level === 'error' ? 'rotating_light' : level === 'warning' ? 'warning' : 'information_source';
+  const priority = level === 'error' ? 'high' : level === 'warning' ? 'default' : 'low';
+
+  const headers = {
+    'Title': `[${level.toUpperCase()}] ${category}`,
+    'Tags': tags,
+    'Priority': priority,
+  };
+  if (ntfyToken) headers['Authorization'] = `Bearer ${ntfyToken}`;
+
+  try {
+    await fetch(`${ntfyUrl}/${channel}`, {
+      method: 'POST',
+      headers,
+      body: message,
+    });
+  } catch {
+    // Silent fail - don't create recursive event
+  }
+}
 
 function scheduleCleanup() {
   if (cleanupScheduled) return;
@@ -74,6 +104,12 @@ function logEvent(level, category, message, details = null) {
     scheduleCleanup();
   } catch (err) {
     // Silently fail - don't let logging break the app
+  }
+
+  // Send to admin ntfy channel if configured
+  const adminLevels = getAdminNtfyLevels();
+  if (adminLevels.includes(level)) {
+    sendAdminNotification(level, category, message);
   }
 }
 
