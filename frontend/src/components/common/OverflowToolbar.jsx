@@ -1,6 +1,22 @@
-import { useState, useRef, useEffect, Children } from 'react';
+import { useState, useRef, useEffect, Children, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../../lib/i18n.js';
+
+// Flatten React fragments to get direct children
+function flattenChildren(children) {
+  const result = [];
+  Children.forEach(children, (child) => {
+    if (!child) return;
+    // Check if it's a Fragment (type is Symbol(react.fragment) or the Fragment component)
+    if (child.type === Fragment || child.type?.toString?.() === 'Symbol(react.fragment)') {
+      // Recursively flatten fragment children
+      result.push(...flattenChildren(child.props.children));
+    } else {
+      result.push(child);
+    }
+  });
+  return result;
+}
 
 /**
  * Toolbar that automatically moves overflowing items to a "[...]" menu.
@@ -16,7 +32,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
   const menuRef = useRef(null);
   const moreButtonRef = useRef(null);
 
-  const childArray = Children.toArray(children).filter(Boolean);
+  const childArray = flattenChildren(children).filter(Boolean);
 
   // Measure items and determine overflow point
   useEffect(() => {
