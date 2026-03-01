@@ -35,16 +35,18 @@ class VlmClient {
    */
   buildPrompt(labels) {
     const labelList = labels.join(', ');
-    return `You MUST return EXACTLY this JSON schema. Do not change any keys.
-{  "object": [    {"name": "<one of: ${labelList}>", "found": <true/false>, "bbox": [x1,y1,x2,y2]}  ]}
+    return `For each object in this image, return ALL applicable labels from: ${labelList}
+
+Return EXACTLY this JSON format:
+{"objects": [{"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]}]}
+
 Rules:
-- The root key MUST be "object"
-- Do NOT create new keys
-- Do NOT group objects
-- Each detected item must be a separate entry in the "object" array
-- "bbox" MUST be an array of 4 integers, not a string
-- If not found, return: {"name": "...", "found": false, "bbox": []}
-- Output ONLY valid JSON`;
+- Each detected object gets ONE entry with ALL matching labels from the list
+- "bbox" MUST be an array of exactly 4 integers: [left, top, right, bottom]
+- "labels" is an array of strings - include EVERY applicable label per object
+- Example: a tank could have labels ["tank", "stridsvogn", "militære kjøretøy"]
+- If nothing is found, return: {"objects": []}
+- Output ONLY valid JSON, no markdown, no explanation`;
   }
 
   /**
@@ -122,19 +124,32 @@ Rules:
           .replace(/^```json?\n?/, '')
           .replace(/\n?```$/, '');
       }
+      // Fix common JSON errors: missing ] before "labels"
+      // e.g., {"bbox": [1, 2, 3, 4, "labels": [...]} -> {"bbox": [1, 2, 3, 4], "labels": [...]}
+      responseText = responseText.replace(/\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*"labels"/g, '[$1, $2, $3, $4], "labels"');
       parsed = JSON.parse(responseText);
     } catch (err) {
       throw new Error(`VLM returned invalid JSON: ${result.response}`);
     }
 
-    // Extract detections from the response
-    const objects = parsed.object || [];
-    const detections = objects
-      .filter(o => o.found === true && Array.isArray(o.bbox) && o.bbox.length === 4)
-      .map(o => ({
-        label: o.name,
-        bbox: o.bbox,
-      }));
+    // Extract detections from the response (new multi-label format)
+    const objects = parsed.objects || parsed.object || [];
+    const detections = [];
+
+    for (const obj of objects) {
+      if (!Array.isArray(obj.bbox) || obj.bbox.length !== 4) continue;
+
+      // Handle new format: { bbox, labels: [] }
+      if (Array.isArray(obj.labels)) {
+        for (const label of obj.labels) {
+          detections.push({ label, bbox: obj.bbox });
+        }
+      }
+      // Handle old format: { name, found, bbox }
+      else if (obj.found === true && obj.name) {
+        detections.push({ label: obj.name, bbox: obj.bbox });
+      }
+    }
 
     return {
       jobId: result.job_id,
