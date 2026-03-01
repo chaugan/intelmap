@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import html2canvas from 'html2canvas';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
+import ExportMenu from '../common/ExportMenu.jsx';
 
 // Calculate 3D distance between two points (Haversine + elevation)
 function calculateDistance3D(p1, p2) {
@@ -181,8 +184,68 @@ function getBasicStats(waypoints) {
 function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClose, loading }) {
   const [expanded, setExpanded] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
+  const [exporting, setExporting] = useState(false);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
+
+  // WaSOS integration
+  const user = useAuthStore((s) => s.user);
+  const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
+  const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+
+  // Export to disk
+  const handleSaveReport = async () => {
+    if (!containerRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(containerRef.current, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true,
+        allowTaint: true,
+      });
+      const link = document.createElement('a');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      link.download = `elevation_profile_${localTime}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Transfer to WaSOS
+  const handleWasosUpload = async () => {
+    if (!containerRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(containerRef.current, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true,
+        allowTaint: true,
+      });
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `elevation_profile_${localTime}.png`;
+
+      // Get approximate center coordinates from profile
+      const midPoint = profilePoints[Math.floor(profilePoints.length / 2)];
+      const coords = midPoint ? [midPoint.lng, midPoint.lat] : null;
+
+      // Close expanded view first, then open upload dialog
+      setExpanded(false);
+      prepareWasosUpload(imageData, coords, filename);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (!profilePoints || profilePoints.length < 2) return null;
 
@@ -307,6 +370,32 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
           {loading && <span className="ml-2 text-yellow-400 text-xs">(loading terrain...)</span>}
         </span>
         <div className="flex items-center gap-2">
+          {/* Export button - only show in expanded mode */}
+          {expanded && user?.wasosEnabled ? (
+            <ExportMenu
+              onSaveToDisk={handleSaveReport}
+              onTransferToWasos={handleWasosUpload}
+              wasosLoggedIn={wasosLoggedIn}
+              buttonIcon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              }
+              buttonClassName="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
+              disabled={exporting}
+            />
+          ) : expanded ? (
+            <button
+              onClick={handleSaveReport}
+              disabled={exporting}
+              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
+              title={t('measure.export', lang)}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          ) : null}
           <button
             onClick={() => setExpanded(!expanded)}
             className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"

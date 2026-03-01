@@ -29,6 +29,7 @@ const translations = {
     'measure.shrink': 'Forminsk',
     'measure.start': 'Start',
     'measure.end': 'Slutt',
+    'measure.export': 'Eksporter',
 
     // Base layers
     'base.topo': 'Kartverket Topo',
@@ -379,6 +380,7 @@ const translations = {
     'measure.shrink': 'Shrink',
     'measure.start': 'Start',
     'measure.end': 'End',
+    'measure.export': 'Export',
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
