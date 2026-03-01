@@ -207,9 +207,7 @@ router.post('/upload', async (req, res) => {
     const textBuffer = Buffer.from(textParts, 'utf8');
     const body = Buffer.concat([textBuffer, imageBuffer, Buffer.from(endBoundary, 'utf8')]);
 
-    console.log('WaSOS upload attempt:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length, boundary });
-    console.log('WaSOS body preview (first 500 chars):', textParts.slice(0, 500));
-    console.log('WaSOS metadata JSON:', metadataJson);
+    console.log('WaSOS upload:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length });
 
     // POST to WaSOS
     const uploadRes = await fetch('https://wasos.no/wasosdb/media', {

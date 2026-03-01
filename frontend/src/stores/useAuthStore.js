@@ -185,11 +185,8 @@ export const useAuthStore = create((set, get) => ({
         throw new Error(data.error || 'Upload failed');
       }
 
-      set({
-        wasosUploading: false,
-        wasosUploadOpen: false,
-        wasosUploadData: null,
-      });
+      // Don't close dialog here - let WasosUploadDialog show success state first
+      set({ wasosUploading: false });
       return true;
     } catch (err) {
       set({ wasosUploading: false });
