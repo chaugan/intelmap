@@ -177,22 +177,44 @@ router.post('/upload', async (req, res) => {
     const imageBuffer = Buffer.from(image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
     const fname = filename || 'upload.png';
 
-    // Use native FormData with File (Node 20+)
-    const formData = new FormData();
-    formData.append('metadata', JSON.stringify(metadata));
-    const file = new File([imageBuffer], fname, { type: 'image/png' });
-    formData.append('files', file);
+    // Build multipart body exactly like the browser does
+    const boundary = '----WebKitFormBoundary' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+    const metadataJson = JSON.stringify(metadata);
 
-    console.log('WaSOS upload attempt:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length });
+    // Construct body parts
+    const parts = [];
+
+    // Metadata part - plain text, no Content-Type header
+    parts.push(`--${boundary}\r\n`);
+    parts.push(`Content-Disposition: form-data; name="metadata"\r\n\r\n`);
+    parts.push(metadataJson);
+    parts.push('\r\n');
+
+    // File part
+    parts.push(`--${boundary}\r\n`);
+    parts.push(`Content-Disposition: form-data; name="files"; filename="${fname}"\r\n`);
+    parts.push(`Content-Type: image/png\r\n\r\n`);
+
+    // End boundary
+    const endBoundary = `\r\n--${boundary}--\r\n`;
+
+    // Combine: text parts + image buffer + end
+    const textParts = parts.join('');
+    const textBuffer = Buffer.from(textParts, 'utf8');
+    const body = Buffer.concat([textBuffer, imageBuffer, Buffer.from(endBoundary, 'utf8')]);
+
+    console.log('WaSOS upload attempt:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length, boundary });
 
     // POST to WaSOS
     const uploadRes = await fetch('https://wasos.no/wasosdb/media', {
       method: 'POST',
       headers: {
         'Cookie': session.cookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Accept': '*/*',
       },
-      body: formData,
+      body,
     });
 
     if (!uploadRes.ok) {
