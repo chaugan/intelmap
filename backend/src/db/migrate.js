@@ -53,6 +53,20 @@ export function runMigration() {
     console.log('Added is_paused column to monitor_subscriptions table');
   }
 
+  // WaSOS integration columns
+  if (!userCols.some(c => c.name === 'wasos_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN wasos_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added wasos_enabled column to users table');
+  }
+  if (!userCols.some(c => c.name === 'wasos_credentials')) {
+    db.prepare("ALTER TABLE users ADD COLUMN wasos_credentials TEXT").run();
+    console.log('Added wasos_credentials column to users table');
+  }
+  if (!userCols.some(c => c.name === 'wasos_session')) {
+    db.prepare("ALTER TABLE users ADD COLUMN wasos_session TEXT").run();
+    console.log('Added wasos_session column to users table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

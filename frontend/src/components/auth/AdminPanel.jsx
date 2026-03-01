@@ -161,6 +161,11 @@ function UsersTab({ lang, currentUser }) {
     fetchUsers();
   }
 
+  async function toggleWasos(id) {
+    await fetch(`${API}/users/${id}/toggle-wasos`, { method: 'POST', credentials: 'include' });
+    fetchUsers();
+  }
+
   async function unlockUser(id) {
     await fetch(`${API}/users/${id}/unlock`, { method: 'POST', credentials: 'include' });
     fetchUsers();
@@ -207,6 +212,7 @@ function UsersTab({ lang, currentUser }) {
               <th className="pb-2">{t('admin.status', lang)}</th>
               <th className="pb-2">AI Chat</th>
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
+              <th className="pb-2">WaSOS</th>
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
@@ -236,6 +242,12 @@ function UsersTab({ lang, currentUser }) {
                   <button onClick={() => toggleTimelapse(u.id)}
                     className={`px-2 py-0.5 rounded text-xs transition-colors ${u.timelapseEnabled ? 'bg-cyan-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                     {u.timelapseEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                  </button>
+                </td>
+                <td className="py-2">
+                  <button onClick={() => toggleWasos(u.id)}
+                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.wasosEnabled ? 'bg-purple-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                    {u.wasosEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                   </button>
                 </td>
                 <td className="py-2">

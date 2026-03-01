@@ -9,6 +9,9 @@ export default function UserMenu() {
   const setLoginOpen = useAuthStore((s) => s.setLoginOpen);
   const setPasswordChangeOpen = useAuthStore((s) => s.setPasswordChangeOpen);
   const setAdminPanelOpen = useAuthStore((s) => s.setAdminPanelOpen);
+  const setWasosLoginOpen = useAuthStore((s) => s.setWasosLoginOpen);
+  const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
+  const wasosLogout = useAuthStore((s) => s.wasosLogout);
   const toggleProjectDrawer = useMapStore((s) => s.toggleProjectDrawer);
   const lang = useMapStore((s) => s.lang);
 
@@ -67,6 +70,31 @@ export default function UserMenu() {
             >
               {t('admin.title', lang)}
             </button>
+          )}
+          {user.wasosEnabled && (
+            <>
+              <hr className="border-slate-600 my-1" />
+              {wasosLoggedIn ? (
+                <button
+                  onClick={() => {
+                    if (confirm(t('wasos.confirmLogout', lang))) {
+                      wasosLogout();
+                    }
+                    setOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-emerald-400"
+                >
+                  {t('wasos.loggedIn', lang)}
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setWasosLoginOpen(true); setOpen(false); }}
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors"
+                >
+                  {t('wasos.login', lang)}
+                </button>
+              )}
+            </>
           )}
           <hr className="border-slate-600 my-1" />
           <button

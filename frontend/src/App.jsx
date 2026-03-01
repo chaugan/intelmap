@@ -9,6 +9,7 @@ import UserMenu from './components/auth/UserMenu.jsx';
 import LoginDialog from './components/auth/LoginDialog.jsx';
 import PasswordChangeDialog from './components/auth/PasswordChangeDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
+import WasosLoginDialog from './components/auth/WasosLoginDialog.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
 import TimelapsePanel from './components/timelapse/TimelapsePanel.jsx';
@@ -184,6 +185,7 @@ export default function App() {
       <LoginDialog />
       <PasswordChangeDialog />
       <AdminPanel />
+      <WasosLoginDialog />
     </div>
   );
 }

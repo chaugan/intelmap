@@ -19,7 +19,7 @@ router.use(requireAdmin);
 router.get('/users', (req, res) => {
   const db = getDb();
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, created_at, updated_at FROM users ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, created_at, updated_at FROM users ORDER BY created_at'
   ).all();
 
   // Calculate storage for each user
@@ -79,6 +79,7 @@ router.get('/users', (req, res) => {
       locked: !!u.locked,
       aiChatEnabled: !!u.ai_chat_enabled,
       timelapseEnabled: !!u.timelapse_enabled,
+      wasosEnabled: !!u.wasos_enabled,
       timelapseBytes,
       detectionBytes: detectionStats.detectionBytes,
       detectionCount: detectionStats.detectionCount,
@@ -192,6 +193,23 @@ router.post('/users/:id/toggle-timelapse', (req, res) => {
   const newVal = user.timelapse_enabled ? 0 : 1;
   db.prepare("UPDATE users SET timelapse_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
   res.json({ ok: true, timelapseEnabled: !!newVal });
+});
+
+// Toggle WaSOS access
+router.post('/users/:id/toggle-wasos', (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, wasos_enabled FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.wasos_enabled ? 0 : 1;
+  // If disabling, also clear credentials and session
+  if (newVal === 0) {
+    db.prepare("UPDATE users SET wasos_enabled = 0, wasos_credentials = NULL, wasos_session = NULL, updated_at = datetime('now') WHERE id = ?")
+      .run(req.params.id);
+  } else {
+    db.prepare("UPDATE users SET wasos_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  }
+  res.json({ ok: true, wasosEnabled: !!newVal });
 });
 
 // --- AI Configuration ---

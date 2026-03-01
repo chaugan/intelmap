@@ -73,6 +73,7 @@ router.post('/login', (req, res) => {
     mustChangePassword: !!user.must_change_password,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,
+    wasosEnabled: !!user.wasos_enabled,
   });
 });
 
@@ -91,6 +92,7 @@ router.get('/me', optionalAuth, (req, res) => {
     mustChangePassword: req.user.mustChangePassword,
     aiChatEnabled: req.user.aiChatEnabled,
     timelapseEnabled: req.user.timelapseEnabled,
+    wasosEnabled: req.user.wasosEnabled,
   });
 });
 
@@ -128,6 +130,7 @@ router.post('/change-password', requireAuth, (req, res) => {
     mustChangePassword: false,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,
+    wasosEnabled: !!user.wasos_enabled,
   });
 });
 

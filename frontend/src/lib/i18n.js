@@ -322,6 +322,15 @@ const translations = {
     'aurora.windSpeed': 'Hastighet',
     'aurora.density': 'Tetthet',
 
+    // WaSOS
+    'wasos.login': 'Logg inn p\u00e5 WaSOS',
+    'wasos.loggedIn': 'WaSOS tilkoblet',
+    'wasos.logout': 'Logg ut av WaSOS',
+    'wasos.username': 'WaSOS brukernavn',
+    'wasos.password': 'WaSOS passord',
+    'wasos.loginFailed': 'Innlogging feilet',
+    'wasos.confirmLogout': 'Logge ut av WaSOS?',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -643,6 +652,15 @@ const translations = {
     'aurora.solarWind': 'Solar wind',
     'aurora.windSpeed': 'Speed',
     'aurora.density': 'Density',
+
+    // WaSOS
+    'wasos.login': 'Log in to WaSOS',
+    'wasos.loggedIn': 'WaSOS connected',
+    'wasos.logout': 'Log out of WaSOS',
+    'wasos.username': 'WaSOS username',
+    'wasos.password': 'WaSOS password',
+    'wasos.loginFailed': 'Login failed',
+    'wasos.confirmLogout': 'Log out of WaSOS?',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

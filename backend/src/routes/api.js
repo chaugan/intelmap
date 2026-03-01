@@ -18,6 +18,7 @@ import themesRouter from './themes.js';
 import timelapseRouter from './timelapse.js';
 import auroraRouter from './aurora.js';
 import monitoringRouter from './monitoring.js';
+import wasosRouter from './wasos.js';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/themes', themesRouter);
 router.use('/timelapse', timelapseRouter);
 router.use('/aurora', auroraRouter);
 router.use('/monitoring', monitoringRouter);
+router.use('/wasos', wasosRouter);
 
 export default router;
