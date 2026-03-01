@@ -175,11 +175,15 @@ router.post('/upload', async (req, res) => {
 
     // Convert base64 to buffer
     const imageBuffer = Buffer.from(image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    const fname = filename || 'upload.png';
 
-    // Use native FormData (Node 20+)
+    // Use native FormData with File (Node 20+)
     const formData = new FormData();
     formData.append('mediadescription', JSON.stringify(metadata));
-    formData.append('files', new Blob([imageBuffer], { type: 'image/png' }), filename || 'upload.png');
+    const file = new File([imageBuffer], fname, { type: 'image/png' });
+    formData.append('file', file);
+
+    console.log('WaSOS upload attempt:', { username, taskuuid, filename: fname, imageSize: imageBuffer.length });
 
     // POST to WaSOS
     const uploadRes = await fetch('https://wasos.no/wasosdb/media', {
@@ -193,8 +197,8 @@ router.post('/upload', async (req, res) => {
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
-      console.error('WaSOS upload failed:', uploadRes.status, errText.substring(0, 200));
-      return res.status(uploadRes.status).json({ error: 'Upload failed' });
+      console.error('WaSOS upload failed:', uploadRes.status, errText);
+      return res.status(uploadRes.status).json({ error: `Upload failed: ${errText}` });
     }
 
     const result = await uploadRes.json();
