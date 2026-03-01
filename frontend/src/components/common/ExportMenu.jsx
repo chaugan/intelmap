@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
@@ -45,6 +45,27 @@ export default function ExportMenu({
       });
     }
   }, [showDropdown]);
+
+  // Clamp dropdown within viewport after it renders
+  useLayoutEffect(() => {
+    if (showDropdown && dropdownRef.current) {
+      const menu = dropdownRef.current;
+      const rect = menu.getBoundingClientRect();
+      const padding = 8;
+
+      // If menu goes off left edge, shift it right
+      if (rect.left < padding) {
+        const currentRight = parseFloat(menu.style.right) || 0;
+        const adjustment = padding - rect.left;
+        menu.style.right = `${Math.max(padding, currentRight - adjustment)}px`;
+      }
+
+      // If menu goes off right edge, shift it left
+      if (rect.right > window.innerWidth - padding) {
+        menu.style.right = `${padding}px`;
+      }
+    }
+  });
 
   const handleSaveToDisk = () => {
     setShowDropdown(false);
