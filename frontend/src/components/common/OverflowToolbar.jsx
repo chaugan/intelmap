@@ -114,17 +114,16 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
       </div>
 
       {/* Overflow menu */}
-      {console.log('Menu state:', { menuOpen, overflowItemsCount: overflowItems.length, hasOverflow, overflowIndex })}
       {menuOpen && overflowItems.length > 0 && createPortal(
         <div
           ref={menuRef}
           className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] z-[99999]"
           style={{ top: menuPos.top, right: menuPos.right }}
         >
+          <div className="px-3 py-1 text-xs text-emerald-400 border-b border-slate-600 mb-1">DEBUG: OverflowToolbar v2</div>
           {overflowItems.filter((child) => {
             // Skip dividers - check data-divider or if it's an empty div with divider styling
             const props = child?.props || {};
-            console.log('Overflow child:', child?.type, props);
             if (props['data-divider'] === 'true' || props['data-divider'] === true) return false;
             // Fallback: check if className contains divider patterns
             if (typeof props.className === 'string' && props.className.includes('w-px')) return false;
