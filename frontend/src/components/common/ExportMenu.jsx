@@ -55,7 +55,7 @@ export default function ExportMenu({
       </button>
 
       {showDropdown && (
-        <div className="absolute top-full mt-1 right-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[180px]">
+        <div className="absolute top-full mt-1 right-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-[110] min-w-[180px]">
           {/* Save to disk option */}
           <button
             onClick={handleSaveToDisk}
