@@ -6,6 +6,7 @@ import { t } from '../../lib/i18n.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import html2canvas from 'html2canvas-pro';
 import ExportMenu from '../common/ExportMenu.jsx';
+import OverflowToolbar from '../common/OverflowToolbar.jsx';
 
 export default function MapControls() {
   const lang = useMapStore((s) => s.lang);
@@ -113,7 +114,7 @@ export default function MapControls() {
   }, [mapRef, longitude, latitude, prepareWasosUpload]);
 
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <OverflowToolbar lang={lang} className="text-sm flex-1 min-w-0">
       {/* Project drawer toggle */}
       {user && (
         <button
@@ -269,7 +270,7 @@ export default function MapControls() {
           </svg>
         )}
       </button>
-    </div>
+    </OverflowToolbar>
   );
 }
 

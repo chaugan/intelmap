@@ -102,15 +102,13 @@ export default function App() {
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
       {/* Top Bar */}
-      <header className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 z-20 shrink-0">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-emerald-400 tracking-wide">
-            {t('app.title', lang)}
-            <span className="ml-2 text-xs font-normal text-slate-500">v{VERSION}</span>
-          </h1>
-          <MapControls />
-        </div>
-        <div className="flex items-center gap-2">
+      <header className="flex items-center gap-4 px-4 py-2 bg-slate-800 border-b border-slate-700 z-20 shrink-0">
+        <h1 className="text-lg font-bold text-emerald-400 tracking-wide shrink-0">
+          {t('app.title', lang)}
+          <span className="ml-2 text-xs font-normal text-slate-500">v{VERSION}</span>
+        </h1>
+        <MapControls />
+        <div className="flex items-center gap-2 shrink-0">
           <UserMenu />
           <button
             onClick={() => setLang(lang === 'no' ? 'en' : 'no')}
