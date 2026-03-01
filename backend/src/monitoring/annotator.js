@@ -1,29 +1,17 @@
 import sharp from 'sharp';
 
 /**
- * Group detections by similar bounding boxes
+ * Convert detections to bbox groups (no grouping - each detection is separate)
  * @param {Array} detections - Array of { label, bbox: [x1, y1, x2, y2] }
- * @param {number} tolerance - Pixel tolerance for grouping
  * @returns {Array} - Array of { bbox, labels }
  */
-function groupByBbox(detections, tolerance = 5) {
+function groupByBbox(detections) {
   const groups = [];
 
   for (const det of detections) {
     if (!det.bbox || det.bbox.length !== 4) continue;
-
-    const existing = groups.find(g =>
-      Math.abs(g.bbox[0] - det.bbox[0]) < tolerance &&
-      Math.abs(g.bbox[1] - det.bbox[1]) < tolerance &&
-      Math.abs(g.bbox[2] - det.bbox[2]) < tolerance &&
-      Math.abs(g.bbox[3] - det.bbox[3]) < tolerance
-    );
-
-    if (existing) {
-      existing.labels.push(det.label);
-    } else {
-      groups.push({ bbox: det.bbox, labels: [det.label] });
-    }
+    // Each detection gets its own entry - no grouping
+    groups.push({ bbox: det.bbox, labels: [det.label] });
   }
 
   return groups;
