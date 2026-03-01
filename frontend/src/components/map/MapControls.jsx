@@ -222,7 +222,7 @@ export default function MapControls() {
 
       <div className="w-px h-5 bg-slate-600 mx-1" />
 
-      {/* Screenshot */}
+      {/* Screenshot / Export */}
       {user?.wasosEnabled ? (
         <ExportMenu
           onSaveToDisk={takeScreenshot}
@@ -234,17 +234,19 @@ export default function MapControls() {
               <circle cx="12" cy="13" r="4" />
             </svg>
           }
+          buttonLabel={t('toolbar.export', lang)}
         />
       ) : (
         <button
           onClick={takeScreenshot}
-          className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600"
+          className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 flex items-center gap-1"
           title={lang === 'no' ? 'Skjermbilde' : 'Screenshot'}
         >
           <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
             <circle cx="12" cy="13" r="4" />
           </svg>
+          <span className="text-sm text-slate-300">{t('toolbar.export', lang)}</span>
         </button>
       )}
 

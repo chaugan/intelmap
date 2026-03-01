@@ -1,7 +1,9 @@
 const translations = {
   no: {
-    // Top bar
+    // Top bar / Toolbar
     'app.title': 'IntelMap',
+    'toolbar.export': 'Eksporter',
+    'toolbar.more': 'Mer',
     'layer.wind': 'Vind',
     'layer.webcams': 'Webkameraer',
     'layer.avalanche': 'Skredterreng',
@@ -353,6 +355,8 @@ const translations = {
   },
   en: {
     'app.title': 'IntelMap',
+    'toolbar.export': 'Export',
+    'toolbar.more': 'More',
     'layer.wind': 'Wind',
     'layer.webcams': 'Webcams',
     'layer.avalanche': 'Aval. Terrain',
