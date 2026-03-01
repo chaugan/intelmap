@@ -21,6 +21,31 @@ class VlmClient {
   }
 
   /**
+   * Try to salvage a truncated JSON response
+   * Extracts complete objects from the beginning of a truncated response
+   * @param {string} text - Truncated JSON text
+   * @returns {Object|null} - Parsed object or null if unsalvageable
+   */
+  salvageTruncatedJson(text) {
+    // Try to find complete objects before truncation
+    // Pattern: {"bbox": [...], "labels": [...]}
+    const objectPattern = /\{"bbox":\s*\[\d+,\s*\d+,\s*\d+,\s*\d+\],\s*"labels":\s*\[[^\]]*\]\}/g;
+    const matches = text.match(objectPattern);
+
+    if (matches && matches.length > 0) {
+      // Reconstruct valid JSON from complete objects
+      const validJson = `{"objects": [${matches.join(', ')}]}`;
+      try {
+        return JSON.parse(validJson);
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Check if VLM is configured
    * @returns {boolean}
    */
@@ -44,6 +69,7 @@ Return a JSON array where EACH object is a SEPARATE entry:
 ]}
 
 CRITICAL RULES:
+- Maximum 15 objects - prioritize largest/most prominent
 - Each detected object MUST be a SEPARATE {} in the array
 - Do NOT put multiple bbox/labels in the same object
 - "bbox" is 4 integers: [left, top, right, bottom]
@@ -151,9 +177,17 @@ CRITICAL RULES:
         }
       }
 
-      parsed = JSON.parse(responseText);
+      try {
+        parsed = JSON.parse(responseText);
+      } catch (jsonErr) {
+        // JSON parse failed - try to salvage truncated response
+        parsed = this.salvageTruncatedJson(responseText);
+        if (!parsed) {
+          throw new Error(`VLM returned invalid JSON: ${result.response}`);
+        }
+      }
     } catch (err) {
-      throw new Error(`VLM returned invalid JSON: ${result.response}`);
+      throw err;
     }
 
     // Extract detections from the response (new multi-label format)
