@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 
@@ -18,18 +19,32 @@ export default function ExportMenu({
 }) {
   const lang = useMapStore((s) => s.lang);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
+  const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
 
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+          buttonRef.current && !buttonRef.current.contains(e.target)) {
         setShowDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // Update dropdown position when shown
+  useEffect(() => {
+    if (showDropdown && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [showDropdown]);
 
   const handleSaveToDisk = () => {
     setShowDropdown(false);
@@ -43,8 +58,9 @@ export default function ExportMenu({
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setShowDropdown(!showDropdown)}
         disabled={disabled}
         className={buttonClassName || "px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1"}
@@ -54,8 +70,12 @@ export default function ExportMenu({
         {buttonLabel && <span className="text-sm">{buttonLabel}</span>}
       </button>
 
-      {showDropdown && (
-        <div className="absolute top-full mt-1 right-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-[110] min-w-[180px]">
+      {showDropdown && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed bg-slate-700 rounded shadow-xl border border-slate-600 min-w-[180px]"
+          style={{ top: dropdownPos.top, right: dropdownPos.right, zIndex: 9999 }}
+        >
           {/* Save to disk option */}
           <button
             onClick={handleSaveToDisk}
@@ -97,7 +117,8 @@ export default function ExportMenu({
               </div>
             )}
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
