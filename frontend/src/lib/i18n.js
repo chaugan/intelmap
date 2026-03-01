@@ -270,6 +270,19 @@ const translations = {
     'monitoring.remove': 'Fjern overvåking',
     'monitoring.view': 'Vis overvåking',
     'monitoring.addMonitor': 'Overvåk',
+    'monitoring.viewLabeled': 'Vis merket',
+    'monitoring.viewOriginal': 'Vis original',
+
+    // YOLO Admin
+    'yolo.status': 'Tjenestestatus',
+    'yolo.confidence': 'Konfidensterskel',
+    'yolo.uptime': 'Oppetid',
+    'yolo.queueLength': 'Kølengde',
+    'yolo.loadedProject': 'Lastet prosjekt',
+    'yolo.dualModel': 'Dual modell',
+    'yolo.imgSize': 'Bildestørrelse',
+    'yolo.offline': 'Frakoblet',
+    'yolo.serviceStatus': 'YOLO-tjenestestatus',
 
     // Aurora
     'layer.aurora': 'Nordlys',
@@ -566,6 +579,19 @@ const translations = {
     'monitoring.remove': 'Remove monitor',
     'monitoring.view': 'View monitoring',
     'monitoring.addMonitor': 'Monitor',
+    'monitoring.viewLabeled': 'View labeled',
+    'monitoring.viewOriginal': 'View original',
+
+    // YOLO Admin
+    'yolo.status': 'Service status',
+    'yolo.confidence': 'Confidence threshold',
+    'yolo.uptime': 'Uptime',
+    'yolo.queueLength': 'Queue length',
+    'yolo.loadedProject': 'Loaded project',
+    'yolo.dualModel': 'Dual model',
+    'yolo.imgSize': 'Image size',
+    'yolo.offline': 'Offline',
+    'yolo.serviceStatus': 'YOLO service status',
 
     // Aurora
     'layer.aurora': 'Aurora',

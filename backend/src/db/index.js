@@ -60,6 +60,12 @@ export function initDb() {
     db.prepare("ALTER TABLE monitor_detections ADD COLUMN has_image INTEGER NOT NULL DEFAULT 0").run();
   }
 
+  // Add has_raw_image column to monitor_detections if not exists
+  const detectionColsUpdated = db.prepare("PRAGMA table_info(monitor_detections)").all();
+  if (!detectionColsUpdated.find(c => c.name === 'has_raw_image')) {
+    db.prepare("ALTER TABLE monitor_detections ADD COLUMN has_raw_image INTEGER NOT NULL DEFAULT 0").run();
+  }
+
   return db;
 }
 

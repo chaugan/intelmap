@@ -400,22 +400,24 @@ router.delete('/ntfy-config', (req, res) => {
 
 // --- YOLO Configuration ---
 
-// Get YOLO config (whether token is set + project ID + URL)
+// Get YOLO config (whether token is set + project ID + URL + confidence)
 router.get('/yolo-config', (req, res) => {
   const db = getDb();
   const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
   const projectRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
   const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
+  const confRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_confidence'").get();
   res.json({
     hasToken: !!(tokenRow?.value),
     projectId: projectRow?.value || 'fac23eeac522',
     url: urlRow?.value || '',
+    confidence: confRow?.value ? parseFloat(confRow.value) : 0.25,
   });
 });
 
 // Validate and set YOLO credentials
 router.put('/yolo-config', async (req, res) => {
-  const { token, projectId, url } = req.body;
+  const { token, projectId, url, confidence } = req.body;
 
   if (!url || typeof url !== 'string' || !url.trim()) {
     return res.status(400).json({ error: 'URL is required' });
@@ -428,6 +430,7 @@ router.put('/yolo-config', async (req, res) => {
   const yoloUrl = url.trim().replace(/\/$/, ''); // Remove trailing slash
   const yoloToken = token.trim();
   const yoloProjectId = (projectId?.trim() || 'fac23eeac522');
+  const yoloConfidence = Math.max(0.05, Math.min(1.0, parseFloat(confidence) || 0.25));
 
   // Test connection by calling the API status endpoint
   const testUrl = `${yoloUrl}/api/v1/status`;
@@ -468,12 +471,50 @@ router.put('/yolo-config', async (req, res) => {
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
     ).run(yoloProjectId);
 
+    db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_confidence', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(yoloConfidence.toString());
+
     res.json({ ok: true, message: 'YOLO API configured successfully' });
 
   } catch (err) {
     return res.status(400).json({
       error: `Failed to connect to YOLO API: ${err.message}`
     });
+  }
+});
+
+// Get YOLO service status (live data from API)
+router.get('/yolo-status', async (req, res) => {
+  const db = getDb();
+  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
+  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
+
+  if (!urlRow?.value || !tokenRow?.value) {
+    return res.status(400).json({ error: 'YOLO not configured' });
+  }
+
+  try {
+    const response = await fetch(`${urlRow.value}/api/v1/status`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${tokenRow.value}` },
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Failed to fetch YOLO status', offline: true });
+    }
+
+    const data = await response.json();
+    res.json({
+      loadedProject: data.loaded_project || null,
+      uptimeSeconds: data.uptime_seconds || 0,
+      dualModel: data.dual_model || false,
+      imgSize: data.img_size || 640,
+      queueLength: data.queue_length || 0,
+    });
+  } catch (err) {
+    return res.status(502).json({ error: err.message, offline: true });
   }
 });
 

@@ -425,16 +425,17 @@ class MonitorService {
   }
 
   /**
-   * Log a detection and optionally save annotated image
+   * Log a detection and optionally save annotated and raw images
    * @param {string} userId - User ID
    * @param {string} cameraId - Camera ID
    * @param {string[]} labelsMonitored - Labels user was monitoring
    * @param {Array} labelsDetected - Matched labels with counts
    * @param {boolean} notified - Whether user was notified (or snoozed)
    * @param {string} annotatedPath - Path to annotated image (optional)
+   * @param {string} rawPath - Path to raw image (optional)
    * @returns {string} - Detection ID
    */
-  logDetection(userId, cameraId, labelsMonitored, labelsDetected, notified, annotatedPath = null) {
+  logDetection(userId, cameraId, labelsMonitored, labelsDetected, notified, annotatedPath = null, rawPath = null) {
     const db = getDb();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -443,20 +444,28 @@ class MonitorService {
     // Save annotated image if provided
     let hasImage = 0;
     if (annotatedPath && fs.existsSync(annotatedPath)) {
-      const destPath = path.join(this.detectionsDir, `${id}.jpg`);
+      const destPath = path.join(this.detectionsDir, `${id}_annotated.jpg`);
       fs.copyFileSync(annotatedPath, destPath);
       hasImage = 1;
     }
 
+    // Save raw image if provided
+    let hasRawImage = 0;
+    if (rawPath && fs.existsSync(rawPath)) {
+      const destPath = path.join(this.detectionsDir, `${id}_raw.jpg`);
+      fs.copyFileSync(rawPath, destPath);
+      hasRawImage = 1;
+    }
+
     db.prepare(`
       INSERT INTO monitor_detections
-        (id, user_id, camera_id, labels_monitored, labels_detected, total_detections, detected_at, notified, has_image, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, user_id, camera_id, labels_monitored, labels_detected, total_detections, detected_at, notified, has_image, has_raw_image, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, userId, cameraId,
       JSON.stringify(labelsMonitored),
       JSON.stringify(labelsDetected),
-      totalDetections, now, notified ? 1 : 0, hasImage, now
+      totalDetections, now, notified ? 1 : 0, hasImage, hasRawImage, now
     );
 
     return id;
@@ -465,13 +474,25 @@ class MonitorService {
   /**
    * Get path to detection image
    * @param {string} detectionId - Detection ID
+   * @param {string} type - Image type: 'annotated' or 'raw'
    * @returns {string|null} - Path to image or null if not found
    */
-  getDetectionImagePath(detectionId) {
-    const imagePath = path.join(this.detectionsDir, `${detectionId}.jpg`);
-    if (fs.existsSync(imagePath)) {
-      return imagePath;
+  getDetectionImagePath(detectionId, type = 'annotated') {
+    // Try new naming convention first
+    const suffix = type === 'raw' ? '_raw' : '_annotated';
+    const newPath = path.join(this.detectionsDir, `${detectionId}${suffix}.jpg`);
+    if (fs.existsSync(newPath)) {
+      return newPath;
     }
+
+    // Fallback to legacy naming (for annotated only)
+    if (type === 'annotated') {
+      const legacyPath = path.join(this.detectionsDir, `${detectionId}.jpg`);
+      if (fs.existsSync(legacyPath)) {
+        return legacyPath;
+      }
+    }
+
     return null;
   }
 
@@ -484,19 +505,25 @@ class MonitorService {
   clearDetectionHistory(userId, cameraId) {
     const db = getDb();
 
-    // Get all detection IDs with images for this user/camera
+    // Get all detection IDs with any images for this user/camera
     const detections = db.prepare(`
       SELECT id FROM monitor_detections
-      WHERE user_id = ? AND camera_id = ? AND has_image = 1
+      WHERE user_id = ? AND camera_id = ? AND (has_image = 1 OR has_raw_image = 1)
     `).all(userId, cameraId);
 
-    // Delete image files
+    // Delete image files (annotated, raw, and legacy naming)
     for (const det of detections) {
-      const imagePath = path.join(this.detectionsDir, `${det.id}.jpg`);
-      if (fs.existsSync(imagePath)) {
-        try {
-          fs.unlinkSync(imagePath);
-        } catch {}
+      const filesToDelete = [
+        path.join(this.detectionsDir, `${det.id}_annotated.jpg`),
+        path.join(this.detectionsDir, `${det.id}_raw.jpg`),
+        path.join(this.detectionsDir, `${det.id}.jpg`), // legacy
+      ];
+      for (const filePath of filesToDelete) {
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch {}
+        }
       }
     }
 
@@ -520,17 +547,24 @@ class MonitorService {
     // Get detection image count and calculate size
     const detections = db.prepare(`
       SELECT id FROM monitor_detections
-      WHERE user_id = ? AND has_image = 1
+      WHERE user_id = ? AND (has_image = 1 OR has_raw_image = 1)
     `).all(userId);
 
     let detectionBytes = 0;
     for (const det of detections) {
-      const imagePath = path.join(this.detectionsDir, `${det.id}.jpg`);
-      if (fs.existsSync(imagePath)) {
-        try {
-          const stat = fs.statSync(imagePath);
-          detectionBytes += stat.size;
-        } catch {}
+      // Check all possible image files
+      const filesToCheck = [
+        path.join(this.detectionsDir, `${det.id}_annotated.jpg`),
+        path.join(this.detectionsDir, `${det.id}_raw.jpg`),
+        path.join(this.detectionsDir, `${det.id}.jpg`), // legacy
+      ];
+      for (const filePath of filesToCheck) {
+        if (fs.existsSync(filePath)) {
+          try {
+            const stat = fs.statSync(filePath);
+            detectionBytes += stat.size;
+          } catch {}
+        }
       }
     }
 
@@ -724,12 +758,16 @@ class MonitorService {
       WHERE s.camera_id = ? AND s.is_active = 1
     `).all(cameraId);
 
-    // Pre-fetch annotated image (shared across all subscribers)
+    // Pre-fetch both annotated and raw images (shared across all subscribers)
     let annotatedPath = null;
+    let rawPath = null;
     try {
-      annotatedPath = await yoloClient.getAnnotated(result.jobId);
+      [annotatedPath, rawPath] = await Promise.all([
+        yoloClient.getAnnotated(result.jobId),
+        yoloClient.getRaw(result.jobId),
+      ]);
     } catch (err) {
-      eventLogger.inference.error(`Failed to get annotated image: ${err.message}`, { cameraId, jobId: result.jobId });
+      eventLogger.inference.error(`Failed to get images: ${err.message}`, { cameraId, jobId: result.jobId });
     }
 
     for (const sub of subs) {
@@ -742,8 +780,8 @@ class MonitorService {
       const isSnoozed = this.isSnoozed(sub.user_id, cameraId);
       const shouldNotify = !isPaused && !isSnoozed;
 
-      // Log detection and save annotated image - returns detection ID
-      const detectionId = this.logDetection(sub.user_id, cameraId, userLabels, matches, shouldNotify, annotatedPath);
+      // Log detection and save both images - returns detection ID
+      const detectionId = this.logDetection(sub.user_id, cameraId, userLabels, matches, shouldNotify, annotatedPath, rawPath);
 
       if (shouldNotify && annotatedPath) {
         // Send alert
@@ -754,11 +792,13 @@ class MonitorService {
       }
     }
 
-    // Clean up temp annotated image (we've saved copies to detections dir)
-    if (annotatedPath && fs.existsSync(annotatedPath)) {
-      try {
-        fs.unlinkSync(annotatedPath);
-      } catch {}
+    // Clean up temp images (we've saved copies to detections dir)
+    for (const tempPath of [annotatedPath, rawPath]) {
+      if (tempPath && fs.existsSync(tempPath)) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {}
+      }
     }
   }
 

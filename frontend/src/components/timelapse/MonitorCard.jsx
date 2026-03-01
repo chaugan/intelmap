@@ -18,6 +18,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [showHistory, setShowHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
+  const [imageType, setImageType] = useState('annotated'); // 'annotated' or 'raw'
   const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
 
@@ -331,14 +332,22 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
                       })}
                     </span>
                     <div className="flex items-center gap-2">
-                      {det.has_image ? (
+                      {det.has_image && (
                         <button
-                          onClick={() => setViewingImage(det.id)}
+                          onClick={() => { setViewingImage(det.id); setImageType('annotated'); }}
                           className="text-cyan-400 hover:text-cyan-300 underline"
                         >
-                          {lang === 'no' ? 'Vis bilde' : 'View image'}
+                          {t('monitoring.viewLabeled', lang)}
                         </button>
-                      ) : null}
+                      )}
+                      {det.has_raw_image && (
+                        <button
+                          onClick={() => { setViewingImage(det.id); setImageType('raw'); }}
+                          className="text-amber-400 hover:text-amber-300 underline"
+                        >
+                          {t('monitoring.viewOriginal', lang)}
+                        </button>
+                      )}
                       {det.notified ? (
                         <span className="text-green-400">+</span>
                       ) : (
@@ -443,7 +452,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
             </svg>
           </button>
           <img
-            src={`/api/monitoring/detections/${viewingImage}/image`}
+            src={`/api/monitoring/detections/${viewingImage}/image${imageType === 'raw' ? '/raw' : ''}`}
             alt="Detection"
             className="max-w-[90vw] max-h-[90vh] object-contain"
             onClick={(e) => e.stopPropagation()}

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { getYoloApiToken, getYoloProjectId, getYoloUrl } from '../config.js';
+import { getYoloApiToken, getYoloProjectId, getYoloUrl, getYoloConfidence } from '../config.js';
 
 /**
  * YoloClient - Integration with YOLO inference API
@@ -17,7 +17,7 @@ class YoloClient {
   }
 
   getBaseUrl() {
-    return getYoloUrl() || 'https://yolo.intelmap.no';
+    return getYoloUrl();
   }
 
   /**
@@ -55,12 +55,17 @@ class YoloClient {
     body += `Content-Disposition: form-data; name="file"; filename="${filename}"${CRLF}`;
     body += `Content-Type: image/jpeg${CRLF}${CRLF}`;
 
+    // Get confidence threshold
+    const conf = getYoloConfidence();
+
     // Construct body as Buffer for binary data
     const parts = [];
     parts.push(Buffer.from(body, 'utf-8'));
     parts.push(imageBuffer);
     parts.push(Buffer.from(`${CRLF}--${boundary}${CRLF}`, 'utf-8'));
     parts.push(Buffer.from(`Content-Disposition: form-data; name="project_id"${CRLF}${CRLF}${projectId}${CRLF}`, 'utf-8'));
+    parts.push(Buffer.from(`--${boundary}${CRLF}`, 'utf-8'));
+    parts.push(Buffer.from(`Content-Disposition: form-data; name="conf"${CRLF}${CRLF}${conf}${CRLF}`, 'utf-8'));
     parts.push(Buffer.from(`--${boundary}--${CRLF}`, 'utf-8'));
 
     const fullBody = Buffer.concat(parts);
@@ -128,6 +133,36 @@ class YoloClient {
 
     const buffer = Buffer.from(await response.arrayBuffer());
     const tempPath = path.join(os.tmpdir(), `yolo-${jobId}-annotated.jpg`);
+    fs.writeFileSync(tempPath, buffer);
+
+    return tempPath;
+  }
+
+  /**
+   * Get raw (un-annotated) image from a completed job
+   * @param {string} jobId - Job ID from inference
+   * @returns {string} - Path to downloaded raw image
+   */
+  async getRaw(jobId) {
+    const token = getYoloApiToken();
+
+    if (!token) {
+      throw new Error('YOLO API not configured');
+    }
+
+    const response = await fetch(`${this.getBaseUrl()}/api/v1/jobs/${jobId}/raw`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get raw image: ${response.status}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const tempPath = path.join(os.tmpdir(), `yolo-${jobId}-raw.jpg`);
     fs.writeFileSync(tempPath, buffer);
 
     return tempPath;

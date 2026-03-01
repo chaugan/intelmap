@@ -15,6 +15,16 @@ function formatStorageSize(bytes) {
   return `${size.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
 }
 
+function formatUptime(seconds) {
+  if (!seconds || seconds === 0) return '0s';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
 export default function AdminPanel() {
   const adminPanelOpen = useAuthStore((s) => s.adminPanelOpen);
   const setAdminPanelOpen = useAuthStore((s) => s.setAdminPanelOpen);
@@ -969,11 +979,45 @@ function YoloConfigTab({ lang }) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [confidence, setConfidence] = useState(0.25);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Service status state
+  const [serviceStatus, setServiceStatus] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState('');
+
   useEffect(() => { fetchConfig(); }, []);
+
+  // Fetch service status when configured
+  const fetchServiceStatus = useCallback(async () => {
+    setStatusLoading(true);
+    setStatusError('');
+    try {
+      const res = await fetch(`${API}/yolo-status`, { credentials: 'include' });
+      if (res.ok) {
+        setServiceStatus(await res.json());
+      } else {
+        const data = await res.json();
+        setStatusError(data.error || 'Failed to fetch status');
+        setServiceStatus(null);
+      }
+    } catch (err) {
+      setStatusError(err.message);
+      setServiceStatus(null);
+    }
+    setStatusLoading(false);
+  }, []);
+
+  // Auto-refresh status every 30s when configured
+  useEffect(() => {
+    if (!config?.url) return;
+    fetchServiceStatus();
+    const interval = setInterval(fetchServiceStatus, 30000);
+    return () => clearInterval(interval);
+  }, [config?.url, fetchServiceStatus]);
 
   async function fetchConfig() {
     try {
@@ -983,6 +1027,7 @@ function YoloConfigTab({ lang }) {
         setConfig(data);
         setUrl(data.url || '');
         setProjectId(data.projectId || 'fac23eeac522');
+        setConfidence(data.confidence || 0.25);
       }
     } catch {}
   }
@@ -1004,6 +1049,7 @@ function YoloConfigTab({ lang }) {
         url: url.trim(),
         token: token.trim(),
         projectId: projectId.trim() || 'fac23eeac522',
+        confidence: confidence,
       };
       const res = await fetch(`${API}/yolo-config`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -1060,7 +1106,56 @@ function YoloConfigTab({ lang }) {
             <div className="text-xs text-slate-400">
               {lang === 'no' ? 'Prosjekt-ID' : 'Project ID'}: <span className="font-mono text-slate-300">{config.projectId}</span>
             </div>
+            <div className="text-xs text-slate-400">
+              {t('yolo.confidence', lang)}: <span className="font-mono text-slate-300">{(config.confidence * 100).toFixed(0)}%</span>
+            </div>
           </>
+        )}
+
+        {/* Service Status Section */}
+        {isConfigured && (
+          <div className="mt-4 p-3 bg-slate-800 rounded border border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-cyan-400">{t('yolo.serviceStatus', lang)}</h4>
+              <button
+                onClick={fetchServiceStatus}
+                disabled={statusLoading}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 disabled:opacity-50"
+                title={lang === 'no' ? 'Oppdater' : 'Refresh'}
+              >
+                <svg className={`w-4 h-4 ${statusLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+            {statusError ? (
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                {t('yolo.offline', lang)}
+              </div>
+            ) : serviceStatus ? (
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                  <span className="text-emerald-400">{lang === 'no' ? 'Tilkoblet' : 'Connected'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-400 mt-2">
+                  <span>{t('yolo.loadedProject', lang)}:</span>
+                  <span className="text-slate-300 font-mono">{serviceStatus.loadedProject || '-'}</span>
+                  <span>{t('yolo.uptime', lang)}:</span>
+                  <span className="text-slate-300">{formatUptime(serviceStatus.uptimeSeconds)}</span>
+                  <span>{t('yolo.imgSize', lang)}:</span>
+                  <span className="text-slate-300">{serviceStatus.imgSize}px</span>
+                  <span>{t('yolo.queueLength', lang)}:</span>
+                  <span className="text-slate-300">{serviceStatus.queueLength}</span>
+                  <span>{t('yolo.dualModel', lang)}:</span>
+                  <span className="text-slate-300">{serviceStatus.dualModel ? (lang === 'no' ? 'Ja' : 'Yes') : (lang === 'no' ? 'Nei' : 'No')}</span>
+                </div>
+              </div>
+            ) : statusLoading ? (
+              <div className="text-slate-400 text-sm">{t('general.loading', lang)}</div>
+            ) : null}
+          </div>
         )}
 
         <p className="text-xs text-slate-500">
@@ -1105,6 +1200,24 @@ function YoloConfigTab({ lang }) {
               placeholder="fac23eeac522"
               className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
             />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {t('yolo.confidence', lang)}: {(confidence * 100).toFixed(0)}%
+            </label>
+            <input
+              type="range"
+              min="0.05"
+              max="1"
+              step="0.05"
+              value={confidence}
+              onChange={(e) => setConfidence(parseFloat(e.target.value))}
+              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            />
+            <div className="flex justify-between text-xs text-slate-500 mt-1">
+              <span>5%</span>
+              <span>100%</span>
+            </div>
           </div>
           <button
             type="submit"

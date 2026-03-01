@@ -111,7 +111,18 @@ export function getYoloUrl() {
       if (row?.value) return row.value;
     } catch {}
   }
-  return process.env.YOLO_URL || 'https://yolo.intelmap.no';
+  return process.env.YOLO_URL || '';
+}
+
+export function getYoloConfidence() {
+  if (_getDb) {
+    try {
+      const db = _getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_confidence'").get();
+      if (row?.value) return parseFloat(row.value);
+    } catch {}
+  }
+  return parseFloat(process.env.YOLO_CONFIDENCE || '0.25');
 }
 
 export function getPublicUrl() {
