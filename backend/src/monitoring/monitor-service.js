@@ -634,9 +634,9 @@ class MonitorService {
     const channel = this.getUserNtfyChannel(userId, username);
     const token = getNtfyToken();
 
-    // Build message with labels
+    // Build message with labels (VLM doesn't provide confidence scores)
     const labelSummary = matches
-      .map(m => `${m.count}x ${m.label} (${Math.round(m.maxConfidence * 100)}%)`)
+      .map(m => `${m.count}x ${m.label}`)
       .join(', ');
 
     const displayName = cameraName || cameraId;
