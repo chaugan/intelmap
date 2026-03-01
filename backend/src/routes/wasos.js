@@ -180,10 +180,9 @@ router.post('/upload', async (req, res) => {
     const boundary = '----WasosUploadBoundary' + Date.now();
     const parts = [];
 
-    // Metadata field
+    // Metadata field (WaSOS expects "mediadescription")
     parts.push(`--${boundary}`);
-    parts.push('Content-Disposition: form-data; name="metadata"');
-    parts.push('Content-Type: application/json');
+    parts.push('Content-Disposition: form-data; name="mediadescription"');
     parts.push('');
     parts.push(metadata);
 
