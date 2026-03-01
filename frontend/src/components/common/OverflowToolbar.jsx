@@ -79,11 +79,11 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
   const overflowItems = hasOverflow ? childArray.slice(overflowIndex) : [];
 
   return (
-    <>
-      {/* Hidden measurement container */}
+    <div className="relative flex-1 min-w-0 overflow-hidden">
+      {/* Hidden measurement container - positioned off-screen to avoid affecting layout */}
       <div
         ref={measureRef}
-        className="flex items-center gap-2 absolute invisible pointer-events-none"
+        className="flex items-center gap-2 absolute -top-[9999px] -left-[9999px] invisible pointer-events-none"
         style={{ whiteSpace: 'nowrap' }}
       >
         {childArray}
@@ -122,9 +122,11 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
         >
           {overflowItems.map((child, i) => {
             // Convert vertical dividers to horizontal
-            const isDivider = child.props?.className?.includes('w-px');
+            // Check both props.className and if it's a simple div with w-px class
+            const childClassName = child.props?.className || '';
+            const isDivider = typeof childClassName === 'string' && childClassName.includes('w-px');
             if (isDivider) {
-              return <div key={i} className="h-px bg-slate-600 my-1 mx-2" />;
+              return <div key={i} className="h-px bg-slate-600 my-2 mx-2" />;
             }
             return (
               <div key={i} className="px-2 py-1">
@@ -135,6 +137,6 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
         </div>,
         document.body
       )}
-    </>
+    </div>
   );
 }
