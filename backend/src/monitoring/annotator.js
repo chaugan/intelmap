@@ -1,17 +1,29 @@
 import sharp from 'sharp';
 
 /**
- * Convert detections to bbox groups (no grouping - each detection is separate)
+ * Group detections by similar bounding boxes
  * @param {Array} detections - Array of { label, bbox: [x1, y1, x2, y2] }
+ * @param {number} tolerance - Pixel tolerance for grouping
  * @returns {Array} - Array of { bbox, labels }
  */
-function groupByBbox(detections) {
+function groupByBbox(detections, tolerance = 5) {
   const groups = [];
 
   for (const det of detections) {
     if (!det.bbox || det.bbox.length !== 4) continue;
-    // Each detection gets its own entry - no grouping
-    groups.push({ bbox: det.bbox, labels: [det.label] });
+
+    const existing = groups.find(g =>
+      Math.abs(g.bbox[0] - det.bbox[0]) < tolerance &&
+      Math.abs(g.bbox[1] - det.bbox[1]) < tolerance &&
+      Math.abs(g.bbox[2] - det.bbox[2]) < tolerance &&
+      Math.abs(g.bbox[3] - det.bbox[3]) < tolerance
+    );
+
+    if (existing) {
+      existing.labels.push(det.label);
+    } else {
+      groups.push({ bbox: det.bbox, labels: [det.label] });
+    }
   }
 
   return groups;
@@ -28,7 +40,7 @@ function createSvgOverlay(width, height, bboxGroups) {
   const strokeColor = '#00ff00';
   const bgColor = 'rgba(0,0,0,0.75)';
   const textColor = '#00ff00';
-  const fontSize = 13;
+  const fontSize = 12;
   const fontWeight = 'bold';
   const fontFamily = 'Arial, Helvetica, sans-serif';
   const padding = 3;
@@ -43,28 +55,32 @@ function createSvgOverlay(width, height, bboxGroups) {
     // Draw bounding box
     svgContent += `<rect x="${x1}" y="${y1}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="${strokeColor}" stroke-width="2"/>`;
 
-    // Draw label(s) directly above the box (simple, no leader lines)
-    const label = group.labels.join(', ');
-    const textWidth = label.length * (fontSize * 0.6);
-    const textHeight = fontSize + padding * 2;
+    // Draw stacked labels above the box
+    const lineHeight = fontSize + padding;
+    const labels = group.labels;
+    const maxLabelWidth = Math.max(...labels.map(l => l.length * (fontSize * 0.6)));
+    const totalHeight = labels.length * lineHeight + padding;
 
-    // Position label above box, centered
-    let bgX = x1 + (boxWidth - textWidth - padding * 2) / 2;
-    let bgY = y1 - textHeight - 2;
+    // Position labels above box, centered
+    let bgX = x1 + (boxWidth - maxLabelWidth - padding * 2) / 2;
+    let bgY = y1 - totalHeight - 2;
 
-    // If label would go above image, put it inside the box at top
+    // If labels would go above image, put them inside the box at top
     if (bgY < 0) {
       bgY = y1 + 2;
     }
 
     // Clamp horizontally to image bounds
-    bgX = Math.max(2, Math.min(width - textWidth - padding * 2 - 2, bgX));
+    bgX = Math.max(2, Math.min(width - maxLabelWidth - padding * 2 - 2, bgX));
 
-    // Background rectangle
-    svgContent += `<rect x="${bgX}" y="${bgY}" width="${textWidth + padding * 2}" height="${textHeight}" fill="${bgColor}" rx="2"/>`;
+    // Background rectangle for all labels
+    svgContent += `<rect x="${bgX}" y="${bgY}" width="${maxLabelWidth + padding * 2}" height="${totalHeight}" fill="${bgColor}" rx="2"/>`;
 
-    // Label text
-    svgContent += `<text x="${bgX + padding}" y="${bgY + fontSize + padding - 2}" fill="${textColor}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}">${escapeXml(label)}</text>`;
+    // Draw each label stacked
+    labels.forEach((label, i) => {
+      const textY = bgY + padding + (i + 1) * lineHeight - padding;
+      svgContent += `<text x="${bgX + padding}" y="${textY}" fill="${textColor}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}">${escapeXml(label)}</text>`;
+    });
   }
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${svgContent}</svg>`;
