@@ -13,6 +13,43 @@ import { t } from '../../lib/i18n.js';
 import DraggablePopup from './DraggablePopup.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
+// Memoized camera marker to prevent unnecessary re-renders
+const CameraMarker = memo(function CameraMarker({ cam, isRecording, isMonitoring, lang, onToggle }) {
+  const [lon, lat] = cam.geometry.coordinates;
+  const id = cam.properties.id;
+
+  // Determine marker style based on state
+  let markerClasses = 'cursor-pointer w-6 h-6 border-2 border-white rounded-full shadow-lg flex items-center justify-center';
+  let titleSuffix = '';
+
+  if (isRecording && isMonitoring) {
+    markerClasses += ' bg-gradient-to-r from-red-600 to-green-600';
+    titleSuffix = lang === 'no' ? ' (Opptak + Monitorering)' : ' (Recording + Monitoring)';
+  } else if (isRecording) {
+    markerClasses += ' bg-red-600';
+    titleSuffix = lang === 'no' ? ' (Opptak)' : ' (Recording)';
+  } else if (isMonitoring) {
+    markerClasses += ' bg-green-600';
+    titleSuffix = lang === 'no' ? ' (Monitorering)' : ' (Monitoring)';
+  } else {
+    markerClasses += ' bg-cyan-600';
+  }
+
+  return (
+    <Marker longitude={lon} latitude={lat} anchor="center">
+      <div
+        className={markerClasses}
+        onClick={(e) => { e.stopPropagation(); onToggle(cam); }}
+        title={cam.properties.name + titleSuffix}
+      >
+        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      </div>
+    </Marker>
+  );
+});
+
 export default function WebcamLayer() {
   const cameras = useWebcamStore((s) => s.cameras);
   const toggleCamera = useWebcamStore((s) => s.toggleCamera);
@@ -61,6 +98,51 @@ export default function WebcamLayer() {
   const monitoredCameraIds = useMemo(() => {
     return new Set(monitoredCameraIdsList);
   }, [monitoredCameraIdsList]);
+
+  // Viewport bounds for culling - only render markers in view
+  const [bounds, setBounds] = useState(null);
+
+  // Update bounds on map move (debounced via moveend)
+  useEffect(() => {
+    if (!mapRef) return;
+
+    const updateBounds = () => {
+      try {
+        const b = mapRef.getBounds();
+        // Add padding to avoid popping at edges (10% extra)
+        const lngPad = (b.getEast() - b.getWest()) * 0.1;
+        const latPad = (b.getNorth() - b.getSouth()) * 0.1;
+        setBounds({
+          west: b.getWest() - lngPad,
+          east: b.getEast() + lngPad,
+          south: b.getSouth() - latPad,
+          north: b.getNorth() + latPad,
+        });
+      } catch { /* map not ready */ }
+    };
+
+    // Initial bounds
+    updateBounds();
+
+    // Update on move end (not during move for performance)
+    mapRef.on('moveend', updateBounds);
+    mapRef.on('load', updateBounds);
+
+    return () => {
+      mapRef.off('moveend', updateBounds);
+      mapRef.off('load', updateBounds);
+    };
+  }, [mapRef]);
+
+  // Filter cameras to only those in viewport
+  const visibleCameras = useMemo(() => {
+    if (!bounds) return cameras; // Show all if bounds not ready
+    return cameras.filter((cam) => {
+      const [lon, lat] = cam.geometry.coordinates;
+      return lon >= bounds.west && lon <= bounds.east &&
+             lat >= bounds.south && lat <= bounds.north;
+    });
+  }, [cameras, bounds]);
 
   // Fetch cameras on mount if user has access
   useEffect(() => {
@@ -279,44 +361,17 @@ export default function WebcamLayer() {
 
   return (
     <>
-      {cameras.map((cam) => {
-        const [lon, lat] = cam.geometry.coordinates;
-        const id = cam.properties.id;
-        const isRecording = recordingCameraIds.has(id);
-        const isMonitoring = monitoredCameraIds.has(id);
-
-        // Determine marker style based on state
-        let markerClasses = 'cursor-pointer w-6 h-6 border-2 border-white rounded-full shadow-lg flex items-center justify-center';
-        let titleSuffix = '';
-
-        if (isRecording && isMonitoring) {
-          // Split color: half red, half green (using gradient)
-          markerClasses += ' bg-gradient-to-r from-red-600 to-green-600';
-          titleSuffix = lang === 'no' ? ' (Opptak + Monitorering)' : ' (Recording + Monitoring)';
-        } else if (isRecording) {
-          markerClasses += ' bg-red-600';
-          titleSuffix = lang === 'no' ? ' (Opptak)' : ' (Recording)';
-        } else if (isMonitoring) {
-          markerClasses += ' bg-green-600';
-          titleSuffix = lang === 'no' ? ' (Monitorering)' : ' (Monitoring)';
-        } else {
-          markerClasses += ' bg-cyan-600';
-        }
-
-        return (
-          <Marker key={id} longitude={lon} latitude={lat} anchor="center">
-            <div
-              className={markerClasses}
-              onClick={(e) => { e.stopPropagation(); toggleCamera(cam); }}
-              title={cam.properties.name + titleSuffix}
-            >
-              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </div>
-          </Marker>
-        );
-      })}
+      {/* Render only cameras in viewport using memoized markers */}
+      {visibleCameras.map((cam) => (
+        <CameraMarker
+          key={cam.properties.id}
+          cam={cam}
+          isRecording={recordingCameraIds.has(cam.properties.id)}
+          isMonitoring={monitoredCameraIds.has(cam.properties.id)}
+          lang={lang}
+          onToggle={toggleCamera}
+        />
+      ))}
 
       {openCameras.map((cam) => {
         const id = cam.properties.id;
