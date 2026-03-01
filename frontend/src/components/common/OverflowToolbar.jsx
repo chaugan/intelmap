@@ -120,17 +120,22 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
           className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] z-[99999]"
           style={{ top: menuPos.top, right: menuPos.right }}
         >
-          {overflowItems.map((child, i) => {
-            // Skip dividers in overflow menu
-            const childClassName = child.props?.className || '';
-            const isDivider = typeof childClassName === 'string' && childClassName.includes('w-px');
-            if (isDivider) return null;
-            return (
-              <div key={i} className="px-2 py-1">
-                {child}
-              </div>
-            );
-          })}
+          {overflowItems.filter((child) => {
+            // Skip dividers in overflow menu (w-px h-5 bg-slate-600 mx-1)
+            const className = child?.props?.className;
+            if (typeof className === 'string' && (className.includes('w-px') || className.includes('bg-slate-600 mx-1'))) {
+              return false;
+            }
+            // Also check if it's a div with only divider-like styling (no children or empty)
+            if (child?.type === 'div' && !child?.props?.children) {
+              return false;
+            }
+            return true;
+          }).map((child, i) => (
+            <div key={i} className="px-2 py-1">
+              {child}
+            </div>
+          ))}
         </div>,
         document.body
       )}
