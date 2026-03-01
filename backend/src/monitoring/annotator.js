@@ -28,7 +28,7 @@ function createSvgOverlay(width, height, bboxGroups) {
   const strokeColor = '#00ff00';
   const bgColor = 'rgba(0,0,0,0.75)';
   const textColor = '#00ff00';
-  const fontSize = 14;
+  const fontSize = 13;
   const fontWeight = 'bold';
   const fontFamily = 'Arial, Helvetica, sans-serif';
   const padding = 3;
