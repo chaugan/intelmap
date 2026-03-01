@@ -75,6 +75,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       const filename = `weather_report_${localTime}.png`;
 
+      // Close weather report first, then open upload dialog
+      onClose();
       prepareWasosUpload(imageData, [lon, lat], filename);
     } catch (err) {
       console.error('Export error:', err);
