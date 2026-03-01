@@ -3,7 +3,7 @@ import { useMonitoringStore, SNOOZE_OPTIONS } from '../../stores/useMonitoringSt
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 import MonitorCard from './MonitorCard.jsx';
-import LabelSelector from './LabelSelector.jsx';
+import TagInput from './TagInput.jsx';
 
 export default function MonitoringTab() {
   const lang = useMapStore((s) => s.lang);
@@ -164,8 +164,8 @@ export default function MonitoringTab() {
         <div className="bg-slate-900 rounded p-4 text-center">
           <p className="text-slate-400 text-sm">
             {lang === 'no'
-              ? 'Monitorering er ikke aktivert. Administrator må konfigurere YOLO og ntfy.'
-              : 'Monitoring is not enabled. Administrator must configure YOLO and ntfy.'}
+              ? 'Monitorering er ikke aktivert. Administrator må konfigurere VLM og ntfy.'
+              : 'Monitoring is not enabled. Administrator must configure VLM and ntfy.'}
           </p>
         </div>
       </div>
@@ -271,15 +271,16 @@ export default function MonitoringTab() {
               </div>
             )}
 
-            {/* Label selector */}
+            {/* Tag input for labels */}
             {selectedCamera && (
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
                   {t('monitoring.selectLabels', lang)}
                 </label>
-                <LabelSelector
-                  selected={newLabels}
+                <TagInput
+                  value={newLabels}
                   onChange={setNewLabels}
+                  placeholder={t('monitoring.tagsPlaceholder', lang)}
                   lang={lang}
                 />
               </div>

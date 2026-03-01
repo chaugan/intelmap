@@ -1,10 +1,12 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { getDb } from '../db/index.js';
-import config, { getNtfyToken, getNtfyUrl, getYoloApiToken, getPublicUrl } from '../config.js';
+import config, { getNtfyToken, getNtfyUrl, getVlmApiToken, getPublicUrl } from '../config.js';
 import { frameManager } from './frame-manager.js';
-import { yoloClient } from './yolo-client.js';
+import { vlmClient } from './vlm-client.js';
+import { annotateImage } from './annotator.js';
 import { eventLogger } from '../lib/event-logger.js';
 
 /**
@@ -12,7 +14,7 @@ import { eventLogger } from '../lib/event-logger.js';
  *
  * Handles:
  * - User subscriptions to cameras
- * - Running YOLO inference on frames
+ * - Running VLM inference on frames
  * - Matching detections to user-monitored labels
  * - Sending ntfy notifications
  * - Snooze tracking
@@ -34,11 +36,11 @@ class MonitorService {
   }
 
   /**
-   * Check if monitoring is available (both YOLO and ntfy configured)
+   * Check if monitoring is available (both VLM and ntfy configured)
    * @returns {boolean}
    */
   isEnabled() {
-    return !!getYoloApiToken() && !!getNtfyUrl();
+    return !!getVlmApiToken() && !!getNtfyUrl();
   }
 
   /**
@@ -720,10 +722,10 @@ class MonitorService {
     const allLabels = JSON.parse(cameraRow.labels || '[]');
     if (allLabels.length === 0) return;
 
-    // Run inference
+    // Run inference via VLM
     let result;
     try {
-      result = await yoloClient.infer(framePath, allLabels);
+      result = await vlmClient.infer(framePath, allLabels);
     } catch (err) {
       eventLogger.inference.error(`Inference failed for ${cameraId}: ${err.message}`);
       return;
@@ -758,21 +760,30 @@ class MonitorService {
       WHERE s.camera_id = ? AND s.is_active = 1
     `).all(cameraId);
 
-    // Pre-fetch both annotated and raw images (shared across all subscribers)
-    let annotatedPath = null;
+    // Fetch raw image and generate annotated image locally
+    let rawImageBuffer = null;
+    let annotatedImageBuffer = null;
     let rawPath = null;
+    let annotatedPath = null;
+
     try {
-      [annotatedPath, rawPath] = await Promise.all([
-        yoloClient.getAnnotated(result.jobId),
-        yoloClient.getRaw(result.jobId),
-      ]);
+      rawImageBuffer = await vlmClient.getRawImageBuffer(result.jobId);
+
+      // Generate annotated image locally using canvas
+      annotatedImageBuffer = await annotateImage(rawImageBuffer, result.detections);
+
+      // Save to temp files for logDetection
+      rawPath = path.join(os.tmpdir(), `vlm-${result.jobId}-raw.jpg`);
+      annotatedPath = path.join(os.tmpdir(), `vlm-${result.jobId}-annotated.jpg`);
+      fs.writeFileSync(rawPath, rawImageBuffer);
+      fs.writeFileSync(annotatedPath, annotatedImageBuffer);
     } catch (err) {
-      eventLogger.inference.error(`Failed to get images: ${err.message}`, { cameraId, jobId: result.jobId });
+      eventLogger.inference.error(`Failed to get/annotate images: ${err.message}`, { cameraId, jobId: result.jobId });
     }
 
     for (const sub of subs) {
       const userLabels = JSON.parse(sub.labels || '[]');
-      const matches = yoloClient.matchLabels(result.detections, userLabels);
+      const matches = vlmClient.matchLabels(result.detections, userLabels);
 
       if (matches.length === 0) continue;
 
@@ -808,7 +819,7 @@ class MonitorService {
    */
   resumeMonitoring() {
     if (!this.isEnabled()) {
-      eventLogger.monitoring.warning('Monitoring disabled (YOLO or ntfy not configured)');
+      eventLogger.monitoring.warning('Monitoring disabled (VLM or ntfy not configured)');
       return;
     }
 

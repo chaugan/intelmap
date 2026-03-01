@@ -60,8 +60,8 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'ntfy'} onClick={() => setActiveTab('ntfy')}>
                 ntfy
               </TabButton>
-              <TabButton active={activeTab === 'yolo'} onClick={() => setActiveTab('yolo')}>
-                YOLO
+              <TabButton active={activeTab === 'vlm'} onClick={() => setActiveTab('vlm')}>
+                VLM
               </TabButton>
               <TabButton active={activeTab === 'timelapse'} onClick={() => setActiveTab('timelapse')}>
                 {lang === 'no' ? 'Tidslapse' : 'Timelapse'}
@@ -85,7 +85,7 @@ export default function AdminPanel() {
           {activeTab === 'maps' && <MapsConfigTab lang={lang} />}
           {activeTab === 'ais' && <AisConfigTab lang={lang} />}
           {activeTab === 'ntfy' && <NtfyConfigTab lang={lang} />}
-          {activeTab === 'yolo' && <YoloConfigTab lang={lang} />}
+          {activeTab === 'vlm' && <VlmConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
           {activeTab === 'events' && <EventsTab lang={lang} />}
         </div>
@@ -985,13 +985,11 @@ function NtfyConfigTab({ lang }) {
   );
 }
 
-// --- YOLO Config Tab ---
-function YoloConfigTab({ lang }) {
+// --- VLM Config Tab ---
+function VlmConfigTab({ lang }) {
   const [config, setConfig] = useState(null);
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [confidence, setConfidence] = useState(0.25);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1008,7 +1006,7 @@ function YoloConfigTab({ lang }) {
     setStatusLoading(true);
     setStatusError('');
     try {
-      const res = await fetch(`${API}/yolo-status`, { credentials: 'include' });
+      const res = await fetch(`${API}/vlm-status`, { credentials: 'include' });
       if (res.ok) {
         setServiceStatus(await res.json());
       } else {
@@ -1025,21 +1023,19 @@ function YoloConfigTab({ lang }) {
 
   // Auto-refresh status every 30s when configured
   useEffect(() => {
-    if (!config?.url) return;
+    if (!config?.url || !config?.hasToken) return;
     fetchServiceStatus();
     const interval = setInterval(fetchServiceStatus, 30000);
     return () => clearInterval(interval);
-  }, [config?.url, fetchServiceStatus]);
+  }, [config?.url, config?.hasToken, fetchServiceStatus]);
 
   async function fetchConfig() {
     try {
-      const res = await fetch(`${API}/yolo-config`, { credentials: 'include' });
+      const res = await fetch(`${API}/vlm-config`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
-        setUrl(data.url || '');
-        setProjectId(data.projectId || 'fac23eeac522');
-        setConfidence(data.confidence || 0.25);
+        setUrl(data.url || 'https://vision.homeprem.no');
       }
     } catch {}
   }
@@ -1060,10 +1056,8 @@ function YoloConfigTab({ lang }) {
       const body = {
         url: url.trim(),
         token: token.trim(),
-        projectId: projectId.trim() || 'fac23eeac522',
-        confidence: confidence,
       };
-      const res = await fetch(`${API}/yolo-config`, {
+      const res = await fetch(`${API}/vlm-config`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(body),
       });
@@ -1082,23 +1076,22 @@ function YoloConfigTab({ lang }) {
   async function removeCredentials() {
     setError(''); setStatus('');
     try {
-      const res = await fetch(`${API}/yolo-config`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`${API}/vlm-config`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) { const data = await res.json(); setError(data.error); return; }
       setStatus(lang === 'no' ? 'Innstillinger fjernet' : 'Settings removed');
-      setUrl('');
       fetchConfig();
     } catch (err) { setError(err.message); }
   }
 
   if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
 
-  const isConfigured = !!config.url;
+  const isConfigured = !!config.hasToken;
 
   return (
     <div className="space-y-4">
       <div className="bg-slate-900 rounded p-4 space-y-3">
         <h3 className="text-sm font-semibold text-amber-400">
-          {lang === 'no' ? 'YOLO Objektdeteksjon' : 'YOLO Object Detection'}
+          {lang === 'no' ? 'VLM Bildeanalyse' : 'VLM Image Analysis'}
         </h3>
 
         <div className="flex items-center gap-2 text-sm">
@@ -1111,24 +1104,16 @@ function YoloConfigTab({ lang }) {
         </div>
 
         {isConfigured && (
-          <>
-            <div className="text-xs text-slate-400">
-              URL: <span className="font-mono text-slate-300">{config.url}</span>
-            </div>
-            <div className="text-xs text-slate-400">
-              {lang === 'no' ? 'Prosjekt-ID' : 'Project ID'}: <span className="font-mono text-slate-300">{config.projectId}</span>
-            </div>
-            <div className="text-xs text-slate-400">
-              {t('yolo.confidence', lang)}: <span className="font-mono text-slate-300">{(config.confidence * 100).toFixed(0)}%</span>
-            </div>
-          </>
+          <div className="text-xs text-slate-400">
+            URL: <span className="font-mono text-slate-300">{config.url}</span>
+          </div>
         )}
 
         {/* Service Status Section */}
         {isConfigured && (
           <div className="mt-4 p-3 bg-slate-800 rounded border border-slate-700">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-cyan-400">{t('yolo.serviceStatus', lang)}</h4>
+              <h4 className="text-sm font-medium text-cyan-400">{t('vlm.serviceStatus', lang)}</h4>
               <button
                 onClick={fetchServiceStatus}
                 disabled={statusLoading}
@@ -1143,26 +1128,70 @@ function YoloConfigTab({ lang }) {
             {statusError ? (
               <div className="flex items-center gap-2 text-red-400 text-sm">
                 <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                {t('yolo.offline', lang)}
+                {t('vlm.offline', lang)}
               </div>
             ) : serviceStatus ? (
-              <div className="space-y-1 text-xs">
+              <div className="space-y-2 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  <span className="text-emerald-400">{lang === 'no' ? 'Tilkoblet' : 'Connected'}</span>
+                  <span className={`w-2 h-2 rounded-full ${serviceStatus.vllmStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                  <span className={serviceStatus.vllmStatus === 'online' ? 'text-emerald-400' : 'text-red-400'}>
+                    {serviceStatus.vllmStatus === 'online' ? (lang === 'no' ? 'Tilkoblet' : 'Connected') : (lang === 'no' ? 'Frakoblet' : 'Offline')}
+                  </span>
                 </div>
+                {serviceStatus.model && (
+                  <div className="text-slate-400">
+                    {lang === 'no' ? 'Modell' : 'Model'}: <span className="text-slate-300 font-mono text-xs">{serviceStatus.model.split('/').pop()}</span>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-400 mt-2">
-                  <span>{t('yolo.loadedProject', lang)}:</span>
-                  <span className="text-slate-300 font-mono">{serviceStatus.loadedProject || '-'}</span>
-                  <span>{t('yolo.uptime', lang)}:</span>
+                  <span>{lang === 'no' ? 'Oppetid' : 'Uptime'}:</span>
                   <span className="text-slate-300">{formatUptime(serviceStatus.uptimeSeconds)}</span>
-                  <span>{t('yolo.imgSize', lang)}:</span>
-                  <span className="text-slate-300">{serviceStatus.imgSize}px</span>
-                  <span>{t('yolo.queueLength', lang)}:</span>
-                  <span className="text-slate-300">{serviceStatus.queueLength}</span>
-                  <span>{t('yolo.dualModel', lang)}:</span>
-                  <span className="text-slate-300">{serviceStatus.dualModel ? (lang === 'no' ? 'Ja' : 'Yes') : (lang === 'no' ? 'Nei' : 'No')}</span>
+                  <span>{lang === 'no' ? 'Forespørsler' : 'Requests'}:</span>
+                  <span className="text-slate-300">{serviceStatus.requestsServed?.toLocaleString() || 0}</span>
+                  <span>{lang === 'no' ? 'Genererte tokens' : 'Tokens generated'}:</span>
+                  <span className="text-slate-300">{serviceStatus.totalTokensGenerated?.toLocaleString() || 0}</span>
                 </div>
+                {/* GPU metrics */}
+                {serviceStatus.gpu && (
+                  <div className="mt-3 p-2 bg-slate-900/50 rounded border border-slate-600">
+                    <div className="text-cyan-400 text-xs font-medium mb-2">GPU: {serviceStatus.gpu.name}</div>
+                    <div className="space-y-1.5">
+                      {/* GPU utilization bar */}
+                      <div>
+                        <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                          <span>{lang === 'no' ? 'Bruk' : 'Utilization'}</span>
+                          <span>{serviceStatus.gpu.utilization}%</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${serviceStatus.gpu.utilization > 80 ? 'bg-red-500' : serviceStatus.gpu.utilization > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${serviceStatus.gpu.utilization}%` }}
+                          />
+                        </div>
+                      </div>
+                      {/* VRAM bar */}
+                      <div>
+                        <div className="flex justify-between text-xs text-slate-400 mb-0.5">
+                          <span>VRAM</span>
+                          <span>{(serviceStatus.gpu.memoryUsedMb / 1024).toFixed(1)} / {(serviceStatus.gpu.memoryTotalMb / 1024).toFixed(1)} GB</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${serviceStatus.gpu.memoryPercent > 90 ? 'bg-red-500' : serviceStatus.gpu.memoryPercent > 75 ? 'bg-amber-500' : 'bg-cyan-500'}`}
+                            style={{ width: `${serviceStatus.gpu.memoryPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                      {/* Temperature */}
+                      <div className="flex justify-between text-xs text-slate-400">
+                        <span>{lang === 'no' ? 'Temperatur' : 'Temperature'}</span>
+                        <span className={serviceStatus.gpu.temperatureC > 80 ? 'text-red-400' : serviceStatus.gpu.temperatureC > 70 ? 'text-amber-400' : 'text-slate-300'}>
+                          {serviceStatus.gpu.temperatureC}°C
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : statusLoading ? (
               <div className="text-slate-400 text-sm">{t('general.loading', lang)}</div>
@@ -1172,8 +1201,8 @@ function YoloConfigTab({ lang }) {
 
         <p className="text-xs text-slate-500">
           {lang === 'no'
-            ? 'YOLO brukes til objekt-deteksjon i webcam-bilder for overvåking. Aktiverer Monitorering-fanen i Tidslapse.'
-            : 'YOLO is used for object detection in webcam images for monitoring. Enables the Monitoring tab in Timelapse.'}
+            ? 'VLM (Vision Language Model) brukes til bildeanalyse og objektdeteksjon med naturlig språk. Aktiverer overvåking med frie søkeord.'
+            : 'VLM (Vision Language Model) is used for image analysis and object detection with natural language. Enables monitoring with custom search terms.'}
         </p>
 
         <form onSubmit={saveCredentials} className="space-y-2">
@@ -1185,7 +1214,7 @@ function YoloConfigTab({ lang }) {
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://yolo.example.com"
+              placeholder="https://vision.homeprem.no"
               className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
             />
           </div>
@@ -1200,36 +1229,6 @@ function YoloConfigTab({ lang }) {
               placeholder={config.hasToken ? '********' : 'Bearer token'}
               className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">
-              {lang === 'no' ? 'Prosjekt-ID (valgfritt)' : 'Project ID (optional)'}
-            </label>
-            <input
-              type="text"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              placeholder="fac23eeac522"
-              className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">
-              {t('yolo.confidence', lang)}: {(confidence * 100).toFixed(0)}%
-            </label>
-            <input
-              type="range"
-              min="0.05"
-              max="1"
-              step="0.05"
-              value={confidence}
-              onChange={(e) => setConfidence(parseFloat(e.target.value))}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-            />
-            <div className="flex justify-between text-xs text-slate-500 mt-1">
-              <span>5%</span>
-              <span>100%</span>
-            </div>
           </div>
           <button
             type="submit"

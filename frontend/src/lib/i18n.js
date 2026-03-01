@@ -281,7 +281,8 @@ const translations = {
     'monitoring.addCamera': 'Legg til kamera',
     'monitoring.searchCamera': 'Søk etter kamera',
     'monitoring.labels': 'Etiketter',
-    'monitoring.selectLabels': 'Velg etiketter å overvåke',
+    'monitoring.selectLabels': 'Skriv hva du vil overvåke, skill med komma',
+    'monitoring.tagsPlaceholder': 'person, bil, militærkjøretøy...',
     'monitoring.snooze': 'Ignorer varsler',
     'monitoring.history': 'Historikk',
     'monitoring.noDetections': 'Ingen funn ennå',
@@ -291,16 +292,10 @@ const translations = {
     'monitoring.viewLabeled': 'Vis merket',
     'monitoring.viewOriginal': 'Vis original',
 
-    // YOLO Admin
-    'yolo.status': 'Tjenestestatus',
-    'yolo.confidence': 'Konfidensterskel',
-    'yolo.uptime': 'Oppetid',
-    'yolo.queueLength': 'Kølengde',
-    'yolo.loadedProject': 'Lastet prosjekt',
-    'yolo.dualModel': 'Dual modell',
-    'yolo.imgSize': 'Bildestørrelse',
-    'yolo.offline': 'Frakoblet',
-    'yolo.serviceStatus': 'YOLO-tjenestestatus',
+    // VLM Admin
+    'vlm.status': 'Tjenestestatus',
+    'vlm.offline': 'Frakoblet',
+    'vlm.serviceStatus': 'VLM-tjenestestatus',
 
     // Aurora
     'layer.aurora': 'Nordlys',
@@ -627,7 +622,8 @@ const translations = {
     'monitoring.addCamera': 'Add camera',
     'monitoring.searchCamera': 'Search for camera',
     'monitoring.labels': 'Labels',
-    'monitoring.selectLabels': 'Select labels to monitor',
+    'monitoring.selectLabels': 'Enter what to monitor, separate with comma',
+    'monitoring.tagsPlaceholder': 'person, car, military vehicle...',
     'monitoring.snooze': 'Snooze alerts',
     'monitoring.history': 'History',
     'monitoring.noDetections': 'No detections yet',
@@ -637,16 +633,10 @@ const translations = {
     'monitoring.viewLabeled': 'View labeled',
     'monitoring.viewOriginal': 'View original',
 
-    // YOLO Admin
-    'yolo.status': 'Service status',
-    'yolo.confidence': 'Confidence threshold',
-    'yolo.uptime': 'Uptime',
-    'yolo.queueLength': 'Queue length',
-    'yolo.loadedProject': 'Loaded project',
-    'yolo.dualModel': 'Dual model',
-    'yolo.imgSize': 'Image size',
-    'yolo.offline': 'Offline',
-    'yolo.serviceStatus': 'YOLO service status',
+    // VLM Admin
+    'vlm.status': 'Service status',
+    'vlm.offline': 'Offline',
+    'vlm.serviceStatus': 'VLM service status',
 
     // Aurora
     'layer.aurora': 'Aurora',

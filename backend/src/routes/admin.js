@@ -417,26 +417,22 @@ router.delete('/ntfy-config', (req, res) => {
   res.json({ ok: true });
 });
 
-// --- YOLO Configuration ---
+// --- VLM Configuration ---
 
-// Get YOLO config (whether token is set + project ID + URL + confidence)
-router.get('/yolo-config', (req, res) => {
+// Get VLM config (whether token is set + URL)
+router.get('/vlm-config', (req, res) => {
   const db = getDb();
-  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
-  const projectRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
-  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
-  const confRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_confidence'").get();
+  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
+  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
   res.json({
     hasToken: !!(tokenRow?.value),
-    projectId: projectRow?.value || 'fac23eeac522',
-    url: urlRow?.value || '',
-    confidence: confRow?.value ? parseFloat(confRow.value) : 0.25,
+    url: urlRow?.value || 'https://vision.homeprem.no',
   });
 });
 
-// Validate and set YOLO credentials
-router.put('/yolo-config', async (req, res) => {
-  const { token, projectId, url, confidence } = req.body;
+// Validate and set VLM credentials
+router.put('/vlm-config', async (req, res) => {
+  const { token, url } = req.body;
 
   if (!url || typeof url !== 'string' || !url.trim()) {
     return res.status(400).json({ error: 'URL is required' });
@@ -446,102 +442,100 @@ router.put('/yolo-config', async (req, res) => {
     return res.status(400).json({ error: 'Invalid API token' });
   }
 
-  const yoloUrl = url.trim().replace(/\/$/, ''); // Remove trailing slash
-  const yoloToken = token.trim();
-  const yoloProjectId = (projectId?.trim() || 'fac23eeac522');
-  const yoloConfidence = Math.max(0.05, Math.min(1.0, parseFloat(confidence) || 0.25));
+  const vlmUrl = url.trim().replace(/\/$/, ''); // Remove trailing slash
+  const vlmToken = token.trim();
 
-  // Test connection by calling the API status endpoint
-  const testUrl = `${yoloUrl}/api/v1/status`;
+  // Test connection by calling the API status endpoint (no auth required)
+  // Then verify the token is valid format (we trust it since we can't test without an image)
+  const testUrl = `${vlmUrl}/api/v1/status`;
 
   try {
     const response = await fetch(testUrl, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${yoloToken}` },
     });
-
-    if (response.status === 401 || response.status === 403) {
-      return res.status(400).json({
-        error: 'Invalid API token. The server rejected the provided token.',
-        invalidToken: true
-      });
-    }
 
     if (!response.ok) {
       return res.status(400).json({
-        error: `Failed to connect to YOLO API: ${response.status} ${response.statusText}`
+        error: `Failed to connect to VLM API: ${response.status} ${response.statusText}`
+      });
+    }
+
+    const statusData = await response.json();
+    if (statusData.vllm_status !== 'online') {
+      return res.status(400).json({
+        error: 'VLM server is offline. Please check the server status.'
       });
     }
 
     // Connection successful, save settings
     const db = getDb();
     db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_url', ?, datetime('now'))
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('vlm_url', ?, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(yoloUrl);
+    ).run(vlmUrl);
 
     db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_api_token', ?, datetime('now'))
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('vlm_api_token', ?, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(yoloToken);
+    ).run(vlmToken);
 
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_project_id', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(yoloProjectId);
-
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('yolo_confidence', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(yoloConfidence.toString());
-
-    res.json({ ok: true, message: 'YOLO API configured successfully' });
+    res.json({ ok: true, message: 'VLM API configured successfully' });
 
   } catch (err) {
     return res.status(400).json({
-      error: `Failed to connect to YOLO API: ${err.message}`
+      error: `Failed to connect to VLM API: ${err.message}`
     });
   }
 });
 
-// Get YOLO service status (live data from API)
-router.get('/yolo-status', async (req, res) => {
+// Get VLM service status (live data from API)
+router.get('/vlm-status', async (req, res) => {
   const db = getDb();
-  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
-  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
+  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
+  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
 
   if (!urlRow?.value || !tokenRow?.value) {
-    return res.status(400).json({ error: 'YOLO not configured' });
+    return res.status(400).json({ error: 'VLM not configured' });
   }
 
   try {
+    // Status endpoint doesn't require auth
     const response = await fetch(`${urlRow.value}/api/v1/status`, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${tokenRow.value}` },
     });
 
     if (!response.ok) {
-      return res.status(502).json({ error: 'Failed to fetch YOLO status', offline: true });
+      return res.status(502).json({ error: 'Failed to fetch VLM status', offline: true });
     }
 
     const data = await response.json();
     res.json({
-      loadedProject: data.loaded_project || null,
+      vllmStatus: data.vllm_status || 'unknown',
+      model: data.model || null,
       uptimeSeconds: data.uptime_seconds || 0,
-      dualModel: data.dual_model || false,
-      imgSize: data.img_size || 640,
-      queueLength: data.queue_length || 0,
+      requestsServed: data.requests_served || 0,
+      totalTokensGenerated: data.total_tokens_generated || 0,
+      cachedJobs: data.cached_jobs || 0,
+      gpu: data.gpu ? {
+        name: data.gpu.gpu_name,
+        utilization: data.gpu.gpu_utilization_percent,
+        memoryUsedMb: data.gpu.memory_used_mb,
+        memoryTotalMb: data.gpu.memory_total_mb,
+        memoryPercent: data.gpu.memory_percent,
+        temperatureC: data.gpu.temperature_c,
+      } : null,
+      error: data.error || null,
     });
   } catch (err) {
     return res.status(502).json({ error: err.message, offline: true });
   }
 });
 
-// Remove YOLO credentials
-router.delete('/yolo-config', (req, res) => {
+// Remove VLM credentials
+router.delete('/vlm-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key IN ('yolo_api_token', 'yolo_project_id', 'yolo_url')").run();
-  eventLogger.config.info('YOLO credentials removed');
+  db.prepare("DELETE FROM app_settings WHERE key IN ('vlm_api_token', 'vlm_url')").run();
+  eventLogger.config.info('VLM credentials removed');
   res.json({ ok: true });
 });
 

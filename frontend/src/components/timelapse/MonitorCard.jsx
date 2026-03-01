@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMonitoringStore, SNOOZE_OPTIONS } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
-import LabelSelector from './LabelSelector.jsx';
+import TagInput from './TagInput.jsx';
 
 export default function MonitorCard({ subscription, lang, isHighlighted = false }) {
   const { updateSubscription, unsubscribe, togglePause } = useMonitoringStore();
@@ -219,9 +219,10 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
             <label className="block text-xs text-slate-400 mb-1">
               {t('monitoring.labels', lang)}
             </label>
-            <LabelSelector
-              selected={editLabels}
+            <TagInput
+              value={editLabels}
               onChange={setEditLabels}
+              placeholder={t('monitoring.tagsPlaceholder', lang)}
               lang={lang}
             />
           </div>

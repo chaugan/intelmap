@@ -2,22 +2,6 @@ import { create } from 'zustand';
 
 const API = '/api/monitoring';
 
-// YOLO labels (80 COCO + tank)
-export const YOLO_LABELS = [
-  'airplane', 'apple', 'backpack', 'banana', 'baseball bat', 'baseball glove',
-  'bear', 'bed', 'bench', 'bicycle', 'bird', 'boat', 'book', 'bottle', 'bowl',
-  'broccoli', 'bus', 'cake', 'car', 'carrot', 'cat', 'cell phone', 'chair',
-  'clock', 'couch', 'cow', 'cup', 'dining table', 'dog', 'donut', 'elephant',
-  'fire hydrant', 'fork', 'frisbee', 'giraffe', 'hair drier', 'handbag',
-  'horse', 'hot dog', 'keyboard', 'kite', 'knife', 'laptop', 'microwave',
-  'motorcycle', 'mouse', 'orange', 'oven', 'parking meter', 'person', 'pizza',
-  'potted plant', 'refrigerator', 'remote', 'sandwich', 'scissors', 'sheep',
-  'sink', 'skateboard', 'skis', 'snowboard', 'spoon', 'sports ball',
-  'stop sign', 'suitcase', 'surfboard', 'tank', 'teddy bear', 'tennis racket',
-  'tie', 'toaster', 'toilet', 'toothbrush', 'traffic light', 'train',
-  'truck', 'tv', 'umbrella', 'vase', 'wine glass', 'zebra'
-];
-
 export const SNOOZE_OPTIONS = [
   { value: 0, labelNo: 'Ingen slumring, motta alle varsler', labelEn: 'No snooze, receive all alerts' },
   { value: 15, labelNo: '15 minutter', labelEn: '15 minutes' },

@@ -2,26 +2,9 @@ import { Router } from 'express';
 import { getDb } from '../db/index.js';
 import { requireAuth } from '../auth/middleware.js';
 import { monitorService } from '../monitoring/monitor-service.js';
-import { getYoloApiToken, getNtfyUrl } from '../config.js';
 
 const router = Router();
 router.use(requireAuth);
-
-// YOLO labels (80 COCO + tank)
-const YOLO_LABELS = [
-  'airplane', 'apple', 'backpack', 'banana', 'baseball bat', 'baseball glove',
-  'bear', 'bed', 'bench', 'bicycle', 'bird', 'boat', 'book', 'bottle', 'bowl',
-  'broccoli', 'bus', 'cake', 'car', 'carrot', 'cat', 'cell phone', 'chair',
-  'clock', 'couch', 'cow', 'cup', 'dining table', 'dog', 'donut', 'elephant',
-  'fire hydrant', 'fork', 'frisbee', 'giraffe', 'hair drier', 'handbag',
-  'horse', 'hot dog', 'keyboard', 'kite', 'knife', 'laptop', 'microwave',
-  'motorcycle', 'mouse', 'orange', 'oven', 'parking meter', 'person', 'pizza',
-  'potted plant', 'refrigerator', 'remote', 'sandwich', 'scissors', 'sheep',
-  'sink', 'skateboard', 'skis', 'snowboard', 'spoon', 'sports ball',
-  'stop sign', 'suitcase', 'surfboard', 'tank', 'teddy bear', 'tennis racket',
-  'tie', 'toaster', 'toilet', 'toothbrush', 'traffic light', 'train',
-  'truck', 'tv', 'umbrella', 'vase', 'wine glass', 'zebra'
-];
 
 // Get monitoring config (whether enabled + user's ntfy channel)
 router.get('/config', (req, res) => {
@@ -35,7 +18,6 @@ router.get('/config', (req, res) => {
   res.json({
     enabled,
     ntfyChannel,
-    labels: YOLO_LABELS,
   });
 });
 
@@ -72,13 +54,13 @@ router.post('/subscribe', async (req, res) => {
     return res.status(400).json({ error: 'At least one label is required' });
   }
 
-  // Validate labels
-  const validLabels = labels.filter(l =>
-    YOLO_LABELS.includes(l.toLowerCase())
-  ).map(l => l.toLowerCase());
+  // Clean up labels - trim whitespace and filter empty
+  const validLabels = labels
+    .map(l => (typeof l === 'string' ? l.trim() : ''))
+    .filter(l => l.length > 0);
 
   if (validLabels.length === 0) {
-    return res.status(400).json({ error: 'No valid labels provided' });
+    return res.status(400).json({ error: 'At least one valid label is required' });
   }
 
   // Validate snooze
@@ -98,10 +80,10 @@ router.put('/:cameraId', async (req, res) => {
   const { cameraId } = req.params;
   const { labels, snoozeMinutes } = req.body;
 
-  // Validate labels
-  const validLabels = (labels || []).filter(l =>
-    YOLO_LABELS.includes(l.toLowerCase())
-  ).map(l => l.toLowerCase());
+  // Clean up labels - trim whitespace and filter empty
+  const validLabels = (labels || [])
+    .map(l => (typeof l === 'string' ? l.trim() : ''))
+    .filter(l => l.length > 0);
 
   if (validLabels.length === 0) {
     return res.status(400).json({ error: 'At least one valid label is required' });

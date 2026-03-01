@@ -81,48 +81,26 @@ export function getNtfyUrl() {
   return process.env.NTFY_URL || 'https://ntfy.intelmap.no';
 }
 
-export function getYoloApiToken() {
+export function getVlmApiToken() {
   if (_getDb) {
     try {
       const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_api_token'").get();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
       if (row?.value) return row.value;
     } catch {}
   }
-  return process.env.YOLO_API_TOKEN || '';
+  return process.env.VLM_API_TOKEN || '';
 }
 
-export function getYoloProjectId() {
+export function getVlmUrl() {
   if (_getDb) {
     try {
       const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_project_id'").get();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
       if (row?.value) return row.value;
     } catch {}
   }
-  return process.env.YOLO_PROJECT_ID || 'fac23eeac522';
-}
-
-export function getYoloUrl() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_url'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.YOLO_URL || '';
-}
-
-export function getYoloConfidence() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'yolo_confidence'").get();
-      if (row?.value) return parseFloat(row.value);
-    } catch {}
-  }
-  return parseFloat(process.env.YOLO_CONFIDENCE || '0.25');
+  return process.env.VLM_URL || 'https://vision.homeprem.no';
 }
 
 export function getPublicUrl() {
