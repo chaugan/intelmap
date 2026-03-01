@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Children, Fragment } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, Children, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../../lib/i18n.js';
 
@@ -91,6 +91,27 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
     }
   }, [menuOpen]);
 
+  // Clamp menu within viewport after it renders
+  useLayoutEffect(() => {
+    if (menuOpen && menuRef.current) {
+      const menu = menuRef.current;
+      const rect = menu.getBoundingClientRect();
+      const padding = 8;
+
+      // If menu goes off left edge, shift it right
+      if (rect.left < padding) {
+        const currentRight = parseFloat(menu.style.right) || 0;
+        const adjustment = padding - rect.left;
+        menu.style.right = `${Math.max(padding, currentRight - adjustment)}px`;
+      }
+
+      // If menu goes off right edge, shift it left
+      if (rect.right > window.innerWidth - padding) {
+        menu.style.right = `${padding}px`;
+      }
+    }
+  });
+
   const hasOverflow = overflowIndex !== -1;
   const overflowItems = hasOverflow ? childArray.slice(overflowIndex) : [];
 
@@ -133,7 +154,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
       {menuOpen && overflowItems.length > 0 && createPortal(
         <div
           ref={menuRef}
-          className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] z-[99999]"
+          className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] max-w-[calc(100vw-16px)] z-[99999]"
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {overflowItems.filter((child) => {
