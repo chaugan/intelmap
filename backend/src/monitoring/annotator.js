@@ -37,23 +37,35 @@ function groupByBbox(detections, tolerance = 5) {
  * @returns {string} - SVG string
  */
 function createSvgOverlay(width, height, bboxGroups) {
-  const strokeColor = '#00ff00';
   const bgColor = 'rgba(0,0,0,0.75)';
-  const textColor = '#00ff00';
   const fontSize = 12;
   const fontWeight = 'bold';
   const fontFamily = 'Arial, Helvetica, sans-serif';
   const padding = 3;
 
+  // Color palette for different objects
+  const colors = [
+    '#00ff00', // green
+    '#00ffff', // cyan
+    '#ff00ff', // magenta
+    '#ffff00', // yellow
+    '#ff8800', // orange
+    '#00ff88', // mint
+    '#8888ff', // light blue
+    '#ff88ff', // pink
+  ];
+
   let svgContent = '';
 
-  for (const group of bboxGroups) {
+  for (let idx = 0; idx < bboxGroups.length; idx++) {
+    const group = bboxGroups[idx];
+    const color = colors[idx % colors.length];
     const [x1, y1, x2, y2] = group.bbox;
     const boxWidth = x2 - x1;
     const boxHeight = y2 - y1;
 
     // Draw bounding box
-    svgContent += `<rect x="${x1}" y="${y1}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="${strokeColor}" stroke-width="2"/>`;
+    svgContent += `<rect x="${x1}" y="${y1}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="${color}" stroke-width="2"/>`;
 
     // Draw stacked labels above the box
     const lineHeight = fontSize + padding;
@@ -79,7 +91,7 @@ function createSvgOverlay(width, height, bboxGroups) {
     // Draw each label stacked
     labels.forEach((label, i) => {
       const textY = bgY + padding + (i + 1) * lineHeight - padding;
-      svgContent += `<text x="${bgX + padding}" y="${textY}" fill="${textColor}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}">${escapeXml(label)}</text>`;
+      svgContent += `<text x="${bgX + padding}" y="${textY}" fill="${color}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}">${escapeXml(label)}</text>`;
     });
   }
 
