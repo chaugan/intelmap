@@ -77,9 +77,6 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
 
   const hasOverflow = overflowIndex !== -1;
   const overflowItems = hasOverflow ? childArray.slice(overflowIndex) : [];
-  const overflowMenuItems = overflowItems.filter(child =>
-    !child.props?.className?.includes('w-px') // Skip dividers
-  );
 
   return (
     <>
@@ -117,17 +114,24 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
       </div>
 
       {/* Overflow menu */}
-      {menuOpen && overflowMenuItems.length > 0 && createPortal(
+      {menuOpen && overflowItems.length > 0 && createPortal(
         <div
           ref={menuRef}
           className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] z-[99999]"
           style={{ top: menuPos.top, right: menuPos.right }}
         >
-          {overflowMenuItems.map((child, i) => (
-            <div key={i} className="px-2 py-1">
-              {child}
-            </div>
-          ))}
+          {overflowItems.map((child, i) => {
+            // Convert vertical dividers to horizontal
+            const isDivider = child.props?.className?.includes('w-px');
+            if (isDivider) {
+              return <div key={i} className="h-px bg-slate-600 my-1 mx-2" />;
+            }
+            return (
+              <div key={i} className="px-2 py-1">
+                {child}
+              </div>
+            );
+          })}
         </div>,
         document.body
       )}

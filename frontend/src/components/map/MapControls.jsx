@@ -255,8 +255,8 @@ export default function MapControls() {
       <button
         onClick={handleGeolocate}
         disabled={locating}
-        className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 disabled:opacity-50"
-        title={lang === 'no' ? 'Min posisjon' : 'My location'}
+        className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1"
+        title={t('toolbar.myLocation', lang)}
       >
         {locating ? (
           <svg className="w-4 h-4 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -269,6 +269,7 @@ export default function MapControls() {
             <path d="M12 2v4m0 12v4m10-10h-4M6 12H2" />
           </svg>
         )}
+        <span className="text-sm text-slate-300">{t('toolbar.myLocation', lang)}</span>
       </button>
     </OverflowToolbar>
   );

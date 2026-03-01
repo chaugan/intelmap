@@ -3,6 +3,7 @@ const translations = {
     // Top bar / Toolbar
     'app.title': 'IntelMap',
     'toolbar.export': 'Eksporter',
+    'toolbar.myLocation': 'Min posisjon',
     'toolbar.more': 'Mer',
     'layer.wind': 'Vind',
     'layer.webcams': 'Webkameraer',
@@ -356,6 +357,7 @@ const translations = {
   en: {
     'app.title': 'IntelMap',
     'toolbar.export': 'Export',
+    'toolbar.myLocation': 'My position',
     'toolbar.more': 'More',
     'layer.wind': 'Wind',
     'layer.webcams': 'Webcams',
