@@ -73,8 +73,8 @@ export default function ExportMenu({
       {showDropdown && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed bg-slate-700 rounded shadow-xl border border-slate-600 min-w-[180px]"
-          style={{ top: dropdownPos.top, right: dropdownPos.right, zIndex: 9999 }}
+          className="fixed bg-slate-700 text-slate-100 rounded shadow-2xl border border-slate-600 min-w-[180px]"
+          style={{ top: dropdownPos.top, right: dropdownPos.right, zIndex: 99999 }}
         >
           {/* Save to disk option */}
           <button
