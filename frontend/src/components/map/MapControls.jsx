@@ -171,7 +171,7 @@ export default function MapControls() {
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
 
-      <div className="w-px h-5 bg-slate-600 mx-1" />
+      <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
       {/* Panel buttons */}
       {['layers', 'symbols', 'weather', 'search'].map((panel) => (
@@ -187,7 +187,7 @@ export default function MapControls() {
 
       {user?.aiChatEnabled && (
         <>
-          <div className="w-px h-5 bg-slate-600 mx-1" />
+          <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
           {/* AI Chat toggle */}
           <button
@@ -205,7 +205,7 @@ export default function MapControls() {
 
       {canTimelapse && (
         <>
-          <div className="w-px h-5 bg-slate-600 mx-1" />
+          <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
           {/* Monitoring toggle */}
           <button
@@ -221,7 +221,7 @@ export default function MapControls() {
         </>
       )}
 
-      <div className="w-px h-5 bg-slate-600 mx-1" />
+      <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
       {/* Screenshot / Export */}
       {user?.wasosEnabled ? (

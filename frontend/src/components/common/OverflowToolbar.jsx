@@ -121,15 +121,8 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {overflowItems.filter((child) => {
-            // Skip dividers in overflow menu (w-px h-5 bg-slate-600 mx-1)
-            const className = child?.props?.className;
-            if (typeof className === 'string' && (className.includes('w-px') || className.includes('bg-slate-600 mx-1'))) {
-              return false;
-            }
-            // Also check if it's a div with only divider-like styling (no children or empty)
-            if (child?.type === 'div' && !child?.props?.children) {
-              return false;
-            }
+            // Skip dividers marked with data-divider attribute
+            if (child?.props?.['data-divider']) return false;
             return true;
           }).map((child, i) => (
             <div key={i} className="px-2 py-1">
