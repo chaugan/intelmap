@@ -121,13 +121,10 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
           style={{ top: menuPos.top, right: menuPos.right }}
         >
           {overflowItems.map((child, i) => {
-            // Convert vertical dividers to horizontal
-            // Check both props.className and if it's a simple div with w-px class
+            // Skip dividers in overflow menu
             const childClassName = child.props?.className || '';
             const isDivider = typeof childClassName === 'string' && childClassName.includes('w-px');
-            if (isDivider) {
-              return <div key={i} className="h-px bg-slate-600 my-2 mx-2" />;
-            }
+            if (isDivider) return null;
             return (
               <div key={i} className="px-2 py-1">
                 {child}
