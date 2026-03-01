@@ -332,7 +332,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
                       })}
                     </span>
                     <div className="flex items-center gap-2">
-                      {det.has_image && (
+                      {!!det.has_image && (
                         <button
                           onClick={() => { setViewingImage(det.id); setImageType('annotated'); }}
                           className="text-cyan-400 hover:text-cyan-300 underline"
@@ -340,7 +340,7 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
                           {t('monitoring.viewLabeled', lang)}
                         </button>
                       )}
-                      {det.has_raw_image && (
+                      {!!det.has_raw_image && (
                         <button
                           onClick={() => { setViewingImage(det.id); setImageType('raw'); }}
                           className="text-amber-400 hover:text-amber-300 underline"
