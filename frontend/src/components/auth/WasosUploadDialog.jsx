@@ -105,7 +105,7 @@ export default function WasosUploadDialog() {
                 <img
                   src={wasosUploadData.preview}
                   alt="Upload preview"
-                  className="w-full h-32 object-cover rounded border border-slate-600"
+                  className="w-full max-h-48 object-contain rounded border border-slate-600 bg-slate-900"
                 />
               </div>
             )}
