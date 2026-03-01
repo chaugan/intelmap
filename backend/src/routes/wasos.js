@@ -160,7 +160,7 @@ router.post('/upload', async (req, res) => {
     const description = text || 'Transfer from IntelMap';
     const coords = coordinates || [9.686164855957031, 59.670897004902216];
 
-    const metadata = JSON.stringify({
+    const metadata = {
       taskuuid,
       username,
       usertext: description,
@@ -171,45 +171,24 @@ router.post('/upload', async (req, res) => {
       mediaextra: {
         callsign: '',
       },
-    });
+    };
 
     // Convert base64 to buffer
     const imageBuffer = Buffer.from(image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
 
-    // Build multipart form
-    const boundary = '----WasosUploadBoundary' + Date.now();
-    const parts = [];
-
-    // Metadata field (WaSOS expects "mediadescription")
-    parts.push(`--${boundary}`);
-    parts.push('Content-Disposition: form-data; name="mediadescription"');
-    parts.push('');
-    parts.push(metadata);
-
-    // File field
-    parts.push(`--${boundary}`);
-    parts.push(`Content-Disposition: form-data; name="files"; filename="${filename || 'upload.png'}"`);
-    parts.push('Content-Type: image/png');
-    parts.push('');
-
-    const textPart = parts.join('\r\n') + '\r\n';
-    const endPart = `\r\n--${boundary}--\r\n`;
-
-    const body = Buffer.concat([
-      Buffer.from(textPart, 'utf8'),
-      imageBuffer,
-      Buffer.from(endPart, 'utf8'),
-    ]);
+    // Use native FormData (Node 20+)
+    const formData = new FormData();
+    formData.append('mediadescription', JSON.stringify(metadata));
+    formData.append('files', new Blob([imageBuffer], { type: 'image/png' }), filename || 'upload.png');
 
     // POST to WaSOS
     const uploadRes = await fetch('https://wasos.no/wasosdb/media', {
       method: 'POST',
       headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
         'Cookie': session.cookies,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
-      body,
+      body: formData,
     });
 
     if (!uploadRes.ok) {
