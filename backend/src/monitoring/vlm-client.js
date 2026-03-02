@@ -64,18 +64,19 @@ class VlmClient {
    * @returns {string}
    */
   getDefaultPrompt() {
-    return `For each object in this image, return ALL applicable labels from: \${labelList}
+    return `Analyze this image for: \${labelList}
 
 Return EXACTLY this JSON format:
 {"objects": [{"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]}]}
 
 Rules:
-- Each object gets ONE entry with ALL matching labels from the list
-- "bbox" MUST be an array of exactly 4 integers: [left, top, right, bottom]
-- "labels" is an array of strings - include EVERY applicable label per object
-- Example: a tank could have labels ["tank", "stridsvogn", "militære kjøretøy"]
-- If nothing is found, return: {"objects": []}
-- Output ONLY valid JSON, no markdown, no explanation`;
+- Only return objects you are HIGHLY CONFIDENT actually match the labels
+- Do NOT detect blurred, pixelated, or unclear shapes
+- Do NOT detect regular civilian vehicles (cars, trucks, buses, SUVs)
+- Do NOT detect headlights, reflections, or light artifacts
+- When uncertain, return {"objects": []} - false negatives are acceptable, false positives are not
+- "bbox" MUST be exactly 4 integers: [left, top, right, bottom]
+- Output ONLY valid JSON, no explanation`;
   }
 
   /**
