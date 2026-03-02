@@ -539,6 +539,48 @@ router.delete('/vlm-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// Get VLM prompt template
+router.get('/vlm-prompt', (req, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_prompt'").get();
+  const { vlmClient } = require('../monitoring/vlm-client.js');
+  res.json({
+    prompt: row?.value || null,
+    defaultPrompt: vlmClient.getDefaultPrompt(),
+    isCustom: !!row?.value,
+  });
+});
+
+// Set VLM prompt template
+router.put('/vlm-prompt', (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 20) {
+    return res.status(400).json({ error: 'Prompt must be at least 20 characters' });
+  }
+
+  if (!prompt.includes('${labelList}')) {
+    return res.status(400).json({ error: 'Prompt must contain ${labelList} placeholder' });
+  }
+
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('vlm_prompt', ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  ).run(prompt.trim());
+
+  eventLogger.config.info('VLM prompt template updated');
+  res.json({ ok: true });
+});
+
+// Reset VLM prompt to default
+router.delete('/vlm-prompt', (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM app_settings WHERE key = 'vlm_prompt'").run();
+  eventLogger.config.info('VLM prompt reset to default');
+  res.json({ ok: true });
+});
+
 // --- Admin Events ---
 
 // Get recent events

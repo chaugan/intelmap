@@ -999,7 +999,70 @@ function VlmConfigTab({ lang }) {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState('');
 
-  useEffect(() => { fetchConfig(); }, []);
+  // Prompt editor state
+  const [promptData, setPromptData] = useState(null);
+  const [editedPrompt, setEditedPrompt] = useState('');
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptStatus, setPromptStatus] = useState('');
+  const [promptError, setPromptError] = useState('');
+
+  useEffect(() => { fetchConfig(); fetchPrompt(); }, []);
+
+  async function fetchPrompt() {
+    try {
+      const res = await fetch(`${API}/vlm-prompt`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setPromptData(data);
+        setEditedPrompt(data.prompt || data.defaultPrompt);
+      }
+    } catch {}
+  }
+
+  async function savePrompt() {
+    setPromptError(''); setPromptStatus('');
+    if (!editedPrompt.includes('${labelList}')) {
+      setPromptError(lang === 'no' ? 'Prompt må inneholde ${labelList}' : 'Prompt must contain ${labelList}');
+      return;
+    }
+    setPromptSaving(true);
+    try {
+      const res = await fetch(`${API}/vlm-prompt`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ prompt: editedPrompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPromptError(data.error);
+        return;
+      }
+      setPromptStatus(lang === 'no' ? 'Prompt lagret' : 'Prompt saved');
+      fetchPrompt();
+    } catch (err) {
+      setPromptError(err.message);
+    } finally {
+      setPromptSaving(false);
+    }
+  }
+
+  async function resetPrompt() {
+    setPromptError(''); setPromptStatus('');
+    try {
+      const res = await fetch(`${API}/vlm-prompt`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) {
+        const data = await res.json();
+        setPromptError(data.error);
+        return;
+      }
+      setPromptStatus(lang === 'no' ? 'Prompt tilbakestilt' : 'Prompt reset to default');
+      fetchPrompt();
+    } catch (err) {
+      setPromptError(err.message);
+    }
+  }
 
   // Fetch service status when configured
   const fetchServiceStatus = useCallback(async () => {
@@ -1106,6 +1169,59 @@ function VlmConfigTab({ lang }) {
         {isConfigured && (
           <div className="text-xs text-slate-400">
             URL: <span className="font-mono text-slate-300">{config.url}</span>
+          </div>
+        )}
+
+        {/* Prompt Editor Section */}
+        {isConfigured && promptData && (
+          <div className="mt-4 p-3 bg-slate-800 rounded border border-slate-700">
+            <button
+              onClick={() => setPromptExpanded(!promptExpanded)}
+              className="flex items-center justify-between w-full text-left"
+            >
+              <h4 className="text-sm font-medium text-cyan-400">
+                {lang === 'no' ? 'Prompt-mal' : 'Prompt Template'}
+                {promptData.isCustom && <span className="ml-2 text-xs text-amber-400">(custom)</span>}
+              </h4>
+              <svg className={`w-4 h-4 text-slate-400 transition-transform ${promptExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {promptExpanded && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-slate-500">
+                  {lang === 'no'
+                    ? 'Rediger prompten som sendes til VLM. Bruk ${labelList} der brukerens etiketter skal settes inn.'
+                    : 'Edit the prompt sent to VLM. Use ${labelList} where user labels should be inserted.'}
+                </p>
+                <textarea
+                  value={editedPrompt}
+                  onChange={(e) => setEditedPrompt(e.target.value)}
+                  rows={12}
+                  className="w-full px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  placeholder="Prompt template..."
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={savePrompt}
+                    disabled={promptSaving}
+                    className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-xs transition-colors disabled:opacity-50"
+                  >
+                    {promptSaving ? (lang === 'no' ? 'Lagrer...' : 'Saving...') : (lang === 'no' ? 'Lagre' : 'Save')}
+                  </button>
+                  {promptData.isCustom && (
+                    <button
+                      onClick={resetPrompt}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors"
+                    >
+                      {lang === 'no' ? 'Tilbakestill' : 'Reset to default'}
+                    </button>
+                  )}
+                </div>
+                {promptStatus && <p className="text-emerald-400 text-xs">{promptStatus}</p>}
+                {promptError && <p className="text-red-400 text-xs">{promptError}</p>}
+              </div>
+            )}
           </div>
         )}
 

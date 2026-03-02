@@ -58,20 +58,53 @@ class VlmClient {
    * @param {string[]} labels - Labels to detect
    * @returns {string} - Formatted prompt
    */
-  buildPrompt(labels) {
-    const labelList = labels.join(', ');
-    return `For each object in this image, return ALL applicable labels from: ${labelList}
+  /**
+   * Get the default prompt template
+   * @returns {string}
+   */
+  getDefaultPrompt() {
+    return `For each object in this image, return ALL applicable labels from: \${labelList}
 
 Return EXACTLY this JSON format:
 {"objects": [{"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]}]}
 
 Rules:
-- Each detected object gets ONE entry with ALL matching labels from the list
+- Each object gets ONE entry with ALL matching labels from the list
 - "bbox" MUST be an array of exactly 4 integers: [left, top, right, bottom]
 - "labels" is an array of strings - include EVERY applicable label per object
 - Example: a tank could have labels ["tank", "stridsvogn", "militære kjøretøy"]
 - If nothing is found, return: {"objects": []}
 - Output ONLY valid JSON, no markdown, no explanation`;
+  }
+
+  /**
+   * Get the prompt template (from DB or default)
+   * @returns {string}
+   */
+  getPromptTemplate() {
+    try {
+      const { getDb } = require('../db/index.js');
+      const db = getDb();
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_prompt'").get();
+      if (row?.value) {
+        return row.value;
+      }
+    } catch (err) {
+      // DB not available, use default
+    }
+    return this.getDefaultPrompt();
+  }
+
+  /**
+   * Build prompt from user labels
+   * @param {string[]} labels - Labels to detect
+   * @returns {string} - Formatted prompt
+   */
+  buildPrompt(labels) {
+    const labelList = labels.join(', ');
+    const template = this.getPromptTemplate();
+    // Replace ${labelList} placeholder with actual labels
+    return template.replace(/\$\{labelList\}/g, labelList);
   }
 
   /**
