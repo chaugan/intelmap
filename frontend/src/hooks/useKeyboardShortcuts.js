@@ -56,6 +56,11 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Ignore shortcuts when modifier keys are pressed (allow system shortcuts like Ctrl+C)
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
       switch (e.key) {
         // Layer toggles
         case 'w': toggleWind(); break;
