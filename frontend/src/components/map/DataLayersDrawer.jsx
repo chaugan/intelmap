@@ -531,7 +531,7 @@ export default function DataLayersDrawer() {
           {themes.length === 0 && (
             <p className="text-slate-500 text-xs">{t('dataLayers.noThemes', lang)}</p>
           )}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {themes.map((theme) => {
               const hasPosition = !!theme.state?.position;
               const canManage = user && (theme.isOwner || isAdmin); // Owner/admin: can manage sharing
@@ -542,11 +542,11 @@ export default function DataLayersDrawer() {
               const canAddSharing = canManage && (availableGroups.length > 0 || !theme.isPublic);
 
               return (
-                <div key={theme.id} className="group">
+                <div key={theme.id} className="group bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600/50 hover:border-slate-500/50 rounded-lg p-2 transition-all">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleApplyTheme(theme)}
-                      className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
+                      className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-1 py-0.5 rounded transition-colors truncate"
                     >
                       {theme.name}
                       {!theme.isOwner && theme.created_by_name && <span className="text-slate-500 text-xs ml-1">({theme.created_by_name})</span>}
@@ -564,7 +564,7 @@ export default function DataLayersDrawer() {
                         className={`w-6 h-6 flex items-center justify-center rounded transition-all shrink-0 ${
                           hasPosition
                             ? 'text-emerald-400 hover:text-emerald-300'
-                            : 'text-slate-600 hover:text-slate-400 opacity-0 group-hover:opacity-100'
+                            : 'text-slate-500 opacity-30 hover:opacity-100 hover:text-slate-300'
                         }`}
                         title={lang === 'no'
                           ? (hasPosition ? 'Fjern posisjon' : 'Lagre nåværende posisjon')
@@ -588,7 +588,7 @@ export default function DataLayersDrawer() {
                     {canUpdate && (
                       <button
                         onClick={() => handleUpdateTheme(theme)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        className="w-6 h-6 flex items-center justify-center text-slate-500 opacity-50 hover:opacity-100 hover:text-blue-400 transition-all shrink-0"
                         title={t('themes.update', lang)}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -596,11 +596,11 @@ export default function DataLayersDrawer() {
                         </svg>
                       </button>
                     )}
-                    {/* QR code button */}
+                    {/* QR code button - always visible */}
                     {canShowQr && (
                       <button
                         onClick={() => setQrOverlayTheme(theme)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-200 transition-colors shrink-0"
                         title={t('themes.generateQr', lang)}
                       >
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -609,11 +609,11 @@ export default function DataLayersDrawer() {
                         </svg>
                       </button>
                     )}
-                    {/* Delete button */}
+                    {/* Delete button - hidden until hover */}
                     {canDelete && (
                       <button
                         onClick={() => handleDeleteTheme(theme.id)}
-                        className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        className="w-6 h-6 flex items-center justify-center text-red-500/50 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-all shrink-0"
                         title={t('general.delete', lang)}
                       >
                         ✕
@@ -623,7 +623,7 @@ export default function DataLayersDrawer() {
 
                   {/* Sharing controls (owner/admin only) */}
                   {canManage && (
-                    <div className="ml-2 mt-1 space-y-1">
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-600/30 space-y-1">
                       {/* Show public badge (removable) */}
                       {theme.isPublic && (
                         <div className="flex flex-wrap gap-1">
