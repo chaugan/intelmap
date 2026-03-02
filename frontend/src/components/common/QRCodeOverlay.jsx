@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
+import ExportMenu from './ExportMenu.jsx';
 
 export default function QRCodeOverlay({ themeId, themeName, onClose }) {
   const lang = useMapStore((s) => s.lang);
@@ -88,22 +89,20 @@ export default function QRCodeOverlay({ themeId, themeName, onClose }) {
           {themeUrl}
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={handleSaveToDisk}
-            className="flex-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors"
-          >
-            {t('themes.saveQr', lang)}
-          </button>
-          {wasosLoggedIn && (
-            <button
-              onClick={handleWasosTransfer}
-              className="flex-1 px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded text-sm text-white transition-colors"
-            >
-              {t('wasos.transfer', lang)}
-            </button>
-          )}
+        {/* Export button using ExportMenu */}
+        <div className="flex justify-center">
+          <ExportMenu
+            onSaveToDisk={handleSaveToDisk}
+            onTransferToWasos={handleWasosTransfer}
+            wasosLoggedIn={wasosLoggedIn}
+            buttonLabel={t('themes.exportQr', lang)}
+            buttonClassName="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors flex items-center gap-2"
+            buttonIcon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            }
+          />
         </div>
       </div>
     </div>

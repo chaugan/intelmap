@@ -43,7 +43,9 @@ export default function App() {
   const [themeError, setThemeError] = useState(null); // 'notFound' | 'permissionDenied' | null
   const draggingChatRef = useRef(false);
   const draggingTimelapseRef = useRef(false);
+  const pendingThemeRef = useRef(null); // Store pending theme until map is ready
   const applyTheme = useMapStore((s) => s.applyTheme);
+  const mapRef = useMapStore((s) => s.mapRef);
 
   const handleChatMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -108,15 +110,29 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         if (data.canAccess && data.theme) {
-          applyTheme(data.theme.state);
+          // Store theme to apply when map is ready
+          pendingThemeRef.current = data.theme.state;
           // Clear URL parameter
           window.history.replaceState({}, '', window.location.pathname);
+          // If map is already ready, apply immediately
+          if (useMapStore.getState().mapRef) {
+            applyTheme(data.theme.state);
+            pendingThemeRef.current = null;
+          }
         } else {
           setThemeError(data.error === 'notFound' ? 'notFound' : 'permissionDenied');
         }
       })
       .catch(() => setThemeError('notFound'));
   }, [applyTheme]);
+
+  // Apply pending theme when map becomes ready
+  useEffect(() => {
+    if (mapRef && pendingThemeRef.current) {
+      applyTheme(pendingThemeRef.current);
+      pendingThemeRef.current = null;
+    }
+  }, [mapRef, applyTheme]);
 
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
