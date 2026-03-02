@@ -26,6 +26,7 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   const frozenPositionRef = useRef(null);
   const wasFlyAroundActiveRef = useRef(false);
   const lastPositionRef = useRef(null);
+  const pendingOffsetRef = useRef(null);
   const [, forceUpdate] = useState(0);
 
   // Get map container offset for coordinate conversion (canvas → viewport)
@@ -131,10 +132,29 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   if (flyAroundActive && !wasFlyAroundActiveRef.current) {
     frozenPositionRef.current = lastPositionRef.current;
   }
-  if (!flyAroundActive && wasFlyAroundActiveRef.current) {
+
+  // When fly-around stops, calculate new offset to maintain frozen screen position
+  if (!flyAroundActive && wasFlyAroundActiveRef.current && frozenPositionRef.current) {
+    // Calculate new offset to keep popup at frozen position
+    const frozenCanvasX = frozenPositionRef.current.canvasX;
+    const frozenCanvasY = frozenPositionRef.current.canvasY;
+    pendingOffsetRef.current = {
+      dx: frozenCanvasX - origin.x,
+      dy: frozenCanvasY - origin.y,
+    };
     frozenPositionRef.current = null;
   }
   wasFlyAroundActiveRef.current = flyAroundActive;
+
+  // Apply pending offset update after render
+  useEffect(() => {
+    if (pendingOffsetRef.current) {
+      setOffset(pendingOffsetRef.current);
+      setIsDragged(true);
+      isDraggedRef.current = true;
+      pendingOffsetRef.current = null;
+    }
+  });
 
   // Use clamped position for rendering, or frozen position during fly-around
   const frozen = frozenPositionRef.current;
