@@ -143,7 +143,7 @@ export default function MapControls() {
       </button>
 
       {/* Base layer selector */}
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative" ref={dropdownRef} data-has-submenu="true">
         <button
           onClick={() => setShowBaseDropdown(!showBaseDropdown)}
           className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors flex items-center gap-1"
@@ -225,18 +225,20 @@ export default function MapControls() {
 
       {/* Screenshot / Export */}
       {user?.wasosEnabled ? (
-        <ExportMenu
-          onSaveToDisk={takeScreenshot}
-          onTransferToWasos={handleWasosScreenshot}
-          wasosLoggedIn={wasosLoggedIn}
-          buttonIcon={
-            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          }
-          buttonLabel={t('toolbar.export', lang)}
-        />
+        <div data-has-submenu="true">
+          <ExportMenu
+            onSaveToDisk={takeScreenshot}
+            onTransferToWasos={handleWasosScreenshot}
+            wasosLoggedIn={wasosLoggedIn}
+            buttonIcon={
+              <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            }
+            buttonLabel={t('toolbar.export', lang)}
+          />
+        </div>
       ) : (
         <button
           onClick={takeScreenshot}

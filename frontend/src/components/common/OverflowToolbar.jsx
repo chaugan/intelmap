@@ -164,11 +164,15 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
             // Fallback: check if className contains divider patterns
             if (typeof props.className === 'string' && props.className.includes('w-px')) return false;
             return true;
-          }).map((child, i) => (
-            <div key={i} className="px-2 py-1" onClick={() => setMenuOpen(false)}>
-              {child}
-            </div>
-          ))}
+          }).map((child, i) => {
+            // Don't auto-close menu for items with their own submenus
+            const hasSubmenu = child?.props?.['data-has-submenu'] === 'true' || child?.props?.['data-has-submenu'] === true;
+            return (
+              <div key={i} className="px-2 py-1" onClick={hasSubmenu ? undefined : () => setMenuOpen(false)}>
+                {child}
+              </div>
+            );
+          })}
         </div>,
         document.body
       )}
