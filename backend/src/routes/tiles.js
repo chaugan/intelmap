@@ -32,6 +32,18 @@ function tileToBBox4326(z, x, y) {
   return { latMin, lonMin, latMax, lonMax };
 }
 
+// Convert XYZ tile coordinates to EPSG:3857 (Web Mercator) bounding box
+function tileToBBox3857(z, x, y) {
+  const earthRadius = 6378137;
+  const maxExtent = Math.PI * earthRadius;
+  const tileSize = (2 * maxExtent) / (1 << z);
+  const xMin = -maxExtent + x * tileSize;
+  const xMax = -maxExtent + (x + 1) * tileSize;
+  const yMax = maxExtent - y * tileSize;
+  const yMin = maxExtent - (y + 1) * tileSize;
+  return { xMin, yMin, xMax, yMax };
+}
+
 // Avalanche WMS proxy — XYZ tile endpoint (NVE has no CORS, no EPSG:3857)
 router.get('/avalanche/:z/:x/:y.png', async (req, res) => {
   try {
@@ -123,6 +135,63 @@ router.get('/dem/:z/:x/:y.png', async (req, res) => {
     res.send(buf);
   } catch {
     res.status(502).send('DEM proxy error');
+  }
+});
+
+// Traffic flow tile cache (in-memory, short TTL for real-time data)
+const trafficCache = new Map();
+const TRAFFIC_CACHE_MAX = 500;
+const TRAFFIC_CACHE_TTL = 2 * 60 * 1000; // 2 minutes (real-time data)
+
+function trafficCacheGet(key) {
+  const entry = trafficCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > TRAFFIC_CACHE_TTL) { trafficCache.delete(key); return null; }
+  return entry.buf;
+}
+
+function trafficCacheSet(key, buf) {
+  if (trafficCache.size >= TRAFFIC_CACHE_MAX) {
+    const oldest = trafficCache.keys().next().value;
+    trafficCache.delete(oldest);
+  }
+  trafficCache.set(key, { buf, ts: Date.now() });
+}
+
+// Traffic flow WMS proxy — XYZ tile endpoint (Vegvesen has no CORS)
+router.get('/traffic/:z/:x/:y.png', async (req, res) => {
+  try {
+    const z = parseInt(req.params.z);
+    const x = parseInt(req.params.x);
+    const y = parseInt(req.params.y);
+    const cacheKey = `traffic/${z}/${x}/${y}`;
+
+    const cached = trafficCacheGet(cacheKey);
+    if (cached) {
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.send(cached);
+    }
+
+    const { xMin, yMin, xMax, yMax } = tileToBBox3857(z, x, y);
+    const url = 'https://ogckart-sn1.atlas.vegvesen.no/wms'
+      + '?service=WMS&version=1.1.1&request=GetMap'
+      + '&layers=trafikkflyt_1_0:Trafikkflyt'
+      + '&styles=&format=image/png&transparent=true'
+      + '&srs=EPSG:3857'
+      + `&bbox=${xMin},${yMin},${xMax},${yMax}`
+      + '&width=256&height=256';
+
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).send('WMS error');
+
+    const buf = Buffer.from(await response.arrayBuffer());
+    trafficCacheSet(cacheKey, buf);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=60');
+    res.send(buf);
+  } catch {
+    res.status(502).send('Traffic proxy error');
   }
 });
 

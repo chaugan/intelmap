@@ -7,8 +7,10 @@ export function buildMapStyle(baseLayerId, {
   avalancheWarningsData = null,
   snowDepthVisible = false,
   snowDepthOpacity = 0.7,
+  trafficVisible = false,
+  trafficOpacity = 0.9,
   auroraVisible = false,
-  overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'wind'],
+  overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'traffic', 'wind'],
 } = {}) {
   const layer = BASE_LAYERS[baseLayerId] || BASE_LAYERS.topo;
 
@@ -114,6 +116,23 @@ export function buildMapStyle(baseLayerId, {
       source: 'snowdepth-img',
       minzoom: 5,
       paint: { 'raster-opacity': snowDepthOpacity },
+    };
+  }
+
+  if (trafficVisible) {
+    sources['traffic-flow'] = {
+      type: 'raster',
+      tiles: ['/api/tiles/traffic/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      minzoom: 6,
+      maxzoom: 16,
+    };
+    overlayDefs.traffic = {
+      id: 'traffic-flow-layer',
+      type: 'raster',
+      source: 'traffic-flow',
+      minzoom: 6,
+      paint: { 'raster-opacity': trafficOpacity },
     };
   }
 

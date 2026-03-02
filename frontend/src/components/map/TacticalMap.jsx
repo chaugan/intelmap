@@ -118,6 +118,7 @@ export default function TacticalMap() {
   const [snowDepthLoading, setSnowDepthLoading] = useState(false);
   const suppressMapContextMenu = useRef(false);
 
+  const trafficOpacity = useMapStore((s) => s.trafficOpacity);
   const mapStyle = useMemo(
     () => buildMapStyle(baseLayer, {
       avalancheVisible,
@@ -126,10 +127,12 @@ export default function TacticalMap() {
       avalancheWarningsData,
       snowDepthVisible,
       snowDepthOpacity,
+      trafficVisible,
+      trafficOpacity,
       auroraVisible,
       overlayOrder,
     }),
-    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, auroraVisible, overlayOrder]
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, trafficVisible, trafficOpacity, auroraVisible, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
