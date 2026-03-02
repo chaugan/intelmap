@@ -8,7 +8,7 @@ const OVERLAYS = [
   { id: 'sunlight', toggleKey: 'toggleSunlight', visibleKey: 'sunlightVisible', opacityKey: 'sunlightOpacity', setOpacityKey: 'setSunlightOpacity', accent: 'accent-yellow-500', shortcut: 'H' },
   { id: 'wind', toggleKey: 'toggleWind', visibleKey: 'windVisible', opacityKey: 'windOpacity', setOpacityKey: 'setWindOpacity', accent: 'accent-emerald-500', shortcut: 'W' },
   { id: 'webcams', toggleKey: 'toggleWebcams', visibleKey: 'webcamsVisible', opacityKey: null, setOpacityKey: null, accent: null, shortcut: 'C' },
-  { id: 'trafficFlow', toggleKey: 'toggleTrafficFlow', visibleKey: 'trafficFlowVisible', opacityKey: 'trafficFlowOpacity', setOpacityKey: 'setTrafficFlowOpacity', accent: 'accent-green-500', shortcut: 'D' },
+  { id: 'trafficFlow', toggleKey: 'toggleTrafficFlow', visibleKey: 'trafficFlowVisible', opacityKey: 'trafficFlowOpacity', setOpacityKey: 'setTrafficFlowOpacity', accent: 'accent-green-500', shortcut: 'Q' },
   { id: 'trafficInfo', toggleKey: 'toggleTrafficInfo', visibleKey: 'trafficInfoVisible', opacityKey: 'trafficInfoOpacity', setOpacityKey: 'setTrafficInfoOpacity', accent: 'accent-orange-500', shortcut: 'R' },
   { id: 'avalanche', toggleKey: 'toggleAvalanche', visibleKey: 'avalancheVisible', opacityKey: null, setOpacityKey: null, accent: null, shortcut: 'A' },
   { id: 'avalancheWarnings', toggleKey: 'toggleAvalancheWarnings', visibleKey: 'avalancheWarningsVisible', opacityKey: 'avalancheWarningsOpacity', setOpacityKey: 'setAvalancheWarningsOpacity', accent: 'accent-orange-500', shortcut: 'V' },

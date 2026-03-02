@@ -11,6 +11,8 @@ export function useKeyboardShortcuts() {
   const toggleSnowDepth = useMapStore((s) => s.toggleSnowDepth);
   const toggleAircraft = useMapStore((s) => s.toggleAircraft);
   const toggleVessels = useMapStore((s) => s.toggleVessels);
+  const toggleTrafficFlow = useMapStore((s) => s.toggleTrafficFlow);
+  const toggleTrafficInfo = useMapStore((s) => s.toggleTrafficInfo);
   const toggleAurora = useMapStore((s) => s.toggleAurora);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
   const toggleMeasuringTool = useMapStore((s) => s.toggleMeasuringTool);
@@ -70,6 +72,8 @@ export function useKeyboardShortcuts() {
         case 's': toggleSnowDepth(); break;
         case 'f': toggleAircraft(); break;
         case 'b': toggleVessels(); break;
+        case 'q': toggleTrafficFlow(); break;
+        case 'r': toggleTrafficInfo(); break;
         case 'n': toggleAurora(); break;
         case 'd': toggleDrawingTools(); break;
         case 'm': toggleMeasuringTool(); break;
@@ -113,5 +117,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleAurora, toggleDrawingTools, toggleMeasuringTool, toggleSunlight, toggleHillshade, toggleTerrain, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleDrawingTools, toggleMeasuringTool, toggleSunlight, toggleHillshade, toggleTerrain, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }
