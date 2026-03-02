@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
+import ExportMenu from '../common/ExportMenu.jsx';
 
 /**
  * Frame-based timelapse player
@@ -15,6 +17,9 @@ export default function TimelapsePlayer() {
   const setIsPlaying = useTimelapseStore((s) => s.setIsPlaying);
   const setActiveTab = useTimelapseStore((s) => s.setActiveTab);
   const lang = useMapStore((s) => s.lang);
+  const user = useAuthStore((s) => s.user);
+  const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
+  const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
 
   // Frame data
   const [frames, setFrames] = useState([]);
@@ -322,12 +327,22 @@ export default function TimelapsePlayer() {
     };
   }, [liveMode, selectedCamera, frames.length]);
 
-  // Save current frame
+  // Get frame filename helper
+  const getFrameFilename = useCallback(() => {
+    if (!selectedCamera || frames.length === 0) return null;
+    const frame = frames[currentIndex];
+    if (!frame) return null;
+    const date = new Date(frame.timestamp);
+    const timestamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}`;
+    return `${selectedCamera.name || selectedCamera.cameraId}_${timestamp}.jpg`;
+  }, [selectedCamera, currentIndex, frames]);
+
+  // Save current frame to disk
   const saveFrame = useCallback(() => {
     if (!selectedCamera || !currentImageRef.current || frames.length === 0) return;
 
-    const frame = frames[currentIndex];
-    if (!frame) return;
+    const filename = getFrameFilename();
+    if (!filename) return;
 
     const canvas = document.createElement('canvas');
     canvas.width = currentImageRef.current.width;
@@ -335,19 +350,35 @@ export default function TimelapsePlayer() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(currentImageRef.current, 0, 0);
 
-    // Use frame timestamp for filename (convert to local time)
-    const date = new Date(frame.timestamp);
-    const timestamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}`;
-
     canvas.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${selectedCamera.name || selectedCamera.cameraId}_${timestamp}.jpg`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
     }, 'image/jpeg', 0.95);
-  }, [selectedCamera, currentIndex, frames]);
+  }, [selectedCamera, frames, getFrameFilename]);
+
+  // Transfer current frame to WaSOS
+  const transferFrameToWasos = useCallback(() => {
+    if (!selectedCamera || !currentImageRef.current || frames.length === 0) return;
+
+    const filename = getFrameFilename();
+    if (!filename) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = currentImageRef.current.width;
+    canvas.height = currentImageRef.current.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(currentImageRef.current, 0, 0);
+
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    const coords = selectedCamera.lat && selectedCamera.lon
+      ? [selectedCamera.lon, selectedCamera.lat]
+      : null;
+    prepareWasosUpload(imageData, coords, filename);
+  }, [selectedCamera, frames, getFrameFilename, prepareWasosUpload]);
 
   // Calculate current time info for timeline
   const currentFrame = frames[currentIndex];
@@ -528,16 +559,31 @@ export default function TimelapsePlayer() {
           </button>
 
           {/* Save frame */}
-          <button
-            onClick={saveFrame}
-            disabled={frames.length === 0}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors disabled:opacity-50"
-            title={t('timelapse.saveFrame', lang)}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </button>
+          {user?.wasosEnabled ? (
+            <ExportMenu
+              onSaveToDisk={saveFrame}
+              onTransferToWasos={transferFrameToWasos}
+              wasosLoggedIn={wasosLoggedIn}
+              buttonIcon={
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              }
+              buttonClassName="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors disabled:opacity-50 flex items-center"
+              disabled={frames.length === 0}
+            />
+          ) : (
+            <button
+              onClick={saveFrame}
+              disabled={frames.length === 0}
+              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors disabled:opacity-50"
+              title={t('timelapse.saveFrame', lang)}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </div>

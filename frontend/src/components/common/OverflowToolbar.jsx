@@ -165,7 +165,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
             if (typeof props.className === 'string' && props.className.includes('w-px')) return false;
             return true;
           }).map((child, i) => (
-            <div key={i} className="px-2 py-1">
+            <div key={i} className="px-2 py-1" onClick={() => setMenuOpen(false)}>
               {child}
             </div>
           ))}
