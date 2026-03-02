@@ -115,6 +115,7 @@ export default function DataLayersDrawer() {
   const [themes, setThemes] = useState([]);
   const [themeName, setThemeName] = useState('');
   const [themeLoading, setThemeLoading] = useState(false);
+  const [includePosition, setIncludePosition] = useState(false);
 
   // Fetch themes on mount
   useEffect(() => {
@@ -135,14 +136,44 @@ export default function DataLayersDrawer() {
       const res = await fetch('/api/themes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: themeName.trim(), state: getThemeState() }),
+        body: JSON.stringify({ name: themeName.trim(), state: getThemeState(includePosition) }),
       });
       if (res.ok) {
         setThemeName('');
+        setIncludePosition(false);
         await fetchThemes();
       }
     } catch { /* ignore */ }
     setThemeLoading(false);
+  };
+
+  // Toggle position on an existing theme
+  const handleToggleThemePosition = async (theme) => {
+    const hasPosition = !!theme.state?.position;
+    const newState = { ...theme.state };
+    if (hasPosition) {
+      delete newState.position;
+    } else {
+      const s = useMapStore.getState();
+      const map = s.mapRef;
+      newState.position = {
+        longitude: s.longitude,
+        latitude: s.latitude,
+        zoom: s.zoom,
+        pitch: map?.getPitch() || 0,
+        bearing: map?.getBearing() || 0,
+      };
+    }
+    try {
+      const res = await fetch(`/api/themes/${theme.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: newState }),
+      });
+      if (res.ok) {
+        await fetchThemes();
+      }
+    } catch { /* ignore */ }
   };
 
   const handleDeleteTheme = async (id) => {
@@ -371,6 +402,15 @@ export default function DataLayersDrawer() {
                 className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
               />
               <button
+                onClick={() => setIncludePosition(!includePosition)}
+                className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${includePosition ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-500 hover:text-slate-300'}`}
+                title={lang === 'no' ? (includePosition ? 'Posisjon inkludert' : 'Inkluder posisjon') : (includePosition ? 'Position included' : 'Include position')}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
                 onClick={handleSaveTheme}
                 disabled={!themeName.trim() || themeLoading}
                 className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
@@ -385,25 +425,53 @@ export default function DataLayersDrawer() {
             <p className="text-slate-500 text-xs">{t('dataLayers.noThemes', lang)}</p>
           )}
           <div className="space-y-0.5">
-            {themes.map((theme) => (
-              <div key={theme.id} className="flex items-center gap-1.5 group">
-                <button
-                  onClick={() => handleApplyTheme(theme)}
-                  className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
-                >
-                  {theme.name}
-                </button>
-                {isAdmin && (
+            {themes.map((theme) => {
+              const hasPosition = !!theme.state?.position;
+              return (
+                <div key={theme.id} className="flex items-center gap-1 group">
                   <button
-                    onClick={() => handleDeleteTheme(theme.id)}
-                    className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    title={t('general.delete', lang)}
+                    onClick={() => handleApplyTheme(theme)}
+                    className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
                   >
-                    ✕
+                    {theme.name}
                   </button>
-                )}
-              </div>
-            ))}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleToggleThemePosition(theme)}
+                      className={`w-6 h-6 flex items-center justify-center rounded transition-all shrink-0 ${
+                        hasPosition
+                          ? 'text-emerald-400 hover:text-emerald-300'
+                          : 'text-slate-600 hover:text-slate-400 opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={lang === 'no'
+                        ? (hasPosition ? 'Fjern posisjon' : 'Lagre nåværende posisjon')
+                        : (hasPosition ? 'Remove position' : 'Save current position')
+                      }
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                  {!isAdmin && hasPosition && (
+                    <span className="w-6 h-6 flex items-center justify-center text-emerald-400 shrink-0" title={lang === 'no' ? 'Har lagret posisjon' : 'Has saved position'}>
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteTheme(theme.id)}
+                      className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title={t('general.delete', lang)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

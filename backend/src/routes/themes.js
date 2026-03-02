@@ -40,6 +40,20 @@ router.post('/', requireAdmin, (req, res) => {
   }
 });
 
+// Update theme (admin only)
+router.put('/:id', requireAdmin, (req, res) => {
+  const db = getDb();
+  const theme = db.prepare('SELECT * FROM map_themes WHERE id = ?').get(req.params.id);
+  if (!theme) return res.status(404).json({ error: 'Theme not found' });
+
+  const name = req.body.name?.trim() || theme.name;
+  const state = req.body.state || JSON.parse(theme.state);
+  const stateJson = typeof state === 'string' ? state : JSON.stringify(state);
+
+  db.prepare("UPDATE map_themes SET name = ?, state = ?, updated_at = datetime('now') WHERE id = ?").run(name, stateJson, req.params.id);
+  res.json({ id: req.params.id, name, state: stateJson });
+});
+
 // Delete theme (admin only)
 router.delete('/:id', requireAdmin, (req, res) => {
   const db = getDb();

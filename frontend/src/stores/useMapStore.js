@@ -196,6 +196,19 @@ export const useMapStore = create((set) => ({
   })),
   applyTheme: (themeState) => {
     const parsed = typeof themeState === 'string' ? JSON.parse(themeState) : themeState;
+    const map = useMapStore.getState().mapRef;
+
+    // Fly to position if saved
+    if (parsed.position && map) {
+      map.flyTo({
+        center: [parsed.position.longitude, parsed.position.latitude],
+        zoom: parsed.position.zoom,
+        pitch: parsed.position.pitch || 0,
+        bearing: parsed.position.bearing || 0,
+        duration: 2000,
+      });
+    }
+
     return set({
       ...(parsed.baseLayer !== undefined && { baseLayer: parsed.baseLayer }),
       ...(parsed.windVisible !== undefined && { windVisible: parsed.windVisible }),
@@ -204,14 +217,21 @@ export const useMapStore = create((set) => ({
       ...(parsed.avalancheVisible !== undefined && { avalancheVisible: parsed.avalancheVisible }),
       ...(parsed.avalancheWarningsVisible !== undefined && { avalancheWarningsVisible: parsed.avalancheWarningsVisible }),
       ...(parsed.avalancheWarningsOpacity !== undefined && { avalancheWarningsOpacity: parsed.avalancheWarningsOpacity }),
+      ...(parsed.avalancheWarningsDay !== undefined && { avalancheWarningsDay: parsed.avalancheWarningsDay }),
       ...(parsed.snowDepthVisible !== undefined && { snowDepthVisible: parsed.snowDepthVisible }),
       ...(parsed.snowDepthOpacity !== undefined && { snowDepthOpacity: parsed.snowDepthOpacity }),
       ...(parsed.aircraftVisible !== undefined && { aircraftVisible: parsed.aircraftVisible }),
       ...(parsed.aircraftOpacity !== undefined && { aircraftOpacity: parsed.aircraftOpacity }),
       ...(parsed.vesselsVisible !== undefined && { vesselsVisible: parsed.vesselsVisible }),
       ...(parsed.vesselsOpacity !== undefined && { vesselsOpacity: parsed.vesselsOpacity }),
+      ...(parsed.trafficFlowVisible !== undefined && { trafficFlowVisible: parsed.trafficFlowVisible }),
+      ...(parsed.trafficFlowOpacity !== undefined && { trafficFlowOpacity: parsed.trafficFlowOpacity }),
+      ...(parsed.trafficInfoVisible !== undefined && { trafficInfoVisible: parsed.trafficInfoVisible }),
+      ...(parsed.trafficInfoOpacity !== undefined && { trafficInfoOpacity: parsed.trafficInfoOpacity }),
       ...(parsed.sunlightVisible !== undefined && { sunlightVisible: parsed.sunlightVisible }),
       ...(parsed.sunlightOpacity !== undefined && { sunlightOpacity: parsed.sunlightOpacity }),
+      ...(parsed.sunlightDate !== undefined && { sunlightDate: parsed.sunlightDate }),
+      ...(parsed.sunlightTime !== undefined && { sunlightTime: parsed.sunlightTime }),
       ...(parsed.hillshadeVisible !== undefined && { hillshadeVisible: parsed.hillshadeVisible }),
       ...(parsed.hillshadeOpacity !== undefined && { hillshadeOpacity: parsed.hillshadeOpacity }),
       ...(parsed.terrainVisible !== undefined && { terrainVisible: parsed.terrainVisible }),
@@ -219,6 +239,7 @@ export const useMapStore = create((set) => ({
       ...(parsed.overlayOrder !== undefined && { overlayOrder: parsed.overlayOrder }),
       ...(parsed.auroraVisible !== undefined && { auroraVisible: parsed.auroraVisible }),
       ...(parsed.auroraOpacity !== undefined && { auroraOpacity: parsed.auroraOpacity }),
+      ...(parsed.auroraTimeOffset !== undefined && { auroraTimeOffset: parsed.auroraTimeOffset }),
     });
   },
   setChatDrawerWidth: (width) => {
@@ -286,9 +307,9 @@ export const useMapStore = create((set) => ({
   }),
 }));
 
-export function getThemeState() {
+export function getThemeState(includePosition = false) {
   const s = useMapStore.getState();
-  return {
+  const state = {
     baseLayer: s.baseLayer,
     windVisible: s.windVisible,
     windOpacity: s.windOpacity,
@@ -296,14 +317,21 @@ export function getThemeState() {
     avalancheVisible: s.avalancheVisible,
     avalancheWarningsVisible: s.avalancheWarningsVisible,
     avalancheWarningsOpacity: s.avalancheWarningsOpacity,
+    avalancheWarningsDay: s.avalancheWarningsDay,
     snowDepthVisible: s.snowDepthVisible,
     snowDepthOpacity: s.snowDepthOpacity,
     aircraftVisible: s.aircraftVisible,
     aircraftOpacity: s.aircraftOpacity,
     vesselsVisible: s.vesselsVisible,
     vesselsOpacity: s.vesselsOpacity,
+    trafficFlowVisible: s.trafficFlowVisible,
+    trafficFlowOpacity: s.trafficFlowOpacity,
+    trafficInfoVisible: s.trafficInfoVisible,
+    trafficInfoOpacity: s.trafficInfoOpacity,
     sunlightVisible: s.sunlightVisible,
     sunlightOpacity: s.sunlightOpacity,
+    sunlightDate: s.sunlightDate,
+    sunlightTime: s.sunlightTime,
     hillshadeVisible: s.hillshadeVisible,
     hillshadeOpacity: s.hillshadeOpacity,
     terrainVisible: s.terrainVisible,
@@ -311,5 +339,17 @@ export function getThemeState() {
     overlayOrder: s.overlayOrder,
     auroraVisible: s.auroraVisible,
     auroraOpacity: s.auroraOpacity,
+    auroraTimeOffset: s.auroraTimeOffset,
   };
+  if (includePosition) {
+    const map = s.mapRef;
+    state.position = {
+      longitude: s.longitude,
+      latitude: s.latitude,
+      zoom: s.zoom,
+      pitch: map?.getPitch() || 0,
+      bearing: map?.getBearing() || 0,
+    };
+  }
+  return state;
 }
