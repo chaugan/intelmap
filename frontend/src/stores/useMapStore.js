@@ -33,9 +33,11 @@ export const useMapStore = create((set) => ({
   vesselsOpacity: 0.9,
   vesselsFetchedAt: null,
   focusedVesselMmsi: null,
-  trafficVisible: false,
-  trafficOpacity: 0.9,
-  trafficFetchedAt: null,
+  trafficFlowVisible: false,
+  trafficFlowOpacity: 0.9,
+  trafficInfoVisible: false,
+  trafficInfoOpacity: 0.9,
+  trafficInfoFetchedAt: null,
   drawingToolsVisible: false,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -59,7 +61,7 @@ export const useMapStore = create((set) => ({
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'traffic', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -120,9 +122,11 @@ export const useMapStore = create((set) => ({
   setVesselsOpacity: (vesselsOpacity) => set({ vesselsOpacity }),
   setVesselsFetchedAt: (vesselsFetchedAt) => set({ vesselsFetchedAt }),
   setFocusedVessel: (mmsi) => set({ focusedVesselMmsi: mmsi }),
-  toggleTraffic: () => set((s) => ({ trafficVisible: !s.trafficVisible })),
-  setTrafficOpacity: (trafficOpacity) => set({ trafficOpacity }),
-  setTrafficFetchedAt: (trafficFetchedAt) => set({ trafficFetchedAt }),
+  toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
+  setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
+  toggleTrafficInfo: () => set((s) => ({ trafficInfoVisible: !s.trafficInfoVisible })),
+  setTrafficInfoOpacity: (trafficInfoOpacity) => set({ trafficInfoOpacity }),
+  setTrafficInfoFetchedAt: (trafficInfoFetchedAt) => set({ trafficInfoFetchedAt }),
   moveOverlayUp: (id) => set((s) => {
     const order = [...s.overlayOrder];
     const idx = order.indexOf(id);

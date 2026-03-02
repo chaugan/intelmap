@@ -52,8 +52,9 @@ export default function TacticalMap() {
   const setAircraftFetchedAt = useMapStore((s) => s.setAircraftFetchedAt);
   const vesselsVisible = useMapStore((s) => s.vesselsVisible);
   const setVesselsFetchedAt = useMapStore((s) => s.setVesselsFetchedAt);
-  const trafficVisible = useMapStore((s) => s.trafficVisible);
-  const setTrafficFetchedAt = useMapStore((s) => s.setTrafficFetchedAt);
+  const trafficFlowVisible = useMapStore((s) => s.trafficFlowVisible);
+  const trafficInfoVisible = useMapStore((s) => s.trafficInfoVisible);
+  const setTrafficInfoFetchedAt = useMapStore((s) => s.setTrafficInfoFetchedAt);
   const auroraVisible = useMapStore((s) => s.auroraVisible);
   const auroraOpacity = useMapStore((s) => s.auroraOpacity);
   const setAuroraFetchedAt = useMapStore((s) => s.setAuroraFetchedAt);
@@ -83,7 +84,7 @@ export default function TacticalMap() {
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
   const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
   const { data: vesselsData, loading: vesselsLoading, fetchedAt: vesselsFetchedAt } = useVessels(vesselsVisible);
-  const { data: trafficData, loading: trafficLoading, fetchedAt: trafficFetchedAt } = useTraffic(trafficVisible);
+  const { data: trafficInfoData, loading: trafficInfoLoading, fetchedAt: trafficInfoFetchedAt } = useTraffic(trafficInfoVisible);
   const { data: auroraData, kpData: auroraKpData, loading: auroraLoading, fetchedAt: auroraFetchedAt } = useAuroraForecast(auroraVisible);
 
   // Sync fetchedAt to store for DataFreshness
@@ -100,8 +101,8 @@ export default function TacticalMap() {
   }, [vesselsFetchedAt, setVesselsFetchedAt]);
 
   useEffect(() => {
-    setTrafficFetchedAt(trafficFetchedAt);
-  }, [trafficFetchedAt, setTrafficFetchedAt]);
+    setTrafficInfoFetchedAt(trafficInfoFetchedAt);
+  }, [trafficInfoFetchedAt, setTrafficInfoFetchedAt]);
 
   useEffect(() => {
     setAuroraFetchedAt(auroraFetchedAt);
@@ -118,7 +119,7 @@ export default function TacticalMap() {
   const [snowDepthLoading, setSnowDepthLoading] = useState(false);
   const suppressMapContextMenu = useRef(false);
 
-  const trafficOpacity = useMapStore((s) => s.trafficOpacity);
+  const trafficFlowOpacity = useMapStore((s) => s.trafficFlowOpacity);
   const mapStyle = useMemo(
     () => buildMapStyle(baseLayer, {
       avalancheVisible,
@@ -127,12 +128,12 @@ export default function TacticalMap() {
       avalancheWarningsData,
       snowDepthVisible,
       snowDepthOpacity,
-      trafficVisible,
-      trafficOpacity,
+      trafficFlowVisible,
+      trafficFlowOpacity,
       auroraVisible,
       overlayOrder,
     }),
-    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, trafficVisible, trafficOpacity, auroraVisible, overlayOrder]
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, trafficFlowVisible, trafficFlowOpacity, auroraVisible, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
@@ -665,15 +666,15 @@ export default function TacticalMap() {
       {sunlightVisible && <SunlightOverlay />}
       {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
-      {trafficVisible && <TrafficLayer data={trafficData} mapRef={mapInstance} />}
+      {trafficInfoVisible && <TrafficLayer data={trafficInfoData} mapRef={mapInstance} />}
       {auroraVisible && <AuroraOverlay />}
       {windVisible && <WindOverlay />}
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficVisible || sunlightVisible || auroraVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficInfoVisible || sunlightVisible || auroraVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || trafficLoading || auroraLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (trafficVisible && !trafficData) || (auroraVisible && !auroraData)) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || trafficInfoLoading || auroraLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (trafficInfoVisible && !trafficInfoData) || (auroraVisible && !auroraData)) && (
             <div className="flex flex-col items-end gap-1">
               {windVisible && windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -700,9 +701,9 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter fart\u00f8ydata...' : 'Loading vessel data...'}
                 </div>
               )}
-              {(trafficLoading || (trafficVisible && !trafficData)) && (
+              {(trafficInfoLoading || (trafficInfoVisible && !trafficInfoData)) && (
                 <div className="text-xs text-orange-400 bg-slate-800/80 px-2 py-1 rounded">
-                  {lang === 'no' ? 'Henter trafikkmeldinger...' : 'Loading traffic data...'}
+                  {lang === 'no' ? 'Henter trafikkmeldinger...' : 'Loading traffic info...'}
                 </div>
               )}
               {(auroraLoading || (auroraVisible && !auroraData)) && (
@@ -718,7 +719,7 @@ export default function TacticalMap() {
           {avalancheWarningsVisible && <AvalancheWarningsLegend />}
           {aircraftVisible && <AircraftLegend count={aircraftData?.meta?.total} />}
           {vesselsVisible && <VesselLegend count={vesselsData?.meta?.total} />}
-          {trafficVisible && <TrafficLegend count={trafficData?.meta?.total} />}
+          {trafficInfoVisible && <TrafficLegend count={trafficInfoData?.meta?.total} />}
           {auroraVisible && <AuroraLegend kpData={auroraKpData} />}
         </div>
       )}

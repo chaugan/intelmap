@@ -19,67 +19,25 @@ const TYPE_COLORS = {
   default: '#a855f7', // purple
 };
 
-// Get color for incident type
-function getTypeColor(type) {
-  if (!type) return TYPE_COLORS.default;
-  const lowerType = type.toLowerCase();
-  if (lowerType.includes('roadworks') || lowerType.includes('construction') || lowerType.includes('maintenance')) {
-    return TYPE_COLORS.roadworks;
-  }
-  if (lowerType.includes('closed') || lowerType.includes('steng')) {
-    return TYPE_COLORS.roadClosed;
-  }
-  if (lowerType.includes('accident') || lowerType.includes('ulykke')) {
-    return TYPE_COLORS.accident;
-  }
-  if (lowerType.includes('obstruction') || lowerType.includes('hinder')) {
-    return TYPE_COLORS.obstruction;
-  }
-  if (lowerType.includes('condition') || lowerType.includes('weather') || lowerType.includes('snow') || lowerType.includes('ice')) {
-    return TYPE_COLORS.conditions;
-  }
-  return TYPE_COLORS.default;
+// Get color for incident category
+function getTypeColor(category) {
+  return TYPE_COLORS[category] || TYPE_COLORS.default;
 }
 
-// MapLibre expression for type-based coloring
+// MapLibre expression for category-based coloring
 const TYPE_COLOR_EXPR = [
-  'case',
-  ['any',
-    ['in', 'roadworks', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'construction', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'maintenance', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ],
-  TYPE_COLORS.roadworks,
-  ['any',
-    ['in', 'closed', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'steng', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ],
-  TYPE_COLORS.roadClosed,
-  ['any',
-    ['in', 'accident', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'ulykke', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ],
-  TYPE_COLORS.accident,
-  ['any',
-    ['in', 'obstruction', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'hinder', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ],
-  TYPE_COLORS.obstruction,
-  ['any',
-    ['in', 'condition', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'weather', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'snow', ['downcase', ['coalesce', ['get', 'type'], '']]],
-    ['in', 'ice', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ],
-  TYPE_COLORS.conditions,
+  'match',
+  ['get', 'category'],
+  'roadworks', TYPE_COLORS.roadworks,
+  'roadClosed', TYPE_COLORS.roadClosed,
+  'accident', TYPE_COLORS.accident,
+  'obstruction', TYPE_COLORS.obstruction,
+  'conditions', TYPE_COLORS.conditions,
   TYPE_COLORS.default,
 ];
 
-// Check if type is accident (for pulsing)
-const IS_ACCIDENT_EXPR = ['any',
-  ['in', 'accident', ['downcase', ['coalesce', ['get', 'type'], '']]],
-  ['in', 'ulykke', ['downcase', ['coalesce', ['get', 'type'], '']]],
-];
+// Check if category is accident (for highlight ring)
+const IS_ACCIDENT_EXPR = ['==', ['get', 'category'], 'accident'];
 
 function formatTime(isoString) {
   if (!isoString) return null;
@@ -95,7 +53,7 @@ export default function TrafficLayer({ data, mapRef }) {
   const popupRef = useRef(null);
   const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
-  const trafficOpacity = useMapStore((s) => s.trafficOpacity);
+  const trafficInfoOpacity = useMapStore((s) => s.trafficInfoOpacity);
   const lang = useMapStore((s) => s.lang);
 
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -164,23 +122,13 @@ export default function TrafficLayer({ data, mapRef }) {
         source: TRAFFIC_SOURCE,
         layout: {
           'text-field': [
-            'case',
-            ['any',
-              ['in', 'roadworks', ['downcase', ['coalesce', ['get', 'type'], '']]],
-              ['in', 'construction', ['downcase', ['coalesce', ['get', 'type'], '']]],
-              ['in', 'maintenance', ['downcase', ['coalesce', ['get', 'type'], '']]],
-            ],
-            '\u26A0', // Warning triangle
-            ['any',
-              ['in', 'closed', ['downcase', ['coalesce', ['get', 'type'], '']]],
-              ['in', 'steng', ['downcase', ['coalesce', ['get', 'type'], '']]],
-            ],
-            '\u2715', // X
-            ['any',
-              ['in', 'accident', ['downcase', ['coalesce', ['get', 'type'], '']]],
-              ['in', 'ulykke', ['downcase', ['coalesce', ['get', 'type'], '']]],
-            ],
-            '!',
+            'match',
+            ['get', 'category'],
+            'roadworks', '\u26A0', // Warning triangle
+            'roadClosed', '\u2715', // X
+            'accident', '!',
+            'obstruction', '\u25B2', // Triangle
+            'conditions', '\u2744', // Snowflake
             '?',
           ],
           'text-size': 12,
@@ -201,13 +149,13 @@ export default function TrafficLayer({ data, mapRef }) {
     let cancelled = false;
 
     const setup = () => {
-      addLayers(trafficOpacity);
+      addLayers(trafficInfoOpacity);
       if (!cancelled) setReady(true);
     };
 
     const onStyleData = () => {
       if (!mapRef.getSource(TRAFFIC_SOURCE)) {
-        addLayers(trafficOpacity);
+        addLayers(trafficInfoOpacity);
         if (dataRef.current) {
           const src = mapRef.getSource(TRAFFIC_SOURCE);
           if (src) src.setData(dataRef.current);
@@ -226,7 +174,7 @@ export default function TrafficLayer({ data, mapRef }) {
       try { if (mapRef.getSource(TRAFFIC_SOURCE)) mapRef.removeSource(TRAFFIC_SOURCE); } catch { /* ignore */ }
       setReady(false);
     };
-  }, [mapRef, removePopup, addLayers, trafficOpacity]);
+  }, [mapRef, removePopup, addLayers, trafficInfoOpacity]);
 
   // Update data source when data changes
   useEffect(() => {
@@ -258,14 +206,14 @@ export default function TrafficLayer({ data, mapRef }) {
     if (!mapRef) return;
     try {
       if (mapRef.getLayer(LAYER_CIRCLE)) {
-        mapRef.setPaintProperty(LAYER_CIRCLE, 'circle-opacity', trafficOpacity);
-        mapRef.setPaintProperty(LAYER_CIRCLE, 'circle-stroke-opacity', trafficOpacity);
+        mapRef.setPaintProperty(LAYER_CIRCLE, 'circle-opacity', trafficInfoOpacity);
+        mapRef.setPaintProperty(LAYER_CIRCLE, 'circle-stroke-opacity', trafficInfoOpacity);
       }
       if (mapRef.getLayer(LAYER_ICON)) {
-        mapRef.setPaintProperty(LAYER_ICON, 'text-opacity', trafficOpacity);
+        mapRef.setPaintProperty(LAYER_ICON, 'text-opacity', trafficInfoOpacity);
       }
     } catch { /* ignore */ }
-  }, [mapRef, trafficOpacity]);
+  }, [mapRef, trafficInfoOpacity]);
 
   // Click handler for popups
   useEffect(() => {
@@ -284,7 +232,7 @@ export default function TrafficLayer({ data, mapRef }) {
 
       const props = features[0].properties;
       const coords = features[0].geometry.coordinates.slice();
-      const typeColor = getTypeColor(props.type);
+      const typeColor = getTypeColor(props.category);
 
       const startTime = formatTime(props.startTime);
       const endTime = formatTime(props.endTime);

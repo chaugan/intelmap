@@ -5,6 +5,50 @@ let cachedTraffic = null;
 let cacheTime = 0;
 const CACHE_TTL = 60 * 1000; // 1 minute server-side cache
 
+// Categorize incident type based on type string and description
+function categorizeIncident(type, description) {
+  const t = (type || '').toLowerCase();
+  const d = (description || '').toLowerCase();
+
+  // Check for accident first (highest priority)
+  if (t.includes('accident') || d.includes('ulykke') || d.includes('kollisjon')) {
+    return 'accident';
+  }
+
+  // Road closure (full closure, not temporary for works)
+  if ((t.includes('closed') || t.includes('closure')) &&
+      !t.includes('intermittent') && !t.includes('shortterm') &&
+      !d.includes('vegarbeid') && !d.includes('arbeid')) {
+    return 'roadClosed';
+  }
+
+  // Roadworks - check type and description
+  if (t.includes('roadworks') || t.includes('works') || t.includes('maintenance') ||
+      t.includes('construction') || t.includes('trafficlights') ||
+      d.includes('vegarbeid') || d.includes('arbeid på') || d.includes('anleggsarbeid')) {
+    return 'roadworks';
+  }
+
+  // Temporary closures for roadwork (description usually mentions vegarbeid)
+  if ((t.includes('closure') || t.includes('closed')) &&
+      (d.includes('vegarbeid') || d.includes('arbeid'))) {
+    return 'roadworks';
+  }
+
+  // Obstruction
+  if (t.includes('obstruction') || t.includes('object') || d.includes('hinder') || d.includes('gjenstand')) {
+    return 'obstruction';
+  }
+
+  // Road conditions
+  if (t.includes('condition') || t.includes('weather') || t.includes('winter') ||
+      d.includes('glatt') || d.includes('is på') || d.includes('snø')) {
+    return 'conditions';
+  }
+
+  return 'other';
+}
+
 router.get('/', async (_req, res) => {
   try {
     if (cachedTraffic && Date.now() - cacheTime < CACHE_TTL) {
@@ -31,13 +75,17 @@ router.get('/', async (_req, res) => {
         })
         .map((f) => {
           const props = f.properties || {};
+          const rawType = props.SECONDARY_TYPES || props.SITUATION_TYPE || 'unknown';
+          const description = props.DESCRIPTION || '';
+          const category = categorizeIncident(rawType, description);
           return {
             type: 'Feature',
             geometry: f.geometry,
             properties: {
               id: props.ID || props.SITUATION_ID || f.id,
-              type: props.SECONDARY_TYPES || props.SITUATION_TYPE || 'unknown',
-              description: props.DESCRIPTION || '',
+              type: rawType,
+              category,
+              description,
               road: props.ROAD_NUMBER || null,
               severity: props.SEVERITY || 'low',
               location: props.LOCATION_DESCRIPTION || '',

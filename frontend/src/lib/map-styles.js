@@ -7,8 +7,8 @@ export function buildMapStyle(baseLayerId, {
   avalancheWarningsData = null,
   snowDepthVisible = false,
   snowDepthOpacity = 0.7,
-  trafficVisible = false,
-  trafficOpacity = 0.9,
+  trafficFlowVisible = false,
+  trafficFlowOpacity = 0.9,
   auroraVisible = false,
   overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'traffic', 'wind'],
 } = {}) {
@@ -119,7 +119,7 @@ export function buildMapStyle(baseLayerId, {
     };
   }
 
-  if (trafficVisible) {
+  if (trafficFlowVisible) {
     sources['traffic-flow'] = {
       type: 'raster',
       tiles: ['/api/tiles/traffic/{z}/{x}/{y}.png'],
@@ -127,12 +127,12 @@ export function buildMapStyle(baseLayerId, {
       minzoom: 6,
       maxzoom: 16,
     };
-    overlayDefs.traffic = {
+    overlayDefs.trafficFlow = {
       id: 'traffic-flow-layer',
       type: 'raster',
       source: 'traffic-flow',
       minzoom: 6,
-      paint: { 'raster-opacity': trafficOpacity },
+      paint: { 'raster-opacity': trafficFlowOpacity },
     };
   }
 
