@@ -118,7 +118,7 @@ export default function TrafficLayer({ data, mapRef }) {
       });
     }
 
-    // Pulsing circle for accidents
+    // Highlight ring for accidents (larger, semi-transparent)
     if (!mapRef.getLayer(LAYER_PULSE)) {
       mapRef.addLayer({
         id: LAYER_PULSE,
@@ -126,10 +126,11 @@ export default function TrafficLayer({ data, mapRef }) {
         source: TRAFFIC_SOURCE,
         filter: IS_ACCIDENT_EXPR,
         paint: {
-          'circle-radius': 18,
-          'circle-color': TYPE_COLORS.accident,
-          'circle-opacity': ['interpolate', ['linear'], ['%', ['+', ['time'], 0], 2000], 0, 0.4, 1000, 0, 2000, 0.4],
-          'circle-stroke-width': 0,
+          'circle-radius': 16,
+          'circle-color': 'transparent',
+          'circle-stroke-color': TYPE_COLORS.accident,
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': 0.6,
         },
       });
     }
