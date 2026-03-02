@@ -60,23 +60,18 @@ class VlmClient {
    */
   buildPrompt(labels) {
     const labelList = labels.join(', ');
-    return `Detect objects in this image. For each object found, list ALL applicable labels from: ${labelList}
+    return `For each object in this image, return ALL applicable labels from: ${labelList}
 
-Return a JSON array where EACH object is a SEPARATE entry:
-{"objects": [
-  {"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]},
-  {"bbox": [x1, y1, x2, y2], "labels": ["label1"]}
-]}
+Return EXACTLY this JSON format:
+{"objects": [{"bbox": [x1, y1, x2, y2], "labels": ["label1", "label2"]}]}
 
-CRITICAL RULES:
-- Only detect objects you are HIGHLY CONFIDENT about. If unsure, do not include.
-- Maximum 15 objects - prioritize largest/most prominent
-- Each detected object MUST be a SEPARATE {} in the array
-- Do NOT put multiple bbox/labels in the same object
-- "bbox" is 4 integers: [left, top, right, bottom]
-- "labels" lists ALL matching labels for that ONE object
-- If nothing found: {"objects": []}
-- Output ONLY valid JSON`;
+Rules:
+- Each detected object gets ONE entry with ALL matching labels from the list
+- "bbox" MUST be an array of exactly 4 integers: [left, top, right, bottom]
+- "labels" is an array of strings - include EVERY applicable label per object
+- Example: a tank could have labels ["tank", "stridsvogn", "militære kjøretøy"]
+- If nothing is found, return: {"objects": []}
+- Output ONLY valid JSON, no markdown, no explanation`;
   }
 
   /**
