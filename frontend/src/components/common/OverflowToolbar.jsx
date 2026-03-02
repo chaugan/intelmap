@@ -116,7 +116,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
   const overflowItems = hasOverflow ? childArray.slice(overflowIndex) : [];
 
   return (
-    <div className="relative flex-1 min-w-0 overflow-hidden">
+    <div className="relative flex-1 min-w-0">
       {/* Hidden measurement container - positioned off-screen to avoid affecting layout */}
       <div
         ref={measureRef}
