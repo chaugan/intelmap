@@ -33,6 +33,9 @@ export const useMapStore = create((set) => ({
   vesselsOpacity: 0.9,
   vesselsFetchedAt: null,
   focusedVesselMmsi: null,
+  trafficVisible: false,
+  trafficOpacity: 0.9,
+  trafficFetchedAt: null,
   drawingToolsVisible: false,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -117,6 +120,9 @@ export const useMapStore = create((set) => ({
   setVesselsOpacity: (vesselsOpacity) => set({ vesselsOpacity }),
   setVesselsFetchedAt: (vesselsFetchedAt) => set({ vesselsFetchedAt }),
   setFocusedVessel: (mmsi) => set({ focusedVesselMmsi: mmsi }),
+  toggleTraffic: () => set((s) => ({ trafficVisible: !s.trafficVisible })),
+  setTrafficOpacity: (trafficOpacity) => set({ trafficOpacity }),
+  setTrafficFetchedAt: (trafficFetchedAt) => set({ trafficFetchedAt }),
   moveOverlayUp: (id) => set((s) => {
     const order = [...s.overlayOrder];
     const idx = order.indexOf(id);

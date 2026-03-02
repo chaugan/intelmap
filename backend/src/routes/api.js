@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import weatherRouter from './weather.js';
 import webcamsRouter from './webcams.js';
+import trafficRouter from './traffic.js';
 import searchRouter from './search.js';
 import aiRouter from './ai.js';
 import stateRouter from './state.js';
@@ -24,6 +25,7 @@ const router = Router();
 
 router.use('/weather', weatherRouter);
 router.use('/webcams', webcamsRouter);
+router.use('/traffic', trafficRouter);
 router.use('/search', searchRouter);
 router.use('/ai', aiRouter);
 router.use('/state', stateRouter);
