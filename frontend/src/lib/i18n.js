@@ -276,6 +276,7 @@ const translations = {
     'themes.notFoundDesc': 'Dette temaet finnes ikke eller har blitt slettet.',
     'themes.permissionDenied': 'Ingen tilgang',
     'themes.permissionDeniedDesc': 'Du har ikke tilgang til dette temaet.',
+    'themes.loginPrompt': 'Logg inn på IntelMap',
 
     // Timelapse
     'timelapse.title': 'Tidslapse',
@@ -631,6 +632,7 @@ const translations = {
     'themes.notFoundDesc': 'This theme does not exist or has been deleted.',
     'themes.permissionDenied': 'Permission denied',
     'themes.permissionDeniedDesc': 'You do not have access to this theme.',
+    'themes.loginPrompt': 'Log in to IntelMap',
 
     // Timelapse
     'timelapse.title': 'Timelapse',

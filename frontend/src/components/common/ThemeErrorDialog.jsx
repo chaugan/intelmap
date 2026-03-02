@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 
 export default function ThemeErrorDialog({ error, onClose }) {
   const lang = useMapStore((s) => s.lang);
+  const user = useAuthStore((s) => s.user);
+  const setLoginOpen = useAuthStore((s) => s.setLoginOpen);
 
   // Close on Escape
   useEffect(() => {
@@ -45,9 +48,22 @@ export default function ThemeErrorDialog({ error, onClose }) {
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-slate-400 text-center mb-6">
+        <p className="text-sm text-slate-400 text-center mb-4">
           {t(isNotFound ? 'themes.notFoundDesc' : 'themes.permissionDeniedDesc', lang)}
         </p>
+
+        {/* Login link for non-authenticated users with permission denied */}
+        {!isNotFound && !user && (
+          <button
+            onClick={() => {
+              onClose();
+              setLoginOpen(true);
+            }}
+            className="w-full text-center text-emerald-400 hover:text-emerald-300 text-sm mb-4 transition-colors"
+          >
+            {t('themes.loginPrompt', lang)}
+          </button>
+        )}
 
         {/* Close button */}
         <button
