@@ -71,10 +71,9 @@ Return EXACTLY this JSON format:
 
 Rules:
 - Only return objects you are HIGHLY CONFIDENT actually match the labels
-- Do NOT detect blurred, pixelated, or unclear shapes
-- Do NOT detect regular civilian vehicles (cars, trucks, buses, SUVs)
-- Do NOT detect headlights, reflections, or light artifacts
-- When uncertain, return {"objects": []} - false negatives are acceptable, false positives are not
+- Do NOT detect partial objects or obstructed views
+- Do NOT guess - if uncertain, do not include it
+- When in doubt, return {"objects": []} - false negatives are acceptable, false positives are not
 - "bbox" MUST be exactly 4 integers: [left, top, right, bottom]
 - Output ONLY valid JSON, no explanation`;
   }
