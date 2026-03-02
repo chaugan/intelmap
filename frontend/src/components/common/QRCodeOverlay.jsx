@@ -64,7 +64,7 @@ export default function QRCodeOverlay({ themeId, themeName, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">
-            {t('themes.generateQr', lang)}
+            {t('themes.qrTitle', lang)}
           </h3>
           <button
             onClick={onClose}
@@ -75,8 +75,8 @@ export default function QRCodeOverlay({ themeId, themeName, onClose }) {
         </div>
 
         {/* Theme name */}
-        <p className="text-sm text-slate-400 mb-4 truncate">
-          {themeName}
+        <p className="text-sm text-slate-400 mb-4">
+          {t('themes.qrLinkTo', lang)} <span className="text-emerald-400 font-medium">{themeName}</span>
         </p>
 
         {/* QR Code */}
