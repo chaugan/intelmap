@@ -101,7 +101,8 @@ export default function TacticalMap() {
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
   const [pitch, setPitch] = useState(0);
-  const [rotating, setRotating] = useState(false);
+  const rotating = useMapStore((s) => s.flyAroundActive);
+  const setRotating = useMapStore((s) => s.setFlyAroundActive);
   const [rotationSpeed, setRotationSpeed] = useState(8); // degrees per second
   const rotationFrameRef = useRef(null);
   const [drawingInfoPopup, setDrawingInfoPopup] = useState(null);

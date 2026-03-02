@@ -122,10 +122,16 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   const finalCanvasY = clampedPos.ready ? clampedPos.canvasY : canvasY;
 
   // Force re-render when map moves so origin tracks the geo-coordinate
+  // Skip updates during fly-around rotation to keep popups locked in place
+  const flyAroundActive = useMapStore((s) => s.flyAroundActive);
   const [, forceUpdate] = useState(0);
   useEffect(() => {
     if (!mapRef) return;
-    const onMove = () => forceUpdate((n) => n + 1);
+    const onMove = () => {
+      // Don't update position during fly-around - keeps popups locked on screen
+      if (useMapStore.getState().flyAroundActive) return;
+      forceUpdate((n) => n + 1);
+    };
     mapRef.on('move', onMove);
     return () => mapRef.off('move', onMove);
   }, [mapRef]);

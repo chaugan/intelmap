@@ -83,6 +83,9 @@ export const useMapStore = create((set) => ({
   // Measuring tool
   measuringToolVisible: false,
 
+  // Fly-around rotation
+  flyAroundActive: false,
+
   setViewport: (viewport) => set(viewport),
   setBounds: (bounds) => set({ bounds }),
   setBaseLayer: (baseLayer) => set({ baseLayer }),
@@ -157,6 +160,7 @@ export const useMapStore = create((set) => ({
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
   toggleMeasuringTool: () => set((s) => ({ measuringToolVisible: !s.measuringToolVisible })),
+  setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,
     ...(!s.projectDrawerOpen ? { dataLayersDrawerOpen: false } : {}),
