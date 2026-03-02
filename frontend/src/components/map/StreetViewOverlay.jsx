@@ -1,34 +1,143 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import ExportMenu from '../common/ExportMenu.jsx';
+
+// Load Google Maps JavaScript API
+let googleMapsLoaded = false;
+let googleMapsLoadPromise = null;
+
+function loadGoogleMapsApi(apiKey) {
+  if (googleMapsLoaded && window.google?.maps) {
+    return Promise.resolve();
+  }
+  if (googleMapsLoadPromise) {
+    return googleMapsLoadPromise;
+  }
+
+  googleMapsLoadPromise = new Promise((resolve, reject) => {
+    // Check if already loaded
+    if (window.google?.maps) {
+      googleMapsLoaded = true;
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=streetView`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      googleMapsLoaded = true;
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsLoadPromise;
+}
 
 export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClose }) {
   const lang = useMapStore((s) => s.lang);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
   const [exporting, setExporting] = useState(false);
+  const [apiLoaded, setApiLoaded] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Current view params for export (user can adjust these)
-  const [viewHeading, setViewHeading] = useState(heading);
-  const [viewPitch, setViewPitch] = useState(0);
-  const [viewFov, setViewFov] = useState(90);
+  // Track current POV from the Street View panorama
+  const [currentPov, setCurrentPov] = useState({ heading, pitch: 0, zoom: 1 });
+  const panoramaRef = useRef(null);
+  const containerRef = useRef(null);
 
+  // Load Google Maps API and initialize Street View
+  useEffect(() => {
+    let cancelled = false;
+
+    loadGoogleMapsApi(apiKey)
+      .then(() => {
+        if (cancelled) return;
+        setApiLoaded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message);
+      });
+
+    return () => { cancelled = true; };
+  }, [apiKey]);
+
+  // Initialize Street View panorama when API is loaded and container is ready
+  useEffect(() => {
+    if (!apiLoaded || !containerRef.current || panoramaRef.current) return;
+
+    const panorama = new window.google.maps.StreetViewPanorama(containerRef.current, {
+      position: { lat, lng },
+      pov: { heading, pitch: 0 },
+      zoom: 1,
+      addressControl: true,
+      showRoadLabels: true,
+      motionTracking: false,
+      motionTrackingControl: false,
+    });
+
+    panoramaRef.current = panorama;
+
+    // Track POV changes
+    panorama.addListener('pov_changed', () => {
+      const pov = panorama.getPov();
+      setCurrentPov({
+        heading: pov.heading,
+        pitch: pov.pitch,
+        zoom: panorama.getZoom() || 1,
+      });
+    });
+
+    // Also track zoom changes
+    panorama.addListener('zoom_changed', () => {
+      const pov = panorama.getPov();
+      setCurrentPov({
+        heading: pov.heading,
+        pitch: pov.pitch,
+        zoom: panorama.getZoom() || 1,
+      });
+    });
+
+    // Set initial POV state
+    setCurrentPov({ heading, pitch: 0, zoom: 1 });
+
+    return () => {
+      // Cleanup is handled by removing the container
+      panoramaRef.current = null;
+    };
+  }, [apiLoaded, lat, lng, heading]);
+
+  // Handle escape key
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // Calculate FOV from zoom level (Google's formula)
+  // zoom 0 = 180° FOV, zoom 1 = 90° FOV, zoom 2 = 45° FOV, etc.
+  const getFovFromZoom = (zoom) => {
+    return 180 / Math.pow(2, zoom);
+  };
+
   // Fetch the static image for export
   const fetchStaticImage = useCallback(async () => {
-    const url = `/api/streetview/image?lat=${lat}&lng=${lng}&heading=${viewHeading}&pitch=${viewPitch}&fov=${viewFov}&size=1600x1200`;
+    const fov = Math.round(getFovFromZoom(currentPov.zoom));
+    // Google Street View Static API max size is 640x640 for free tier
+    // Use 640x480 for better aspect ratio
+    const url = `/api/streetview/image?lat=${lat}&lng=${lng}&heading=${Math.round(currentPov.heading)}&pitch=${Math.round(currentPov.pitch)}&fov=${fov}&size=640x480`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Failed to fetch image');
     const blob = await resp.blob();
     return blob;
-  }, [lat, lng, viewHeading, viewPitch, viewFov]);
+  }, [lat, lng, currentPov]);
 
   // Save to disk
   const handleSaveToDisk = useCallback(async () => {
@@ -72,8 +181,8 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
     }
   }, [fetchStaticImage, wasosLoggedIn, prepareWasosUpload, lat, lng]);
 
-  const iframeWidth = Math.min(window.innerWidth * 0.9, 1200);
-  const iframeHeight = Math.min(window.innerHeight * 0.8, 800);
+  const containerWidth = Math.min(window.innerWidth * 0.9, 1200);
+  const containerHeight = Math.min(window.innerHeight * 0.8, 800);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-black/85 flex items-center justify-center"
@@ -92,40 +201,13 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
             <span className="text-slate-400 text-sm ml-3">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
           </div>
 
-          {/* Export controls */}
+          {/* Export button */}
           <div className="flex items-center gap-3">
-            {/* View params for export */}
-            <div className="flex items-center gap-2 text-xs">
-              <label className="text-slate-400">
-                {lang === 'no' ? 'Retning' : 'Heading'}:
-                <input
-                  type="number"
-                  min="0"
-                  max="360"
-                  value={viewHeading}
-                  onChange={(e) => setViewHeading(Number(e.target.value))}
-                  className="ml-1 w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-white text-center"
-                />°
-              </label>
-              <label className="text-slate-400">
-                {lang === 'no' ? 'Tilt' : 'Pitch'}:
-                <input
-                  type="number"
-                  min="-90"
-                  max="90"
-                  value={viewPitch}
-                  onChange={(e) => setViewPitch(Number(e.target.value))}
-                  className="ml-1 w-14 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-white text-center"
-                />°
-              </label>
-            </div>
-
-            {/* Export menu */}
             <ExportMenu
               onSaveToDisk={handleSaveToDisk}
               onTransferToWasos={handleTransferToWasos}
               wasosLoggedIn={wasosLoggedIn}
-              disabled={exporting}
+              disabled={exporting || !apiLoaded}
               buttonIcon={
                 exporting ? (
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -145,21 +227,35 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
           </div>
         </div>
 
-        {/* Street View iframe */}
-        <iframe
-          src={`https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${lat},${lng}&heading=${heading}&pitch=0&fov=90`}
-          width={iframeWidth}
-          height={iframeHeight}
-          style={{ border: 0, borderRadius: '8px' }}
-          allowFullScreen
-          loading="lazy"
-        />
+        {/* Street View container */}
+        {error ? (
+          <div
+            className="flex items-center justify-center bg-slate-800 rounded-lg text-red-400"
+            style={{ width: containerWidth, height: containerHeight }}
+          >
+            {error}
+          </div>
+        ) : !apiLoaded ? (
+          <div
+            className="flex items-center justify-center bg-slate-800 rounded-lg text-slate-400"
+            style={{ width: containerWidth, height: containerHeight }}
+          >
+            <svg className="w-6 h-6 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            {lang === 'no' ? 'Laster Street View...' : 'Loading Street View...'}
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            style={{ width: containerWidth, height: containerHeight, borderRadius: '8px' }}
+          />
+        )}
 
-        {/* Note about export params */}
+        {/* Current view info */}
         <div className="text-center mt-2 text-slate-500 text-xs">
-          {lang === 'no'
-            ? 'Eksport bruker retning/tilt-verdiene ovenfor (juster for ønsket vinkel)'
-            : 'Export uses heading/pitch values above (adjust for desired angle)'}
+          {lang === 'no' ? 'Retning' : 'Heading'}: {Math.round(currentPov.heading)}° | {lang === 'no' ? 'Tilt' : 'Pitch'}: {Math.round(currentPov.pitch)}° | FOV: {Math.round(getFovFromZoom(currentPov.zoom))}°
         </div>
       </div>
     </div>,
