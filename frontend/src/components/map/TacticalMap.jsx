@@ -532,28 +532,20 @@ export default function TacticalMap() {
 
       {/* Speed controls - only visible when rotating */}
       {pitch > 5 && rotating && (
-        <div className="absolute top-4 left-[8rem] z-10 flex items-center gap-1">
+        <div className="absolute top-3 left-[7.5rem] z-10 flex flex-col gap-0.5">
           <button
-            onClick={(e) => {
-              setRotationSpeed(Math.max(2, rotationSpeed - 4));
-              e.currentTarget.classList.add('scale-90');
-              setTimeout(() => e.currentTarget.classList.remove('scale-90'), 100);
-            }}
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700/90 active:bg-slate-600 flex items-center justify-center shadow-lg transition-all text-white font-bold text-lg"
-            title={lang === 'no' ? 'Saktere' : 'Slower'}
-          >
-            −
-          </button>
-          <button
-            onClick={(e) => {
-              setRotationSpeed(Math.min(32, rotationSpeed + 4));
-              e.currentTarget.classList.add('scale-90');
-              setTimeout(() => e.currentTarget.classList.remove('scale-90'), 100);
-            }}
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700/90 active:bg-slate-600 flex items-center justify-center shadow-lg transition-all text-white font-bold text-lg"
+            onClick={() => setRotationSpeed(Math.min(32, rotationSpeed + 4))}
+            className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
             title={lang === 'no' ? 'Raskere' : 'Faster'}
           >
             +
+          </button>
+          <button
+            onClick={() => setRotationSpeed(Math.max(2, rotationSpeed - 4))}
+            className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
+            title={lang === 'no' ? 'Saktere' : 'Slower'}
+          >
+            −
           </button>
         </div>
       )}
