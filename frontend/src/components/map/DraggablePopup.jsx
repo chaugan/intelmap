@@ -134,6 +134,7 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   }
 
   // When fly-around stops, calculate new offset to maintain frozen screen position
+  // Keep frozenPositionRef until useEffect applies the offset (prevents glitch)
   if (!flyAroundActive && wasFlyAroundActiveRef.current && frozenPositionRef.current) {
     // Calculate new offset to keep popup at frozen position
     const frozenCanvasX = frozenPositionRef.current.canvasX;
@@ -142,17 +143,18 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
       dx: frozenCanvasX - origin.x,
       dy: frozenCanvasY - origin.y,
     };
-    frozenPositionRef.current = null;
+    // Don't clear frozenPositionRef here - let useEffect do it after applying offset
   }
   wasFlyAroundActiveRef.current = flyAroundActive;
 
-  // Apply pending offset update after render
-  useEffect(() => {
+  // Apply pending offset update after render (useLayoutEffect to avoid visual glitch)
+  useLayoutEffect(() => {
     if (pendingOffsetRef.current) {
       setOffset(pendingOffsetRef.current);
       setIsDragged(true);
       isDraggedRef.current = true;
       pendingOffsetRef.current = null;
+      frozenPositionRef.current = null; // Clear frozen position after offset is applied
     }
   });
 
