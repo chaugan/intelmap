@@ -9,6 +9,7 @@ import { requireAdmin } from '../auth/middleware.js';
 import { disconnectUser } from '../socket/index.js';
 import { eventLogger } from '../lib/event-logger.js';
 import { monitorService } from '../monitoring/monitor-service.js';
+import { vlmClient } from '../monitoring/vlm-client.js';
 import config, { getNtfyUrl, getNtfyToken, getAdminNtfyChannel, getAdminNtfyLevels } from '../config.js';
 import crypto from 'crypto';
 
@@ -543,7 +544,6 @@ router.delete('/vlm-config', (req, res) => {
 router.get('/vlm-prompt', (req, res) => {
   const db = getDb();
   const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_prompt'").get();
-  const { vlmClient } = require('../monitoring/vlm-client.js');
   res.json({
     prompt: row?.value || null,
     defaultPrompt: vlmClient.getDefaultPrompt(),

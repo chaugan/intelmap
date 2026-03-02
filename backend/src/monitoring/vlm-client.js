@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { getVlmApiToken, getVlmUrl } from '../config.js';
+import { getDb } from '../db/index.js';
 
 /**
  * VlmClient - Integration with Vision Language Model API
@@ -83,7 +84,6 @@ Rules:
    */
   getPromptTemplate() {
     try {
-      const { getDb } = require('../db/index.js');
       const db = getDb();
       const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_prompt'").get();
       if (row?.value) {
