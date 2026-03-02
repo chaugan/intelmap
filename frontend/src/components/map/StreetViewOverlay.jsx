@@ -184,16 +184,31 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
   const containerWidth = Math.min(window.innerWidth * 0.9, 1200);
   const containerHeight = Math.min(window.innerHeight * 0.8, 800);
 
+  // Stop propagation for inner content
+  const stopProp = (e) => {
+    e.stopPropagation();
+  };
+
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/85 flex items-center justify-center"
-         onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[9999] bg-black/85 flex items-center justify-center"
+      onMouseDown={(e) => {
+        // Only close if clicking directly on the backdrop
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       {/* Close button */}
-      <button onClick={onClose}
-        className="absolute top-4 right-4 w-10 h-10 bg-slate-800/80 hover:bg-slate-700 rounded-full text-white text-xl flex items-center justify-center z-[10000]">
+      <button
+        onClick={onClose}
+        onMouseDown={stopProp}
+        className="absolute top-4 right-4 w-10 h-10 bg-slate-800/80 hover:bg-slate-700 rounded-full text-white text-xl flex items-center justify-center z-[10000]"
+      >
         ✕
       </button>
 
-      <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="relative" onMouseDown={stopProp} onClick={stopProp}>
         {/* Header with title, coordinates, and export */}
         <div className="flex items-center justify-between mb-2 px-1">
           <div>
@@ -249,6 +264,8 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
         ) : (
           <div
             ref={containerRef}
+            onMouseDown={stopProp}
+            onClick={stopProp}
             style={{ width: containerWidth, height: containerHeight, borderRadius: '8px' }}
           />
         )}
