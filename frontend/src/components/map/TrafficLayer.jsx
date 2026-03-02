@@ -435,7 +435,7 @@ const FLOW_COLORS = [
   { color: '#facc15', no: 'Redusert fart', en: 'Reduced speed' },
   { color: '#f97316', no: 'Saktegående', en: 'Slow moving' },
   { color: '#ef4444', no: 'Kø/Stillestående', en: 'Congestion/Stop' },
-  { pattern: 'repeating-linear-gradient(90deg, #e41c47, #e41c47 8px, white 8px, white 14px)', no: 'Stengt veg', en: 'Road closed' },
+  { pattern: 'repeating-linear-gradient(90deg, #e41c47, #e41c47 4px, white 4px, white 6px)', no: 'Stengt veg', en: 'Road closed' },
 ];
 
 export function TrafficFlowLegend() {
