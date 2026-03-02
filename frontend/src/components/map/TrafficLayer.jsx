@@ -452,7 +452,7 @@ export function TrafficFlowLegend() {
             <div
               className="h-2 rounded-sm"
               style={{
-                width: '18px',
+                width: '15px',
                 ...(item.pattern
                   ? { background: item.pattern }
                   : { backgroundColor: item.color }
