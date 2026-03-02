@@ -129,14 +129,22 @@ CREATE TABLE IF NOT EXISTS project_drawings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Map visual themes (admin-managed presets)
+-- Map visual themes (user-created, can be shared with groups)
 CREATE TABLE IF NOT EXISTS map_themes (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   state TEXT NOT NULL,
-  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Theme sharing with groups
+CREATE TABLE IF NOT EXISTS theme_shares (
+  theme_id TEXT NOT NULL REFERENCES map_themes(id) ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  shared_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (theme_id, group_id)
 );
 
 -- Timelapse: camera capture jobs (ONE per camera, shared by all subscribers)

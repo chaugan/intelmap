@@ -66,6 +66,16 @@ export function initDb() {
     db.prepare("ALTER TABLE monitor_detections ADD COLUMN has_raw_image INTEGER NOT NULL DEFAULT 0").run();
   }
 
+  // Create theme_shares table if not exists (for theme group sharing)
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS theme_shares (
+      theme_id TEXT NOT NULL REFERENCES map_themes(id) ON DELETE CASCADE,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      shared_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (theme_id, group_id)
+    )
+  `).run();
+
   return db;
 }
 

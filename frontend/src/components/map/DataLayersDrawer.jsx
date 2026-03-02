@@ -116,16 +116,29 @@ export default function DataLayersDrawer() {
   const [themeName, setThemeName] = useState('');
   const [themeLoading, setThemeLoading] = useState(false);
   const [includePosition, setIncludePosition] = useState(false);
+  const [sharingThemeId, setSharingThemeId] = useState(null);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [userGroups, setUserGroups] = useState([]);
 
-  // Fetch themes on mount
+  // Fetch themes and groups on mount (only if logged in)
   useEffect(() => {
-    fetchThemes();
-  }, []);
+    if (user) {
+      fetchThemes();
+      fetchUserGroups();
+    }
+  }, [user]);
 
   const fetchThemes = async () => {
     try {
       const res = await fetch('/api/themes');
       if (res.ok) setThemes(await res.json());
+    } catch { /* ignore */ }
+  };
+
+  const fetchUserGroups = async () => {
+    try {
+      const res = await fetch('/api/groups');
+      if (res.ok) setUserGroups(await res.json());
     } catch { /* ignore */ }
   };
 
@@ -173,6 +186,29 @@ export default function DataLayersDrawer() {
       if (res.ok) {
         await fetchThemes();
       }
+    } catch { /* ignore */ }
+  };
+
+  const handleShareTheme = async (themeId) => {
+    if (!selectedGroupId) return;
+    try {
+      const res = await fetch(`/api/themes/${themeId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: selectedGroupId }),
+      });
+      if (res.ok) {
+        setSharingThemeId(null);
+        setSelectedGroupId('');
+        await fetchThemes();
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleUnshareTheme = async (themeId, groupId) => {
+    try {
+      const res = await fetch(`/api/themes/${themeId}/share/${groupId}`, { method: 'DELETE' });
+      if (res.ok) await fetchThemes();
     } catch { /* ignore */ }
   };
 
@@ -385,95 +421,158 @@ export default function DataLayersDrawer() {
           </div>
         )}
 
-        {/* Map Themes section */}
+        {/* Map Themes section (only when logged in) */}
+        {user && (
         <div className="px-3 py-2.5">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-2 font-semibold">
             {t('dataLayers.themes', lang)}
           </div>
 
-          {/* Admin: save new theme */}
-          {isAdmin && (
-            <div className="flex gap-1.5 mb-2">
-              <input
-                value={themeName}
-                onChange={(e) => setThemeName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSaveTheme()}
-                placeholder={lang === 'no' ? 'Temanavn...' : 'Theme name...'}
-                className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                onClick={() => setIncludePosition(!includePosition)}
-                className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${includePosition ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-500 hover:text-slate-300'}`}
-                title={lang === 'no' ? (includePosition ? 'Posisjon inkludert' : 'Inkluder posisjon') : (includePosition ? 'Position included' : 'Include position')}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button
-                onClick={handleSaveTheme}
-                disabled={!themeName.trim() || themeLoading}
-                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
-              >
-                {t('general.save', lang)}
-              </button>
-            </div>
-          )}
+          {/* Save new theme (any logged in user) */}
+          <div className="flex gap-1.5 mb-2">
+            <input
+              value={themeName}
+              onChange={(e) => setThemeName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveTheme()}
+              placeholder={lang === 'no' ? 'Temanavn...' : 'Theme name...'}
+              className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              onClick={() => setIncludePosition(!includePosition)}
+              className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${includePosition ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-500 hover:text-slate-300'}`}
+              title={lang === 'no' ? (includePosition ? 'Posisjon inkludert' : 'Inkluder posisjon') : (includePosition ? 'Position included' : 'Include position')}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <button
+              onClick={handleSaveTheme}
+              disabled={!themeName.trim() || themeLoading}
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+            >
+              {t('general.save', lang)}
+            </button>
+          </div>
 
           {/* Theme list */}
           {themes.length === 0 && (
             <p className="text-slate-500 text-xs">{t('dataLayers.noThemes', lang)}</p>
           )}
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {themes.map((theme) => {
               const hasPosition = !!theme.state?.position;
+              const canEdit = theme.isOwner || isAdmin;
+              const availableGroups = userGroups.filter((g) => !theme.sharedGroups?.some((sg) => sg.id === g.id));
               return (
-                <div key={theme.id} className="flex items-center gap-1 group">
-                  <button
-                    onClick={() => handleApplyTheme(theme)}
-                    className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
-                  >
-                    {theme.name}
-                  </button>
-                  {isAdmin && (
+                <div key={theme.id} className="group">
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => handleToggleThemePosition(theme)}
-                      className={`w-6 h-6 flex items-center justify-center rounded transition-all shrink-0 ${
-                        hasPosition
-                          ? 'text-emerald-400 hover:text-emerald-300'
-                          : 'text-slate-600 hover:text-slate-400 opacity-0 group-hover:opacity-100'
-                      }`}
-                      title={lang === 'no'
-                        ? (hasPosition ? 'Fjern posisjon' : 'Lagre nåværende posisjon')
-                        : (hasPosition ? 'Remove position' : 'Save current position')
-                      }
+                      onClick={() => handleApplyTheme(theme)}
+                      className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
                     >
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
+                      {theme.name}
+                      {!theme.isOwner && <span className="text-slate-500 text-xs ml-1">({theme.created_by_name})</span>}
                     </button>
-                  )}
-                  {!isAdmin && hasPosition && (
-                    <span className="w-6 h-6 flex items-center justify-center text-emerald-400 shrink-0" title={lang === 'no' ? 'Har lagret posisjon' : 'Has saved position'}>
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
-                    </span>
-                  )}
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteTheme(theme.id)}
-                      className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      title={t('general.delete', lang)}
-                    >
-                      ✕
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleToggleThemePosition(theme)}
+                        className={`w-6 h-6 flex items-center justify-center rounded transition-all shrink-0 ${
+                          hasPosition
+                            ? 'text-emerald-400 hover:text-emerald-300'
+                            : 'text-slate-600 hover:text-slate-400 opacity-0 group-hover:opacity-100'
+                        }`}
+                        title={lang === 'no'
+                          ? (hasPosition ? 'Fjern posisjon' : 'Lagre nåværende posisjon')
+                          : (hasPosition ? 'Remove position' : 'Save current position')
+                        }
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    )}
+                    {!canEdit && hasPosition && (
+                      <span className="w-6 h-6 flex items-center justify-center text-emerald-400 shrink-0" title={lang === 'no' ? 'Har lagret posisjon' : 'Has saved position'}>
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDeleteTheme(theme.id)}
+                        className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        title={t('general.delete', lang)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sharing controls (owner only) */}
+                  {canEdit && (
+                    <div className="ml-2 mt-1 space-y-1">
+                      {/* Show shared groups */}
+                      {theme.sharedGroups?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {theme.sharedGroups.map((sg) => (
+                            <span key={sg.id} className="inline-flex items-center gap-1 text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">
+                              {sg.name}
+                              <button
+                                onClick={() => handleUnshareTheme(theme.id, sg.id)}
+                                className="text-red-400 hover:text-red-300"
+                                title={lang === 'no' ? 'Fjern deling' : 'Remove sharing'}
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Share with group button/dropdown */}
+                      {sharingThemeId === theme.id ? (
+                        <div className="flex gap-1 items-center">
+                          <select
+                            value={selectedGroupId}
+                            onChange={(e) => setSelectedGroupId(e.target.value)}
+                            className="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-600 rounded text-[11px] text-white"
+                          >
+                            <option value="">{lang === 'no' ? 'Velg gruppe...' : 'Select group...'}</option>
+                            {availableGroups.map((g) => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleShareTheme(theme.id)}
+                            disabled={!selectedGroupId}
+                            className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 rounded text-[10px] disabled:opacity-50"
+                          >
+                            OK
+                          </button>
+                          <button
+                            onClick={() => { setSharingThemeId(null); setSelectedGroupId(''); }}
+                            className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[10px]"
+                          >
+                            {t('general.cancel', lang)}
+                          </button>
+                        </div>
+                      ) : availableGroups.length > 0 && (
+                        <button
+                          onClick={() => setSharingThemeId(theme.id)}
+                          className="text-[10px] text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          + {lang === 'no' ? 'Del med gruppe' : 'Share with group'}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
         </div>
+        )}
       </div>
     </div>
   );
