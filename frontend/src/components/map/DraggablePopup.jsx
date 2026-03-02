@@ -115,16 +115,35 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
     setClampedPos({ posX: newPosX, posY: newPosY, canvasX: newCanvasX, canvasY: newCanvasY, ready: true });
   }, [posX, posY, canvasX, canvasY, isDragged, mapOffset.left]);
 
-  // Use clamped position for rendering
-  const finalPosX = clampedPos.ready ? clampedPos.posX : posX;
-  const finalPosY = clampedPos.ready ? clampedPos.posY : posY;
-  const finalCanvasX = clampedPos.ready ? clampedPos.canvasX : canvasX;
-  const finalCanvasY = clampedPos.ready ? clampedPos.canvasY : canvasY;
+  // Use clamped position for rendering, or frozen position during fly-around
+  const frozen = frozenPositionRef.current;
+  const finalPosX = frozen ? frozen.posX : (clampedPos.ready ? clampedPos.posX : posX);
+  const finalPosY = frozen ? frozen.posY : (clampedPos.ready ? clampedPos.posY : posY);
+  const finalCanvasX = frozen ? frozen.canvasX : (clampedPos.ready ? clampedPos.canvasX : canvasX);
+  const finalCanvasY = frozen ? frozen.canvasY : (clampedPos.ready ? clampedPos.canvasY : canvasY);
 
   // Force re-render when map moves so origin tracks the geo-coordinate
   // Skip updates during fly-around rotation to keep popups locked in place
   const flyAroundActive = useMapStore((s) => s.flyAroundActive);
+  const frozenPositionRef = useRef(null);
+  const wasFlyAroundActiveRef = useRef(false);
   const [, forceUpdate] = useState(0);
+
+  // Track last known good position for freezing
+  const lastPositionRef = useRef({ posX, posY, canvasX, canvasY });
+  if (!flyAroundActive) {
+    lastPositionRef.current = { posX, posY, canvasX, canvasY };
+  }
+
+  // Freeze position when fly-around starts (synchronously during render)
+  if (flyAroundActive && !wasFlyAroundActiveRef.current) {
+    frozenPositionRef.current = lastPositionRef.current;
+  }
+  if (!flyAroundActive && wasFlyAroundActiveRef.current) {
+    frozenPositionRef.current = null;
+  }
+  wasFlyAroundActiveRef.current = flyAroundActive;
+
   useEffect(() => {
     if (!mapRef) return;
     const onMove = () => {
