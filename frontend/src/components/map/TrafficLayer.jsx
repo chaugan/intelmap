@@ -435,6 +435,7 @@ const FLOW_COLORS = [
   { color: '#facc15', no: 'Redusert fart', en: 'Reduced speed' },
   { color: '#f97316', no: 'Saktegående', en: 'Slow moving' },
   { color: '#ef4444', no: 'Kø/Stillestående', en: 'Congestion/Stop' },
+  { pattern: 'repeating-linear-gradient(90deg, #e41c47, #e41c47 8px, white 8px, white 14px)', no: 'Stengt veg', en: 'Road closed' },
 ];
 
 export function TrafficFlowLegend() {
@@ -450,7 +451,10 @@ export function TrafficFlowLegend() {
           <div key={i} className="flex items-center gap-1.5">
             <div
               className="w-4 h-2 rounded-sm"
-              style={{ backgroundColor: item.color }}
+              style={item.pattern
+                ? { background: item.pattern }
+                : { backgroundColor: item.color }
+              }
             />
             <span className="text-slate-400 text-[10px]">{lang === 'no' ? item.no : item.en}</span>
           </div>
