@@ -673,7 +673,7 @@ export default function TacticalMap() {
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficInfoVisible || sunlightVisible || auroraVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficFlowVisible || trafficInfoVisible || sunlightVisible || auroraVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
           {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || trafficInfoLoading || auroraLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (trafficInfoVisible && !trafficInfoData) || (auroraVisible && !auroraData)) && (
             <div className="flex flex-col items-end gap-1">

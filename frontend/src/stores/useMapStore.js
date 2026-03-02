@@ -119,7 +119,7 @@ export const useMapStore = create((set) => ({
   setFocusedAircraft: (hex) => set({ focusedAircraftHex: hex }),
   toggleVessels: () => set((s) => ({
     vesselsVisible: !s.vesselsVisible,
-    ...(s.vesselsVisible ? { focusedVesselMmsi: null } : {}),
+    ...(s.vesselsVisible ? { focusedVesselMmsi: null, hiddenVesselCategories: [] } : {}),
   })),
   setVesselsOpacity: (vesselsOpacity) => set({ vesselsOpacity }),
   setVesselsFetchedAt: (vesselsFetchedAt) => set({ vesselsFetchedAt }),
@@ -131,7 +131,10 @@ export const useMapStore = create((set) => ({
   })),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
-  toggleTrafficInfo: () => set((s) => ({ trafficInfoVisible: !s.trafficInfoVisible })),
+  toggleTrafficInfo: () => set((s) => ({
+    trafficInfoVisible: !s.trafficInfoVisible,
+    ...(s.trafficInfoVisible ? { hiddenTrafficCategories: [] } : {}),
+  })),
   setTrafficInfoOpacity: (trafficInfoOpacity) => set({ trafficInfoOpacity }),
   setTrafficInfoFetchedAt: (trafficInfoFetchedAt) => set({ trafficInfoFetchedAt }),
   toggleTrafficCategory: (cat) => set((s) => ({
