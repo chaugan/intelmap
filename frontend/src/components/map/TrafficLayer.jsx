@@ -450,11 +450,14 @@ export function TrafficFlowLegend() {
         {FLOW_COLORS.map((item, i) => (
           <div key={i} className="flex items-center gap-1.5">
             <div
-              className="w-4 h-2 rounded-sm"
-              style={item.pattern
-                ? { background: item.pattern }
-                : { backgroundColor: item.color }
-              }
+              className="h-2 rounded-sm"
+              style={{
+                width: '18px',
+                ...(item.pattern
+                  ? { background: item.pattern }
+                  : { backgroundColor: item.color }
+                ),
+              }}
             />
             <span className="text-slate-400 text-[10px]">{lang === 'no' ? item.no : item.en}</span>
           </div>
