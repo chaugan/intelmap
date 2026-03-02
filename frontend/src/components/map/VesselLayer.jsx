@@ -116,6 +116,7 @@ export default function VesselLayer({ data, mapRef }) {
   const vesselsOpacity = useMapStore((s) => s.vesselsOpacity);
   const focusedVesselMmsi = useMapStore((s) => s.focusedVesselMmsi);
   const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
+  const hiddenCategories = useMapStore((s) => s.hiddenVesselCategories);
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -254,35 +255,46 @@ export default function VesselLayer({ data, mapRef }) {
     try { if (mapRef.getLayer(LAYER_RING)) mapRef.setPaintProperty(LAYER_RING, 'circle-stroke-opacity', vesselsOpacity); } catch {}
   }, [mapRef, vesselsOpacity]);
 
-  // Dynamic MapLibre filters for focus mode
+  // Dynamic MapLibre filters for focus mode and category hiding
   useEffect(() => {
     if (!mapRef) return;
     const focused = focusedVesselMmsi;
 
+    // Build category filter - exclude hidden categories
+    const categoryFilter = hiddenCategories.length > 0
+      ? ['!', ['in', ['get', 'shipTypeCategory'], ['literal', hiddenCategories]]]
+      : null;
+
     if (focused) {
       const mmsiMatch = ['==', ['to-string', ['get', 'mmsi']], focused];
+      const focusFilter = categoryFilter ? ['all', mmsiMatch, categoryFilter] : mmsiMatch;
       try {
         if (mapRef.getLayer(LAYER_ICON))
-          mapRef.setFilter(LAYER_ICON, mmsiMatch);
+          mapRef.setFilter(LAYER_ICON, focusFilter);
         if (mapRef.getLayer(LAYER_RING))
           mapRef.setFilter(LAYER_RING, ['all',
             ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'lawEnforcement']]],
-            mmsiMatch,
+            focusFilter,
           ]);
       } catch {}
     } else {
-      // Restore original filters
+      // Apply category filter only
       try {
         if (mapRef.getLayer(LAYER_ICON))
-          mapRef.setFilter(LAYER_ICON, null);
+          mapRef.setFilter(LAYER_ICON, categoryFilter);
         if (mapRef.getLayer(LAYER_RING))
-          mapRef.setFilter(LAYER_RING, ['any',
-            ['to-boolean', ['get', 'military']],
-            ['to-boolean', ['get', 'lawEnforcement']],
-          ]);
+          mapRef.setFilter(LAYER_RING, categoryFilter
+            ? ['all',
+                ['any', ['to-boolean', ['get', 'military']], ['to-boolean', ['get', 'lawEnforcement']]],
+                categoryFilter,
+              ]
+            : ['any',
+                ['to-boolean', ['get', 'military']],
+                ['to-boolean', ['get', 'lawEnforcement']],
+              ]);
       } catch {}
     }
-  }, [mapRef, focusedVesselMmsi]);
+  }, [mapRef, focusedVesselMmsi, hiddenCategories]);
 
   // Continuous trace refresh when focused
   useEffect(() => {
@@ -563,6 +575,8 @@ const VESSEL_CATEGORIES = [
 
 export function VesselLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
+  const hiddenCategories = useMapStore((s) => s.hiddenVesselCategories);
+  const toggleCategory = useMapStore((s) => s.toggleVesselCategory);
 
   return (
     <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs">
@@ -571,16 +585,24 @@ export function VesselLegend({ count }) {
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
       </div>
 
-      {/* Type color swatches */}
+      {/* Type color swatches - clickable */}
       <div className="space-y-0.5">
-        {VESSEL_CATEGORIES.map((item) => (
-          <div key={item.category} className="flex items-center gap-1.5">
-            <svg width="12" height="12" viewBox="0 0 48 48">
-              <path d={SHIP_PATH} fill={item.color} stroke="none"/>
-            </svg>
-            <span className="text-slate-400 text-[10px]">{item.category}</span>
-          </div>
-        ))}
+        {VESSEL_CATEGORIES.map((item) => {
+          const hidden = hiddenCategories.includes(item.category);
+          return (
+            <button
+              key={item.category}
+              onClick={() => toggleCategory(item.category)}
+              className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${hidden ? 'opacity-30' : ''}`}
+              title={hidden ? (lang === 'no' ? 'Klikk for å vise' : 'Click to show') : (lang === 'no' ? 'Klikk for å skjule' : 'Click to hide')}
+            >
+              <svg width="12" height="12" viewBox="0 0 48 48">
+                <path d={SHIP_PATH} fill={item.color} stroke="none"/>
+              </svg>
+              <span className="text-slate-400 text-[10px]">{item.category}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Military/Law ring indicator */}

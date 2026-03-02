@@ -55,6 +55,7 @@ export default function TrafficLayer({ data, mapRef }) {
   const [ready, setReady] = useState(false);
   const trafficInfoOpacity = useMapStore((s) => s.trafficInfoOpacity);
   const lang = useMapStore((s) => s.lang);
+  const hiddenCategories = useMapStore((s) => s.hiddenTrafficCategories);
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -214,6 +215,25 @@ export default function TrafficLayer({ data, mapRef }) {
       }
     } catch { /* ignore */ }
   }, [mapRef, trafficInfoOpacity]);
+
+  // Apply category filter
+  useEffect(() => {
+    if (!mapRef) return;
+    const categoryFilter = hiddenCategories.length > 0
+      ? ['!', ['in', ['get', 'category'], ['literal', hiddenCategories]]]
+      : null;
+    try {
+      if (mapRef.getLayer(LAYER_CIRCLE)) mapRef.setFilter(LAYER_CIRCLE, categoryFilter);
+      if (mapRef.getLayer(LAYER_ICON)) mapRef.setFilter(LAYER_ICON, categoryFilter);
+      if (mapRef.getLayer(LAYER_PULSE)) {
+        // Pulse layer is for accidents, combine with category filter
+        const accidentFilter = IS_ACCIDENT_EXPR;
+        mapRef.setFilter(LAYER_PULSE, categoryFilter
+          ? ['all', accidentFilter, categoryFilter]
+          : accidentFilter);
+      }
+    } catch { /* ignore */ }
+  }, [mapRef, hiddenCategories]);
 
   // Click handler for popups
   useEffect(() => {
@@ -409,8 +429,44 @@ export default function TrafficLayer({ data, mapRef }) {
   return null;
 }
 
+// Traffic Flow legend colors - based on Vegvesen WMS traffic flow layer
+const FLOW_COLORS = [
+  { color: '#22c55e', no: 'God flyt', en: 'Free flow' },
+  { color: '#facc15', no: 'Redusert fart', en: 'Reduced speed' },
+  { color: '#f97316', no: 'Saktegående', en: 'Slow moving' },
+  { color: '#ef4444', no: 'Kø/Stillestående', en: 'Congestion/Stop' },
+];
+
+export function TrafficFlowLegend() {
+  const lang = useMapStore((s) => s.lang);
+
+  return (
+    <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs">
+      <div className="text-slate-400 font-semibold text-[10px] uppercase tracking-wide mb-1.5">
+        {lang === 'no' ? 'Trafikkflyt' : 'Traffic Flow'}
+      </div>
+      <div className="space-y-0.5">
+        {FLOW_COLORS.map((item, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-2 rounded-sm"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-slate-400 text-[10px]">{lang === 'no' ? item.no : item.en}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-slate-500 text-[9px] mt-1 pt-1 border-t border-slate-700">
+        vegvesen.no
+      </div>
+    </div>
+  );
+}
+
 export function TrafficLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
+  const hiddenCategories = useMapStore((s) => s.hiddenTrafficCategories);
+  const toggleCategory = useMapStore((s) => s.toggleTrafficCategory);
 
   const items = [
     { type: 'roadworks', color: TYPE_COLORS.roadworks, no: 'Vegarbeid', en: 'Road works' },
@@ -428,15 +484,23 @@ export function TrafficLegend({ count }) {
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
       </div>
       <div className="space-y-0.5">
-        {items.map((item) => (
-          <div key={item.type} className="flex items-center gap-1.5">
-            <div
-              className="w-3 h-3 rounded-full border border-white/50"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-slate-400 text-[10px]">{lang === 'no' ? item.no : item.en}</span>
-          </div>
-        ))}
+        {items.map((item) => {
+          const hidden = hiddenCategories.includes(item.type);
+          return (
+            <button
+              key={item.type}
+              onClick={() => toggleCategory(item.type)}
+              className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${hidden ? 'opacity-30' : ''}`}
+              title={hidden ? (lang === 'no' ? 'Klikk for å vise' : 'Click to show') : (lang === 'no' ? 'Klikk for å skjule' : 'Click to hide')}
+            >
+              <div
+                className="w-3 h-3 rounded-full border border-white/50"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-slate-400 text-[10px]">{lang === 'no' ? item.no : item.en}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -33,11 +33,13 @@ export const useMapStore = create((set) => ({
   vesselsOpacity: 0.9,
   vesselsFetchedAt: null,
   focusedVesselMmsi: null,
+  hiddenVesselCategories: [],
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
   trafficInfoOpacity: 0.9,
   trafficInfoFetchedAt: null,
+  hiddenTrafficCategories: [],
   drawingToolsVisible: false,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -122,11 +124,21 @@ export const useMapStore = create((set) => ({
   setVesselsOpacity: (vesselsOpacity) => set({ vesselsOpacity }),
   setVesselsFetchedAt: (vesselsFetchedAt) => set({ vesselsFetchedAt }),
   setFocusedVessel: (mmsi) => set({ focusedVesselMmsi: mmsi }),
+  toggleVesselCategory: (cat) => set((s) => ({
+    hiddenVesselCategories: s.hiddenVesselCategories.includes(cat)
+      ? s.hiddenVesselCategories.filter((c) => c !== cat)
+      : [...s.hiddenVesselCategories, cat],
+  })),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({ trafficInfoVisible: !s.trafficInfoVisible })),
   setTrafficInfoOpacity: (trafficInfoOpacity) => set({ trafficInfoOpacity }),
   setTrafficInfoFetchedAt: (trafficInfoFetchedAt) => set({ trafficInfoFetchedAt }),
+  toggleTrafficCategory: (cat) => set((s) => ({
+    hiddenTrafficCategories: s.hiddenTrafficCategories.includes(cat)
+      ? s.hiddenTrafficCategories.filter((c) => c !== cat)
+      : [...s.hiddenTrafficCategories, cat],
+  })),
   moveOverlayUp: (id) => set((s) => {
     const order = [...s.overlayOrder];
     const idx = order.indexOf(id);

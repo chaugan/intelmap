@@ -29,7 +29,7 @@ import { useTraffic } from '../../hooks/useTraffic.js';
 import { useAuroraForecast } from '../../hooks/useAuroraForecast.js';
 import AuroraLegend from './AuroraLegend.jsx';
 import AuroraOverlay from './AuroraOverlay.jsx';
-import TrafficLayer, { TrafficLegend } from './TrafficLayer.jsx';
+import TrafficLayer, { TrafficLegend, TrafficFlowLegend } from './TrafficLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 
@@ -720,6 +720,7 @@ export default function TacticalMap() {
           {avalancheWarningsVisible && <AvalancheWarningsLegend />}
           {aircraftVisible && <AircraftLegend count={aircraftData?.meta?.total} />}
           {vesselsVisible && <VesselLegend count={vesselsData?.meta?.total} />}
+          {trafficFlowVisible && <TrafficFlowLegend />}
           {trafficInfoVisible && <TrafficLegend count={trafficInfoData?.meta?.total} />}
           {auroraVisible && <AuroraLegend kpData={auroraKpData} />}
         </div>
