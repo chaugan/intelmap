@@ -155,14 +155,19 @@ router.post('/', requireAuth, (req, res) => {
   res.status(201).json({ id, name, state: stateJson, created_by: req.user.id, isOwner: true, isPublic: false, sharedGroups: [] });
 });
 
-// Update theme (owner or admin only)
+// Update theme (owner, admin, or editor in shared group)
 router.put('/:id', requireAuth, (req, res) => {
   const db = getDb();
   const theme = db.prepare('SELECT * FROM map_themes WHERE id = ?').get(req.params.id);
   if (!theme) return res.status(404).json({ error: 'Theme not found' });
 
-  // Check ownership
-  if (theme.created_by !== req.user.id && req.user.role !== 'admin') {
+  // Check permissions: owner, admin, or editor/admin in shared group
+  const isOwner = theme.created_by === req.user.id;
+  const isAdmin = req.user.role === 'admin';
+  const groupRole = getUserRoleInThemeGroups(db, req.params.id, req.user.id);
+  const canEdit = isOwner || isAdmin || groupRole === 'editor' || groupRole === 'admin';
+
+  if (!canEdit) {
     return res.status(403).json({ error: 'Not authorized to edit this theme' });
   }
 

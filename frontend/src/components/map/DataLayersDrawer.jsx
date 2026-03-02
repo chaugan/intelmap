@@ -193,6 +193,23 @@ export default function DataLayersDrawer() {
     } catch { /* ignore */ }
   };
 
+  // Update/overwrite theme with current map state
+  const handleUpdateTheme = async (theme) => {
+    const hasPosition = !!theme.state?.position;
+    const newState = getThemeState(hasPosition);
+    try {
+      const res = await fetch(`/api/themes/${theme.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ state: newState }),
+      });
+      if (res.ok) {
+        await fetchThemes();
+      }
+    } catch { /* ignore */ }
+  };
+
   const handleShareTheme = async (themeId) => {
     if (!selectedGroupId) return;
 
@@ -517,11 +534,12 @@ export default function DataLayersDrawer() {
           <div className="space-y-1">
             {themes.map((theme) => {
               const hasPosition = !!theme.state?.position;
-              const canEdit = user && (theme.isOwner || isAdmin);
-              const canDelete = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
-              const canShowQr = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
+              const canManage = user && (theme.isOwner || isAdmin); // Owner/admin: can manage sharing
+              const canUpdate = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
+              const canDelete = canUpdate;
+              const canShowQr = canUpdate;
               const availableGroups = userGroups.filter((g) => !theme.sharedGroups?.some((sg) => sg.id === g.id));
-              const canAddSharing = canEdit && (availableGroups.length > 0 || !theme.isPublic);
+              const canAddSharing = canManage && (availableGroups.length > 0 || !theme.isPublic);
 
               return (
                 <div key={theme.id} className="group">
@@ -540,7 +558,7 @@ export default function DataLayersDrawer() {
                       </span>
                     )}
                     {/* Position toggle (editable) */}
-                    {canEdit && (
+                    {canUpdate && (
                       <button
                         onClick={() => handleToggleThemePosition(theme)}
                         className={`w-6 h-6 flex items-center justify-center rounded transition-all shrink-0 ${
@@ -559,12 +577,24 @@ export default function DataLayersDrawer() {
                       </button>
                     )}
                     {/* Position indicator (non-editable) */}
-                    {!canEdit && hasPosition && (
+                    {!canUpdate && hasPosition && (
                       <span className="w-6 h-6 flex items-center justify-center text-emerald-400 shrink-0" title={lang === 'no' ? 'Har lagret posisjon' : 'Has saved position'}>
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                         </svg>
                       </span>
+                    )}
+                    {/* Update/save theme button */}
+                    {canUpdate && (
+                      <button
+                        onClick={() => handleUpdateTheme(theme)}
+                        className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        title={t('themes.update', lang)}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                      </button>
                     )}
                     {/* QR code button */}
                     {canShowQr && (
@@ -592,7 +622,7 @@ export default function DataLayersDrawer() {
                   </div>
 
                   {/* Sharing controls (owner/admin only) */}
-                  {canEdit && (
+                  {canManage && (
                     <div className="ml-2 mt-1 space-y-1">
                       {/* Show public badge (removable) */}
                       {theme.isPublic && (
