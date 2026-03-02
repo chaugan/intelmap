@@ -44,6 +44,8 @@ export default function App() {
   const draggingChatRef = useRef(false);
   const draggingTimelapseRef = useRef(false);
   const pendingThemeRef = useRef(null); // Store pending theme until map is ready
+  const deniedThemeIdRef = useRef(null); // Store theme ID that was denied access
+  const prevUserRef = useRef(undefined); // Track previous user state for login detection
   const applyTheme = useMapStore((s) => s.applyTheme);
   const mapRef = useMapStore((s) => s.mapRef);
 
@@ -112,6 +114,7 @@ export default function App() {
         if (data.canAccess && data.theme) {
           // Store theme to apply when map is ready
           pendingThemeRef.current = data.theme.state;
+          deniedThemeIdRef.current = null; // Clear any denied theme
           // Clear URL parameter
           window.history.replaceState({}, '', window.location.pathname);
           // If map is already ready, apply immediately
@@ -120,11 +123,49 @@ export default function App() {
             pendingThemeRef.current = null;
           }
         } else {
+          // Store the denied theme ID for retry after login
+          if (data.error !== 'notFound') {
+            deniedThemeIdRef.current = themeId;
+          }
+          // Clear URL parameter
+          window.history.replaceState({}, '', window.location.pathname);
           setThemeError(data.error === 'notFound' ? 'notFound' : 'permissionDenied');
         }
       })
       .catch(() => setThemeError('notFound'));
   }, [applyTheme]);
+
+  // Re-check theme access after user logs in
+  useEffect(() => {
+    // Detect login: user changed from null/undefined to a valid user
+    const wasLoggedOut = prevUserRef.current === null;
+    const isNowLoggedIn = user !== null;
+    prevUserRef.current = user;
+
+    if (wasLoggedOut && isNowLoggedIn && deniedThemeIdRef.current) {
+      const themeId = deniedThemeIdRef.current;
+      fetch(`/api/themes/${themeId}/access`, { credentials: 'include' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.canAccess && data.theme) {
+            // Success! Apply the theme
+            deniedThemeIdRef.current = null;
+            pendingThemeRef.current = data.theme.state;
+            if (useMapStore.getState().mapRef) {
+              applyTheme(data.theme.state);
+              pendingThemeRef.current = null;
+            }
+          } else {
+            // Still denied after login
+            deniedThemeIdRef.current = null; // Clear so we don't retry again
+            setThemeError('permissionDenied');
+          }
+        })
+        .catch(() => {
+          deniedThemeIdRef.current = null;
+        });
+    }
+  }, [user, applyTheme]);
 
   // Apply pending theme when map becomes ready
   useEffect(() => {
