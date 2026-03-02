@@ -537,7 +537,7 @@ export default function DataLayersDrawer() {
               const canManage = user && (theme.isOwner || isAdmin); // Owner/admin: can manage sharing
               const canUpdate = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
               const canDelete = canUpdate;
-              const canShowQr = canUpdate;
+              const canShowQr = user && (theme.isOwner || isAdmin || !!theme.userGroupRole); // Any group member can view QR
               const availableGroups = userGroups.filter((g) => !theme.sharedGroups?.some((sg) => sg.id === g.id));
               const canAddSharing = canManage && (availableGroups.length > 0 || !theme.isPublic);
 
