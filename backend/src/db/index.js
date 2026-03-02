@@ -76,6 +76,12 @@ export function initDb() {
     )
   `).run();
 
+  // Add is_public column to map_themes if not exists
+  const themeCols = db.prepare("PRAGMA table_info(map_themes)").all();
+  if (!themeCols.find(c => c.name === 'is_public')) {
+    db.prepare("ALTER TABLE map_themes ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0").run();
+  }
+
   return db;
 }
 

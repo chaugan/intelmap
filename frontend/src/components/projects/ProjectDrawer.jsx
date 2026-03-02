@@ -8,6 +8,7 @@ import { t } from '../../lib/i18n.js';
 
 export default function ProjectDrawer() {
   const lang = useMapStore((s) => s.lang);
+  const toggleProjectDrawer = useMapStore((s) => s.toggleProjectDrawer);
   const user = useAuthStore((s) => s.user);
   const myProjects = useProjectStore((s) => s.myProjects);
   const fetchProjects = useProjectStore((s) => s.fetchProjects);
@@ -141,10 +142,17 @@ export default function ProjectDrawer() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0">
+      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0 flex items-center justify-between">
         <h2 className="text-base font-semibold text-emerald-400">
           {t('drawer.title', lang)}
         </h2>
+        <button
+          onClick={toggleProjectDrawer}
+          className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white rounded hover:bg-slate-700 transition-colors"
+          title={t('general.close', lang)}
+        >
+          &times;
+        </button>
       </div>
 
       {/* Create new project */}

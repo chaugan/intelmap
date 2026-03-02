@@ -264,6 +264,16 @@ const translations = {
     'dataLayers.themes': 'Karttema',
     'dataLayers.noThemes': 'Ingen temaer ennå',
 
+    // Themes
+    'themes.public': 'Offentlig',
+    'themes.anyone': 'Alle (offentlig)',
+    'themes.generateQr': 'Generer QR-kode',
+    'themes.saveQr': 'Lagre QR-kode',
+    'themes.notFound': 'Tema ikke funnet',
+    'themes.notFoundDesc': 'Dette temaet finnes ikke eller har blitt slettet.',
+    'themes.permissionDenied': 'Ingen tilgang',
+    'themes.permissionDeniedDesc': 'Du har ikke tilgang til dette temaet.',
+
     // Timelapse
     'timelapse.title': 'Tidslapse',
     'timelapse.cameras': 'Kameraer',
@@ -605,6 +615,16 @@ const translations = {
     'dataLayers.overlays': 'Overlays',
     'dataLayers.themes': 'Map Themes',
     'dataLayers.noThemes': 'No themes yet',
+
+    // Themes
+    'themes.public': 'Public',
+    'themes.anyone': 'Anyone (public)',
+    'themes.generateQr': 'Generate QR code',
+    'themes.saveQr': 'Save QR code',
+    'themes.notFound': 'Theme not found',
+    'themes.notFoundDesc': 'This theme does not exist or has been deleted.',
+    'themes.permissionDenied': 'Permission denied',
+    'themes.permissionDeniedDesc': 'You do not have access to this theme.',
 
     // Timelapse
     'timelapse.title': 'Timelapse',

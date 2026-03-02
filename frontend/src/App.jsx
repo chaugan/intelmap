@@ -14,6 +14,7 @@ import WasosUploadDialog from './components/auth/WasosUploadDialog.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
 import TimelapsePanel from './components/timelapse/TimelapsePanel.jsx';
+import ThemeErrorDialog from './components/common/ThemeErrorDialog.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { useTimelapseStore } from './stores/useTimelapseStore.js';
@@ -39,8 +40,10 @@ export default function App() {
 
   const [isDraggingChat, setIsDraggingChat] = useState(false);
   const [isDraggingTimelapse, setIsDraggingTimelapse] = useState(false);
+  const [themeError, setThemeError] = useState(null); // 'notFound' | 'permissionDenied' | null
   const draggingChatRef = useRef(false);
   const draggingTimelapseRef = useRef(false);
+  const applyTheme = useMapStore((s) => s.applyTheme);
 
   const handleChatMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -94,6 +97,26 @@ export default function App() {
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  // Handle theme deep linking via URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const themeId = params.get('theme');
+    if (!themeId) return;
+
+    fetch(`/api/themes/${themeId}/access`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.canAccess && data.theme) {
+          applyTheme(data.theme.state);
+          // Clear URL parameter
+          window.history.replaceState({}, '', window.location.pathname);
+        } else {
+          setThemeError(data.error === 'notFound' ? 'notFound' : 'permissionDenied');
+        }
+      })
+      .catch(() => setThemeError('notFound'));
+  }, [applyTheme]);
 
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
@@ -186,6 +209,17 @@ export default function App() {
       <AdminPanel />
       <WasosLoginDialog />
       <WasosUploadDialog />
+
+      {/* Theme error dialog */}
+      {themeError && (
+        <ThemeErrorDialog
+          error={themeError}
+          onClose={() => {
+            setThemeError(null);
+            window.history.replaceState({}, '', window.location.pathname);
+          }}
+        />
+      )}
     </div>
   );
 }

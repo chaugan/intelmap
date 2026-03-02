@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMapStore, getThemeState } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
+import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
 
 const OVERLAYS = [
   { id: 'aurora', toggleKey: 'toggleAurora', visibleKey: 'auroraVisible', opacityKey: 'auroraOpacity', setOpacityKey: 'setAuroraOpacity', accent: 'accent-green-500', shortcut: 'N' },
@@ -101,6 +102,7 @@ function SunlightControls({ lang }) {
 
 export default function DataLayersDrawer() {
   const lang = useMapStore((s) => s.lang);
+  const toggleDataLayersDrawer = useMapStore((s) => s.toggleDataLayersDrawer);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
 
@@ -119,25 +121,25 @@ export default function DataLayersDrawer() {
   const [sharingThemeId, setSharingThemeId] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [userGroups, setUserGroups] = useState([]);
+  const [qrOverlayTheme, setQrOverlayTheme] = useState(null);
 
-  // Fetch themes and groups on mount (only if logged in)
+  // Fetch themes on mount (always - public themes visible to all)
+  // Fetch groups only when logged in
   useEffect(() => {
-    if (user) {
-      fetchThemes();
-      fetchUserGroups();
-    }
+    fetchThemes();
+    if (user) fetchUserGroups();
   }, [user]);
 
   const fetchThemes = async () => {
     try {
-      const res = await fetch('/api/themes');
+      const res = await fetch('/api/themes', { credentials: 'include' });
       if (res.ok) setThemes(await res.json());
     } catch { /* ignore */ }
   };
 
   const fetchUserGroups = async () => {
     try {
-      const res = await fetch('/api/groups');
+      const res = await fetch('/api/groups', { credentials: 'include' });
       if (res.ok) setUserGroups(await res.json());
     } catch { /* ignore */ }
   };
@@ -149,6 +151,7 @@ export default function DataLayersDrawer() {
       const res = await fetch('/api/themes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ name: themeName.trim(), state: getThemeState(includePosition) }),
       });
       if (res.ok) {
@@ -181,6 +184,7 @@ export default function DataLayersDrawer() {
       const res = await fetch(`/api/themes/${theme.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ state: newState }),
       });
       if (res.ok) {
@@ -191,10 +195,31 @@ export default function DataLayersDrawer() {
 
   const handleShareTheme = async (themeId) => {
     if (!selectedGroupId) return;
+
+    // Handle "Anyone" (public) sharing
+    if (selectedGroupId === '__anyone__') {
+      try {
+        const res = await fetch(`/api/themes/${themeId}/public`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ isPublic: true }),
+        });
+        if (res.ok) {
+          setSharingThemeId(null);
+          setSelectedGroupId('');
+          await fetchThemes();
+        }
+      } catch { /* ignore */ }
+      return;
+    }
+
+    // Regular group sharing
     try {
       const res = await fetch(`/api/themes/${themeId}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ groupId: selectedGroupId }),
       });
       if (res.ok) {
@@ -207,14 +232,32 @@ export default function DataLayersDrawer() {
 
   const handleUnshareTheme = async (themeId, groupId) => {
     try {
-      const res = await fetch(`/api/themes/${themeId}/share/${groupId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/themes/${themeId}/share/${groupId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) await fetchThemes();
+    } catch { /* ignore */ }
+  };
+
+  const handleRemovePublic = async (themeId) => {
+    try {
+      const res = await fetch(`/api/themes/${themeId}/public`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ isPublic: false }),
+      });
       if (res.ok) await fetchThemes();
     } catch { /* ignore */ }
   };
 
   const handleDeleteTheme = async (id) => {
     try {
-      const res = await fetch(`/api/themes/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/themes/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       if (res.ok) setThemes((prev) => prev.filter((t) => t.id !== id));
     } catch { /* ignore */ }
   };
@@ -226,13 +269,23 @@ export default function DataLayersDrawer() {
   // Active overlays for z-order
   const activeOverlayIds = OVERLAYS.filter((o) => store[o.visibleKey]).map((o) => o.id);
 
+  // Show themes section if logged in OR there are public themes
+  const showThemesSection = user || themes.some(t => t.isPublic);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0">
+      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0 flex items-center justify-between">
         <h2 className="text-base font-semibold text-emerald-400">
           {t('dataLayers.title', lang)}
         </h2>
+        <button
+          onClick={toggleDataLayersDrawer}
+          className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white rounded hover:bg-slate-700 transition-colors"
+          title={t('general.close', lang)}
+        >
+          &times;
+        </button>
       </div>
 
       {/* Scrollable content */}
@@ -421,39 +474,41 @@ export default function DataLayersDrawer() {
           </div>
         )}
 
-        {/* Map Themes section (only when logged in) */}
-        {user && (
+        {/* Map Themes section (when logged in OR public themes exist) */}
+        {showThemesSection && (
         <div className="px-3 py-2.5">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-2 font-semibold">
             {t('dataLayers.themes', lang)}
           </div>
 
-          {/* Save new theme (any logged in user) */}
-          <div className="flex gap-1.5 mb-2">
-            <input
-              value={themeName}
-              onChange={(e) => setThemeName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveTheme()}
-              placeholder={lang === 'no' ? 'Temanavn...' : 'Theme name...'}
-              className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
-            />
-            <button
-              onClick={() => setIncludePosition(!includePosition)}
-              className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${includePosition ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-500 hover:text-slate-300'}`}
-              title={lang === 'no' ? (includePosition ? 'Posisjon inkludert' : 'Inkluder posisjon') : (includePosition ? 'Position included' : 'Include position')}
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-              </svg>
-            </button>
-            <button
-              onClick={handleSaveTheme}
-              disabled={!themeName.trim() || themeLoading}
-              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
-            >
-              {t('general.save', lang)}
-            </button>
-          </div>
+          {/* Save new theme (only when logged in) */}
+          {user && (
+            <div className="flex gap-1.5 mb-2">
+              <input
+                value={themeName}
+                onChange={(e) => setThemeName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveTheme()}
+                placeholder={lang === 'no' ? 'Temanavn...' : 'Theme name...'}
+                className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                onClick={() => setIncludePosition(!includePosition)}
+                className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${includePosition ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-500 hover:text-slate-300'}`}
+                title={lang === 'no' ? (includePosition ? 'Posisjon inkludert' : 'Inkluder posisjon') : (includePosition ? 'Position included' : 'Include position')}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                onClick={handleSaveTheme}
+                disabled={!themeName.trim() || themeLoading}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+              >
+                {t('general.save', lang)}
+              </button>
+            </div>
+          )}
 
           {/* Theme list */}
           {themes.length === 0 && (
@@ -462,8 +517,12 @@ export default function DataLayersDrawer() {
           <div className="space-y-1">
             {themes.map((theme) => {
               const hasPosition = !!theme.state?.position;
-              const canEdit = theme.isOwner || isAdmin;
+              const canEdit = user && (theme.isOwner || isAdmin);
+              const canDelete = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
+              const canShowQr = user && (theme.isOwner || isAdmin || theme.userGroupRole === 'editor' || theme.userGroupRole === 'admin');
               const availableGroups = userGroups.filter((g) => !theme.sharedGroups?.some((sg) => sg.id === g.id));
+              const canAddSharing = canEdit && (availableGroups.length > 0 || !theme.isPublic);
+
               return (
                 <div key={theme.id} className="group">
                   <div className="flex items-center gap-1">
@@ -472,8 +531,15 @@ export default function DataLayersDrawer() {
                       className="flex-1 text-left text-sm text-slate-300 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-700/50 transition-colors truncate"
                     >
                       {theme.name}
-                      {!theme.isOwner && <span className="text-slate-500 text-xs ml-1">({theme.created_by_name})</span>}
+                      {!theme.isOwner && theme.created_by_name && <span className="text-slate-500 text-xs ml-1">({theme.created_by_name})</span>}
                     </button>
+                    {/* Public badge */}
+                    {theme.isPublic && (
+                      <span className="text-[9px] bg-emerald-700 text-emerald-100 px-1 py-0.5 rounded shrink-0">
+                        {t('themes.public', lang)}
+                      </span>
+                    )}
+                    {/* Position toggle (editable) */}
                     {canEdit && (
                       <button
                         onClick={() => handleToggleThemePosition(theme)}
@@ -492,6 +558,7 @@ export default function DataLayersDrawer() {
                         </svg>
                       </button>
                     )}
+                    {/* Position indicator (non-editable) */}
                     {!canEdit && hasPosition && (
                       <span className="w-6 h-6 flex items-center justify-center text-emerald-400 shrink-0" title={lang === 'no' ? 'Har lagret posisjon' : 'Has saved position'}>
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -499,7 +566,21 @@ export default function DataLayersDrawer() {
                         </svg>
                       </span>
                     )}
-                    {canEdit && (
+                    {/* QR code button */}
+                    {canShowQr && (
+                      <button
+                        onClick={() => setQrOverlayTheme(theme)}
+                        className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        title={t('themes.generateQr', lang)}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zm-2 7a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zm8-12a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1z" clipRule="evenodd" />
+                          <path d="M11 4a1 1 0 10-2 0v1a1 1 0 002 0V4zm3 0a1 1 0 00-2 0v1a1 1 0 002 0V4zm-3 7a1 1 0 112 0 1 1 0 01-2 0zm5-1a1 1 0 100 2h1a1 1 0 100-2h-1zm-1 3a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1zm-2-1a1 1 0 100 2 1 1 0 000-2zm-4 3a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1zm5 1a1 1 0 100 2h1a1 1 0 100-2h-1z" />
+                        </svg>
+                      </button>
+                    )}
+                    {/* Delete button */}
+                    {canDelete && (
                       <button
                         onClick={() => handleDeleteTheme(theme.id)}
                         className="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
@@ -510,9 +591,24 @@ export default function DataLayersDrawer() {
                     )}
                   </div>
 
-                  {/* Sharing controls (owner only) */}
+                  {/* Sharing controls (owner/admin only) */}
                   {canEdit && (
                     <div className="ml-2 mt-1 space-y-1">
+                      {/* Show public badge (removable) */}
+                      {theme.isPublic && (
+                        <div className="flex flex-wrap gap-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-800 text-emerald-200 px-1.5 py-0.5 rounded">
+                            {t('themes.anyone', lang)}
+                            <button
+                              onClick={() => handleRemovePublic(theme.id)}
+                              className="text-red-400 hover:text-red-300"
+                              title={lang === 'no' ? 'Fjern offentlig deling' : 'Remove public sharing'}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        </div>
+                      )}
                       {/* Show shared groups */}
                       {theme.sharedGroups?.length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -538,7 +634,10 @@ export default function DataLayersDrawer() {
                             onChange={(e) => setSelectedGroupId(e.target.value)}
                             className="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-600 rounded text-[11px] text-white"
                           >
-                            <option value="">{lang === 'no' ? 'Velg gruppe...' : 'Select group...'}</option>
+                            <option value="">{lang === 'no' ? 'Velg...' : 'Select...'}</option>
+                            {!theme.isPublic && (
+                              <option value="__anyone__">{t('themes.anyone', lang)}</option>
+                            )}
                             {availableGroups.map((g) => (
                               <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
@@ -557,12 +656,12 @@ export default function DataLayersDrawer() {
                             {t('general.cancel', lang)}
                           </button>
                         </div>
-                      ) : availableGroups.length > 0 && (
+                      ) : canAddSharing && (
                         <button
                           onClick={() => setSharingThemeId(theme.id)}
                           className="text-[10px] text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          + {lang === 'no' ? 'Del med gruppe' : 'Share with group'}
+                          + {lang === 'no' ? 'Del' : 'Share'}
                         </button>
                       )}
                     </div>
@@ -574,6 +673,15 @@ export default function DataLayersDrawer() {
         </div>
         )}
       </div>
+
+      {/* QR Code Overlay */}
+      {qrOverlayTheme && (
+        <QRCodeOverlay
+          themeId={qrOverlayTheme.id}
+          themeName={qrOverlayTheme.name}
+          onClose={() => setQrOverlayTheme(null)}
+        />
+      )}
     </div>
   );
 }
