@@ -21,6 +21,13 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   const containerRef = useRef(null);
   const initializedRef = useRef(false);
 
+  // Fly-around position freezing refs
+  const flyAroundActive = useMapStore((s) => s.flyAroundActive);
+  const frozenPositionRef = useRef(null);
+  const wasFlyAroundActiveRef = useRef(false);
+  const lastPositionRef = useRef(null);
+  const [, forceUpdate] = useState(0);
+
   // Get map container offset for coordinate conversion (canvas → viewport)
   function getMapOffset() {
     if (!mapRef) return { left: 0, top: 0 };
@@ -115,22 +122,7 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
     setClampedPos({ posX: newPosX, posY: newPosY, canvasX: newCanvasX, canvasY: newCanvasY, ready: true });
   }, [posX, posY, canvasX, canvasY, isDragged, mapOffset.left]);
 
-  // Use clamped position for rendering, or frozen position during fly-around
-  const frozen = frozenPositionRef.current;
-  const finalPosX = frozen ? frozen.posX : (clampedPos.ready ? clampedPos.posX : posX);
-  const finalPosY = frozen ? frozen.posY : (clampedPos.ready ? clampedPos.posY : posY);
-  const finalCanvasX = frozen ? frozen.canvasX : (clampedPos.ready ? clampedPos.canvasX : canvasX);
-  const finalCanvasY = frozen ? frozen.canvasY : (clampedPos.ready ? clampedPos.canvasY : canvasY);
-
-  // Force re-render when map moves so origin tracks the geo-coordinate
-  // Skip updates during fly-around rotation to keep popups locked in place
-  const flyAroundActive = useMapStore((s) => s.flyAroundActive);
-  const frozenPositionRef = useRef(null);
-  const wasFlyAroundActiveRef = useRef(false);
-  const [, forceUpdate] = useState(0);
-
-  // Track last known good position for freezing
-  const lastPositionRef = useRef({ posX, posY, canvasX, canvasY });
+  // Track last known good position for freezing (update when not in fly-around)
   if (!flyAroundActive) {
     lastPositionRef.current = { posX, posY, canvasX, canvasY };
   }
@@ -144,6 +136,15 @@ export default function DraggablePopup({ originLng, originLat, originX, originY,
   }
   wasFlyAroundActiveRef.current = flyAroundActive;
 
+  // Use clamped position for rendering, or frozen position during fly-around
+  const frozen = frozenPositionRef.current;
+  const finalPosX = frozen ? frozen.posX : (clampedPos.ready ? clampedPos.posX : posX);
+  const finalPosY = frozen ? frozen.posY : (clampedPos.ready ? clampedPos.posY : posY);
+  const finalCanvasX = frozen ? frozen.canvasX : (clampedPos.ready ? clampedPos.canvasX : canvasX);
+  const finalCanvasY = frozen ? frozen.canvasY : (clampedPos.ready ? clampedPos.canvasY : canvasY);
+
+  // Force re-render when map moves so origin tracks the geo-coordinate
+  // Skip updates during fly-around rotation to keep popups locked in place
   useEffect(() => {
     if (!mapRef) return;
     const onMove = () => {
