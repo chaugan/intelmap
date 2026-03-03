@@ -413,7 +413,7 @@ export default function VesselActivityPanel() {
           </button>
         </div>
         <div className="text-[10px] text-slate-400 mt-1">
-          {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km | {t('vesselActivity.last3Days', lang)}
+          {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km | {t('vesselActivity.last5Days', lang)}
         </div>
       </div>
 

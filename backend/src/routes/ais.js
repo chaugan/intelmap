@@ -210,9 +210,9 @@ router.get('/trace/:mmsi', async (req, res) => {
   try {
     const token = await getAccessToken();
 
-    // 3-day window
+    // 5-day window
     const now = new Date();
-    const from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const from = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
     const fromStr = from.toISOString();
     const toStr = now.toISOString();
 
@@ -332,7 +332,7 @@ router.post('/traces/batch', async (req, res) => {
   try {
     const token = await getAccessToken();
     const now = new Date();
-    const from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const from = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
     const fromStr = from.toISOString();
     const toStr = now.toISOString();
 
