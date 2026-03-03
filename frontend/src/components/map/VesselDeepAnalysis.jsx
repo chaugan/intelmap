@@ -574,12 +574,25 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
             debug.push(`[14b] Drawing at x=${offsetX}, y=${offsetY}, w=${svgWidth * scale}, h=${svgHeight * scale}`);
             debug.push(`[14c] Canvas before draw size: ${canvas.width}x${canvas.height}`);
 
+            // TEST: Draw a bright red rectangle first to verify canvas drawing works
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+            debug.push('[14d] Test red rectangle drawn');
+
+            // Sample after red rect
+            const redSample = ctx.getImageData(Math.floor(offsetX) + 10, Math.floor(offsetY) + 10, 1, 1);
+            debug.push(`[14e] After red rect: rgba(${redSample.data[0]},${redSample.data[1]},${redSample.data[2]},${redSample.data[3]})`);
+
+            // Now draw the SVG image on top
             ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
             debug.push('[15] drawImage completed');
 
             // Verify something was drawn by sampling pixels
             const imageData = ctx.getImageData(Math.floor(offsetX) + 10, Math.floor(offsetY) + 10, 1, 1);
-            debug.push(`[15b] Pixel sample at (${Math.floor(offsetX)+10}, ${Math.floor(offsetY)+10}): rgba(${imageData.data[0]},${imageData.data[1]},${imageData.data[2]},${imageData.data[3]})`);
+            debug.push(`[15b] After SVG: rgba(${imageData.data[0]},${imageData.data[1]},${imageData.data[2]},${imageData.data[3]})`);
+
+            // Also check if mapImage has content
+            debug.push(`[15c] mapImage.complete: ${mapImage.complete}, naturalWidth: ${mapImage.naturalWidth}, naturalHeight: ${mapImage.naturalHeight}`);
           } catch (svgErr) {
             debug.push(`[SVG ERROR] ${svgErr.message}\n${svgErr.stack}`);
           }
