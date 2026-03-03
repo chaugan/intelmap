@@ -882,19 +882,14 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     <div className={containerClass} ref={containerRef} style={expanded ? { width: '92vw', maxWidth: '1620px', maxHeight: '95vh', overflow: 'auto' } : undefined}>
       {/* Header - draggable */}
       <div className={`draggable-header flex justify-between items-start ${expanded ? 'mb-3' : 'mb-2'} cursor-grab`}>
-        <div>
+        <div className="cursor-text select-text">
           <div className={`text-white font-semibold ${expanded ? 'text-xl' : 'text-base'}`}>
             {lang === 'no' ? 'Historisk AIS-analyse' : 'Historic AIS Analysis'}: {vessel?.name || `MMSI ${vessel?.mmsi}`}
             {vessel?.countryCode && <span className="ml-2 text-slate-400 text-sm font-normal">{vessel.countryCode}</span>}
           </div>
           <div className="text-slate-400 text-xs">
-            MMSI: {vessel?.mmsi}
-            {vessel?.imoNumber && ` | IMO: ${vessel.imoNumber}`}
-            {vessel?.imoNumber && (
-              <a href={`https://www.vesselfinder.com/vessels/details/${vessel.imoNumber}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-cyan-400 hover:text-cyan-300">
-                {t('vessel.viewOnVesselFinder', lang)} &nearr;
-              </a>
-            )}
+            MMSI: <a href={`https://www.vesselfinder.com/vessels/details/${vessel?.mmsi}`} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer">{vessel?.mmsi}</a>
+            {vessel?.imoNumber && <span> | IMO: {vessel.imoNumber}</span>}
           </div>
         </div>
         <div className="flex items-center gap-2">
