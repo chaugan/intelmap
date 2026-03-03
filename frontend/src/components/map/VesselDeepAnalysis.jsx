@@ -520,19 +520,26 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       debug.push(`[7] mapRect: ${mapRect ? JSON.stringify({w: mapRect.width, h: mapRect.height, t: mapRect.top, l: mapRect.left}) : 'null'}`);
 
       debug.push('[8] Starting html2canvas...');
-      const canvas = await html2canvas(containerRef.current, {
+      const h2cCanvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
       });
-      debug.push(`[9] html2canvas done, canvas size: ${canvas.width}x${canvas.height}`);
+      debug.push(`[9] html2canvas done, canvas size: ${h2cCanvas.width}x${h2cCanvas.height}`);
+
+      // Create a NEW canvas and copy h2c result (html2canvas canvas might be special)
+      const canvas = document.createElement('canvas');
+      canvas.width = h2cCanvas.width;
+      canvas.height = h2cCanvas.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(h2cCanvas, 0, 0);
+      debug.push(`[9b] Created new canvas ${canvas.width}x${canvas.height}, copied h2c content`);
 
       // Generate and composite SVG track visualization over the map area
       debug.push(`[10] Checking conditions: mapRect=${!!mapRect}, selectedIndex=${selectedIndex}`);
 
       if (mapRect && selectedIndex != null) {
-        const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
