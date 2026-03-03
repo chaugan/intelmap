@@ -343,16 +343,14 @@ export default function VesselActivityPanel() {
 
   // Analyze vessel activity when box is set
   const analyzeActivity = useCallback(async () => {
-    console.log('=== VESSEL ACTIVITY ANALYSIS STARTING ===');
+    alert('Analysis starting! Bounds: ' + JSON.stringify(vesselActivityBox?.bounds));
     if (!vesselActivityBox) {
-      console.log('No activity box set, returning');
       return;
     }
 
     setLoading(true);
     try {
       const { bounds } = vesselActivityBox;
-      console.log('Analysis bounds:', bounds);
 
       // Expand search bounds significantly to catch vessels that passed through historically
       // A vessel at 12-15 knots can travel 300-400km per day, so over 5 days that's 1500-2000km
