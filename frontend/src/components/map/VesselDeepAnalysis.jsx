@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import maplibregl from 'maplibre-gl';
 import html2canvas from 'html2canvas-pro';
@@ -9,10 +9,10 @@ import ExportMenu from '../common/ExportMenu.jsx';
 
 // Detect stops: periods of ~0 speed for 1+ hour after moving for 1+ hour
 function detectStops(trackPoints) {
-  const MIN_STOP_DURATION = 60; // minutes at speed ~ 0
-  const MIN_MOVE_DURATION = 60; // minutes at speed > 1 kt before new stop
-  const STOP_SPEED_THRESHOLD = 0.5; // knots
-  const MOVE_SPEED_THRESHOLD = 1.0; // knots
+  const MIN_STOP_DURATION = 60;
+  const MIN_MOVE_DURATION = 60;
+  const STOP_SPEED_THRESHOLD = 0.5;
+  const MOVE_SPEED_THRESHOLD = 1.0;
 
   const stops = [];
   let currentStop = null;
@@ -21,23 +21,16 @@ function detectStops(trackPoints) {
   for (let i = 0; i < trackPoints.length; i++) {
     const pt = trackPoints[i];
     const prevPt = trackPoints[i - 1];
-
     const timeDelta = prevPt
       ? (new Date(pt.timestamp) - new Date(prevPt.timestamp)) / 60000
       : 0;
 
     if (pt.speed != null && pt.speed <= STOP_SPEED_THRESHOLD) {
-      // Vessel stopped
       if (!currentStop && movingMinutes >= MIN_MOVE_DURATION) {
-        currentStop = {
-          startIndex: i,
-          startTime: pt.timestamp,
-          coordinates: pt.coordinates,
-        };
+        currentStop = { startIndex: i, startTime: pt.timestamp, coordinates: pt.coordinates };
       }
       movingMinutes = 0;
     } else if (pt.speed != null && pt.speed > MOVE_SPEED_THRESHOLD) {
-      // Vessel moving
       if (currentStop) {
         const stopDuration = (new Date(pt.timestamp) - new Date(currentStop.startTime)) / 60000;
         if (stopDuration >= MIN_STOP_DURATION) {
@@ -52,7 +45,6 @@ function detectStops(trackPoints) {
     }
   }
 
-  // Handle stop at end of track
   if (currentStop) {
     const lastPt = trackPoints[trackPoints.length - 1];
     const stopDuration = (new Date(lastPt.timestamp) - new Date(currentStop.startTime)) / 60000;
@@ -67,86 +59,43 @@ function detectStops(trackPoints) {
   return stops;
 }
 
-// Format duration in hours/minutes
-function formatDuration(minutes) {
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-}
-
-// Format timestamp
 function formatTime(timestamp) {
   const d = new Date(timestamp);
-  return d.toLocaleString('no-NO', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return d.toLocaleString('no-NO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// Format speed
 function formatSpeed(kts) {
   if (kts == null) return 'N/A';
   return `${kts.toFixed(1)} kn`;
 }
 
-// Calculate stats from track points
 function calculateStats(trackPoints) {
   if (!trackPoints || trackPoints.length === 0) return null;
-
   const speeds = trackPoints.filter(p => p.speed != null).map(p => p.speed);
   if (speeds.length === 0) return null;
-
   const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
   const maxSpeed = Math.max(...speeds);
-  const minTime = new Date(trackPoints[0].timestamp);
-  const maxTime = new Date(trackPoints[trackPoints.length - 1].timestamp);
-  const durationMs = maxTime - minTime;
-
   return {
     avgSpeed,
     maxSpeed,
     startTime: trackPoints[0].timestamp,
     endTime: trackPoints[trackPoints.length - 1].timestamp,
-    durationMs,
+    durationMs: new Date(trackPoints[trackPoints.length - 1].timestamp) - new Date(trackPoints[0].timestamp),
   };
 }
 
-// Mini-map component showing historical position
-function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLayer }) {
+// Mini-map with both past (solid) and future (dotted) traces
+function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLayer, onOpenInMainMap, lang }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current || !selectedPoint) return;
 
-    // Get map style URL based on base layer
-    const styleUrl = baseLayer === 'osm'
-      ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-      : 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png';
-
+    // Use OpenStreetMap (dark style) for global coverage
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: baseLayer === 'osm'
-        ? styleUrl
-        : {
-            version: 8,
-            sources: {
-              'kartverket': {
-                type: 'raster',
-                tiles: [styleUrl],
-                tileSize: 256,
-                attribution: '&copy; Kartverket',
-              },
-            },
-            layers: [{
-              id: 'background',
-              type: 'raster',
-              source: 'kartverket',
-            }],
-          },
+      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: selectedPoint.coordinates,
       zoom: 11,
       interactive: true,
@@ -156,50 +105,59 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     map.on('load', () => {
-      // Add trace up to selected time
-      const traceUpToTime = trackPoints.slice(0, selectedIndex + 1);
-      if (traceUpToTime.length > 1) {
-        map.addSource('historical-trace', {
+      // Past trace (solid cyan→yellow gradient)
+      const pastTrace = trackPoints.slice(0, selectedIndex + 1);
+      if (pastTrace.length > 1) {
+        map.addSource('past-trace', {
           type: 'geojson',
           data: {
             type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: traceUpToTime.map(p => p.coordinates),
-            },
+            geometry: { type: 'LineString', coordinates: pastTrace.map(p => p.coordinates) },
           },
           lineMetrics: true,
         });
-
         map.addLayer({
-          id: 'historical-trace-line',
+          id: 'past-trace-line',
           type: 'line',
-          source: 'historical-trace',
+          source: 'past-trace',
           paint: {
-            'line-gradient': [
-              'interpolate', ['linear'], ['line-progress'],
-              0, '#06b6d4', // cyan (oldest)
-              1, '#fbbf24', // yellow (selected time)
-            ],
+            'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, '#06b6d4', 1, '#fbbf24'],
             'line-width': 3,
           },
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round',
-          },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
       }
 
-      // Add vessel marker at selected position
+      // Future trace (dotted gray)
+      const futureTrace = trackPoints.slice(selectedIndex);
+      if (futureTrace.length > 1) {
+        map.addSource('future-trace', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: futureTrace.map(p => p.coordinates) },
+          },
+        });
+        map.addLayer({
+          id: 'future-trace-line',
+          type: 'line',
+          source: 'future-trace',
+          paint: {
+            'line-color': '#94a3b8',
+            'line-width': 2,
+            'line-dasharray': [2, 2],
+          },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+        });
+      }
+
+      // Vessel marker at selected position
       const el = document.createElement('div');
       el.innerHTML = `<svg width="24" height="24" viewBox="0 0 48 48" style="transform: rotate(${selectedPoint.heading || selectedPoint.course || 0}deg)">
         <path d="M24 4 L19 16 L17 18 L17 38 L19 40 L29 40 L31 38 L31 18 L29 16 Z" fill="#fbbf24" stroke="#000" stroke-width="2"/>
       </svg>`;
       el.style.cursor = 'default';
-
-      new maplibregl.Marker({ element: el })
-        .setLngLat(selectedPoint.coordinates)
-        .addTo(map);
+      new maplibregl.Marker({ element: el }).setLngLat(selectedPoint.coordinates).addTo(map);
     });
 
     mapRef.current = map;
@@ -207,10 +165,124 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
   }, [selectedPoint, trackPoints, selectedIndex, baseLayer]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-48 rounded-lg overflow-hidden border border-slate-600"
-    />
+    <div className="relative">
+      <div ref={containerRef} className="w-full h-48 rounded-lg overflow-hidden border border-slate-600" />
+      {/* Open in main map button */}
+      <button
+        onClick={onOpenInMainMap}
+        className="absolute bottom-2 left-2 bg-slate-800/90 hover:bg-slate-700 text-white text-xs px-3 py-1.5 rounded shadow flex items-center gap-1.5"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+        {lang === 'no' ? 'Åpne i hovedkart' : 'Open in main map'}
+      </button>
+    </div>
+  );
+}
+
+// Draggable wrapper for the analysis panel
+function DraggableAnalysisPanel({ vesselCoords, children, mapRef: mainMapRef }) {
+  const [offset, setOffset] = useState({ dx: 0, dy: 0 });
+  const [isDragged, setIsDragged] = useState(false);
+  const containerRef = useRef(null);
+  const startRef = useRef({ mouseX: 0, mouseY: 0, dx: 0, dy: 0 });
+  const dragRef = useRef(false);
+  const [, forceUpdate] = useState(0);
+
+  // Get map container offset
+  function getMapOffset() {
+    if (!mainMapRef) return { left: 0, top: 0 };
+    try {
+      const rect = mainMapRef.getContainer().getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    } catch { return { left: 0, top: 0 }; }
+  }
+
+  // Project vessel coords to screen
+  function getOriginCanvas() {
+    if (vesselCoords && mainMapRef) {
+      try {
+        const pt = mainMapRef.project(vesselCoords);
+        return { x: pt.x, y: pt.y };
+      } catch {}
+    }
+    return { x: window.innerWidth / 2, y: window.innerHeight - 200 };
+  }
+
+  const origin = getOriginCanvas();
+  const mapOffset = getMapOffset();
+  const canvasX = origin.x + offset.dx;
+  const canvasY = origin.y + offset.dy;
+  const posX = canvasX + mapOffset.left;
+  const posY = canvasY + mapOffset.top;
+
+  // Force re-render when map moves
+  useEffect(() => {
+    if (!mainMapRef) return;
+    const onMove = () => forceUpdate((n) => n + 1);
+    mainMapRef.on('move', onMove);
+    return () => mainMapRef.off('move', onMove);
+  }, [mainMapRef]);
+
+  const onMouseDown = useCallback((e) => {
+    if (!e.target.closest('.draggable-header')) return;
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragged(true);
+    startRef.current = { mouseX: e.clientX, mouseY: e.clientY, dx: offset.dx, dy: offset.dy };
+    dragRef.current = true;
+
+    const onMouseMove = (e) => {
+      if (!dragRef.current) return;
+      setOffset({
+        dx: startRef.current.dx + (e.clientX - startRef.current.mouseX),
+        dy: startRef.current.dy + (e.clientY - startRef.current.mouseY),
+      });
+    };
+    const onMouseUp = () => {
+      dragRef.current = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [offset]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('mousedown', onMouseDown);
+    return () => el.removeEventListener('mousedown', onMouseDown);
+  }, [onMouseDown]);
+
+  return (
+    <>
+      {/* Connection line to vessel */}
+      {isDragged && vesselCoords && (
+        <svg className="absolute inset-0 pointer-events-none z-[19]" style={{ width: '100%', height: '100%' }}>
+          <line
+            x1={origin.x} y1={origin.y}
+            x2={canvasX + 300} y2={canvasY + 20}
+            stroke="#000" strokeWidth="3" strokeDasharray="8 5" opacity="0.8"
+          />
+          <circle cx={origin.x} cy={origin.y} r="5" fill="#fbbf24" stroke="#000" strokeWidth="2" />
+        </svg>
+      )}
+      <div
+        ref={containerRef}
+        style={{
+          position: 'fixed',
+          left: posX - 300,
+          top: posY - 200,
+          zIndex: 20,
+        }}
+      >
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -218,6 +290,11 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
 export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   const lang = useMapStore((s) => s.lang);
   const baseLayer = useMapStore((s) => s.baseLayer);
+  const mainMapRef = useMapStore((s) => s.mapRef);
+  const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
+  const setVesselTimeTravel = useMapStore((s) => s.setVesselTimeTravel);
+  const clearVesselDeepAnalysis = useMapStore((s) => s.clearVesselDeepAnalysis);
+
   const [expanded, setExpanded] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
@@ -225,34 +302,68 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   const [exporting, setExporting] = useState(false);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
+  const miniMapRef = useRef(null);
 
-  // WaSOS integration
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
 
-  // Parse track points from trace data
   const trackPoints = useMemo(() => {
     if (!traceData?.properties?.trackPoints) return [];
-    // BarentsWatch returns newest-first, so reverse to oldest-first
     return [...traceData.properties.trackPoints].reverse();
   }, [traceData]);
 
-  // Calculate stats and detect stops
   const stats = useMemo(() => calculateStats(trackPoints), [trackPoints]);
   const stops = useMemo(() => detectStops(trackPoints), [trackPoints]);
 
-  // Export to disk
+  // Get current vessel position from trace (last point)
+  const vesselCoords = useMemo(() => {
+    if (trackPoints.length === 0) return null;
+    return trackPoints[trackPoints.length - 1].coordinates;
+  }, [trackPoints]);
+
+  // Export with map canvas compositing
   const handleSaveReport = async () => {
     if (!containerRef.current) return;
     setExporting(true);
     try {
+      // First capture the mini-map canvas if present
+      let mapCanvas = null;
+      const miniMapContainer = containerRef.current.querySelector('.maplibregl-canvas');
+      if (miniMapContainer) {
+        mapCanvas = miniMapContainer;
+      }
+
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
+        onclone: (clonedDoc, clonedEl) => {
+          // Replace maplibre canvas placeholder with actual canvas content
+          if (mapCanvas) {
+            const clonedMapContainer = clonedEl.querySelector('.maplibregl-canvas');
+            if (clonedMapContainer) {
+              const ctx = clonedMapContainer.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(mapCanvas, 0, 0);
+              }
+            }
+          }
+        },
       });
+
+      // If there's a map canvas, composite it
+      if (mapCanvas) {
+        const ctx = canvas.getContext('2d');
+        const mapRect = mapCanvas.getBoundingClientRect();
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const scale = 2;
+        const offsetX = (mapRect.left - containerRect.left) * scale;
+        const offsetY = (mapRect.top - containerRect.top) * scale;
+        ctx.drawImage(mapCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+      }
+
       const link = document.createElement('a');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
@@ -266,25 +377,33 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     }
   };
 
-  // Transfer to WaSOS
   const handleWasosUpload = async () => {
     if (!containerRef.current) return;
     setExporting(true);
     try {
+      const mapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
       });
+
+      if (mapCanvas) {
+        const ctx = canvas.getContext('2d');
+        const mapRect = mapCanvas.getBoundingClientRect();
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const scale = 2;
+        const offsetX = (mapRect.left - containerRect.left) * scale;
+        const offsetY = (mapRect.top - containerRect.top) * scale;
+        ctx.drawImage(mapCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+      }
+
       const imageData = canvas.toDataURL('image/png');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       const filename = `vessel_analysis_${vessel?.mmsi || 'unknown'}_${localTime}.png`;
-
-      // Get coordinates from vessel
       const coords = trackPoints.length > 0 ? trackPoints[trackPoints.length - 1].coordinates : null;
-
       setExpanded(false);
       prepareWasosUpload(imageData, coords, filename);
     } catch (err) {
@@ -294,112 +413,99 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     }
   };
 
+  // Open in main map: focus vessel, enable time travel mode
+  const handleOpenInMainMap = useCallback(() => {
+    if (!selectedPoint || selectedIndex == null) return;
+
+    // Set time travel state
+    setVesselTimeTravel({
+      mmsi: vessel?.mmsi,
+      selectedIndex,
+      trackPoints,
+    });
+
+    // Focus on the vessel
+    setFocusedVessel(String(vessel?.mmsi));
+
+    // Fly to the historical position
+    if (mainMapRef && selectedPoint.coordinates) {
+      mainMapRef.flyTo({
+        center: selectedPoint.coordinates,
+        zoom: 12,
+        duration: 1500,
+      });
+    }
+
+    // Close the analysis panel
+    clearVesselDeepAnalysis();
+  }, [selectedPoint, selectedIndex, vessel, trackPoints, setVesselTimeTravel, setFocusedVessel, mainMapRef, clearVesselDeepAnalysis]);
+
   if (!trackPoints || trackPoints.length < 2) {
     return (
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 bg-slate-800/95 rounded-lg shadow-xl p-4 min-w-[300px] text-center">
         <div className="text-slate-400 text-sm">{t('vessel.noTrackData', lang)}</div>
-        <button
-          onClick={onClose}
-          className="mt-2 text-slate-400 hover:text-white text-sm"
-        >
+        <button onClick={onClose} className="mt-2 text-slate-400 hover:text-white text-sm">
           {t('general.close', lang)}
         </button>
       </div>
     );
   }
 
-  // SVG dimensions
   const width = expanded ? 1100 : 580;
   const height = expanded ? 280 : 160;
-  const padding = {
-    top: expanded ? 25 : 15,
-    right: expanded ? 30 : 15,
-    bottom: expanded ? 45 : 28,
-    left: expanded ? 60 : 45,
-  };
+  const padding = { top: expanded ? 25 : 15, right: expanded ? 30 : 15, bottom: expanded ? 45 : 28, left: expanded ? 60 : 45 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
-  // Time range
   const startTime = new Date(trackPoints[0].timestamp).getTime();
   const endTime = new Date(trackPoints[trackPoints.length - 1].timestamp).getTime();
   const timeRange = endTime - startTime || 1;
 
-  // Speed range (with padding)
   const speeds = trackPoints.filter(p => p.speed != null).map(p => p.speed);
   const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 10;
   const speedRange = maxSpeed * 1.15;
 
-  // Build path for speed line
   const pathPoints = trackPoints
     .filter(p => p.speed != null)
-    .map((p, i, arr) => {
+    .map((p, i) => {
       const x = padding.left + ((new Date(p.timestamp).getTime() - startTime) / timeRange) * chartWidth;
       const y = padding.top + chartHeight - (p.speed / speedRange) * chartHeight;
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(' ');
 
-  // Create filled area path
-  const areaPath = pathPoints +
-    ` L ${padding.left + chartWidth} ${padding.top + chartHeight}` +
-    ` L ${padding.left} ${padding.top + chartHeight} Z`;
+  const areaPath = pathPoints + ` L ${padding.left + chartWidth} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
 
-  // Y-axis labels
   const yLabelCount = expanded ? 6 : 4;
-  const yLabels = [];
-  for (let i = 0; i < yLabelCount; i++) {
-    yLabels.push((speedRange * i) / (yLabelCount - 1));
-  }
+  const yLabels = Array.from({ length: yLabelCount }, (_, i) => (speedRange * i) / (yLabelCount - 1));
 
-  // X-axis labels (time)
   const xLabelCount = expanded ? 8 : 5;
-  const xLabels = [];
-  for (let i = 0; i < xLabelCount; i++) {
-    const time = startTime + (timeRange * i) / (xLabelCount - 1);
-    xLabels.push(time);
-  }
+  const xLabels = Array.from({ length: xLabelCount }, (_, i) => startTime + (timeRange * i) / (xLabelCount - 1));
 
-  // Handle mouse move for scrubber
   const handleMouseMove = (e) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const svgX = e.clientX - rect.left;
     const scaleX = width / rect.width;
-    const x = svgX * scaleX;
+    const x = (e.clientX - rect.left) * scaleX;
 
     if (x >= padding.left && x <= padding.left + chartWidth) {
       const fraction = (x - padding.left) / chartWidth;
       const targetTime = startTime + fraction * timeRange;
-
-      // Find closest track point
       let closestIdx = 0;
       let closestDiff = Infinity;
       for (let i = 0; i < trackPoints.length; i++) {
         const diff = Math.abs(new Date(trackPoints[i].timestamp).getTime() - targetTime);
-        if (diff < closestDiff) {
-          closestDiff = diff;
-          closestIdx = i;
-        }
+        if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
       }
-
       const pt = trackPoints[closestIdx];
       const lineX = padding.left + ((new Date(pt.timestamp).getTime() - startTime) / timeRange) * chartWidth;
-      const speedY = pt.speed != null
-        ? padding.top + chartHeight - (pt.speed / speedRange) * chartHeight
-        : null;
-
+      const speedY = pt.speed != null ? padding.top + chartHeight - (pt.speed / speedRange) * chartHeight : null;
       setHoverInfo({ point: pt, index: closestIdx, lineX, speedY });
     } else {
       setHoverInfo(null);
     }
   };
 
-  const handleMouseLeave = () => {
-    setHoverInfo(null);
-  };
-
-  // Handle click to select point for mini-map
   const handleChartClick = () => {
     if (hoverInfo) {
       setSelectedPoint(hoverInfo.point);
@@ -407,39 +513,25 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     }
   };
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      setExpanded(false);
-    }
-  };
+  const handleBackdropClick = (e) => { if (e.target === e.currentTarget) setExpanded(false); };
 
   const fontSize = expanded ? 13 : 10;
-
-  const containerClass = expanded
-    ? "bg-slate-900 rounded-lg shadow-2xl p-5"
-    : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[600px]";
+  const containerClass = expanded ? "bg-slate-900 rounded-lg shadow-2xl p-5" : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[600px]";
 
   const content = (
     <div className={containerClass} ref={containerRef} style={expanded ? { width: '85vw', maxWidth: '1200px', maxHeight: '90vh', overflow: 'auto' } : undefined}>
-      {/* Header */}
-      <div className={`flex justify-between items-start ${expanded ? 'mb-3' : 'mb-2'}`}>
+      {/* Header - draggable */}
+      <div className={`draggable-header flex justify-between items-start ${expanded ? 'mb-3' : 'mb-2'} cursor-grab`}>
         <div>
           <div className={`text-white font-semibold ${expanded ? 'text-xl' : 'text-base'}`}>
             {vessel?.name || `MMSI ${vessel?.mmsi}`}
-            {vessel?.countryCode && (
-              <span className="ml-2 text-slate-400 text-sm font-normal">{vessel.countryCode}</span>
-            )}
+            {vessel?.countryCode && <span className="ml-2 text-slate-400 text-sm font-normal">{vessel.countryCode}</span>}
           </div>
           <div className="text-slate-400 text-xs">
             MMSI: {vessel?.mmsi}
             {vessel?.imoNumber && ` | IMO: ${vessel.imoNumber}`}
             {vessel?.imoNumber && (
-              <a
-                href={`https://www.vesselfinder.com/vessels/details/${vessel.imoNumber}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-2 text-cyan-400 hover:text-cyan-300"
-              >
+              <a href={`https://www.vesselfinder.com/vessels/details/${vessel.imoNumber}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-cyan-400 hover:text-cyan-300">
                 {t('vessel.viewOnVesselFinder', lang)} &nearr;
               </a>
             )}
@@ -451,65 +543,32 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
               onSaveToDisk={handleSaveReport}
               onTransferToWasos={handleWasosUpload}
               wasosLoggedIn={wasosLoggedIn}
-              buttonIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              }
+              buttonIcon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
               buttonClassName="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
               disabled={exporting}
             />
-          ) : expanded ? (
-            <button
-              onClick={handleSaveReport}
-              disabled={exporting}
-              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
-              title={t('measure.export', lang)}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+          ) : expanded && (
+            <button onClick={handleSaveReport} disabled={exporting} className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors" title={t('measure.export', lang)}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             </button>
-          ) : null}
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
-            title={expanded ? t('measure.shrink', lang) : t('measure.expand', lang)}
-          >
+          )}
+          <button onClick={() => setExpanded(!expanded)} className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors" title={expanded ? t('measure.shrink', lang) : t('measure.expand', lang)}>
             {expanded ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              </svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" /></svg>
             ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-              </svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
             )}
           </button>
-          <button
-            onClick={onClose}
-            className={`text-slate-400 hover:text-white leading-none px-1 ${expanded ? 'text-2xl' : 'text-lg'}`}
-          >
-            &times;
-          </button>
+          <button onClick={onClose} className={`text-slate-400 hover:text-white leading-none px-1 ${expanded ? 'text-2xl' : 'text-lg'}`}>&times;</button>
         </div>
       </div>
 
       {/* Stats row */}
       <div className={`flex gap-4 text-slate-300 ${expanded ? 'mb-3 text-sm' : 'mb-2 text-xs'} flex-wrap`}>
-        <span>
-          <span className="text-slate-500">{t('vessel.trackPeriod', lang)}:</span>{' '}
-          {stats ? formatTime(stats.startTime) : '—'} &mdash; {stats ? formatTime(stats.endTime) : '—'}
-        </span>
-        <span className="text-cyan-400">
-          {t('vessel.avgSpeed', lang)}: {stats ? formatSpeed(stats.avgSpeed) : '—'}
-        </span>
-        <span className="text-green-400">
-          {t('vessel.maxSpeed', lang)}: {stats ? formatSpeed(stats.maxSpeed) : '—'}
-        </span>
-        <span className="text-red-400">
-          {t('vessel.stopCount', lang)}: {stops.length}
-        </span>
+        <span><span className="text-slate-500">{t('vessel.trackPeriod', lang)}:</span> {stats ? formatTime(stats.startTime) : '—'} &mdash; {stats ? formatTime(stats.endTime) : '—'}</span>
+        <span className="text-cyan-400">{t('vessel.avgSpeed', lang)}: {stats ? formatSpeed(stats.avgSpeed) : '—'}</span>
+        <span className="text-green-400">{t('vessel.maxSpeed', lang)}: {stats ? formatSpeed(stats.maxSpeed) : '—'}</span>
+        <span className="text-red-400">{t('vessel.stopCount', lang)}: {stops.length}</span>
       </div>
 
       {/* Speed-Time Chart */}
@@ -520,7 +579,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? '300px' : '160px', cursor: 'crosshair' }}
         preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        onMouseLeave={() => setHoverInfo(null)}
         onClick={handleChartClick}
       >
         {/* Grid lines - horizontal */}
@@ -528,54 +587,38 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
           const y = padding.top + chartHeight - (speed / speedRange) * chartHeight;
           return (
             <g key={`y-${i}`}>
-              <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y}
-                stroke="#374151" strokeWidth="1" />
-              <text x={padding.left - 6} y={y + 4} textAnchor="end"
-                fill="#9ca3af" fontSize={fontSize}>{speed.toFixed(0)}</text>
+              <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y} stroke="#374151" strokeWidth="1" />
+              <text x={padding.left - 6} y={y + 4} textAnchor="end" fill="#9ca3af" fontSize={fontSize}>{speed.toFixed(0)}</text>
             </g>
           );
         })}
 
-        {/* X-axis labels (time) */}
+        {/* X-axis labels */}
         {xLabels.map((time, i) => {
           const x = padding.left + (i / (xLabelCount - 1)) * chartWidth;
-          const d = new Date(time);
-          const label = d.toLocaleString('no-NO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          const label = new Date(time).toLocaleString('no-NO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           return (
             <g key={`x-${i}`}>
-              <line x1={x} y1={padding.top} x2={x} y2={padding.top + chartHeight}
-                stroke="#374151" strokeWidth="1" />
-              <text x={x} y={height - (expanded ? 8 : 5)} textAnchor="middle"
-                fill="#9ca3af" fontSize={expanded ? 11 : 8}>{label}</text>
+              <line x1={x} y1={padding.top} x2={x} y2={padding.top + chartHeight} stroke="#374151" strokeWidth="1" />
+              <text x={x} y={height - (expanded ? 8 : 5)} textAnchor="middle" fill="#9ca3af" fontSize={expanded ? 11 : 8}>{label}</text>
             </g>
           );
         })}
 
-        {/* Stop periods (red vertical bands) */}
+        {/* Stop periods */}
         {stops.map((stop, i) => {
           const startX = padding.left + ((new Date(stop.startTime).getTime() - startTime) / timeRange) * chartWidth;
           const endX = padding.left + ((new Date(stop.endTime).getTime() - startTime) / timeRange) * chartWidth;
           return (
             <g key={`stop-${i}`}>
-              <rect
-                x={startX}
-                y={padding.top}
-                width={Math.max(endX - startX, 4)}
-                height={chartHeight}
-                fill="#ef4444"
-                fillOpacity="0.2"
-              />
-              <line x1={startX} y1={padding.top} x2={startX} y2={padding.top + chartHeight}
-                stroke="#ef4444" strokeWidth="1" strokeDasharray="2 2" />
-              {/* Stop icon at top */}
+              <rect x={startX} y={padding.top} width={Math.max(endX - startX, 4)} height={chartHeight} fill="#ef4444" fillOpacity="0.2" />
+              <line x1={startX} y1={padding.top} x2={startX} y2={padding.top + chartHeight} stroke="#ef4444" strokeWidth="1" strokeDasharray="2 2" />
               <circle cx={(startX + endX) / 2} cy={padding.top + 10} r={expanded ? 8 : 6} fill="#ef4444" />
-              <text x={(startX + endX) / 2} y={padding.top + (expanded ? 14 : 12)} textAnchor="middle"
-                fill="#fff" fontSize={expanded ? 10 : 7} fontWeight="bold">S</text>
+              <text x={(startX + endX) / 2} y={padding.top + (expanded ? 14 : 12)} textAnchor="middle" fill="#fff" fontSize={expanded ? 10 : 7} fontWeight="bold">S</text>
             </g>
           );
         })}
 
-        {/* Gradient definition */}
         <defs>
           <linearGradient id="speedGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6" />
@@ -583,91 +626,40 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
           </linearGradient>
         </defs>
 
-        {/* Filled area */}
         {pathPoints && <path d={areaPath} fill="url(#speedGradient)" />}
+        {pathPoints && <path d={pathPoints} fill="none" stroke="#06b6d4" strokeWidth={expanded ? 2 : 1.5} strokeLinejoin="round" />}
 
-        {/* Speed line */}
-        {pathPoints && (
-          <path d={pathPoints} fill="none" stroke="#06b6d4" strokeWidth={expanded ? 2 : 1.5} strokeLinejoin="round" />
-        )}
-
-        {/* Scrubber vertical line */}
+        {/* Scrubber */}
         {hoverInfo && (
           <>
-            <line
-              x1={hoverInfo.lineX}
-              y1={padding.top}
-              x2={hoverInfo.lineX}
-              y2={padding.top + chartHeight}
-              stroke="#fbbf24"
-              strokeWidth={1.5}
-              strokeDasharray="3 2"
-            />
-            {hoverInfo.speedY != null && (
-              <circle
-                cx={hoverInfo.lineX}
-                cy={hoverInfo.speedY}
-                r={expanded ? 5 : 4}
-                fill="#fbbf24"
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-            )}
+            <line x1={hoverInfo.lineX} y1={padding.top} x2={hoverInfo.lineX} y2={padding.top + chartHeight} stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="3 2" />
+            {hoverInfo.speedY != null && <circle cx={hoverInfo.lineX} cy={hoverInfo.speedY} r={expanded ? 5 : 4} fill="#fbbf24" stroke="#fff" strokeWidth={1.5} />}
           </>
         )}
 
-        {/* Selected point marker */}
-        {selectedPoint && selectedIndex != null && (
-          (() => {
-            const x = padding.left + ((new Date(selectedPoint.timestamp).getTime() - startTime) / timeRange) * chartWidth;
-            const y = selectedPoint.speed != null
-              ? padding.top + chartHeight - (selectedPoint.speed / speedRange) * chartHeight
-              : padding.top + chartHeight;
-            return (
-              <circle
-                cx={x}
-                cy={y}
-                r={expanded ? 7 : 5}
-                fill="#22c55e"
-                stroke="#fff"
-                strokeWidth={2}
-              />
-            );
-          })()
-        )}
+        {/* Selected point */}
+        {selectedPoint && selectedIndex != null && (() => {
+          const x = padding.left + ((new Date(selectedPoint.timestamp).getTime() - startTime) / timeRange) * chartWidth;
+          const y = selectedPoint.speed != null ? padding.top + chartHeight - (selectedPoint.speed / speedRange) * chartHeight : padding.top + chartHeight;
+          return <circle cx={x} cy={y} r={expanded ? 7 : 5} fill="#22c55e" stroke="#fff" strokeWidth={2} />;
+        })()}
 
         {/* Axis labels */}
-        <text x={padding.left + chartWidth / 2} y={height - 1} textAnchor="middle"
-          fill="#64748b" fontSize={expanded ? 11 : 9}>{lang === 'no' ? 'Tid' : 'Time'}</text>
-        <text x={expanded ? 14 : 8} y={padding.top + chartHeight / 2} textAnchor="middle"
-          fill="#64748b" fontSize={expanded ? 11 : 9}
-          transform={`rotate(-90, ${expanded ? 14 : 8}, ${padding.top + chartHeight / 2})`}>
-          {lang === 'no' ? 'Hastighet (kn)' : 'Speed (kn)'}
-        </text>
+        <text x={padding.left + chartWidth / 2} y={height - 1} textAnchor="middle" fill="#64748b" fontSize={expanded ? 11 : 9}>{lang === 'no' ? 'Tid' : 'Time'}</text>
+        <text x={expanded ? 14 : 8} y={padding.top + chartHeight / 2} textAnchor="middle" fill="#64748b" fontSize={expanded ? 11 : 9} transform={`rotate(-90, ${expanded ? 14 : 8}, ${padding.top + chartHeight / 2})`}>{lang === 'no' ? 'Hastighet (kn)' : 'Speed (kn)'}</text>
       </svg>
 
-      {/* Scrubber info display */}
+      {/* Scrubber info */}
       <div className={`flex gap-4 text-slate-300 ${expanded ? 'mt-3 text-sm' : 'mt-2 text-xs'} bg-slate-700/50 rounded px-3 py-1.5`}>
-        <span>
-          {lang === 'no' ? 'Tid' : 'Time'}:{' '}
-          <strong className="text-white">{hoverInfo ? formatTime(hoverInfo.point.timestamp) : '—'}</strong>
-        </span>
-        <span>
-          {t('vessel.avgSpeed', lang).replace('Gj.snitt', 'Hastighet').replace('Avg', 'Speed')}:{' '}
-          <strong className="text-cyan-400">{hoverInfo?.point.speed != null ? formatSpeed(hoverInfo.point.speed) : '—'}</strong>
-        </span>
-        <span>
-          {lang === 'no' ? 'Kurs' : 'Course'}:{' '}
-          <strong className="text-white">{hoverInfo?.point.course != null ? `${hoverInfo.point.course.toFixed(0)}\u00b0` : '—'}</strong>
-        </span>
-        <span className="text-slate-500 ml-auto">
-          {t('vessel.clickToSeePosition', lang)}
-        </span>
+        <span>{lang === 'no' ? 'Tid' : 'Time'}: <strong className="text-white">{hoverInfo ? formatTime(hoverInfo.point.timestamp) : '—'}</strong></span>
+        <span>{lang === 'no' ? 'Hastighet' : 'Speed'}: <strong className="text-cyan-400">{hoverInfo?.point.speed != null ? formatSpeed(hoverInfo.point.speed) : '—'}</strong></span>
+        <span>{lang === 'no' ? 'Kurs' : 'Course'}: <strong className="text-white">{hoverInfo?.point.course != null ? `${hoverInfo.point.course.toFixed(0)}\u00b0` : '—'}</strong></span>
+        <span className="text-slate-500 ml-auto">{t('vessel.clickToSeePosition', lang)}</span>
       </div>
 
-      {/* Mini-map (when point selected) */}
+      {/* Mini-map (expanded mode) */}
       {selectedPoint && expanded && (
-        <div className="mt-3">
+        <div className="mt-3" ref={miniMapRef}>
           <div className="text-slate-400 text-xs mb-1">
             {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)}
             {selectedPoint.speed != null && ` | ${formatSpeed(selectedPoint.speed)}`}
@@ -677,38 +669,36 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
             trackPoints={trackPoints}
             selectedIndex={selectedIndex}
             baseLayer={baseLayer}
+            onOpenInMainMap={handleOpenInMainMap}
+            lang={lang}
           />
         </div>
       )}
 
-      {/* Compact mini-map hint for non-expanded */}
+      {/* Compact hint for non-expanded */}
       {selectedPoint && !expanded && (
         <div className="mt-2 text-xs text-slate-500 text-center">
           {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)} &mdash;{' '}
-          <button onClick={() => setExpanded(true)} className="text-cyan-400 hover:text-cyan-300">
-            {t('measure.expand', lang)}
-          </button>
+          <button onClick={() => setExpanded(true)} className="text-cyan-400 hover:text-cyan-300">{t('measure.expand', lang)}</button>
         </div>
       )}
     </div>
   );
 
-  // Use portal for expanded mode
+  // Expanded mode uses portal
   if (expanded) {
     return createPortal(
-      <div
-        className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center"
-        onClick={handleBackdropClick}
-      >
+      <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center" onClick={handleBackdropClick}>
         {content}
       </div>,
       document.body
     );
   }
 
+  // Non-expanded mode uses draggable wrapper
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
+    <DraggableAnalysisPanel vesselCoords={vesselCoords} mapRef={mainMapRef}>
       {content}
-    </div>
+    </DraggableAnalysisPanel>
   );
 }

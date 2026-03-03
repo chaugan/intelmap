@@ -35,6 +35,7 @@ export const useMapStore = create((set) => ({
   focusedVesselMmsi: null,
   hiddenVesselCategories: [],
   vesselDeepAnalysis: null, // { mmsi, vessel, traceData } or null
+  vesselTimeTravel: null, // { mmsi, selectedIndex, trackPoints } for historical view
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
@@ -132,6 +133,8 @@ export const useMapStore = create((set) => ({
   })),
   setVesselDeepAnalysis: (data) => set({ vesselDeepAnalysis: data }),
   clearVesselDeepAnalysis: () => set({ vesselDeepAnalysis: null }),
+  setVesselTimeTravel: (data) => set({ vesselTimeTravel: data }),
+  clearVesselTimeTravel: () => set({ vesselTimeTravel: null }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({

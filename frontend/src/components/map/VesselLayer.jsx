@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import maplibregl from 'maplibre-gl';
 import { useMapStore } from '../../stores/useMapStore.js';
 
 const VESSEL_SOURCE = 'vessel-data';
@@ -8,6 +9,9 @@ const IMG_SHIP = 'img-ship-sdf';
 
 const TRACE_SOURCE = 'vessel-trace';
 const TRACE_LAYER = 'vessel-trace-line';
+const FUTURE_TRACE_SOURCE = 'vessel-future-trace';
+const FUTURE_TRACE_LAYER = 'vessel-future-trace-line';
+const TIME_TRAVEL_MARKER_ID = 'vessel-time-travel-marker';
 
 const SYMBOL_LAYERS = [LAYER_ICON];
 const ALL_LAYERS = [LAYER_RING, LAYER_ICON];
@@ -63,6 +67,8 @@ function formatDimensions(length, width) {
 function removeTrace(map) {
   try { if (map.getLayer(TRACE_LAYER)) map.removeLayer(TRACE_LAYER); } catch {}
   try { if (map.getSource(TRACE_SOURCE)) map.removeSource(TRACE_SOURCE); } catch {}
+  try { if (map.getLayer(FUTURE_TRACE_LAYER)) map.removeLayer(FUTURE_TRACE_LAYER); } catch {}
+  try { if (map.getSource(FUTURE_TRACE_SOURCE)) map.removeSource(FUTURE_TRACE_SOURCE); } catch {}
 }
 
 async function fetchAndDrawTrace(map, mmsi, currentCoords) {
@@ -109,6 +115,58 @@ async function fetchAndDrawTrace(map, mmsi, currentCoords) {
   }
 }
 
+// Draw time travel trace: past solid, future dotted
+function drawTimeTravelTrace(map, trackPoints, selectedIndex) {
+  removeTrace(map);
+
+  const pastPoints = trackPoints.slice(0, selectedIndex + 1);
+  const futurePoints = trackPoints.slice(selectedIndex);
+
+  // Past trace (solid gradient cyan→yellow)
+  if (pastPoints.length > 1) {
+    map.addSource(TRACE_SOURCE, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: pastPoints.map(p => p.coordinates) },
+      },
+      lineMetrics: true,
+    });
+    map.addLayer({
+      id: TRACE_LAYER,
+      type: 'line',
+      source: TRACE_SOURCE,
+      paint: {
+        'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, '#06b6d4', 1, '#fbbf24'],
+        'line-width': 3,
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+    }, LAYER_RING);
+  }
+
+  // Future trace (dotted gray)
+  if (futurePoints.length > 1) {
+    map.addSource(FUTURE_TRACE_SOURCE, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: futurePoints.map(p => p.coordinates) },
+      },
+    });
+    map.addLayer({
+      id: FUTURE_TRACE_LAYER,
+      type: 'line',
+      source: FUTURE_TRACE_SOURCE,
+      paint: {
+        'line-color': '#94a3b8',
+        'line-width': 2,
+        'line-dasharray': [2, 2],
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+    }, LAYER_RING);
+  }
+}
+
 export default function VesselLayer({ data, mapRef }) {
   const popupRef = useRef(null);
   const dataRef = useRef(data);
@@ -117,6 +175,9 @@ export default function VesselLayer({ data, mapRef }) {
   const focusedVesselMmsi = useMapStore((s) => s.focusedVesselMmsi);
   const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
   const hiddenCategories = useMapStore((s) => s.hiddenVesselCategories);
+  const vesselTimeTravel = useMapStore((s) => s.vesselTimeTravel);
+  const clearVesselTimeTravel = useMapStore((s) => s.clearVesselTimeTravel);
+  const timeTravelMarkerRef = useRef(null);
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -296,9 +357,9 @@ export default function VesselLayer({ data, mapRef }) {
     }
   }, [mapRef, focusedVesselMmsi, hiddenCategories]);
 
-  // Continuous trace refresh when focused
+  // Continuous trace refresh when focused (but not in time travel mode)
   useEffect(() => {
-    if (!mapRef || !focusedVesselMmsi) return;
+    if (!mapRef || !focusedVesselMmsi || vesselTimeTravel) return;
     let intervalId = null;
     let cancelled = false;
 
@@ -323,7 +384,61 @@ export default function VesselLayer({ data, mapRef }) {
       if (intervalId) clearInterval(intervalId);
       removeTrace(mapRef);
     };
-  }, [mapRef, focusedVesselMmsi]);
+  }, [mapRef, focusedVesselMmsi, vesselTimeTravel]);
+
+  // Time travel mode: show historical position with split trace
+  useEffect(() => {
+    if (!mapRef || !vesselTimeTravel) {
+      // Clean up time travel marker if it exists
+      if (timeTravelMarkerRef.current) {
+        timeTravelMarkerRef.current.remove();
+        timeTravelMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const { trackPoints, selectedIndex } = vesselTimeTravel;
+    if (!trackPoints || selectedIndex == null) return;
+
+    // Draw split trace
+    drawTimeTravelTrace(mapRef, trackPoints, selectedIndex);
+
+    // Create marker at historical position
+    const historicalPoint = trackPoints[selectedIndex];
+    if (historicalPoint && !timeTravelMarkerRef.current) {
+      const el = document.createElement('div');
+      el.innerHTML = `<svg width="32" height="32" viewBox="0 0 48 48" style="transform: rotate(${historicalPoint.heading || historicalPoint.course || 0}deg)">
+        <path d="M24 4 L19 16 L17 18 L17 38 L19 40 L29 40 L31 38 L31 18 L29 16 Z" fill="#fbbf24" stroke="#000" stroke-width="2"/>
+      </svg>`;
+      el.style.cursor = 'pointer';
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(historicalPoint.coordinates)
+        .addTo(mapRef);
+
+      // Click on marker clears time travel and keeps focus
+      el.addEventListener('click', () => {
+        clearVesselTimeTravel();
+      });
+
+      timeTravelMarkerRef.current = marker;
+    }
+
+    return () => {
+      if (timeTravelMarkerRef.current) {
+        timeTravelMarkerRef.current.remove();
+        timeTravelMarkerRef.current = null;
+      }
+      removeTrace(mapRef);
+    };
+  }, [mapRef, vesselTimeTravel, clearVesselTimeTravel]);
+
+  // Clear time travel when focus is removed
+  useEffect(() => {
+    if (!focusedVesselMmsi && vesselTimeTravel) {
+      clearVesselTimeTravel();
+    }
+  }, [focusedVesselMmsi, vesselTimeTravel, clearVesselTimeTravel]);
 
   // Click handler for popups
   useEffect(() => {
@@ -379,10 +494,10 @@ export default function VesselLayer({ data, mapRef }) {
             <div style="width:40px;height:4px;background:#64748b;border-radius:2px"></div>
           </div>
           <div style="padding:10px 12px;position:relative">
-            <div style="position:absolute;top:0px;right:4px;display:flex;gap:2px">
-              <button class="popup-analysis-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">\u{1F4CA} Analyze</button>
-              <button class="popup-focus-btn" style="background:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : 'none'};border:none;color:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
-              <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
+            <div style="display:flex;justify-content:flex-end;gap:2px;margin-bottom:4px">
+              <button class="popup-analysis-btn" style="background:#475569;border:none;color:#e2e8f0;cursor:pointer;font-size:11px;padding:4px 10px;height:28px;display:flex;align-items:center;gap:4px;border-radius:4px;white-space:nowrap">\u{1F4CA} ${useMapStore.getState().lang === 'no' ? 'Analyser' : 'Analyze'}</button>
+              <button class="popup-focus-btn" style="background:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : '#475569'};border:none;color:#e2e8f0;cursor:pointer;font-size:11px;padding:4px 10px;height:28px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
+              <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:4px 6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
             </div>
             ${html}
             <div class="trace-status" style="color:#64748b;font-size:10px;margin-top:4px">Loading trace...</div>
@@ -404,10 +519,10 @@ export default function VesselLayer({ data, mapRef }) {
         focusBtn.textContent = isNowFocused ? '\u2295 Focus' : '\u2299 Focused';
       });
       focusBtn.addEventListener('mouseenter', () => {
-        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = '#475569';
+        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = '#64748b';
       });
       focusBtn.addEventListener('mouseleave', () => {
-        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = 'none';
+        if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = '#475569';
       });
 
       // Wire Deep Analysis button
@@ -431,8 +546,8 @@ export default function VesselLayer({ data, mapRef }) {
           analysisBtn.disabled = false;
         }
       });
-      analysisBtn.addEventListener('mouseenter', () => { analysisBtn.style.background = '#475569'; });
-      analysisBtn.addEventListener('mouseleave', () => { analysisBtn.style.background = 'none'; });
+      analysisBtn.addEventListener('mouseenter', () => { analysisBtn.style.background = '#64748b'; });
+      analysisBtn.addEventListener('mouseleave', () => { analysisBtn.style.background = '#475569'; });
 
       const point = mapRef.project(coords);
       popupEl.style.left = `${point.x}px`;
