@@ -339,6 +339,7 @@ export default function VesselActivityPanel() {
   const [loading, setLoading] = useState(false);
   const [expandedSection, setExpandedSection] = useState('entered');
   const [vesselPositions, setVesselPositions] = useState({});
+  const [debugInfo, setDebugInfo] = useState(null);
 
   // Analyze vessel activity when box is set
   const analyzeActivity = useCallback(async () => {
@@ -370,6 +371,7 @@ export default function VesselActivityPanel() {
       };
 
       // Fetch current vessels from expanded area
+      console.log('Activity box: fetching vessels from expanded bounds', expandedBounds);
       const res = await fetch(
         `/api/ais?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}`
       );
@@ -387,10 +389,12 @@ export default function VesselActivityPanel() {
 
       // Get unique MMSIs from expanded area
       const mmsis = Object.keys(positions);
+      console.log(`Activity box: found ${mmsis.length} vessels in expanded area`);
 
       if (mmsis.length === 0) {
         setAnalysisData({ entered: [], exited: [], inside: [], anomalies: {} });
         setVesselPositions({});
+        setDebugInfo({ vesselsInArea: 0, tracesChecked: 0, relevantVessels: 0 });
         setLoading(false);
         return;
       }
@@ -504,7 +508,12 @@ export default function VesselActivityPanel() {
         }
       }
 
+      const relevantCount = Object.keys(relevantPositions).length;
+      console.log(`Activity box: ${relevantCount} vessels had traces intersecting the box`);
+      console.log(`Activity box: entered=${entered.length}, exited=${exited.length}, inside=${inside.length}`);
+
       setVesselPositions(relevantPositions);
+      setDebugInfo({ vesselsInArea: mmsis.length, tracesChecked: mmsis.length, relevantVessels: relevantCount });
       setAnalysisData({ entered, exited, inside, anomalies: allAnomalies });
     } catch (err) {
       console.error('Activity analysis error:', err);
@@ -569,6 +578,11 @@ export default function VesselActivityPanel() {
         </div>
         <div className="text-[10px] text-slate-400 mt-1">
           {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km | {t('vesselActivity.last5Days', lang)}
+          {debugInfo && (
+            <span className="ml-2 text-slate-500">
+              ({debugInfo.vesselsInArea} scanned, {debugInfo.relevantVessels} matched)
+            </span>
+          )}
         </div>
       </div>
 
