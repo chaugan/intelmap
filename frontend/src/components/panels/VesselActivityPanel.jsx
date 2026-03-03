@@ -290,15 +290,25 @@ export default function VesselActivityPanel() {
     try {
       const { bounds } = vesselActivityBox;
 
-      // Expand search bounds by 3x to catch vessels that passed through historically
-      // but are currently outside the monitoring box
+      // Expand search bounds significantly to catch vessels that passed through historically
+      // A vessel at 12-15 knots can travel 300-400km per day, so over 5 days that's 1500-2000km
+      // We use a minimum expansion of ~300km to catch vessels that have traveled away
+      // 300km ≈ 2.7° latitude, and ~5° longitude at Norwegian latitudes (60°N)
+      const MIN_LAT_EXPANSION = 2.7; // ~300km
+      const MIN_LNG_EXPANSION = 5.0; // ~300km at 60°N
+
       const latRange = bounds.north - bounds.south;
       const lngRange = bounds.east - bounds.west;
+
+      // Use the larger of: 3x box size OR minimum expansion distance
+      const latExpansion = Math.max(latRange * 1.5, MIN_LAT_EXPANSION);
+      const lngExpansion = Math.max(lngRange * 1.5, MIN_LNG_EXPANSION);
+
       const expandedBounds = {
-        south: bounds.south - latRange,
-        north: bounds.north + latRange,
-        west: bounds.west - lngRange,
-        east: bounds.east + lngRange,
+        south: Math.max(bounds.south - latExpansion, -90),
+        north: Math.min(bounds.north + latExpansion, 90),
+        west: bounds.west - lngExpansion,
+        east: bounds.east + lngExpansion,
       };
 
       // Fetch current vessels from expanded area
