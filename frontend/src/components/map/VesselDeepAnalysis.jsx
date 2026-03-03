@@ -456,21 +456,47 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     </svg>`;
   };
 
-  // Calculate actual map bounds from center, zoom, and dimensions
-  // This ensures SVG projection matches the static map exactly
+  // Calculate actual map bounds from center, zoom, and dimensions using Web Mercator projection
+  // This ensures SVG projection matches the static map tiles exactly
   const calculateStaticMapBounds = (centerLng, centerLat, zoom, width, height) => {
-    // Pixels per degree at equator for a given zoom
-    const scale = 256 * Math.pow(2, zoom);
-    const degPerPixelLng = 360 / scale;
-    // Latitude scaling for Mercator (approximate)
-    const latRad = centerLat * Math.PI / 180;
-    const degPerPixelLat = degPerPixelLng / Math.cos(latRad);
+    // Web Mercator: tile size is 256px, world is 256 * 2^zoom pixels
+    const worldSize = 256 * Math.pow(2, zoom);
 
+    // Longitude to X pixel
+    const lngToX = (lng) => ((lng + 180) / 360) * worldSize;
+
+    // Latitude to Y pixel (Web Mercator)
+    const latToY = (lat) => {
+      const latRad = lat * Math.PI / 180;
+      const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+      return (worldSize / 2) * (1 - mercN / Math.PI);
+    };
+
+    // X pixel to longitude
+    const xToLng = (x) => (x / worldSize) * 360 - 180;
+
+    // Y pixel to latitude (Web Mercator inverse)
+    const yToLat = (y) => {
+      const mercN = Math.PI * (1 - 2 * y / worldSize);
+      return Math.atan(Math.sinh(mercN)) * 180 / Math.PI;
+    };
+
+    // Center pixel coordinates
+    const centerX = lngToX(centerLng);
+    const centerY = latToY(centerLat);
+
+    // Calculate corner pixels (Y increases downward in pixel coords)
+    const westX = centerX - width / 2;
+    const eastX = centerX + width / 2;
+    const northY = centerY - height / 2;
+    const southY = centerY + height / 2;
+
+    // Convert back to geographic coordinates
     return {
-      west: centerLng - (width / 2) * degPerPixelLng,
-      east: centerLng + (width / 2) * degPerPixelLng,
-      north: centerLat + (height / 2) * degPerPixelLat,
-      south: centerLat - (height / 2) * degPerPixelLat,
+      west: xToLng(westX),
+      east: xToLng(eastX),
+      north: yToLat(northY),
+      south: yToLat(southY),
     };
   };
 
