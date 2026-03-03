@@ -343,7 +343,6 @@ export default function VesselActivityPanel() {
 
   // Analyze vessel activity when box is set
   const analyzeActivity = useCallback(async () => {
-    alert('Analysis starting! Bounds: ' + JSON.stringify(vesselActivityBox?.bounds));
     if (!vesselActivityBox) {
       return;
     }
@@ -412,7 +411,12 @@ export default function VesselActivityPanel() {
       if (!traceRes.ok) throw new Error('Failed to fetch traces');
       const traceData = await traceRes.json();
       const { traces, errors } = traceData;
-      console.log('Traces fetched:', Object.keys(traces || {}).length, 'errors:', (errors || []).length);
+
+      // Check first trace data structure
+      const firstMmsi = mmsis[0];
+      const firstTrace = traces[firstMmsi];
+      const trackPoints = firstTrace?.properties?.trackPoints;
+      alert(`Traces: ${Object.keys(traces || {}).length}, First trace has ${trackPoints?.length || 0} points. Sample point: ${JSON.stringify(trackPoints?.[0])}`);
 
       // Analyze each vessel - only include if trace intersects monitoring box
       const entered = [];
