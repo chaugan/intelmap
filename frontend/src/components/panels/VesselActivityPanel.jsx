@@ -343,11 +343,16 @@ export default function VesselActivityPanel() {
 
   // Analyze vessel activity when box is set
   const analyzeActivity = useCallback(async () => {
-    if (!vesselActivityBox) return;
+    console.log('=== VESSEL ACTIVITY ANALYSIS STARTING ===');
+    if (!vesselActivityBox) {
+      console.log('No activity box set, returning');
+      return;
+    }
 
     setLoading(true);
     try {
       const { bounds } = vesselActivityBox;
+      console.log('Analysis bounds:', bounds);
 
       // Expand search bounds significantly to catch vessels that passed through historically
       // A vessel at 12-15 knots can travel 300-400km per day, so over 5 days that's 1500-2000km
@@ -371,7 +376,7 @@ export default function VesselActivityPanel() {
       };
 
       // Fetch current vessels from expanded area
-      console.log('Activity box: fetching vessels from expanded bounds', expandedBounds);
+      console.log('Fetching vessels from expanded bounds:', expandedBounds);
       const res = await fetch(
         `/api/ais?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}`
       );
@@ -389,7 +394,7 @@ export default function VesselActivityPanel() {
 
       // Get unique MMSIs from expanded area
       const mmsis = Object.keys(positions);
-      console.log(`Activity box: found ${mmsis.length} vessels in expanded area`);
+      console.log('Found ' + mmsis.length + ' vessels in expanded area');
 
       if (mmsis.length === 0) {
         setAnalysisData({ entered: [], exited: [], inside: [], anomalies: {} });
@@ -407,7 +412,9 @@ export default function VesselActivityPanel() {
       });
 
       if (!traceRes.ok) throw new Error('Failed to fetch traces');
-      const { traces, errors } = await traceRes.json();
+      const traceData = await traceRes.json();
+      const { traces, errors } = traceData;
+      console.log('Traces fetched:', Object.keys(traces || {}).length, 'errors:', (errors || []).length);
 
       // Analyze each vessel - only include if trace intersects monitoring box
       const entered = [];
