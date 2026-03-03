@@ -68,6 +68,7 @@ export default function ExportMenu({
   });
 
   const handleSaveToDisk = () => {
+    console.log('[ExportMenu] handleSaveToDisk clicked, onSaveToDisk:', typeof onSaveToDisk);
     setShowDropdown(false);
     onSaveToDisk?.();
   };

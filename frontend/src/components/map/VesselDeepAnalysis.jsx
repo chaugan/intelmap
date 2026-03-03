@@ -662,7 +662,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       <div className={`draggable-header flex justify-between items-start ${expanded ? 'mb-3' : 'mb-2'} cursor-grab`}>
         <div>
           <div className={`text-white font-semibold ${expanded ? 'text-xl' : 'text-base'}`}>
-            {vessel?.name || `MMSI ${vessel?.mmsi}`}
+            {lang === 'no' ? 'Historisk AIS-analyse' : 'Historic AIS Analysis'}: {vessel?.name || `MMSI ${vessel?.mmsi}`}
             {vessel?.countryCode && <span className="ml-2 text-slate-400 text-sm font-normal">{vessel.countryCode}</span>}
           </div>
           <div className="text-slate-400 text-xs">
