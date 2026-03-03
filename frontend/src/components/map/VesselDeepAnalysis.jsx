@@ -430,10 +430,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
 
-    // Vessel position (selPt already defined at top for center)
-    const [vx, vy] = project(selPt.coordinates);
-    const rotation = selPt.heading || selPt.course || 0;
-
+    // SVG overlay with just the track lines (vessel marker comes from map capture)
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <!-- Transparent background to overlay on map -->
       <defs>
@@ -444,10 +441,6 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       </defs>
       <path d="${pastPath}" fill="none" stroke="url(#traceGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="${futurePath}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" stroke-linecap="round"/>
-      <g transform="translate(${vx},${vy}) rotate(${rotation})">
-        <path d="M0,-12 L-5,0 L-4,2 L-4,14 L-3,16 L3,16 L4,14 L4,2 L5,0 Z" fill="#fbbf24" stroke="#000" stroke-width="1.5"/>
-      </g>
-      <text x="10" y="${height - 10}" fill="#64748b" font-size="11" font-family="sans-serif">Track: ${trackPoints.length} points</text>
     </svg>`;
   };
 
