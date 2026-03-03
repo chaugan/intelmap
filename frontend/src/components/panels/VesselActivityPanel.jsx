@@ -468,13 +468,29 @@ export default function VesselActivityPanel() {
         return false;
       };
 
+      let tracesWithData = 0;
+      let tracesCheckedForIntersection = 0;
+
       for (const mmsi of mmsis) {
         const trace = traces[mmsi];
         const vessel = positions[mmsi];
 
         if (!trace || !trace.properties?.trackPoints) continue;
+        tracesWithData++;
 
         const trackPoints = [...trace.properties.trackPoints].reverse();
+        tracesCheckedForIntersection++;
+
+        // Debug: log first vessel's trace info
+        if (tracesCheckedForIntersection === 1) {
+          console.log('Sample trace data:', {
+            mmsi,
+            pointCount: trackPoints.length,
+            firstPoint: trackPoints[0],
+            bounds,
+            sampleCoords: trackPoints.slice(0, 3).map(p => p.coordinates),
+          });
+        }
 
         // Skip vessels whose historical track never intersected the monitoring box
         if (!traceIntersectsBox(trackPoints)) continue;
@@ -509,8 +525,9 @@ export default function VesselActivityPanel() {
       }
 
       const relevantCount = Object.keys(relevantPositions).length;
-      console.log(`Activity box: ${relevantCount} vessels had traces intersecting the box`);
+      console.log(`Activity box: ${tracesWithData} traces had data, ${relevantCount} intersected the box`);
       console.log(`Activity box: entered=${entered.length}, exited=${exited.length}, inside=${inside.length}`);
+      console.log('Monitoring box bounds:', bounds);
 
       setVesselPositions(relevantPositions);
       setDebugInfo({ vesselsInArea: mmsis.length, tracesChecked: mmsis.length, relevantVessels: relevantCount });
