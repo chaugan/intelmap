@@ -290,9 +290,20 @@ export default function VesselActivityPanel() {
     try {
       const { bounds } = vesselActivityBox;
 
-      // Fetch current vessels in the area
+      // Expand search bounds by 3x to catch vessels that passed through historically
+      // but are currently outside the monitoring box
+      const latRange = bounds.north - bounds.south;
+      const lngRange = bounds.east - bounds.west;
+      const expandedBounds = {
+        south: bounds.south - latRange,
+        north: bounds.north + latRange,
+        west: bounds.west - lngRange,
+        east: bounds.east + lngRange,
+      };
+
+      // Fetch current vessels from expanded area
       const res = await fetch(
-        `/api/ais?south=${bounds.south}&north=${bounds.north}&west=${bounds.west}&east=${bounds.east}`
+        `/api/ais?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}`
       );
       if (!res.ok) throw new Error('Failed to fetch vessels');
       const geojson = await res.json();
@@ -305,18 +316,18 @@ export default function VesselActivityPanel() {
           coordinates: f.geometry.coordinates,
         };
       });
-      setVesselPositions(positions);
 
-      // Get unique MMSIs
+      // Get unique MMSIs from expanded area
       const mmsis = Object.keys(positions);
 
       if (mmsis.length === 0) {
         setAnalysisData({ entered: [], exited: [], inside: [], anomalies: {} });
+        setVesselPositions({});
         setLoading(false);
         return;
       }
 
-      // Fetch batch traces
+      // Fetch batch traces for all vessels in expanded area
       const traceRes = await fetch('/api/ais/traces/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -326,11 +337,21 @@ export default function VesselActivityPanel() {
       if (!traceRes.ok) throw new Error('Failed to fetch traces');
       const { traces, errors } = await traceRes.json();
 
-      // Analyze each vessel
+      // Analyze each vessel - only include if trace intersects monitoring box
       const entered = [];
       const exited = [];
       const inside = [];
       const allAnomalies = {};
+      const relevantPositions = {};
+
+      // Helper to check if any track point is inside the monitoring box
+      const traceIntersectsBox = (trackPoints) => {
+        const { west, east, north, south } = bounds;
+        return trackPoints.some(pt => {
+          const [lng, lat] = pt.coordinates;
+          return lng >= west && lng <= east && lat >= south && lat <= north;
+        });
+      };
 
       for (const mmsi of mmsis) {
         const trace = traces[mmsi];
@@ -339,6 +360,13 @@ export default function VesselActivityPanel() {
         if (!trace || !trace.properties?.trackPoints) continue;
 
         const trackPoints = [...trace.properties.trackPoints].reverse();
+
+        // Skip vessels whose historical track never intersected the monitoring box
+        if (!traceIntersectsBox(trackPoints)) continue;
+
+        // This vessel's trace intersects the box - include in analysis
+        relevantPositions[mmsi] = vessel;
+
         const analysis = analyzeVesselTrack(trackPoints, bounds);
         const anomalies = detectAnomalies(trackPoints, bounds);
 
@@ -365,6 +393,7 @@ export default function VesselActivityPanel() {
         }
       }
 
+      setVesselPositions(relevantPositions);
       setAnalysisData({ entered, exited, inside, anomalies: allAnomalies });
     } catch (err) {
       console.error('Activity analysis error:', err);
