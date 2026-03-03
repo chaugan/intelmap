@@ -432,28 +432,41 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   }, [trackPoints]);
 
   // Generate SVG for track visualization (used in export)
+  // Matches the mini-map's view: centered on selectedPoint at zoom 11
   const generateTrackSVG = (width, height) => {
     if (!trackPoints || trackPoints.length < 2 || selectedIndex == null) return null;
 
-    // Calculate bounds
-    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-    for (const pt of trackPoints) {
-      minLng = Math.min(minLng, pt.coordinates[0]);
-      maxLng = Math.max(maxLng, pt.coordinates[0]);
-      minLat = Math.min(minLat, pt.coordinates[1]);
-      maxLat = Math.max(maxLat, pt.coordinates[1]);
-    }
+    const selPt = trackPoints[selectedIndex];
+    const centerLng = selPt.coordinates[0];
+    const centerLat = selPt.coordinates[1];
+    const zoom = 11;
 
-    // Add padding
-    const padLng = (maxLng - minLng) * 0.1 || 0.01;
-    const padLat = (maxLat - minLat) * 0.1 || 0.01;
-    minLng -= padLng; maxLng += padLng;
-    minLat -= padLat; maxLat += padLat;
+    // Calculate visible bounds based on zoom level and dimensions
+    // At zoom 0, the world is 256px. Each zoom doubles the resolution.
+    const worldSize = 256 * Math.pow(2, zoom);
 
-    // Project coordinates to SVG space
+    // Mercator projection helpers
+    const lngToX = (lng) => ((lng + 180) / 360) * worldSize;
+    const latToY = (lat) => {
+      const latRad = lat * Math.PI / 180;
+      const mercY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+      return (1 - mercY / Math.PI) * worldSize / 2;
+    };
+
+    // Center in world coordinates
+    const centerX = lngToX(centerLng);
+    const centerY = latToY(centerLat);
+
+    // Visible bounds in world coordinates
+    const halfW = width / 2;
+    const halfH = height / 2;
+
+    // Project coordinates to SVG space (relative to visible area)
     const project = ([lng, lat]) => {
-      const x = ((lng - minLng) / (maxLng - minLng)) * width;
-      const y = height - ((lat - minLat) / (maxLat - minLat)) * height;
+      const wx = lngToX(lng);
+      const wy = latToY(lat);
+      const x = (wx - centerX) + halfW;
+      const y = (wy - centerY) + halfH;
       return [x, y];
     };
 
@@ -471,13 +484,12 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
 
-    // Vessel position
-    const selPt = trackPoints[selectedIndex];
+    // Vessel position (selPt already defined at top for center)
     const [vx, vy] = project(selPt.coordinates);
     const rotation = selPt.heading || selPt.course || 0;
 
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="100%" height="100%" fill="#1e293b"/>
+      <!-- Transparent background to overlay on map -->
       <defs>
         <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#06b6d4"/>
@@ -547,6 +559,20 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         const svgHeight = Math.round(mapRect.height);
         debug.push(`[11] SVG params: offset=${offsetX},${offsetY}, size=${svgWidth}x${svgHeight}`);
 
+        // Try to capture the actual map canvas first
+        const mapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
+        if (mapCanvas) {
+          try {
+            debug.push(`[11b] Found map canvas: ${mapCanvas.width}x${mapCanvas.height}`);
+            ctx.drawImage(mapCanvas, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+            debug.push('[11c] Map canvas drawn successfully');
+          } catch (mapErr) {
+            debug.push(`[11c] Map canvas draw failed: ${mapErr.message}`);
+          }
+        } else {
+          debug.push('[11b] No map canvas found');
+        }
+
         const svgString = generateTrackSVG(svgWidth, svgHeight);
         debug.push(`[12] SVG generated: ${svgString ? svgString.length + ' chars' : 'null'}`);
 
@@ -578,28 +604,11 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
               mapImage.src = svgDataUrl;
             });
 
-            debug.push(`[14b] Drawing at x=${offsetX}, y=${offsetY}, w=${svgWidth * scale}, h=${svgHeight * scale}`);
-            debug.push(`[14c] Canvas before draw size: ${canvas.width}x${canvas.height}`);
+            debug.push(`[14b] Drawing SVG at x=${offsetX}, y=${offsetY}, w=${svgWidth * scale}, h=${svgHeight * scale}`);
 
-            // TEST: Draw a bright red rectangle first to verify canvas drawing works
-            ctx.fillStyle = '#ff0000';
-            ctx.fillRect(offsetX, offsetY, svgWidth * scale, svgHeight * scale);
-            debug.push('[14d] Test red rectangle drawn');
-
-            // Sample after red rect
-            const redSample = ctx.getImageData(Math.floor(offsetX) + 10, Math.floor(offsetY) + 10, 1, 1);
-            debug.push(`[14e] After red rect: rgba(${redSample.data[0]},${redSample.data[1]},${redSample.data[2]},${redSample.data[3]})`);
-
-            // Now draw the SVG image on top
+            // Draw the SVG track overlay on top of the map
             ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
-            debug.push('[15] drawImage completed');
-
-            // Verify something was drawn by sampling pixels
-            const imageData = ctx.getImageData(Math.floor(offsetX) + 10, Math.floor(offsetY) + 10, 1, 1);
-            debug.push(`[15b] After SVG: rgba(${imageData.data[0]},${imageData.data[1]},${imageData.data[2]},${imageData.data[3]})`);
-
-            // Also check if mapImage has content
-            debug.push(`[15c] mapImage.complete: ${mapImage.complete}, naturalWidth: ${mapImage.naturalWidth}, naturalHeight: ${mapImage.naturalHeight}`);
+            debug.push('[15] SVG track overlay drawn');
           } catch (svgErr) {
             debug.push(`[SVG ERROR] ${svgErr.message}\n${svgErr.stack}`);
           }
