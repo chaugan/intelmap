@@ -2,6 +2,19 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
 
+// Category colors matching VesselLegend
+const CATEGORY_COLORS = {
+  'Military': '#f59e0b',
+  'Law Enforcement': '#dc2626',
+  'Cargo': '#22c55e',
+  'Tanker': '#ef4444',
+  'Passenger': '#3b82f6',
+  'Fishing': '#f97316',
+  'High-speed': '#eab308',
+  'Sailing/Pleasure': '#a855f7',
+  'Other': '#737373',
+};
+
 // Detect anomalies in vessel track
 function detectAnomalies(trackPoints, bounds) {
   const anomalies = {
@@ -179,7 +192,9 @@ function VesselItem({ vessel, analysis, onFocus, lang, isLoading }) {
             {vessel.name || `MMSI ${vessel.mmsi}`}
           </div>
           <div className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
-            <span>{vessel.shipTypeCategory || 'Unknown'}</span>
+            <span style={{ color: CATEGORY_COLORS[vessel.shipTypeCategory] || '#737373' }}>
+              {vessel.shipTypeCategory || 'Unknown'}
+            </span>
             {analysis.currentlyInside && (
               <span className="text-green-400">{t('vesselActivity.inside', lang)}</span>
             )}
