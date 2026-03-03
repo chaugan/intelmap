@@ -166,7 +166,7 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
 
   return (
     <div className="relative">
-      <div ref={containerRef} className="w-full h-48 rounded-lg overflow-hidden border border-slate-600" />
+      <div ref={containerRef} className="w-full h-64 rounded-lg overflow-hidden border border-slate-600" />
       {/* Open in main map button */}
       <button
         onClick={onOpenInMainMap}
@@ -327,41 +327,37 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
-      // First capture the mini-map canvas if present
-      let mapCanvas = null;
-      const miniMapContainer = containerRef.current.querySelector('.maplibregl-canvas');
-      if (miniMapContainer) {
-        mapCanvas = miniMapContainer;
+      // Capture the mini-map canvas content BEFORE html2canvas runs
+      // (WebGL canvases may lose content during html2canvas processing)
+      let mapImageCanvas = null;
+      let mapRect = null;
+      const miniMapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
+      if (miniMapCanvas) {
+        mapRect = miniMapCanvas.getBoundingClientRect();
+        // Create a copy of the canvas content immediately
+        mapImageCanvas = document.createElement('canvas');
+        mapImageCanvas.width = miniMapCanvas.width;
+        mapImageCanvas.height = miniMapCanvas.height;
+        const tempCtx = mapImageCanvas.getContext('2d');
+        tempCtx.drawImage(miniMapCanvas, 0, 0);
       }
+
+      const containerRect = containerRef.current.getBoundingClientRect();
 
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
-        onclone: (clonedDoc, clonedEl) => {
-          // Replace maplibre canvas placeholder with actual canvas content
-          if (mapCanvas) {
-            const clonedMapContainer = clonedEl.querySelector('.maplibregl-canvas');
-            if (clonedMapContainer) {
-              const ctx = clonedMapContainer.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(mapCanvas, 0, 0);
-              }
-            }
-          }
-        },
       });
 
-      // If there's a map canvas, composite it
-      if (mapCanvas) {
+      // Composite the captured map image onto the result
+      if (mapImageCanvas && mapRect) {
         const ctx = canvas.getContext('2d');
-        const mapRect = mapCanvas.getBoundingClientRect();
-        const containerRect = containerRef.current.getBoundingClientRect();
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
-        ctx.drawImage(mapCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+        ctx.drawImage(mapImageCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
       }
 
       const link = document.createElement('a');
@@ -381,7 +377,21 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
-      const mapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
+      // Capture the mini-map canvas content BEFORE html2canvas runs
+      let mapImageCanvas = null;
+      let mapRect = null;
+      const miniMapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
+      if (miniMapCanvas) {
+        mapRect = miniMapCanvas.getBoundingClientRect();
+        mapImageCanvas = document.createElement('canvas');
+        mapImageCanvas.width = miniMapCanvas.width;
+        mapImageCanvas.height = miniMapCanvas.height;
+        const tempCtx = mapImageCanvas.getContext('2d');
+        tempCtx.drawImage(miniMapCanvas, 0, 0);
+      }
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
@@ -389,14 +399,13 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
 
-      if (mapCanvas) {
+      // Composite the captured map image onto the result
+      if (mapImageCanvas && mapRect) {
         const ctx = canvas.getContext('2d');
-        const mapRect = mapCanvas.getBoundingClientRect();
-        const containerRect = containerRef.current.getBoundingClientRect();
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
-        ctx.drawImage(mapCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+        ctx.drawImage(mapImageCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
       }
 
       const imageData = canvas.toDataURL('image/png');
@@ -451,9 +460,10 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     );
   }
 
-  const width = expanded ? 1100 : 580;
-  const height = expanded ? 280 : 160;
-  const padding = { top: expanded ? 25 : 15, right: expanded ? 30 : 15, bottom: expanded ? 45 : 28, left: expanded ? 60 : 45 };
+  // Expanded dimensions increased by 35%
+  const width = expanded ? 1485 : 580;
+  const height = expanded ? 378 : 160;
+  const padding = { top: expanded ? 30 : 15, right: expanded ? 40 : 15, bottom: expanded ? 55 : 28, left: expanded ? 70 : 45 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -510,16 +520,20 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (hoverInfo) {
       setSelectedPoint(hoverInfo.point);
       setSelectedIndex(hoverInfo.index);
+      // In compact mode, clicking chart opens expanded view directly
+      if (!expanded) {
+        setExpanded(true);
+      }
     }
   };
 
   const handleBackdropClick = (e) => { if (e.target === e.currentTarget) setExpanded(false); };
 
   const fontSize = expanded ? 13 : 10;
-  const containerClass = expanded ? "bg-slate-900 rounded-lg shadow-2xl p-5" : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[600px]";
+  const containerClass = expanded ? "bg-slate-900 rounded-lg shadow-2xl p-6" : "bg-slate-800/95 rounded-lg shadow-xl p-3 min-w-[600px]";
 
   const content = (
-    <div className={containerClass} ref={containerRef} style={expanded ? { width: '85vw', maxWidth: '1200px', maxHeight: '90vh', overflow: 'auto' } : undefined}>
+    <div className={containerClass} ref={containerRef} style={expanded ? { width: '92vw', maxWidth: '1620px', maxHeight: '95vh', overflow: 'auto' } : undefined}>
       {/* Header - draggable */}
       <div className={`draggable-header flex justify-between items-start ${expanded ? 'mb-3' : 'mb-2'} cursor-grab`}>
         <div>
@@ -576,7 +590,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         className={`rounded ${expanded ? 'bg-slate-800 w-full' : 'bg-slate-900/50 w-full'}`}
-        style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? '300px' : '160px', cursor: 'crosshair' }}
+        style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? '400px' : '160px', cursor: 'crosshair' }}
         preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverInfo(null)}
@@ -675,13 +689,6 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         </div>
       )}
 
-      {/* Compact hint for non-expanded */}
-      {selectedPoint && !expanded && (
-        <div className="mt-2 text-xs text-slate-500 text-center">
-          {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)} &mdash;{' '}
-          <button onClick={() => setExpanded(true)} className="text-cyan-400 hover:text-cyan-300">{t('measure.expand', lang)}</button>
-        </div>
-      )}
     </div>
   );
 
