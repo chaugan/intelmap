@@ -934,9 +934,32 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       {/* Mini-map (expanded mode) */}
       {selectedPoint && expanded && (
         <div className="mt-3">
-          <div className="text-slate-400 text-xs mb-1">
-            {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)}
-            {selectedPoint.speed != null && ` | ${formatSpeed(selectedPoint.speed)}`}
+          <div className="flex items-center justify-between text-xs mb-2">
+            <div className="text-slate-400">
+              {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)}
+              {selectedPoint.speed != null && ` | ${formatSpeed(selectedPoint.speed)}`}
+            </div>
+            {/* Trace legend */}
+            <div className="flex items-center gap-4 text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <svg width="32" height="4" className="flex-shrink-0">
+                  <defs>
+                    <linearGradient id="pastGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#06b6d4"/>
+                      <stop offset="100%" stopColor="#fbbf24"/>
+                    </linearGradient>
+                  </defs>
+                  <line x1="0" y1="2" x2="32" y2="2" stroke="url(#pastGrad)" strokeWidth="3" strokeLinecap="round"/>
+                </svg>
+                <span>{lang === 'no' ? 'Fortid' : 'Past'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <svg width="32" height="4" className="flex-shrink-0">
+                  <line x1="0" y1="2" x2="32" y2="2" stroke="#64748b" strokeWidth="2" strokeDasharray="4,3" strokeLinecap="round"/>
+                </svg>
+                <span>{lang === 'no' ? 'Fremtid' : 'Future'}</span>
+              </div>
+            </div>
           </div>
           <HistoricalMiniMap
             ref={miniMapRef}

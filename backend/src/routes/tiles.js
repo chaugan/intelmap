@@ -451,11 +451,12 @@ router.get('/static-map', async (req, res) => {
     const compositeWidth = (maxTileX - minTileX + 1) * actualTileSize;
     const compositeHeight = (maxTileY - minTileY + 1) * actualTileSize;
 
-    const composites = validTiles.map(t => ({
-      input: t.buf,
+    // Resize each tile to exactly 512x512 to ensure consistency
+    const composites = await Promise.all(validTiles.map(async (t) => ({
+      input: await sharp(t.buf).resize(actualTileSize, actualTileSize).toBuffer(),
       left: (t.tx - minTileX) * actualTileSize,
       top: (t.ty - minTileY) * actualTileSize,
-    }));
+    })));
 
     // Calculate crop region (the visible area centered on our point)
     // Account for @2x tiles - center the output on centerX,centerY
