@@ -458,9 +458,18 @@ router.get('/static-map', async (req, res) => {
     }));
 
     // Calculate crop region (the visible area centered on our point)
-    // Account for @2x tiles
-    const offsetX = Math.round((centerX - minTileX * tileSize) * 2 - w);
-    const offsetY = Math.round((centerY - minTileY * tileSize) * 2 - h);
+    // Account for @2x tiles - center the output on centerX,centerY
+    const centerInCompositeX = (centerX - minTileX * tileSize) * 2;
+    const centerInCompositeY = (centerY - minTileY * tileSize) * 2;
+    const extractLeft = Math.max(0, Math.round(centerInCompositeX - w));
+    const extractTop = Math.max(0, Math.round(centerInCompositeY - h));
+    const extractWidth = Math.min(w * 2, compositeWidth - extractLeft);
+    const extractHeight = Math.min(h * 2, compositeHeight - extractTop);
+
+    // Ensure we have valid dimensions
+    if (extractWidth <= 0 || extractHeight <= 0) {
+      return res.status(400).json({ error: 'Invalid extract dimensions' });
+    }
 
     const result = await sharp({
       create: {
@@ -472,10 +481,10 @@ router.get('/static-map', async (req, res) => {
     })
       .composite(composites)
       .extract({
-        left: Math.max(0, offsetX),
-        top: Math.max(0, offsetY),
-        width: Math.min(w * 2, compositeWidth - offsetX),
-        height: Math.min(h * 2, compositeHeight - offsetY),
+        left: extractLeft,
+        top: extractTop,
+        width: extractWidth,
+        height: extractHeight,
       })
       .resize(w, h)
       .png()

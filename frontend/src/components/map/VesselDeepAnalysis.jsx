@@ -487,6 +487,10 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       const mapRect = mapContainer?.getBoundingClientRect();
       debug.push(`[7] mapRect: ${mapRect ? JSON.stringify({w: mapRect.width, h: mapRect.height, t: mapRect.top, l: mapRect.left}) : 'null'}`);
 
+      // Hide the map marker during capture (SVG overlay will provide the vessel)
+      const markers = containerRef.current.querySelectorAll('.maplibregl-marker');
+      markers.forEach(m => m.style.visibility = 'hidden');
+
       debug.push('[8] Starting html2canvas...');
       const h2cCanvas = await html2canvas(containerRef.current, {
         scale: 2,
@@ -495,6 +499,9 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
       debug.push(`[9] html2canvas done, canvas size: ${h2cCanvas.width}x${h2cCanvas.height}`);
+
+      // Restore marker visibility
+      markers.forEach(m => m.style.visibility = '');
 
       // Create a NEW canvas and copy h2c result (html2canvas canvas might be special)
       const canvas = document.createElement('canvas');
