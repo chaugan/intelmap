@@ -541,7 +541,7 @@ export default function VesselLayer({ data, mapRef }) {
             ${isMil ? ' <span style="font-size:10px;background:#78350f;padding:1px 4px;border-radius:3px">MIL</span>' : ''}
             ${isLaw ? ' <span style="font-size:10px;background:#7f1d1d;padding:1px 4px;border-radius:3px">LAW</span>' : ''}
           </div>
-          <div><span style="color:#94a3b8">MMSI:</span> ${props.mmsi}</div>
+          <div><span style="color:#94a3b8">MMSI:</span> <a href="https://www.vesselfinder.com/vessels/details/${props.mmsi}" target="_blank" rel="noopener" style="color:#22d3ee;text-decoration:none">${props.mmsi}</a></div>
           ${props.imoNumber ? `<div><span style="color:#94a3b8">IMO:</span> ${props.imoNumber}</div>` : ''}
           ${props.callSign ? `<div><span style="color:#94a3b8">Callsign:</span> ${props.callSign}</div>` : ''}
           <div><span style="color:#94a3b8">Type:</span> ${props.shipTypeCategory}${props.shipType != null ? ` (${props.shipType})` : ''}</div>
