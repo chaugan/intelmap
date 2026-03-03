@@ -20,7 +20,7 @@ function calculateDistanceKm(p1, p2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Check if box exceeds 150km in either dimension
+// Check if box exceeds 100km in either dimension
 function getBoxDimensions(nw, se) {
   const width = calculateDistanceKm(
     { lat: nw.lat, lng: nw.lng },
@@ -35,7 +35,7 @@ function getBoxDimensions(nw, se) {
 
 function isBoxOversized(nw, se) {
   const { width, height } = getBoxDimensions(nw, se);
-  return width > 150 || height > 150;
+  return width > 100 || height > 100;
 }
 
 // Create GeoJSON polygon from bounds
