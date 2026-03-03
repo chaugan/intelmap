@@ -456,80 +456,77 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     </svg>`;
   };
 
+  // Calculate actual map bounds from center, zoom, and dimensions
+  // This ensures SVG projection matches the static map exactly
+  const calculateStaticMapBounds = (centerLng, centerLat, zoom, width, height) => {
+    // Pixels per degree at equator for a given zoom
+    const scale = 256 * Math.pow(2, zoom);
+    const degPerPixelLng = 360 / scale;
+    // Latitude scaling for Mercator (approximate)
+    const latRad = centerLat * Math.PI / 180;
+    const degPerPixelLat = degPerPixelLng / Math.cos(latRad);
+
+    return {
+      west: centerLng - (width / 2) * degPerPixelLng,
+      east: centerLng + (width / 2) * degPerPixelLng,
+      north: centerLat + (height / 2) * degPerPixelLat,
+      south: centerLat - (height / 2) * degPerPixelLat,
+    };
+  };
+
   // Export with map canvas compositing
   const handleSaveReport = async () => {
-    // DEBUG: Collect debug info
-    const debug = [];
-    debug.push(`[1] handleSaveReport called at ${new Date().toISOString()}`);
-    debug.push(`[2] containerRef.current: ${!!containerRef.current}`);
-    debug.push(`[3] expanded: ${expanded}, selectedIndex: ${selectedIndex}, trackPoints.length: ${trackPoints?.length}`);
-
-    if (!containerRef.current) {
-      debug.push('[4] EARLY RETURN - no containerRef');
-      alert('Export debug:\n' + debug.join('\n'));
-      return;
-    }
+    if (!containerRef.current) return;
     setExporting(true);
 
     try {
       const containerRect = containerRef.current.getBoundingClientRect();
-      debug.push(`[5] containerRect: ${JSON.stringify({w: containerRect.width, h: containerRect.height})}`);
-
-      // Find the map container element to get its position
       const mapContainer = containerRef.current.querySelector('.maplibregl-map');
-      debug.push(`[6] mapContainer found: ${!!mapContainer}`);
-
       const mapRect = mapContainer?.getBoundingClientRect();
-      debug.push(`[7] mapRect: ${mapRect ? JSON.stringify({w: mapRect.width, h: mapRect.height, t: mapRect.top, l: mapRect.left}) : 'null'}`);
 
       // Hide the map marker during capture (SVG overlay will provide the vessel)
       const markers = containerRef.current.querySelectorAll('.maplibregl-marker');
       markers.forEach(m => m.style.visibility = 'hidden');
 
-      debug.push('[8] Starting html2canvas...');
       const h2cCanvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
       });
-      debug.push(`[9] html2canvas done, canvas size: ${h2cCanvas.width}x${h2cCanvas.height}`);
 
       // Restore marker visibility
       markers.forEach(m => m.style.visibility = '');
 
-      // Create a NEW canvas and copy h2c result (html2canvas canvas might be special)
+      // Create a new canvas and copy html2canvas result
       const canvas = document.createElement('canvas');
       canvas.width = h2cCanvas.width;
       canvas.height = h2cCanvas.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(h2cCanvas, 0, 0);
-      debug.push(`[9b] Created new canvas ${canvas.width}x${canvas.height}, copied h2c content`);
 
       // Generate and composite SVG track visualization over the map area
-      debug.push(`[10] Checking conditions: mapRect=${!!mapRect}, selectedIndex=${selectedIndex}`);
-
       if (mapRect && selectedIndex != null) {
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
         const svgWidth = Math.round(mapRect.width);
         const svgHeight = Math.round(mapRect.height);
-        debug.push(`[11] SVG params: offset=${offsetX},${offsetY}, size=${svgWidth}x${svgHeight}`);
 
-        // Fetch static map image from backend
+        // Get the map view state for static map generation
         let mapViewState = null;
         if (miniMapRef.current?.getMapViewState) {
           mapViewState = miniMapRef.current.getMapViewState();
-          debug.push(`[11a] Map view: center=${JSON.stringify(mapViewState?.center)}, zoom=${mapViewState?.zoom?.toFixed(1)}`);
         }
 
         if (mapViewState) {
-          try {
-            const staticMapUrl = `/api/tiles/static-map?lat=${mapViewState.center[1]}&lng=${mapViewState.center[0]}&zoom=${Math.round(mapViewState.zoom)}&width=${svgWidth}&height=${svgHeight}`;
-            debug.push(`[11b] Fetching static map: ${staticMapUrl}`);
+          const staticZoom = Math.round(mapViewState.zoom);
 
+          // Fetch static map image from backend
+          try {
+            const staticMapUrl = `/api/tiles/static-map?lat=${mapViewState.center[1]}&lng=${mapViewState.center[0]}&zoom=${staticZoom}&width=${svgWidth}&height=${svgHeight}`;
             const mapResponse = await fetch(staticMapUrl);
+
             if (mapResponse.ok) {
               const mapBlob = await mapResponse.blob();
               const mapImageUrl = URL.createObjectURL(mapBlob);
@@ -541,63 +538,39 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
               });
               ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
               URL.revokeObjectURL(mapImageUrl);
-              debug.push(`[11c] Static map drawn: ${mapImage.width}x${mapImage.height}`);
-
-              // Sample to verify
-              const afterMapSample = ctx.getImageData(Math.floor(offsetX) + 100, Math.floor(offsetY) + 100, 1, 1);
-              debug.push(`[11d] After map: rgba(${afterMapSample.data[0]},${afterMapSample.data[1]},${afterMapSample.data[2]},${afterMapSample.data[3]})`);
-            } else {
-              debug.push(`[11b] Static map fetch failed: ${mapResponse.status}`);
             }
-          } catch (mapErr) {
-            debug.push(`[11c] Static map error: ${mapErr.message}`);
+          } catch (err) {
+            console.error('Static map error:', err);
           }
-        } else {
-          debug.push('[11a] No map view state available');
-        }
 
-        const svgString = generateTrackSVG(svgWidth, svgHeight, mapViewState?.bounds);
-        debug.push(`[12] SVG generated: ${svgString ? svgString.length + ' chars' : 'null'}`);
+          // Calculate actual bounds from static map parameters (fixes alignment bug)
+          const actualBounds = calculateStaticMapBounds(
+            mapViewState.center[0],
+            mapViewState.center[1],
+            staticZoom,
+            svgWidth,
+            svgHeight
+          );
 
-        if (svgString) {
-          try {
-            // Save SVG for inspection
-            const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
-            const svgBlobUrl = URL.createObjectURL(svgBlob);
-            const svgLink = document.createElement('a');
-            svgLink.download = `vessel_track_DEBUG.svg`;
-            svgLink.href = svgBlobUrl;
-            svgLink.click();
-            URL.revokeObjectURL(svgBlobUrl);
-            debug.push('[12b] SVG file download triggered');
+          const svgString = generateTrackSVG(svgWidth, svgHeight, actualBounds);
 
-            const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
-            debug.push(`[13] SVG dataUrl length: ${svgDataUrl.length}`);
+          if (svgString) {
+            try {
+              const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+              const svgImage = new Image();
+              await new Promise((resolve, reject) => {
+                svgImage.onload = resolve;
+                svgImage.onerror = reject;
+                svgImage.src = svgDataUrl;
+              });
 
-            const mapImage = new Image();
-            await new Promise((resolve, reject) => {
-              mapImage.onload = () => {
-                debug.push(`[14] Image loaded: ${mapImage.width}x${mapImage.height}`);
-                resolve();
-              };
-              mapImage.onerror = (e) => {
-                debug.push(`[14] Image load ERROR: ${e}`);
-                reject(e);
-              };
-              mapImage.src = svgDataUrl;
-            });
-
-            debug.push(`[14b] Drawing SVG at x=${offsetX}, y=${offsetY}, w=${svgWidth * scale}, h=${svgHeight * scale}`);
-
-            // Draw the SVG track overlay on top of the map
-            ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
-            debug.push('[15] SVG track overlay drawn');
-          } catch (svgErr) {
-            debug.push(`[SVG ERROR] ${svgErr.message}\n${svgErr.stack}`);
+              // Draw the SVG track overlay on top of the map
+              ctx.drawImage(svgImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+            } catch (err) {
+              console.error('SVG overlay error:', err);
+            }
           }
         }
-      } else {
-        debug.push('[11] SKIPPED SVG - conditions not met');
       }
 
       const link = document.createElement('a');
@@ -605,19 +578,9 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       link.download = `vessel_analysis_${vessel?.mmsi || 'unknown'}_${localTime}.png`;
       link.href = canvas.toDataURL('image/png');
-      debug.push(`[16] Final canvas dataUrl length: ${link.href.length}`);
       link.click();
-      debug.push('[17] Download triggered');
-
-      // Also download debug log
-      const debugLink = document.createElement('a');
-      debugLink.download = `vessel_analysis_DEBUG_${localTime}.txt`;
-      debugLink.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(debug.join('\n'));
-      debugLink.click();
 
     } catch (err) {
-      debug.push(`[ERROR] ${err.name}: ${err.message}\n${err.stack}`);
-      alert('Export error:\n' + debug.join('\n'));
       console.error('Export error:', err);
     } finally {
       setExporting(false);
@@ -629,37 +592,65 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     setExporting(true);
     try {
       const containerRect = containerRef.current.getBoundingClientRect();
-
-      // Find the map container element to get its position
       const mapContainer = containerRef.current.querySelector('.maplibregl-map');
       const mapRect = mapContainer?.getBoundingClientRect();
 
-      const canvas = await html2canvas(containerRef.current, {
+      // Hide the map marker during capture
+      const markers = containerRef.current.querySelectorAll('.maplibregl-marker');
+      markers.forEach(m => m.style.visibility = 'hidden');
+
+      const h2cCanvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
       });
 
+      // Restore marker visibility
+      markers.forEach(m => m.style.visibility = '');
+
+      const canvas = document.createElement('canvas');
+      canvas.width = h2cCanvas.width;
+      canvas.height = h2cCanvas.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(h2cCanvas, 0, 0);
+
       // Generate and composite SVG track visualization over the map area
       if (mapRect && selectedIndex != null) {
-        const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
         const svgWidth = Math.round(mapRect.width);
         const svgHeight = Math.round(mapRect.height);
 
-        const svgString = generateTrackSVG(svgWidth, svgHeight);
+        // Get map view state for proper bounds calculation
+        let mapViewState = null;
+        if (miniMapRef.current?.getMapViewState) {
+          mapViewState = miniMapRef.current.getMapViewState();
+        }
+
+        // Calculate actual bounds from map view state
+        let svgBounds = mapViewState?.bounds;
+        if (mapViewState && !svgBounds) {
+          svgBounds = calculateStaticMapBounds(
+            mapViewState.center[0],
+            mapViewState.center[1],
+            Math.round(mapViewState.zoom),
+            svgWidth,
+            svgHeight
+          );
+        }
+
+        const svgString = generateTrackSVG(svgWidth, svgHeight, svgBounds);
         if (svgString) {
           const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
-          const mapImage = new Image();
+          const svgImage = new Image();
           await new Promise((resolve, reject) => {
-            mapImage.onload = resolve;
-            mapImage.onerror = reject;
-            mapImage.src = svgDataUrl;
+            svgImage.onload = resolve;
+            svgImage.onerror = reject;
+            svgImage.src = svgDataUrl;
           });
-          ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+          ctx.drawImage(svgImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
         }
       }
 

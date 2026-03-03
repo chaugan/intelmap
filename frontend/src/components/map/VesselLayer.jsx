@@ -788,6 +788,9 @@ export function VesselLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
   const hiddenCategories = useMapStore((s) => s.hiddenVesselCategories);
   const toggleCategory = useMapStore((s) => s.toggleVesselCategory);
+  const vesselActivityDrawing = useMapStore((s) => s.vesselActivityDrawing);
+  const setVesselActivityDrawing = useMapStore((s) => s.setVesselActivityDrawing);
+  const vesselActivityBox = useMapStore((s) => s.vesselActivityBox);
 
   return (
     <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs">
@@ -823,6 +826,39 @@ export function VesselLegend({ count }) {
           <path d={SHIP_PATH} fill="#94a3b8" stroke="none" transform="scale(0.6) translate(16,16)"/>
         </svg>
         <span className="text-slate-400 text-[10px]">{lang === 'no' ? 'Milit\u00e6r / Kystvakt' : 'Military / Law Enf.'}</span>
+      </div>
+
+      {/* Activity Box Tool */}
+      <div className="mt-2 pt-2 border-t border-slate-700">
+        <button
+          onClick={() => setVesselActivityDrawing(!vesselActivityDrawing)}
+          className={`flex items-center gap-1.5 w-full text-left px-2 py-1.5 rounded transition-colors ${
+            vesselActivityDrawing
+              ? 'bg-amber-600 text-white'
+              : vesselActivityBox
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+          }`}
+        >
+          {/* Box/grid icon */}
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
+            <path strokeLinecap="round" strokeWidth={1.5} d="M4 9h16M9 4v16" />
+          </svg>
+          <span className="text-[10px]">
+            {vesselActivityDrawing
+              ? (lang === 'no' ? 'Tegner...' : 'Drawing...')
+              : vesselActivityBox
+              ? (lang === 'no' ? 'Overv\u00e5kning aktiv' : 'Monitoring active')
+              : (lang === 'no' ? 'Aktivitetsomr\u00e5de' : 'Activity Box')}
+          </span>
+        </button>
+        {vesselActivityBox && !vesselActivityDrawing && (
+          <div className="text-[9px] text-slate-500 mt-1 px-2">
+            {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km
+          </div>
+        )}
       </div>
     </div>
   );

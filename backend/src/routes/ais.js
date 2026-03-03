@@ -316,4 +316,100 @@ router.get('/vessel/:mmsi', async (req, res) => {
   }
 });
 
+// --- Batch trace endpoint: fetch multiple vessel traces efficiently ---
+router.post('/traces/batch', async (req, res) => {
+  const { mmsis } = req.body;
+  if (!Array.isArray(mmsis) || mmsis.length === 0) {
+    return res.status(400).json({ error: 'mmsis array required' });
+  }
+
+  // Limit to prevent overload
+  const limitedMmsis = mmsis.slice(0, 50).filter(m => /^\d{9}$/.test(m));
+  if (limitedMmsis.length === 0) {
+    return res.status(400).json({ error: 'No valid MMSIs provided' });
+  }
+
+  try {
+    const token = await getAccessToken();
+    const now = new Date();
+    const from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const fromStr = from.toISOString();
+    const toStr = now.toISOString();
+
+    const results = await Promise.allSettled(
+      limitedMmsis.map(async (mmsi) => {
+        // Check cache first
+        const cached = traceCache.get(mmsi);
+        if (cached && Date.now() - cached.time < TRACE_CACHE_TTL) {
+          return { mmsi, data: cached.data };
+        }
+
+        const apiRes = await fetch(
+          `https://historic.ais.barentswatch.no/v1/historic/tracks/${mmsi}/${fromStr}/${toStr}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000),
+          }
+        );
+
+        if (!apiRes.ok) {
+          throw new Error(`HTTP ${apiRes.status}`);
+        }
+
+        const points = await apiRes.json();
+        const trackPoints = [];
+        for (const pt of points) {
+          if (pt.latitude != null && pt.longitude != null) {
+            trackPoints.push({
+              coordinates: [pt.longitude, pt.latitude],
+              timestamp: pt.msgtime,
+              speed: pt.speedOverGround ?? null,
+              course: pt.courseOverGround ?? null,
+              heading: pt.trueHeading ?? null,
+            });
+          }
+        }
+
+        const geojson = {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: trackPoints.map(p => p.coordinates),
+          },
+          properties: {
+            mmsi,
+            pointCount: trackPoints.length,
+            trackPoints,
+          },
+        };
+
+        // Cache the result
+        if (traceCache.size >= TRACE_CACHE_MAX) {
+          const oldest = traceCache.keys().next().value;
+          traceCache.delete(oldest);
+        }
+        traceCache.set(mmsi, { data: geojson, time: Date.now() });
+
+        return { mmsi, data: geojson };
+      })
+    );
+
+    const traces = {};
+    const errors = [];
+    results.forEach((result, i) => {
+      const mmsi = limitedMmsis[i];
+      if (result.status === 'fulfilled') {
+        traces[mmsi] = result.value.data;
+      } else {
+        errors.push(mmsi);
+      }
+    });
+
+    res.json({ traces, errors });
+  } catch (err) {
+    console.error('Batch trace error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;

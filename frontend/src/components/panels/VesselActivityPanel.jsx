@@ -1,0 +1,587 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMapStore } from '../../stores/useMapStore.js';
+import { t } from '../../lib/i18n.js';
+
+// Detect anomalies in vessel track
+function detectAnomalies(trackPoints, bounds) {
+  const anomalies = {
+    speedChanges: [],
+    loitering: [],
+    aisGaps: [],
+  };
+
+  if (!trackPoints || trackPoints.length < 2) return anomalies;
+
+  const { west, east, north, south } = bounds;
+  const isInBox = ([lng, lat]) => lng >= west && lng <= east && lat >= south && lat <= north;
+
+  let loiteringStart = null;
+  let loiteringMinutes = 0;
+  let lastPointInBox = null;
+
+  for (let i = 1; i < trackPoints.length; i++) {
+    const pt = trackPoints[i];
+    const prevPt = trackPoints[i - 1];
+
+    // Only analyze points inside the box
+    if (!isInBox(pt.coordinates)) continue;
+
+    const timeDelta = (new Date(pt.timestamp) - new Date(prevPt.timestamp)) / 60000;
+
+    // Detect speed changes (>5 knots change)
+    if (pt.speed != null && prevPt.speed != null) {
+      const speedChange = Math.abs(pt.speed - prevPt.speed);
+      if (speedChange > 5 && timeDelta < 10) {
+        anomalies.speedChanges.push({
+          timestamp: pt.timestamp,
+          coordinates: pt.coordinates,
+          from: prevPt.speed,
+          to: pt.speed,
+          change: speedChange,
+        });
+      }
+    }
+
+    // Detect loitering (<2 knots for extended periods)
+    if (pt.speed != null && pt.speed < 2) {
+      if (!loiteringStart) {
+        loiteringStart = pt;
+        loiteringMinutes = 0;
+      }
+      loiteringMinutes += timeDelta;
+    } else {
+      if (loiteringStart && loiteringMinutes > 120) {
+        anomalies.loitering.push({
+          startTime: loiteringStart.timestamp,
+          endTime: prevPt.timestamp,
+          coordinates: loiteringStart.coordinates,
+          duration: loiteringMinutes,
+        });
+      }
+      loiteringStart = null;
+      loiteringMinutes = 0;
+    }
+
+    // Detect AIS gaps (>30 min between points)
+    if (timeDelta > 30 && isInBox(prevPt.coordinates)) {
+      anomalies.aisGaps.push({
+        startTime: prevPt.timestamp,
+        endTime: pt.timestamp,
+        duration: timeDelta,
+        startCoords: prevPt.coordinates,
+        endCoords: pt.coordinates,
+      });
+    }
+
+    lastPointInBox = pt;
+  }
+
+  // Check final loitering period
+  if (loiteringStart && loiteringMinutes > 120) {
+    anomalies.loitering.push({
+      startTime: loiteringStart.timestamp,
+      endTime: trackPoints[trackPoints.length - 1].timestamp,
+      coordinates: loiteringStart.coordinates,
+      duration: loiteringMinutes,
+    });
+  }
+
+  return anomalies;
+}
+
+// Analyze vessel track for entry/exit events
+function analyzeVesselTrack(trackPoints, bounds) {
+  if (!trackPoints || trackPoints.length < 2) return { events: [], currentlyInside: false, timeInBox: 0, firstSeen: null, lastSeen: null };
+
+  const { west, east, north, south } = bounds;
+  const isInBox = ([lng, lat]) => lng >= west && lng <= east && lat >= south && lat <= north;
+
+  const events = [];
+  let wasInside = isInBox(trackPoints[0].coordinates);
+  let timeInBox = 0;
+  let lastInBoxTime = wasInside ? new Date(trackPoints[0].timestamp) : null;
+  let firstSeen = wasInside ? trackPoints[0].timestamp : null;
+  let lastSeen = wasInside ? trackPoints[0].timestamp : null;
+
+  for (let i = 1; i < trackPoints.length; i++) {
+    const pt = trackPoints[i];
+    const prevPt = trackPoints[i - 1];
+    const isInside = isInBox(pt.coordinates);
+
+    if (!wasInside && isInside) {
+      events.push({
+        type: 'entry',
+        timestamp: pt.timestamp,
+        coordinates: pt.coordinates,
+      });
+      lastInBoxTime = new Date(pt.timestamp);
+      if (!firstSeen) firstSeen = pt.timestamp;
+    } else if (wasInside && !isInside) {
+      events.push({
+        type: 'exit',
+        timestamp: pt.timestamp,
+        coordinates: prevPt.coordinates, // Use last point inside
+      });
+      if (lastInBoxTime) {
+        timeInBox += (new Date(pt.timestamp) - lastInBoxTime) / 60000;
+        lastInBoxTime = null;
+      }
+    }
+
+    if (isInside) {
+      lastSeen = pt.timestamp;
+    }
+
+    wasInside = isInside;
+  }
+
+  // If still inside at end of track
+  if (wasInside && lastInBoxTime) {
+    const lastPt = trackPoints[trackPoints.length - 1];
+    timeInBox += (new Date(lastPt.timestamp) - lastInBoxTime) / 60000;
+  }
+
+  return { events, currentlyInside: wasInside, timeInBox, firstSeen, lastSeen };
+}
+
+function formatDuration(minutes) {
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function formatTime(timestamp) {
+  return new Date(timestamp).toLocaleString('no-NO', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// Vessel list item component
+function VesselItem({ vessel, analysis, onFocus, lang, isLoading }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const handleClick = () => {
+    onFocus(vessel.mmsi, vessel.coordinates);
+  };
+
+  return (
+    <div className="border-b border-slate-700/50 last:border-0">
+      <button
+        onClick={handleClick}
+        className="w-full text-left px-3 py-2 hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-white truncate">
+            {vessel.name || `MMSI ${vessel.mmsi}`}
+          </div>
+          <div className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
+            <span>{vessel.shipTypeCategory || 'Unknown'}</span>
+            {analysis.currentlyInside && (
+              <span className="text-green-400">{t('vesselActivity.inside', lang)}</span>
+            )}
+          </div>
+        </div>
+        {analysis.events.length > 0 && (
+          <div className="flex items-center gap-1">
+            {analysis.events.some((e) => e.type === 'entry') && (
+              <span className="text-green-400 text-[10px] bg-green-400/10 px-1.5 py-0.5 rounded">
+                {analysis.events.filter((e) => e.type === 'entry').length}&uarr;
+              </span>
+            )}
+            {analysis.events.some((e) => e.type === 'exit') && (
+              <span className="text-red-400 text-[10px] bg-red-400/10 px-1.5 py-0.5 rounded">
+                {analysis.events.filter((e) => e.type === 'exit').length}&darr;
+              </span>
+            )}
+          </div>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          className="text-slate-400 hover:text-white p-1"
+        >
+          <svg
+            className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </button>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="px-3 pb-2 text-[10px] text-slate-400 space-y-1">
+          {analysis.firstSeen && (
+            <div>
+              {t('vesselActivity.firstSeen', lang)}: {formatTime(analysis.firstSeen)}
+            </div>
+          )}
+          {analysis.lastSeen && (
+            <div>
+              {t('vesselActivity.lastSeen', lang)}: {formatTime(analysis.lastSeen)}
+            </div>
+          )}
+          {analysis.timeInBox > 0 && (
+            <div>
+              {t('vesselActivity.timeInBox', lang)}: {formatDuration(analysis.timeInBox)}
+            </div>
+          )}
+          {analysis.events.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {analysis.events.slice(-5).map((event, i) => (
+                <div
+                  key={i}
+                  className={event.type === 'entry' ? 'text-green-400' : 'text-red-400'}
+                >
+                  {event.type === 'entry' ? '\u2191' : '\u2193'} {formatTime(event.timestamp)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Main panel component
+export default function VesselActivityPanel() {
+  const lang = useMapStore((s) => s.lang);
+  const mapRef = useMapStore((s) => s.mapRef);
+  const vesselActivityBox = useMapStore((s) => s.vesselActivityBox);
+  const clearVesselActivityBox = useMapStore((s) => s.clearVesselActivityBox);
+  const setVesselActivityDrawing = useMapStore((s) => s.setVesselActivityDrawing);
+  const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
+
+  const [analysisData, setAnalysisData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [expandedSection, setExpandedSection] = useState('entered');
+  const [vesselPositions, setVesselPositions] = useState({});
+
+  // Analyze vessel activity when box is set
+  const analyzeActivity = useCallback(async () => {
+    if (!vesselActivityBox) return;
+
+    setLoading(true);
+    try {
+      const { bounds } = vesselActivityBox;
+
+      // Fetch current vessels in the area
+      const res = await fetch(
+        `/api/ais?south=${bounds.south}&north=${bounds.north}&west=${bounds.west}&east=${bounds.east}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch vessels');
+      const geojson = await res.json();
+
+      // Build map of current vessel positions
+      const positions = {};
+      geojson.features.forEach((f) => {
+        positions[f.properties.mmsi] = {
+          ...f.properties,
+          coordinates: f.geometry.coordinates,
+        };
+      });
+      setVesselPositions(positions);
+
+      // Get unique MMSIs
+      const mmsis = Object.keys(positions);
+
+      if (mmsis.length === 0) {
+        setAnalysisData({ entered: [], exited: [], inside: [], anomalies: {} });
+        setLoading(false);
+        return;
+      }
+
+      // Fetch batch traces
+      const traceRes = await fetch('/api/ais/traces/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mmsis }),
+      });
+
+      if (!traceRes.ok) throw new Error('Failed to fetch traces');
+      const { traces, errors } = await traceRes.json();
+
+      // Analyze each vessel
+      const entered = [];
+      const exited = [];
+      const inside = [];
+      const allAnomalies = {};
+
+      for (const mmsi of mmsis) {
+        const trace = traces[mmsi];
+        const vessel = positions[mmsi];
+
+        if (!trace || !trace.properties?.trackPoints) continue;
+
+        const trackPoints = [...trace.properties.trackPoints].reverse();
+        const analysis = analyzeVesselTrack(trackPoints, bounds);
+        const anomalies = detectAnomalies(trackPoints, bounds);
+
+        const vesselData = {
+          mmsi,
+          name: vessel.name,
+          shipTypeCategory: vessel.shipTypeCategory,
+          coordinates: vessel.coordinates,
+          analysis,
+          anomalies,
+        };
+
+        // Categorize based on events
+        const hasEntry = analysis.events.some((e) => e.type === 'entry');
+        const hasExit = analysis.events.some((e) => e.type === 'exit');
+
+        if (hasEntry) entered.push(vesselData);
+        if (hasExit) exited.push(vesselData);
+        if (analysis.currentlyInside) inside.push(vesselData);
+
+        // Aggregate anomalies
+        if (anomalies.speedChanges.length > 0 || anomalies.loitering.length > 0 || anomalies.aisGaps.length > 0) {
+          allAnomalies[mmsi] = anomalies;
+        }
+      }
+
+      setAnalysisData({ entered, exited, inside, anomalies: allAnomalies });
+    } catch (err) {
+      console.error('Activity analysis error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [vesselActivityBox]);
+
+  // Run analysis when box changes
+  useEffect(() => {
+    if (vesselActivityBox) {
+      analyzeActivity();
+    } else {
+      setAnalysisData(null);
+    }
+  }, [vesselActivityBox, analyzeActivity]);
+
+  // Handle vessel focus
+  const handleFocusVessel = useCallback(
+    (mmsi, coordinates) => {
+      setFocusedVessel(String(mmsi));
+      if (mapRef && coordinates) {
+        mapRef.flyTo({
+          center: coordinates,
+          zoom: 12,
+          duration: 1500,
+        });
+      }
+    },
+    [setFocusedVessel, mapRef]
+  );
+
+  // Handle clear
+  const handleClear = () => {
+    clearVesselActivityBox();
+    setAnalysisData(null);
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    analyzeActivity();
+  };
+
+  if (!vesselActivityBox) return null;
+
+  const totalAnomalies = analysisData
+    ? Object.values(analysisData.anomalies).reduce(
+        (sum, a) => sum + a.speedChanges.length + a.loitering.length + a.aisGaps.length,
+        0
+      )
+    : 0;
+
+  return (
+    <div className="absolute bottom-4 right-4 z-20 w-80 max-h-[calc(100vh-120px)] bg-slate-900/95 rounded-lg shadow-xl border border-slate-700 flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-slate-700 bg-slate-800/50 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="font-semibold text-white text-sm">{t('vesselActivity.title', lang)}</div>
+          <button onClick={handleClear} className="text-slate-400 hover:text-white text-lg leading-none">
+            &times;
+          </button>
+        </div>
+        <div className="text-[10px] text-slate-400 mt-1">
+          {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km | {t('vesselActivity.last3Days', lang)}
+        </div>
+      </div>
+
+      {/* Summary counts */}
+      <div className="px-4 py-2 border-b border-slate-700 flex-shrink-0">
+        <div className="flex gap-3 text-xs">
+          <button
+            onClick={() => setExpandedSection('entered')}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+              expandedSection === 'entered' ? 'bg-green-600/30 text-green-400' : 'text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            <span className="font-bold">{analysisData?.entered.length || 0}</span>
+            <span>{t('vesselActivity.entered', lang)}</span>
+          </button>
+          <button
+            onClick={() => setExpandedSection('exited')}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+              expandedSection === 'exited' ? 'bg-red-600/30 text-red-400' : 'text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            <span className="font-bold">{analysisData?.exited.length || 0}</span>
+            <span>{t('vesselActivity.exited', lang)}</span>
+          </button>
+          <button
+            onClick={() => setExpandedSection('inside')}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+              expandedSection === 'inside' ? 'bg-cyan-600/30 text-cyan-400' : 'text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            <span className="font-bold">{analysisData?.inside.length || 0}</span>
+            <span>{t('vesselActivity.inside', lang)}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Vessel list */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {loading ? (
+          <div className="p-4 text-center text-slate-400 text-sm">{t('general.loading', lang)}</div>
+        ) : !analysisData ? (
+          <div className="p-4 text-center text-slate-400 text-sm">{t('vesselActivity.noVessels', lang)}</div>
+        ) : (
+          <>
+            {/* Section heading */}
+            <div className="px-3 py-1.5 bg-slate-800/50 text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
+              {expandedSection === 'entered' && `${t('vesselActivity.entered', lang)} (${analysisData.entered.length})`}
+              {expandedSection === 'exited' && `${t('vesselActivity.exited', lang)} (${analysisData.exited.length})`}
+              {expandedSection === 'inside' && `${t('vesselActivity.inside', lang)} (${analysisData.inside.length})`}
+            </div>
+
+            {/* Vessel items */}
+            {expandedSection === 'entered' &&
+              analysisData.entered.map((v) => (
+                <VesselItem
+                  key={v.mmsi}
+                  vessel={v}
+                  analysis={v.analysis}
+                  onFocus={handleFocusVessel}
+                  lang={lang}
+                  isLoading={loading}
+                />
+              ))}
+            {expandedSection === 'exited' &&
+              analysisData.exited.map((v) => (
+                <VesselItem
+                  key={v.mmsi}
+                  vessel={v}
+                  analysis={v.analysis}
+                  onFocus={handleFocusVessel}
+                  lang={lang}
+                  isLoading={loading}
+                />
+              ))}
+            {expandedSection === 'inside' &&
+              analysisData.inside.map((v) => (
+                <VesselItem
+                  key={v.mmsi}
+                  vessel={v}
+                  analysis={v.analysis}
+                  onFocus={handleFocusVessel}
+                  lang={lang}
+                  isLoading={loading}
+                />
+              ))}
+
+            {/* Empty state for current section */}
+            {expandedSection === 'entered' && analysisData.entered.length === 0 && (
+              <div className="p-4 text-center text-slate-500 text-xs">{t('vesselActivity.noVessels', lang)}</div>
+            )}
+            {expandedSection === 'exited' && analysisData.exited.length === 0 && (
+              <div className="p-4 text-center text-slate-500 text-xs">{t('vesselActivity.noVessels', lang)}</div>
+            )}
+            {expandedSection === 'inside' && analysisData.inside.length === 0 && (
+              <div className="p-4 text-center text-slate-500 text-xs">{t('vesselActivity.noVessels', lang)}</div>
+            )}
+          </>
+        )}
+
+        {/* Anomalies section */}
+        {analysisData && totalAnomalies > 0 && (
+          <div className="border-t border-slate-700">
+            <button
+              onClick={() => setExpandedSection('anomalies')}
+              className={`w-full px-3 py-2 text-left flex items-center justify-between ${
+                expandedSection === 'anomalies' ? 'bg-amber-600/20' : 'hover:bg-slate-700/50'
+              }`}
+            >
+              <span className="text-xs text-amber-400 font-medium">
+                {t('vesselActivity.anomalies', lang)} ({totalAnomalies})
+              </span>
+              <svg
+                className={`w-4 h-4 text-slate-400 transition-transform ${expandedSection === 'anomalies' ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {expandedSection === 'anomalies' && (
+              <div className="px-3 pb-2 text-[10px] text-slate-400 space-y-2">
+                {Object.entries(analysisData.anomalies).map(([mmsi, anomalies]) => {
+                  const vessel = vesselPositions[mmsi];
+                  return (
+                    <div key={mmsi} className="space-y-1">
+                      <div className="text-slate-300 font-medium">{vessel?.name || `MMSI ${mmsi}`}</div>
+                      {anomalies.speedChanges.length > 0 && (
+                        <div className="text-amber-400 pl-2">
+                          {anomalies.speedChanges.length}x {t('vesselActivity.speedChange', lang)}
+                        </div>
+                      )}
+                      {anomalies.loitering.length > 0 && (
+                        <div className="text-orange-400 pl-2">
+                          {anomalies.loitering.length}x {t('vesselActivity.loitering', lang)}
+                        </div>
+                      )}
+                      {anomalies.aisGaps.length > 0 && (
+                        <div className="text-red-400 pl-2">
+                          {anomalies.aisGaps.length}x {t('vesselActivity.aisGaps', lang)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer buttons */}
+      <div className="px-4 py-2 border-t border-slate-700 flex gap-2 flex-shrink-0">
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          className="flex-1 text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors disabled:opacity-50"
+        >
+          {t('vesselActivity.refresh', lang)}
+        </button>
+        <button
+          onClick={handleClear}
+          className="flex-1 text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors"
+        >
+          {t('vesselActivity.clearArea', lang)}
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -36,6 +36,11 @@ export const useMapStore = create((set) => ({
   hiddenVesselCategories: [],
   vesselDeepAnalysis: null, // { mmsi, vessel, traceData } or null
   vesselTimeTravel: null, // { mmsi, selectedIndex, trackPoints } for historical view
+  vesselActivityBox: null, // { bounds: {west,east,north,south}, widthKm, heightKm }
+  vesselActivityDrawing: false, // true when drawing mode is active
+  vesselActivityAnalysis: null, // { entered: [], exited: [], inside: [], anomalies: {} }
+  vesselActivityLoading: false,
+  focusedVesselMmsis: [], // Array for multi-vessel focus
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
@@ -135,6 +140,13 @@ export const useMapStore = create((set) => ({
   clearVesselDeepAnalysis: () => set({ vesselDeepAnalysis: null }),
   setVesselTimeTravel: (data) => set({ vesselTimeTravel: data }),
   clearVesselTimeTravel: () => set({ vesselTimeTravel: null }),
+  setVesselActivityBox: (box) => set({ vesselActivityBox: box }),
+  clearVesselActivityBox: () => set({ vesselActivityBox: null, vesselActivityAnalysis: null }),
+  setVesselActivityDrawing: (drawing) => set({ vesselActivityDrawing: drawing }),
+  setVesselActivityAnalysis: (analysis) => set({ vesselActivityAnalysis: analysis }),
+  setVesselActivityLoading: (loading) => set({ vesselActivityLoading: loading }),
+  setFocusedVessels: (mmsis) => set({ focusedVesselMmsis: mmsis }),
+  clearFocusedVessels: () => set({ focusedVesselMmsis: [] }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({

@@ -23,6 +23,8 @@ import AvalancheWarningsLegend from './AvalancheWarningsLegend.jsx';
 import AircraftLayer, { AircraftLegend } from './AircraftLayer.jsx';
 import VesselLayer, { VesselLegend } from './VesselLayer.jsx';
 import VesselDeepAnalysis from './VesselDeepAnalysis.jsx';
+import VesselActivityBox from './VesselActivityBox.jsx';
+import VesselActivityPanel from '../panels/VesselActivityPanel.jsx';
 import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
@@ -826,6 +828,10 @@ export default function TacticalMap() {
         />
       )}
       <MeasuringTool />
+      {/* Vessel Activity Box Drawing */}
+      {vesselsVisible && <VesselActivityBox mapRef={mapInstance} />}
+      {/* Vessel Activity Panel */}
+      {vesselsVisible && <VesselActivityPanel />}
       {/* Vessel Deep Analysis Panel */}
       {vesselDeepAnalysis && (
         <VesselDeepAnalysis
