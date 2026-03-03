@@ -554,15 +554,6 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
           debug.push('[11a] No map view state available');
         }
 
-        // Get actual map view state from mini-map if available
-        let mapViewState = null;
-        if (miniMapRef.current?.getMapViewState) {
-          mapViewState = miniMapRef.current.getMapViewState();
-          debug.push(`[11d] Map view state: center=${JSON.stringify(mapViewState?.center)}, zoom=${mapViewState?.zoom}`);
-        } else {
-          debug.push('[11d] No map view state available, using fallback');
-        }
-
         const svgString = generateTrackSVG(svgWidth, svgHeight, mapViewState?.bounds);
         debug.push(`[12] SVG generated: ${svgString ? svgString.length + ' chars' : 'null'}`);
 
