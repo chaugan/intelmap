@@ -84,6 +84,28 @@ function calculateStats(trackPoints) {
   };
 }
 
+// Detect AIS gaps (>30 minutes between consecutive points)
+const AIS_GAP_THRESHOLD = 30 * 60 * 1000; // 30 minutes in ms
+
+function detectAisGaps(trackPoints) {
+  const gaps = [];
+  for (let i = 1; i < trackPoints.length; i++) {
+    const prevTime = new Date(trackPoints[i - 1].timestamp).getTime();
+    const currTime = new Date(trackPoints[i].timestamp).getTime();
+    const delta = currTime - prevTime;
+    if (delta > AIS_GAP_THRESHOLD) {
+      gaps.push({
+        startIndex: i - 1,
+        endIndex: i,
+        startTime: trackPoints[i - 1].timestamp,
+        endTime: trackPoints[i].timestamp,
+        duration: delta / 60000, // minutes
+      });
+    }
+  }
+  return gaps;
+}
+
 // Mini-map with both past (solid) and future (dotted) traces
 const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLayer, onOpenInMainMap, lang }, ref) {
   const containerRef = useRef(null);
@@ -375,6 +397,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
   const stats = useMemo(() => calculateStats(trackPoints), [trackPoints]);
   const stops = useMemo(() => detectStops(trackPoints), [trackPoints]);
+  const aisGaps = useMemo(() => detectAisGaps(trackPoints), [trackPoints]);
 
   // Get current vessel position from trace (last point)
   const vesselCoords = useMemo(() => {
@@ -747,11 +770,62 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 10;
   const speedRange = maxSpeed * 1.15;
 
+  // Helper to calculate X/Y position for a track point
+  const getPointCoords = (p) => {
+    const x = padding.left + ((new Date(p.timestamp).getTime() - startTime) / timeRange) * chartWidth;
+    const y = p.speed != null ? padding.top + chartHeight - (p.speed / speedRange) * chartHeight : padding.top + chartHeight;
+    return { x, y };
+  };
+
+  // Build gap indices set for quick lookup
+  const gapStartIndices = new Set(aisGaps.map(g => g.startIndex));
+
+  // Build solid path segments and gap connector paths
+  const solidSegments = [];
+  const gapPaths = [];
+  let currentSegment = [];
+
+  trackPoints.forEach((p, i) => {
+    if (p.speed == null) return;
+
+    const coords = getPointCoords(p);
+
+    if (gapStartIndices.has(i)) {
+      // End current segment before gap
+      if (currentSegment.length > 0) {
+        currentSegment.push(coords);
+        solidSegments.push([...currentSegment]);
+      }
+      // Start gap connector from this point
+      const nextPt = trackPoints[i + 1];
+      if (nextPt && nextPt.speed != null) {
+        const nextCoords = getPointCoords(nextPt);
+        gapPaths.push({ from: coords, to: nextCoords });
+      }
+      currentSegment = [];
+    } else if (i > 0 && gapStartIndices.has(i - 1)) {
+      // Point after gap - start new segment
+      currentSegment = [coords];
+    } else {
+      currentSegment.push(coords);
+    }
+  });
+
+  // Add final segment
+  if (currentSegment.length > 0) {
+    solidSegments.push(currentSegment);
+  }
+
+  // Convert segments to SVG paths
+  const solidPaths = solidSegments.map(segment =>
+    segment.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ')
+  );
+
+  // Legacy pathPoints for area fill (includes all points)
   const pathPoints = trackPoints
     .filter(p => p.speed != null)
     .map((p, i) => {
-      const x = padding.left + ((new Date(p.timestamp).getTime() - startTime) / timeRange) * chartWidth;
-      const y = padding.top + chartHeight - (p.speed / speedRange) * chartHeight;
+      const { x, y } = getPointCoords(p);
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(' ');
@@ -855,6 +929,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         <span className="text-cyan-400">{t('vessel.avgSpeed', lang)}: {stats ? formatSpeed(stats.avgSpeed) : '—'}</span>
         <span className="text-green-400">{t('vessel.maxSpeed', lang)}: {stats ? formatSpeed(stats.maxSpeed) : '—'}</span>
         <span className="text-red-400">{t('vessel.stopCount', lang)}: {stops.length}</span>
+        {aisGaps.length > 0 && <span className="text-amber-400">{t('vessel.aisGaps', lang)}: {aisGaps.length}</span>}
       </div>
 
       {/* Speed-Time Chart */}
@@ -913,7 +988,40 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         </defs>
 
         {pathPoints && <path d={areaPath} fill="url(#speedGradient)" />}
-        {pathPoints && <path d={pathPoints} fill="none" stroke="#06b6d4" strokeWidth={expanded ? 2 : 1.5} strokeLinejoin="round" />}
+
+        {/* Solid speed line segments */}
+        {solidPaths.map((d, i) => (
+          <path key={`solid-${i}`} d={d} fill="none" stroke="#06b6d4" strokeWidth={expanded ? 2 : 1.5} strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+
+        {/* AIS gap connectors (dotted lines) */}
+        {gapPaths.map((gap, i) => (
+          <line
+            key={`gap-${i}`}
+            x1={gap.from.x}
+            y1={gap.from.y}
+            x2={gap.to.x}
+            y2={gap.to.y}
+            stroke="#f59e0b"
+            strokeWidth={expanded ? 2 : 1.5}
+            strokeDasharray="4 3"
+            strokeLinecap="round"
+          />
+        ))}
+
+        {/* AIS gap markers */}
+        {aisGaps.map((gap, i) => {
+          const startX = padding.left + ((new Date(gap.startTime).getTime() - startTime) / timeRange) * chartWidth;
+          const endX = padding.left + ((new Date(gap.endTime).getTime() - startTime) / timeRange) * chartWidth;
+          const midX = (startX + endX) / 2;
+          return (
+            <g key={`gap-marker-${i}`}>
+              <rect x={startX} y={padding.top} width={Math.max(endX - startX, 4)} height={chartHeight} fill="#f59e0b" fillOpacity="0.1" />
+              <circle cx={midX} cy={padding.top + (expanded ? 24 : 18)} r={expanded ? 8 : 6} fill="#f59e0b" />
+              <text x={midX} y={padding.top + (expanded ? 28 : 21)} textAnchor="middle" fill="#000" fontSize={expanded ? 9 : 7} fontWeight="bold">?</text>
+            </g>
+          );
+        })}
 
         {/* Scrubber */}
         {hoverInfo && (
