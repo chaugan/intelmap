@@ -397,7 +397,7 @@ export default function VesselLayer({ data, mapRef }) {
       return;
     }
 
-    const { trackPoints, selectedIndex } = vesselTimeTravel;
+    const { mmsi, trackPoints, selectedIndex } = vesselTimeTravel;
     if (!trackPoints || selectedIndex == null) return;
 
     // Draw split trace
@@ -416,22 +416,92 @@ export default function VesselLayer({ data, mapRef }) {
         .setLngLat(historicalPoint.coordinates)
         .addTo(mapRef);
 
-      // Click on marker clears time travel and keeps focus
-      el.addEventListener('click', () => {
-        clearVesselTimeTravel();
+      // Click on marker shows a mini popup with time info and exit button
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // Find vessel data from current data
+        const features = dataRef.current?.features;
+        const vesselFeature = features?.find((ft) => String(ft.properties?.mmsi) === String(mmsi));
+        const vesselProps = vesselFeature?.properties || { mmsi };
+
+        // Format time
+        const timeStr = new Date(historicalPoint.timestamp).toLocaleString('no-NO', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        const speedStr = historicalPoint.speed != null ? `${historicalPoint.speed.toFixed(1)} kn` : 'N/A';
+
+        // Create popup
+        const popupEl = document.createElement('div');
+        popupEl.style.cssText = 'position:absolute;z-index:60;pointer-events:auto';
+        popupEl.innerHTML = `
+          <div style="background:#1e293b;color:#e2e8f0;border:2px solid #fbbf24;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);padding:10px 12px;min-width:200px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="color:#fbbf24;font-weight:bold;font-size:12px">⏱ ${useMapStore.getState().lang === 'no' ? 'Historisk visning' : 'Historical View'}</span>
+              <button class="tt-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 6px">×</button>
+            </div>
+            <div style="font-weight:bold;font-size:13px;margin-bottom:4px">${vesselProps.name || `MMSI ${mmsi}`}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:2px">${useMapStore.getState().lang === 'no' ? 'Tid' : 'Time'}: ${timeStr}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">${useMapStore.getState().lang === 'no' ? 'Hastighet' : 'Speed'}: ${speedStr}</div>
+            <button class="tt-exit-btn" style="width:100%;background:#475569;border:none;color:#e2e8f0;cursor:pointer;font-size:11px;padding:6px 10px;border-radius:4px">
+              ${useMapStore.getState().lang === 'no' ? 'Avslutt historisk visning' : 'Exit historical view'}
+            </button>
+          </div>
+        `;
+
+        const point = mapRef.project(historicalPoint.coordinates);
+        popupEl.style.left = `${point.x}px`;
+        popupEl.style.top = `${point.y - 10}px`;
+        popupEl.style.transform = 'translate(-50%, -100%)';
+
+        // Remove any existing time travel popup
+        const existingPopup = mapRef.getContainer().querySelector('.tt-popup');
+        if (existingPopup) existingPopup.remove();
+
+        popupEl.classList.add('tt-popup');
+        mapRef.getContainer().appendChild(popupEl);
+
+        // Close button just closes popup
+        popupEl.querySelector('.tt-close-btn').addEventListener('click', () => {
+          popupEl.remove();
+        });
+
+        // Exit button clears time travel and unfocuses
+        popupEl.querySelector('.tt-exit-btn').addEventListener('click', () => {
+          popupEl.remove();
+          setFocusedVessel(null);
+          // clearVesselTimeTravel will be called by the effect that watches focusedVesselMmsi
+        });
+
+        // Update position on map move
+        const updatePos = () => {
+          try {
+            const p = mapRef.project(historicalPoint.coordinates);
+            popupEl.style.left = `${p.x}px`;
+            popupEl.style.top = `${p.y - 10}px`;
+          } catch {}
+        };
+        mapRef.on('move', updatePos);
+        popupEl._cleanup = () => mapRef.off('move', updatePos);
       });
 
       timeTravelMarkerRef.current = marker;
     }
 
     return () => {
+      // Clean up time travel popup
+      const ttPopup = mapRef.getContainer().querySelector('.tt-popup');
+      if (ttPopup) {
+        if (ttPopup._cleanup) ttPopup._cleanup();
+        ttPopup.remove();
+      }
       if (timeTravelMarkerRef.current) {
         timeTravelMarkerRef.current.remove();
         timeTravelMarkerRef.current = null;
       }
       removeTrace(mapRef);
     };
-  }, [mapRef, vesselTimeTravel, clearVesselTimeTravel]);
+  }, [mapRef, vesselTimeTravel, clearVesselTimeTravel, setFocusedVessel]);
 
   // Clear time travel when focus is removed
   useEffect(() => {
