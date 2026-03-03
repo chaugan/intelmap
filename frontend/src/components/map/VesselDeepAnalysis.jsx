@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import maplibregl from 'maplibre-gl';
 import html2canvas from 'html2canvas-pro';
@@ -85,9 +85,42 @@ function calculateStats(trackPoints) {
 }
 
 // Mini-map with both past (solid) and future (dotted) traces
-function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLayer, onOpenInMainMap, lang }) {
+const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLayer, onOpenInMainMap, lang }, ref) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+
+  // Expose method to get map canvas image for export
+  useImperativeHandle(ref, () => ({
+    getMapImage: async () => {
+      const map = mapRef.current;
+      if (!map) return null;
+
+      // Wait for map to be idle (all tiles loaded)
+      await new Promise((resolve) => {
+        if (map.isStyleLoaded() && map.areTilesLoaded()) {
+          resolve();
+        } else {
+          map.once('idle', resolve);
+        }
+      });
+
+      // Force a render and get the canvas
+      map.triggerRepaint();
+      await new Promise(r => setTimeout(r, 100)); // Small delay to ensure render completes
+
+      try {
+        const canvas = map.getCanvas();
+        return canvas.toDataURL('image/png');
+      } catch (err) {
+        console.error('Failed to get map image:', err);
+        return null;
+      }
+    },
+    getMapRect: () => {
+      const canvas = containerRef.current?.querySelector('.maplibregl-canvas');
+      return canvas?.getBoundingClientRect() || null;
+    }
+  }), []);
 
   useEffect(() => {
     if (!containerRef.current || !selectedPoint) return;
@@ -181,7 +214,7 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
       </button>
     </div>
   );
-}
+});
 
 // Draggable wrapper for the analysis panel
 function DraggableAnalysisPanel({ vesselCoords, children, mapRef: mainMapRef }) {
@@ -328,19 +361,12 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
-      // Capture the mini-map canvas content BEFORE html2canvas runs
-      // (WebGL canvases may lose content during html2canvas processing)
-      let mapImageCanvas = null;
+      // Get map image via the ref's method (handles WebGL properly)
+      let mapImageDataUrl = null;
       let mapRect = null;
-      const miniMapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
-      if (miniMapCanvas) {
-        mapRect = miniMapCanvas.getBoundingClientRect();
-        // Create a copy of the canvas content immediately
-        mapImageCanvas = document.createElement('canvas');
-        mapImageCanvas.width = miniMapCanvas.width;
-        mapImageCanvas.height = miniMapCanvas.height;
-        const tempCtx = mapImageCanvas.getContext('2d');
-        tempCtx.drawImage(miniMapCanvas, 0, 0);
+      if (miniMapRef.current) {
+        mapImageDataUrl = await miniMapRef.current.getMapImage();
+        mapRect = miniMapRef.current.getMapRect();
       }
 
       const containerRect = containerRef.current.getBoundingClientRect();
@@ -352,13 +378,21 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
 
-      // Composite the captured map image onto the result
-      if (mapImageCanvas && mapRect) {
+      // Composite the map image onto the result
+      if (mapImageDataUrl && mapRect) {
         const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
-        ctx.drawImage(mapImageCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+
+        // Load the data URL as an image and draw it
+        const mapImage = new Image();
+        await new Promise((resolve, reject) => {
+          mapImage.onload = resolve;
+          mapImage.onerror = reject;
+          mapImage.src = mapImageDataUrl;
+        });
+        ctx.drawImage(mapImage, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
       }
 
       const link = document.createElement('a');
@@ -378,17 +412,12 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
-      // Capture the mini-map canvas content BEFORE html2canvas runs
-      let mapImageCanvas = null;
+      // Get map image via the ref's method (handles WebGL properly)
+      let mapImageDataUrl = null;
       let mapRect = null;
-      const miniMapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
-      if (miniMapCanvas) {
-        mapRect = miniMapCanvas.getBoundingClientRect();
-        mapImageCanvas = document.createElement('canvas');
-        mapImageCanvas.width = miniMapCanvas.width;
-        mapImageCanvas.height = miniMapCanvas.height;
-        const tempCtx = mapImageCanvas.getContext('2d');
-        tempCtx.drawImage(miniMapCanvas, 0, 0);
+      if (miniMapRef.current) {
+        mapImageDataUrl = await miniMapRef.current.getMapImage();
+        mapRect = miniMapRef.current.getMapRect();
       }
 
       const containerRect = containerRef.current.getBoundingClientRect();
@@ -400,13 +429,20 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
 
-      // Composite the captured map image onto the result
-      if (mapImageCanvas && mapRect) {
+      // Composite the map image onto the result
+      if (mapImageDataUrl && mapRect) {
         const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
-        ctx.drawImage(mapImageCanvas, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+
+        const mapImage = new Image();
+        await new Promise((resolve, reject) => {
+          mapImage.onload = resolve;
+          mapImage.onerror = reject;
+          mapImage.src = mapImageDataUrl;
+        });
+        ctx.drawImage(mapImage, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
       }
 
       const imageData = canvas.toDataURL('image/png');
@@ -674,12 +710,13 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
       {/* Mini-map (expanded mode) */}
       {selectedPoint && expanded && (
-        <div className="mt-3" ref={miniMapRef}>
+        <div className="mt-3">
           <div className="text-slate-400 text-xs mb-1">
             {t('vessel.historicalPosition', lang)}: {formatTime(selectedPoint.timestamp)}
             {selectedPoint.speed != null && ` | ${formatSpeed(selectedPoint.speed)}`}
           </div>
           <HistoricalMiniMap
+            ref={miniMapRef}
             selectedPoint={selectedPoint}
             trackPoints={trackPoints}
             selectedIndex={selectedIndex}
