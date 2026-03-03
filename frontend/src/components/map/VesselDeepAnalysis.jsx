@@ -90,45 +90,80 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
   const mapRef = useRef(null);
 
   // Expose method to get map canvas image for export
+  // Since external map tiles cause CORS issues, we render an SVG fallback
   useImperativeHandle(ref, () => ({
     getMapImage: async () => {
-      const map = mapRef.current;
-      if (!map) {
-        console.warn('[VesselDeepAnalysis] No map instance');
-        return null;
+      // Render track as SVG (avoids CORS issues with map tiles)
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect || !trackPoints || trackPoints.length < 2) return null;
+
+      const width = Math.round(rect.width);
+      const height = Math.round(rect.height);
+
+      // Calculate bounds
+      let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      for (const pt of trackPoints) {
+        minLng = Math.min(minLng, pt.coordinates[0]);
+        maxLng = Math.max(maxLng, pt.coordinates[0]);
+        minLat = Math.min(minLat, pt.coordinates[1]);
+        maxLat = Math.max(maxLat, pt.coordinates[1]);
       }
 
-      // Wait for map to be idle (all tiles loaded)
-      await new Promise((resolve) => {
-        if (map.isStyleLoaded() && map.areTilesLoaded()) {
-          resolve();
-        } else {
-          map.once('idle', resolve);
-          // Timeout fallback
-          setTimeout(resolve, 3000);
-        }
-      });
+      // Add padding
+      const padLng = (maxLng - minLng) * 0.1 || 0.01;
+      const padLat = (maxLat - minLat) * 0.1 || 0.01;
+      minLng -= padLng; maxLng += padLng;
+      minLat -= padLat; maxLat += padLat;
 
-      // Force a render and get the canvas
-      map.triggerRepaint();
-      await new Promise(r => setTimeout(r, 200)); // Delay to ensure render completes
+      // Project coordinates to SVG space
+      const project = ([lng, lat]) => {
+        const x = ((lng - minLng) / (maxLng - minLng)) * width;
+        const y = height - ((lat - minLat) / (maxLat - minLat)) * height;
+        return [x, y];
+      };
 
-      try {
-        const canvas = map.getCanvas();
-        console.log('[VesselDeepAnalysis] Canvas size:', canvas.width, 'x', canvas.height);
-        const dataUrl = canvas.toDataURL('image/png');
-        console.log('[VesselDeepAnalysis] Got dataURL, length:', dataUrl.length);
-        return dataUrl;
-      } catch (err) {
-        console.error('[VesselDeepAnalysis] Failed to get map image:', err.name, err.message);
-        return null;
-      }
+      // Build past trace path
+      const pastPoints = trackPoints.slice(0, selectedIndex + 1);
+      const pastPath = pastPoints.map((pt, i) => {
+        const [x, y] = project(pt.coordinates);
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+
+      // Build future trace path
+      const futurePoints = trackPoints.slice(selectedIndex);
+      const futurePath = futurePoints.map((pt, i) => {
+        const [x, y] = project(pt.coordinates);
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+
+      // Vessel position
+      const [vx, vy] = project(selectedPoint.coordinates);
+      const rotation = selectedPoint.heading || selectedPoint.course || 0;
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <rect width="100%" height="100%" fill="#1e293b"/>
+        <defs>
+          <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#06b6d4"/>
+            <stop offset="100%" stop-color="#fbbf24"/>
+          </linearGradient>
+        </defs>
+        <path d="${pastPath}" fill="none" stroke="url(#traceGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="${futurePath}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" stroke-linecap="round"/>
+        <g transform="translate(${vx},${vy}) rotate(${rotation})">
+          <path d="M0,-12 L-5,0 L-4,2 L-4,14 L-3,16 L3,16 L4,14 L4,2 L5,0 Z" fill="#fbbf24" stroke="#000" stroke-width="1.5"/>
+        </g>
+        <text x="10" y="${height - 10}" fill="#64748b" font-size="11" font-family="sans-serif">Track: ${pastPoints.length} points</text>
+      </svg>`;
+
+      // Convert SVG to data URL
+      return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     },
     getMapRect: () => {
-      const canvas = containerRef.current?.querySelector('.maplibregl-canvas');
-      return canvas?.getBoundingClientRect() || null;
+      const el = containerRef.current?.querySelector('.maplibregl-canvas') || containerRef.current;
+      return el?.getBoundingClientRect() || null;
     }
-  }), []);
+  }), [trackPoints, selectedIndex, selectedPoint]);
 
   useEffect(() => {
     if (!containerRef.current || !selectedPoint) return;
