@@ -89,7 +89,7 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
   const containerRef = useRef(null);
   const mapRef = useRef(null);
 
-  // Expose map view state for export
+  // Expose map view state and force render for export
   useImperativeHandle(ref, () => ({
     getMapViewState: () => {
       const map = mapRef.current;
@@ -111,6 +111,17 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
     getMapRect: () => {
       const el = containerRef.current?.querySelector('.maplibregl-canvas') || containerRef.current;
       return el?.getBoundingClientRect() || null;
+    },
+    forceRender: async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      // Force a synchronous render
+      map.triggerRepaint();
+      // Wait for render to complete
+      await new Promise(resolve => {
+        map.once('render', resolve);
+        setTimeout(resolve, 500); // Fallback timeout
+      });
     }
   }), []);
 
@@ -430,9 +441,13 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
 
-    // SVG overlay with just the track lines (vessel marker comes from map capture)
+    // Vessel position
+    const [vx, vy] = project(selPt.coordinates);
+    const rotation = selPt.heading || selPt.course || 0;
+
+    // SVG with dark background (since map capture fails), track lines, and vessel
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <!-- Transparent background to overlay on map -->
+      <rect width="100%" height="100%" fill="#1e293b"/>
       <defs>
         <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#06b6d4"/>
@@ -441,6 +456,9 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       </defs>
       <path d="${pastPath}" fill="none" stroke="url(#traceGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="${futurePath}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" stroke-linecap="round"/>
+      <g transform="translate(${vx},${vy}) rotate(${rotation})">
+        <path d="M0,-12 L-5,0 L-4,2 L-4,14 L-3,16 L3,16 L4,14 L4,2 L5,0 Z" fill="#fbbf24" stroke="#000" stroke-width="1.5"/>
+      </g>
     </svg>`;
   };
 
@@ -498,7 +516,17 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         const svgHeight = Math.round(mapRect.height);
         debug.push(`[11] SVG params: offset=${offsetX},${offsetY}, size=${svgWidth}x${svgHeight}`);
 
-        // Try to capture the actual map canvas first
+        // Try to capture the actual map canvas
+        // Force a render first using the map ref
+        if (miniMapRef.current?.forceRender) {
+          try {
+            await miniMapRef.current.forceRender();
+            debug.push('[11a] Forced map render');
+          } catch (e) {
+            debug.push(`[11a] Force render failed: ${e.message}`);
+          }
+        }
+
         const mapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
         if (mapCanvas) {
           try {
@@ -506,7 +534,8 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
             // Sample the map canvas directly to see if it has content
             try {
-              const mapCtx = mapCanvas.getContext('webgl') || mapCanvas.getContext('webgl2');
+              const mapCtx = mapCanvas.getContext('webgl', { preserveDrawingBuffer: true })
+                          || mapCanvas.getContext('webgl2', { preserveDrawingBuffer: true });
               if (mapCtx) {
                 const pixels = new Uint8Array(4);
                 mapCtx.readPixels(mapCanvas.width / 2, mapCanvas.height / 2, 1, 1, mapCtx.RGBA, mapCtx.UNSIGNED_BYTE, pixels);
