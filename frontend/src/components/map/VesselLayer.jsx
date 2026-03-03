@@ -41,6 +41,8 @@ function loadImage(src, size) {
 const TYPE_COLOR = [
   'match',
   ['get', 'shipTypeCategory'],
+  'Military', '#f59e0b',
+  'Law Enforcement', '#dc2626',
   'Cargo', '#22c55e',
   'Tanker', '#ef4444',
   'Passenger', '#3b82f6',
@@ -775,6 +777,8 @@ export default function VesselLayer({ data, mapRef }) {
 const SHIP_PATH = 'M24 4 L19 16 L17 18 L17 38 L19 40 L29 40 L31 38 L31 18 L29 16 Z';
 
 const VESSEL_CATEGORIES = [
+  { category: 'Military', color: '#f59e0b' },
+  { category: 'Law Enforcement', color: '#dc2626' },
   { category: 'Cargo', color: '#22c55e' },
   { category: 'Tanker', color: '#ef4444' },
   { category: 'Passenger', color: '#3b82f6' },

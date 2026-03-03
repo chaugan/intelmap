@@ -69,6 +69,8 @@ const CACHE_TTL = 30000; // 30 seconds
 function getShipTypeCategory(shipType) {
   if (shipType == null) return 'Other';
   const code = Number(shipType);
+  if (code === 35) return 'Military';
+  if (code === 55) return 'Law Enforcement';
   if (code === 30) return 'Fishing';
   if (code === 36 || code === 37) return 'Sailing/Pleasure';
   const firstDigit = Math.floor(code / 10);
