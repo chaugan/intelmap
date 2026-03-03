@@ -517,7 +517,7 @@ export default function VesselActivityPanel() {
         {analysisData && totalAnomalies > 0 && (
           <div className="border-t border-slate-700">
             <button
-              onClick={() => setExpandedSection('anomalies')}
+              onClick={() => setExpandedSection(expandedSection === 'anomalies' ? 'entered' : 'anomalies')}
               className={`w-full px-3 py-2 text-left flex items-center justify-between ${
                 expandedSection === 'anomalies' ? 'bg-amber-600/20' : 'hover:bg-slate-700/50'
               }`}
