@@ -172,7 +172,7 @@ function VesselItem({ vessel, analysis, onFocus, lang, isLoading }) {
     <div className="border-b border-slate-700/50 last:border-0">
       <button
         onClick={handleClick}
-        className="w-full text-left px-3 py-2 hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+        className="w-full text-left px-3 py-2 hover:bg-slate-700/50 transition-colors flex items-center gap-2 cursor-pointer"
       >
         <div className="flex-1 min-w-0">
           <div className="text-sm text-white truncate">
@@ -541,7 +541,12 @@ export default function VesselActivityPanel() {
                   const vessel = vesselPositions[mmsi];
                   return (
                     <div key={mmsi} className="space-y-1">
-                      <div className="text-slate-300 font-medium">{vessel?.name || `MMSI ${mmsi}`}</div>
+                      <button
+                        onClick={() => handleFocusVessel(mmsi, vessel?.coordinates)}
+                        className="text-slate-300 font-medium hover:text-cyan-400 cursor-pointer transition-colors"
+                      >
+                        {vessel?.name || `MMSI ${mmsi}`}
+                      </button>
                       {anomalies.speedChanges.length > 0 && (
                         <div className="text-amber-400 pl-2">
                           {anomalies.speedChanges.length}x {t('vesselActivity.speedChange', lang)}
