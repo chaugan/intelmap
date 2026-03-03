@@ -102,6 +102,42 @@ function detectAnomalies(trackPoints, bounds) {
   return anomalies;
 }
 
+// Check if line segment crosses any box edge (for pass-through detection)
+function segmentCrossesBox(p1, p2, bounds) {
+  const { west, east, north, south } = bounds;
+  const [x1, y1] = p1;
+  const [x2, y2] = p2;
+
+  // Check intersection with each edge
+  const checkHorizontal = (y, xMin, xMax) => {
+    if ((y1 <= y && y2 >= y) || (y1 >= y && y2 <= y)) {
+      if (y1 === y2) return null;
+      const x = x1 + (y - y1) * (x2 - x1) / (y2 - y1);
+      if (x >= xMin && x <= xMax) return [x, y];
+    }
+    return null;
+  };
+
+  const checkVertical = (x, yMin, yMax) => {
+    if ((x1 <= x && x2 >= x) || (x1 >= x && x2 <= x)) {
+      if (x1 === x2) return null;
+      const y = y1 + (x - x1) * (y2 - y1) / (x2 - x1);
+      if (y >= yMin && y <= yMax) return [x, y];
+    }
+    return null;
+  };
+
+  // Find all intersection points with box edges
+  const intersections = [
+    checkHorizontal(north, west, east),
+    checkHorizontal(south, west, east),
+    checkVertical(west, south, north),
+    checkVertical(east, south, north),
+  ].filter(Boolean);
+
+  return intersections;
+}
+
 // Analyze vessel track for entry/exit events
 function analyzeVesselTrack(trackPoints, bounds) {
   if (!trackPoints || trackPoints.length < 2) return { events: [], currentlyInside: false, timeInBox: 0, firstSeen: null, lastSeen: null };
@@ -122,6 +158,7 @@ function analyzeVesselTrack(trackPoints, bounds) {
     const isInside = isInBox(pt.coordinates);
 
     if (!wasInside && isInside) {
+      // Clear entry: was outside, now inside
       events.push({
         type: 'entry',
         timestamp: pt.timestamp,
@@ -130,14 +167,35 @@ function analyzeVesselTrack(trackPoints, bounds) {
       lastInBoxTime = new Date(pt.timestamp);
       if (!firstSeen) firstSeen = pt.timestamp;
     } else if (wasInside && !isInside) {
+      // Clear exit: was inside, now outside
       events.push({
         type: 'exit',
         timestamp: pt.timestamp,
-        coordinates: prevPt.coordinates, // Use last point inside
+        coordinates: prevPt.coordinates,
       });
       if (lastInBoxTime) {
         timeInBox += (new Date(pt.timestamp) - lastInBoxTime) / 60000;
         lastInBoxTime = null;
+      }
+    } else if (!wasInside && !isInside) {
+      // Both points outside - check if segment passes THROUGH the box
+      const crossings = segmentCrossesBox(prevPt.coordinates, pt.coordinates, bounds);
+      if (crossings.length >= 2) {
+        // Vessel crossed through the box (entered and exited between two points)
+        // Interpolate timestamp for midpoint
+        const midTime = new Date((new Date(prevPt.timestamp).getTime() + new Date(pt.timestamp).getTime()) / 2);
+        events.push({
+          type: 'entry',
+          timestamp: midTime.toISOString(),
+          coordinates: crossings[0],
+        });
+        events.push({
+          type: 'exit',
+          timestamp: midTime.toISOString(),
+          coordinates: crossings[1],
+        });
+        if (!firstSeen) firstSeen = midTime.toISOString();
+        lastSeen = midTime.toISOString();
       }
     }
 
@@ -354,13 +412,56 @@ export default function VesselActivityPanel() {
       const allAnomalies = {};
       const relevantPositions = {};
 
-      // Helper to check if any track point is inside the monitoring box
+      // Helper to check if a line segment intersects a horizontal or vertical line
+      const lineSegmentIntersects = (p1, p2, isHorizontal, value, min, max) => {
+        const [x1, y1] = p1;
+        const [x2, y2] = p2;
+        if (isHorizontal) {
+          // Check intersection with horizontal line y = value
+          if ((y1 <= value && y2 >= value) || (y1 >= value && y2 <= value)) {
+            if (y1 === y2) return false;
+            const x = x1 + (value - y1) * (x2 - x1) / (y2 - y1);
+            return x >= min && x <= max;
+          }
+        } else {
+          // Check intersection with vertical line x = value
+          if ((x1 <= value && x2 >= value) || (x1 >= value && x2 <= value)) {
+            if (x1 === x2) return false;
+            const y = y1 + (value - x1) * (y2 - y1) / (x2 - x1);
+            return y >= min && y <= max;
+          }
+        }
+        return false;
+      };
+
+      // Helper to check if trace intersects the monitoring box
+      // Checks both points inside box AND line segments crossing box boundaries
       const traceIntersectsBox = (trackPoints) => {
         const { west, east, north, south } = bounds;
-        return trackPoints.some(pt => {
-          const [lng, lat] = pt.coordinates;
-          return lng >= west && lng <= east && lat >= south && lat <= north;
-        });
+
+        for (let i = 0; i < trackPoints.length; i++) {
+          const [lng, lat] = trackPoints[i].coordinates;
+
+          // Check if point is inside box
+          if (lng >= west && lng <= east && lat >= south && lat <= north) {
+            return true;
+          }
+
+          // Check if line segment from previous point crosses box boundary
+          if (i > 0) {
+            const p1 = trackPoints[i - 1].coordinates;
+            const p2 = trackPoints[i].coordinates;
+
+            // Check intersection with each of the 4 box edges
+            if (lineSegmentIntersects(p1, p2, true, north, west, east) ||  // top edge
+                lineSegmentIntersects(p1, p2, true, south, west, east) ||  // bottom edge
+                lineSegmentIntersects(p1, p2, false, west, south, north) || // left edge
+                lineSegmentIntersects(p1, p2, false, east, south, north)) { // right edge
+              return true;
+            }
+          }
+        }
+        return false;
       };
 
       for (const mmsi of mmsis) {
