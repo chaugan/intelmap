@@ -117,16 +117,14 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
   useEffect(() => {
     if (!containerRef.current || !selectedPoint) return;
 
-    // Use a custom style with raster tiles and explicit CORS for export support
+    // Use proxied tiles to avoid CORS issues for canvas export
     const darkStyle = {
       version: 8,
       sources: {
-        'osm-tiles': {
+        'proxy-tiles': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            '/api/tiles/carto-dark/{z}/{x}/{y}.png',
           ],
           tileSize: 256,
           attribution: '&copy; CartoDB &copy; OpenStreetMap',
@@ -134,9 +132,9 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
       },
       layers: [
         {
-          id: 'osm-tiles-layer',
+          id: 'proxy-tiles-layer',
           type: 'raster',
-          source: 'osm-tiles',
+          source: 'proxy-tiles',
           minzoom: 0,
           maxzoom: 19,
         },
@@ -151,13 +149,6 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
       interactive: true,
       attributionControl: false,
       preserveDrawingBuffer: true, // Required for canvas export
-      crossSourceCollisions: false,
-      transformRequest: (url, resourceType) => {
-        if (resourceType === 'Tile') {
-          return { url, credentials: 'omit' };
-        }
-        return { url };
-      },
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');

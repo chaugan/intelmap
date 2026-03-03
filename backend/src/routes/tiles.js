@@ -355,4 +355,56 @@ router.get('/snowdepth-at', async (req, res) => {
   }
 });
 
+// CartoDB dark tile cache (for mini-map export)
+const cartoCache = new Map();
+const CARTO_CACHE_MAX = 1000;
+const CARTO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function cartoCacheGet(key) {
+  const entry = cartoCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CARTO_CACHE_TTL) { cartoCache.delete(key); return null; }
+  return entry.buf;
+}
+
+function cartoCacheSet(key, buf) {
+  if (cartoCache.size >= CARTO_CACHE_MAX) {
+    const oldest = cartoCache.keys().next().value;
+    cartoCache.delete(oldest);
+  }
+  cartoCache.set(key, { buf, ts: Date.now() });
+}
+
+// CartoDB dark tiles proxy — enables canvas export without CORS issues
+router.get('/carto-dark/:z/:x/:y.png', async (req, res) => {
+  try {
+    const z = parseInt(req.params.z);
+    const x = parseInt(req.params.x);
+    const y = parseInt(req.params.y);
+    const cacheKey = `carto/${z}/${x}/${y}`;
+
+    const cached = cartoCacheGet(cacheKey);
+    if (cached) {
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(cached);
+    }
+
+    // Use one of the CartoDB subdomains
+    const subdomain = ['a', 'b', 'c'][Math.floor(Math.random() * 3)];
+    const url = `https://${subdomain}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}@2x.png`;
+
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).send('Tile fetch error');
+
+    const buf = Buffer.from(await response.arrayBuffer());
+    cartoCacheSet(cacheKey, buf);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch {
+    res.status(502).send('CartoDB proxy error');
+  }
+});
+
 export default router;
