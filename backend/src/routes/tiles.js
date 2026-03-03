@@ -29,7 +29,12 @@ router.get('/elevation', async (req, res) => {
     const response = await fetch(url);
     if (response.ok) {
       const data = await response.json();
-      return res.json({ elevation: data.punkter?.[0]?.z ?? data.hoyde ?? null });
+      let elevation = data.punkter?.[0]?.z ?? data.hoyde ?? null;
+      // Treat ocean (negative elevation) as sea level (0m)
+      if (elevation !== null && elevation < 0) {
+        elevation = 0;
+      }
+      return res.json({ elevation });
     }
     // Fallback: return null if service unavailable
     res.json({ elevation: null });
