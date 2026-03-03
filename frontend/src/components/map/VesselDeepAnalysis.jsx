@@ -100,6 +100,7 @@ function HistoricalMiniMap({ selectedPoint, trackPoints, selectedIndex, baseLaye
       zoom: 11,
       interactive: true,
       attributionControl: false,
+      preserveDrawingBuffer: true, // Required for canvas export
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');

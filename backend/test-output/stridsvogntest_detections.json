@@ -1,0 +1,52 @@
+{
+  "image": "stridsvogntest.jpg",
+  "labels": [
+    "militæret",
+    "stridsvogn",
+    "personer",
+    "militære kjøretøy",
+    "tank",
+    "beltedrevet kjøretøy",
+    "CV90",
+    "panservogn"
+  ],
+  "inferenceTime": 1550.6,
+  "detections": [
+    {
+      "label": "CV90",
+      "bbox": [
+        443,
+        354,
+        600,
+        474
+      ]
+    },
+    {
+      "label": "tank",
+      "bbox": [
+        443,
+        354,
+        600,
+        474
+      ]
+    },
+    {
+      "label": "CV90",
+      "bbox": [
+        368,
+        236,
+        413,
+        280
+      ]
+    },
+    {
+      "label": "tank",
+      "bbox": [
+        368,
+        236,
+        413,
+        280
+      ]
+    }
+  ]
+}
