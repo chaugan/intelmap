@@ -446,14 +446,9 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     const rotation = selPt.heading || selPt.course || 0;
 
     // SVG with transparent background (overlays on static map image)
+    // Use solid yellow for past trace (SVG gradients don't follow path like MapLibre's line-progress)
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <defs>
-        <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#06b6d4"/>
-          <stop offset="100%" stop-color="#fbbf24"/>
-        </linearGradient>
-      </defs>
-      <path d="${pastPath}" fill="none" stroke="url(#traceGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${pastPath}" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="${futurePath}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" stroke-linecap="round"/>
       <g transform="translate(${vx},${vy}) rotate(${rotation})">
         <path d="M0,-12 L-5,0 L-4,2 L-4,14 L-3,16 L3,16 L4,14 L4,2 L5,0 Z" fill="#fbbf24" stroke="#000" stroke-width="1.5"/>
@@ -943,13 +938,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
             <div className="flex items-center gap-4 text-slate-400">
               <div className="flex items-center gap-1.5">
                 <svg width="32" height="4" className="flex-shrink-0">
-                  <defs>
-                    <linearGradient id="pastGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#06b6d4"/>
-                      <stop offset="100%" stopColor="#fbbf24"/>
-                    </linearGradient>
-                  </defs>
-                  <line x1="0" y1="2" x2="32" y2="2" stroke="url(#pastGrad)" strokeWidth="3" strokeLinecap="round"/>
+                  <line x1="0" y1="2" x2="32" y2="2" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round"/>
                 </svg>
                 <span>{lang === 'no' ? 'Fortid' : 'Past'}</span>
               </div>

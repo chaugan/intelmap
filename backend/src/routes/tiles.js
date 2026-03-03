@@ -422,44 +422,65 @@ router.get('/static-map', async (req, res) => {
     const minTileY = Math.floor((centerY - halfH) / tileSize);
     const maxTileY = Math.floor((centerY + halfH) / tileSize);
 
-    // Fetch all needed tiles
-    const tiles = [];
-    const tilePromises = [];
+    // Tile images are @2x, so actual tile size is 512
+    const actualTileSize = 512;
+    const numTilesX = maxTileX - minTileX + 1;
+    const numTilesY = maxTileY - minTileY + 1;
+
+    // Fetch all needed tiles and organize by row
+    const tileGrid = [];
     for (let ty = minTileY; ty <= maxTileY; ty++) {
+      const rowPromises = [];
       for (let tx = minTileX; tx <= maxTileX; tx++) {
         const subdomain = ['a', 'b', 'c'][(tx + ty) % 3];
         const url = `https://${subdomain}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}@2x.png`;
-        tilePromises.push(
+        rowPromises.push(
           fetch(url)
             .then(r => r.ok ? r.arrayBuffer() : null)
-            .then(buf => buf ? { tx, ty, buf: Buffer.from(buf) } : null)
+            .then(buf => buf ? sharp(Buffer.from(buf)).resize(actualTileSize, actualTileSize).png().toBuffer() : null)
             .catch(() => null)
         );
       }
+      tileGrid.push(Promise.all(rowPromises));
     }
 
-    const tileResults = await Promise.all(tilePromises);
-    const validTiles = tileResults.filter(t => t !== null);
+    const rows = await Promise.all(tileGrid);
 
-    if (validTiles.length === 0) {
-      return res.status(502).json({ error: 'Failed to fetch tiles' });
+    // Create placeholder for missing tiles
+    const placeholder = await sharp({
+      create: { width: actualTileSize, height: actualTileSize, channels: 4, background: { r: 30, g: 41, b: 59, alpha: 1 } }
+    }).png().toBuffer();
+
+    // Join tiles horizontally for each row, then vertically
+    const rowImages = await Promise.all(rows.map(async (row) => {
+      const tiles = row.map(t => t || placeholder);
+      if (tiles.length === 1) return tiles[0];
+      // Join horizontally
+      const first = tiles[0];
+      const rest = tiles.slice(1).map(t => ({ input: t, gravity: 'east' }));
+      return sharp(first)
+        .extend({ right: actualTileSize * (tiles.length - 1), background: { r: 30, g: 41, b: 59, alpha: 1 } })
+        .composite(rest.map((t, i) => ({ input: t.input, left: actualTileSize * (i + 1), top: 0 })))
+        .png()
+        .toBuffer();
+    }));
+
+    // Join rows vertically
+    let compositeImage;
+    if (rowImages.length === 1) {
+      compositeImage = rowImages[0];
+    } else {
+      const first = rowImages[0];
+      compositeImage = await sharp(first)
+        .extend({ bottom: actualTileSize * (rowImages.length - 1), background: { r: 30, g: 41, b: 59, alpha: 1 } })
+        .composite(rowImages.slice(1).map((img, i) => ({ input: img, left: 0, top: actualTileSize * (i + 1) })))
+        .png()
+        .toBuffer();
     }
 
-    // Create composite image
-    // Tile images are @2x, so actual tile size is 512
-    const actualTileSize = 512;
-    const compositeWidth = (maxTileX - minTileX + 1) * actualTileSize;
-    const compositeHeight = (maxTileY - minTileY + 1) * actualTileSize;
-
-    // Resize each tile to exactly 512x512 to ensure consistency
-    const composites = await Promise.all(validTiles.map(async (t) => ({
-      input: await sharp(t.buf).resize(actualTileSize, actualTileSize).toBuffer(),
-      left: (t.tx - minTileX) * actualTileSize,
-      top: (t.ty - minTileY) * actualTileSize,
-    })));
-
-    // Calculate crop region (the visible area centered on our point)
-    // Account for @2x tiles - center the output on centerX,centerY
+    // Calculate crop region centered on our point
+    const compositeWidth = numTilesX * actualTileSize;
+    const compositeHeight = numTilesY * actualTileSize;
     const centerInCompositeX = (centerX - minTileX * tileSize) * 2;
     const centerInCompositeY = (centerY - minTileY * tileSize) * 2;
     const extractLeft = Math.max(0, Math.round(centerInCompositeX - w));
@@ -467,26 +488,12 @@ router.get('/static-map', async (req, res) => {
     const extractWidth = Math.min(w * 2, compositeWidth - extractLeft);
     const extractHeight = Math.min(h * 2, compositeHeight - extractTop);
 
-    // Ensure we have valid dimensions
     if (extractWidth <= 0 || extractHeight <= 0) {
       return res.status(400).json({ error: 'Invalid extract dimensions' });
     }
 
-    const result = await sharp({
-      create: {
-        width: compositeWidth,
-        height: compositeHeight,
-        channels: 4,
-        background: { r: 30, g: 41, b: 59, alpha: 1 }, // #1e293b fallback
-      },
-    })
-      .composite(composites)
-      .extract({
-        left: extractLeft,
-        top: extractTop,
-        width: extractWidth,
-        height: extractHeight,
-      })
+    const result = await sharp(compositeImage)
+      .extract({ left: extractLeft, top: extractTop, width: extractWidth, height: extractHeight })
       .resize(w, h)
       .png()
       .toBuffer();
