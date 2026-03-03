@@ -226,7 +226,7 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
 
   return (
     <div className="relative">
-      <div ref={containerRef} className="w-full h-64 rounded-lg overflow-hidden border border-slate-600" />
+      <div ref={containerRef} className="w-full h-96 rounded-lg overflow-hidden border border-slate-600" />
       {/* Open in main map button */}
       <button
         onClick={onOpenInMainMap}
@@ -445,9 +445,8 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     const [vx, vy] = project(selPt.coordinates);
     const rotation = selPt.heading || selPt.course || 0;
 
-    // SVG with dark background (since map capture fails), track lines, and vessel
+    // SVG with transparent background (overlays on static map image)
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="100%" height="100%" fill="#1e293b"/>
       <defs>
         <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#06b6d4"/>
@@ -516,46 +515,43 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         const svgHeight = Math.round(mapRect.height);
         debug.push(`[11] SVG params: offset=${offsetX},${offsetY}, size=${svgWidth}x${svgHeight}`);
 
-        // Try to capture the actual map canvas
-        // Force a render first using the map ref
-        if (miniMapRef.current?.forceRender) {
-          try {
-            await miniMapRef.current.forceRender();
-            debug.push('[11a] Forced map render');
-          } catch (e) {
-            debug.push(`[11a] Force render failed: ${e.message}`);
-          }
+        // Fetch static map image from backend
+        let mapViewState = null;
+        if (miniMapRef.current?.getMapViewState) {
+          mapViewState = miniMapRef.current.getMapViewState();
+          debug.push(`[11a] Map view: center=${JSON.stringify(mapViewState?.center)}, zoom=${mapViewState?.zoom?.toFixed(1)}`);
         }
 
-        const mapCanvas = containerRef.current.querySelector('.maplibregl-canvas');
-        if (mapCanvas) {
+        if (mapViewState) {
           try {
-            debug.push(`[11b] Found map canvas: ${mapCanvas.width}x${mapCanvas.height}`);
+            const staticMapUrl = `/api/tiles/static-map?lat=${mapViewState.center[1]}&lng=${mapViewState.center[0]}&zoom=${Math.round(mapViewState.zoom)}&width=${svgWidth}&height=${svgHeight}`;
+            debug.push(`[11b] Fetching static map: ${staticMapUrl}`);
 
-            // Sample the map canvas directly to see if it has content
-            try {
-              const mapCtx = mapCanvas.getContext('webgl', { preserveDrawingBuffer: true })
-                          || mapCanvas.getContext('webgl2', { preserveDrawingBuffer: true });
-              if (mapCtx) {
-                const pixels = new Uint8Array(4);
-                mapCtx.readPixels(mapCanvas.width / 2, mapCanvas.height / 2, 1, 1, mapCtx.RGBA, mapCtx.UNSIGNED_BYTE, pixels);
-                debug.push(`[11b2] Map canvas center pixel (WebGL): rgba(${pixels[0]},${pixels[1]},${pixels[2]},${pixels[3]})`);
-              }
-            } catch (sampleErr) {
-              debug.push(`[11b2] Map canvas sample failed: ${sampleErr.message}`);
+            const mapResponse = await fetch(staticMapUrl);
+            if (mapResponse.ok) {
+              const mapBlob = await mapResponse.blob();
+              const mapImageUrl = URL.createObjectURL(mapBlob);
+              const mapImage = new Image();
+              await new Promise((resolve, reject) => {
+                mapImage.onload = resolve;
+                mapImage.onerror = reject;
+                mapImage.src = mapImageUrl;
+              });
+              ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+              URL.revokeObjectURL(mapImageUrl);
+              debug.push(`[11c] Static map drawn: ${mapImage.width}x${mapImage.height}`);
+
+              // Sample to verify
+              const afterMapSample = ctx.getImageData(Math.floor(offsetX) + 100, Math.floor(offsetY) + 100, 1, 1);
+              debug.push(`[11d] After map: rgba(${afterMapSample.data[0]},${afterMapSample.data[1]},${afterMapSample.data[2]},${afterMapSample.data[3]})`);
+            } else {
+              debug.push(`[11b] Static map fetch failed: ${mapResponse.status}`);
             }
-
-            ctx.drawImage(mapCanvas, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
-            debug.push('[11c] Map canvas drawn to export canvas');
-
-            // Sample the export canvas after drawing map
-            const afterMapSample = ctx.getImageData(Math.floor(offsetX) + 100, Math.floor(offsetY) + 100, 1, 1);
-            debug.push(`[11c2] Export canvas after map draw: rgba(${afterMapSample.data[0]},${afterMapSample.data[1]},${afterMapSample.data[2]},${afterMapSample.data[3]})`);
           } catch (mapErr) {
-            debug.push(`[11c] Map canvas draw failed: ${mapErr.message}`);
+            debug.push(`[11c] Static map error: ${mapErr.message}`);
           }
         } else {
-          debug.push('[11b] No map canvas found');
+          debug.push('[11a] No map view state available');
         }
 
         // Get actual map view state from mini-map if available

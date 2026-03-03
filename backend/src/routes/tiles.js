@@ -1,6 +1,23 @@
 import { Router } from 'express';
 import sharp from 'sharp';
 
+// Helper to convert lng/lat to tile coordinates
+function lngLatToTile(lng, lat, zoom) {
+  const x = Math.floor((lng + 180) / 360 * Math.pow(2, zoom));
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * Math.pow(2, zoom));
+  return { x, y };
+}
+
+// Helper to convert tile to lng/lat (top-left corner)
+function tileToLngLat(x, y, zoom) {
+  const n = Math.pow(2, zoom);
+  const lng = x / n * 360 - 180;
+  const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+  const lat = latRad * 180 / Math.PI;
+  return { lng, lat };
+}
+
 const router = Router();
 
 // Elevation lookup via Kartverket
@@ -374,6 +391,104 @@ function cartoCacheSet(key, buf) {
   }
   cartoCache.set(key, { buf, ts: Date.now() });
 }
+
+// Static map image generator — combines tiles into a single image
+router.get('/static-map', async (req, res) => {
+  try {
+    const { lat, lng, zoom, width, height } = req.query;
+    const centerLat = parseFloat(lat);
+    const centerLng = parseFloat(lng);
+    const z = Math.min(18, Math.max(0, parseInt(zoom) || 11));
+    const w = Math.min(2000, Math.max(100, parseInt(width) || 600));
+    const h = Math.min(2000, Math.max(100, parseInt(height) || 400));
+
+    if (isNaN(centerLat) || isNaN(centerLng)) {
+      return res.status(400).json({ error: 'lat and lng required' });
+    }
+
+    const tileSize = 256;
+    const scale = Math.pow(2, z);
+
+    // Convert center to pixel coordinates
+    const centerX = ((centerLng + 180) / 360) * scale * tileSize;
+    const latRad = centerLat * Math.PI / 180;
+    const centerY = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale * tileSize;
+
+    // Calculate tile range needed
+    const halfW = w / 2;
+    const halfH = h / 2;
+    const minTileX = Math.floor((centerX - halfW) / tileSize);
+    const maxTileX = Math.floor((centerX + halfW) / tileSize);
+    const minTileY = Math.floor((centerY - halfH) / tileSize);
+    const maxTileY = Math.floor((centerY + halfH) / tileSize);
+
+    // Fetch all needed tiles
+    const tiles = [];
+    const tilePromises = [];
+    for (let ty = minTileY; ty <= maxTileY; ty++) {
+      for (let tx = minTileX; tx <= maxTileX; tx++) {
+        const subdomain = ['a', 'b', 'c'][(tx + ty) % 3];
+        const url = `https://${subdomain}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}@2x.png`;
+        tilePromises.push(
+          fetch(url)
+            .then(r => r.ok ? r.arrayBuffer() : null)
+            .then(buf => buf ? { tx, ty, buf: Buffer.from(buf) } : null)
+            .catch(() => null)
+        );
+      }
+    }
+
+    const tileResults = await Promise.all(tilePromises);
+    const validTiles = tileResults.filter(t => t !== null);
+
+    if (validTiles.length === 0) {
+      return res.status(502).json({ error: 'Failed to fetch tiles' });
+    }
+
+    // Create composite image
+    // Tile images are @2x, so actual tile size is 512
+    const actualTileSize = 512;
+    const compositeWidth = (maxTileX - minTileX + 1) * actualTileSize;
+    const compositeHeight = (maxTileY - minTileY + 1) * actualTileSize;
+
+    const composites = validTiles.map(t => ({
+      input: t.buf,
+      left: (t.tx - minTileX) * actualTileSize,
+      top: (t.ty - minTileY) * actualTileSize,
+    }));
+
+    // Calculate crop region (the visible area centered on our point)
+    // Account for @2x tiles
+    const offsetX = Math.round((centerX - minTileX * tileSize) * 2 - w);
+    const offsetY = Math.round((centerY - minTileY * tileSize) * 2 - h);
+
+    const result = await sharp({
+      create: {
+        width: compositeWidth,
+        height: compositeHeight,
+        channels: 4,
+        background: { r: 30, g: 41, b: 59, alpha: 1 }, // #1e293b fallback
+      },
+    })
+      .composite(composites)
+      .extract({
+        left: Math.max(0, offsetX),
+        top: Math.max(0, offsetY),
+        width: Math.min(w * 2, compositeWidth - offsetX),
+        height: Math.min(h * 2, compositeHeight - offsetY),
+      })
+      .resize(w, h)
+      .png()
+      .toBuffer();
+
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(result);
+  } catch (err) {
+    console.error('Static map error:', err);
+    res.status(500).json({ error: 'Static map generation failed' });
+  }
+});
 
 // CartoDB dark tiles proxy — enables canvas export without CORS issues
 router.get('/carto-dark/:z/:x/:y.png', async (req, res) => {
