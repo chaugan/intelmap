@@ -495,23 +495,42 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
   // Export with map canvas compositing
   const handleSaveReport = async () => {
-    if (!containerRef.current) return;
+    // DEBUG: Collect debug info
+    const debug = [];
+    debug.push(`[1] handleSaveReport called at ${new Date().toISOString()}`);
+    debug.push(`[2] containerRef.current: ${!!containerRef.current}`);
+    debug.push(`[3] expanded: ${expanded}, selectedIndex: ${selectedIndex}, trackPoints.length: ${trackPoints?.length}`);
+
+    if (!containerRef.current) {
+      debug.push('[4] EARLY RETURN - no containerRef');
+      alert('Export debug:\n' + debug.join('\n'));
+      return;
+    }
     setExporting(true);
+
     try {
       const containerRect = containerRef.current.getBoundingClientRect();
+      debug.push(`[5] containerRect: ${JSON.stringify({w: containerRect.width, h: containerRect.height})}`);
 
       // Find the map container element to get its position
       const mapContainer = containerRef.current.querySelector('.maplibregl-map');
-      const mapRect = mapContainer?.getBoundingClientRect();
+      debug.push(`[6] mapContainer found: ${!!mapContainer}`);
 
+      const mapRect = mapContainer?.getBoundingClientRect();
+      debug.push(`[7] mapRect: ${mapRect ? JSON.stringify({w: mapRect.width, h: mapRect.height, t: mapRect.top, l: mapRect.left}) : 'null'}`);
+
+      debug.push('[8] Starting html2canvas...');
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
         backgroundColor: '#0f172a',
         useCORS: true,
         allowTaint: true,
       });
+      debug.push(`[9] html2canvas done, canvas size: ${canvas.width}x${canvas.height}`);
 
       // Generate and composite SVG track visualization over the map area
+      debug.push(`[10] Checking conditions: mapRect=${!!mapRect}, selectedIndex=${selectedIndex}`);
+
       if (mapRect && selectedIndex != null) {
         const ctx = canvas.getContext('2d');
         const scale = 2;
@@ -519,18 +538,37 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         const offsetY = (mapRect.top - containerRect.top) * scale;
         const svgWidth = Math.round(mapRect.width);
         const svgHeight = Math.round(mapRect.height);
+        debug.push(`[11] SVG params: offset=${offsetX},${offsetY}, size=${svgWidth}x${svgHeight}`);
 
         const svgString = generateTrackSVG(svgWidth, svgHeight);
+        debug.push(`[12] SVG generated: ${svgString ? svgString.length + ' chars' : 'null'}`);
+
         if (svgString) {
-          const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
-          const mapImage = new Image();
-          await new Promise((resolve, reject) => {
-            mapImage.onload = resolve;
-            mapImage.onerror = reject;
-            mapImage.src = svgDataUrl;
-          });
-          ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+          try {
+            const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+            debug.push(`[13] SVG dataUrl length: ${svgDataUrl.length}`);
+
+            const mapImage = new Image();
+            await new Promise((resolve, reject) => {
+              mapImage.onload = () => {
+                debug.push(`[14] Image loaded: ${mapImage.width}x${mapImage.height}`);
+                resolve();
+              };
+              mapImage.onerror = (e) => {
+                debug.push(`[14] Image load ERROR: ${e}`);
+                reject(e);
+              };
+              mapImage.src = svgDataUrl;
+            });
+
+            ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+            debug.push('[15] drawImage completed');
+          } catch (svgErr) {
+            debug.push(`[SVG ERROR] ${svgErr.message}`);
+          }
         }
+      } else {
+        debug.push('[11] SKIPPED SVG - conditions not met');
       }
 
       const link = document.createElement('a');
@@ -538,8 +576,19 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       link.download = `vessel_analysis_${vessel?.mmsi || 'unknown'}_${localTime}.png`;
       link.href = canvas.toDataURL('image/png');
+      debug.push(`[16] Final canvas dataUrl length: ${link.href.length}`);
       link.click();
+      debug.push('[17] Download triggered');
+
+      // Also download debug log
+      const debugLink = document.createElement('a');
+      debugLink.download = `vessel_analysis_DEBUG_${localTime}.txt`;
+      debugLink.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(debug.join('\n'));
+      debugLink.click();
+
     } catch (err) {
+      debug.push(`[ERROR] ${err.name}: ${err.message}\n${err.stack}`);
+      alert('Export error:\n' + debug.join('\n'));
       console.error('Export error:', err);
     } finally {
       setExporting(false);
