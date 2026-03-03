@@ -93,7 +93,10 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
   useImperativeHandle(ref, () => ({
     getMapImage: async () => {
       const map = mapRef.current;
-      if (!map) return null;
+      if (!map) {
+        console.warn('[VesselDeepAnalysis] No map instance');
+        return null;
+      }
 
       // Wait for map to be idle (all tiles loaded)
       await new Promise((resolve) => {
@@ -101,18 +104,23 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
           resolve();
         } else {
           map.once('idle', resolve);
+          // Timeout fallback
+          setTimeout(resolve, 3000);
         }
       });
 
       // Force a render and get the canvas
       map.triggerRepaint();
-      await new Promise(r => setTimeout(r, 100)); // Small delay to ensure render completes
+      await new Promise(r => setTimeout(r, 200)); // Delay to ensure render completes
 
       try {
         const canvas = map.getCanvas();
-        return canvas.toDataURL('image/png');
+        console.log('[VesselDeepAnalysis] Canvas size:', canvas.width, 'x', canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+        console.log('[VesselDeepAnalysis] Got dataURL, length:', dataUrl.length);
+        return dataUrl;
       } catch (err) {
-        console.error('Failed to get map image:', err);
+        console.error('[VesselDeepAnalysis] Failed to get map image:', err.name, err.message);
         return null;
       }
     },
@@ -125,15 +133,47 @@ const HistoricalMiniMap = forwardRef(function HistoricalMiniMap({ selectedPoint,
   useEffect(() => {
     if (!containerRef.current || !selectedPoint) return;
 
-    // Use OpenStreetMap (dark style) for global coverage
+    // Use a custom style with raster tiles and explicit CORS for export support
+    const darkStyle = {
+      version: 8,
+      sources: {
+        'osm-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          ],
+          tileSize: 256,
+          attribution: '&copy; CartoDB &copy; OpenStreetMap',
+        },
+      },
+      layers: [
+        {
+          id: 'osm-tiles-layer',
+          type: 'raster',
+          source: 'osm-tiles',
+          minzoom: 0,
+          maxzoom: 19,
+        },
+      ],
+    };
+
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: darkStyle,
       center: selectedPoint.coordinates,
       zoom: 11,
       interactive: true,
       attributionControl: false,
       preserveDrawingBuffer: true, // Required for canvas export
+      crossSourceCollisions: false,
+      transformRequest: (url, resourceType) => {
+        if (resourceType === 'Tile') {
+          return { url, credentials: 'omit' };
+        }
+        return { url };
+      },
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
