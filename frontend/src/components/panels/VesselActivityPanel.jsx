@@ -481,19 +481,33 @@ export default function VesselActivityPanel() {
         const trackPoints = [...trace.properties.trackPoints].reverse();
         tracesCheckedForIntersection++;
 
-        // Debug: log first vessel's trace info
-        if (tracesCheckedForIntersection === 1) {
-          console.log('Sample trace data:', {
-            mmsi,
+        // Debug: log first few vessels' trace info
+        if (tracesCheckedForIntersection <= 3) {
+          const sampleCoords = trackPoints.slice(0, 3).map(p => p.coordinates);
+          console.log(`Trace ${tracesCheckedForIntersection} (${mmsi}):`, {
             pointCount: trackPoints.length,
             firstPoint: trackPoints[0],
-            bounds,
-            sampleCoords: trackPoints.slice(0, 3).map(p => p.coordinates),
+            sampleCoords,
           });
+          // Test point-in-box manually for debugging
+          if (trackPoints.length > 0) {
+            const testPt = trackPoints[0].coordinates;
+            console.log(`  First point [${testPt}] vs bounds:`, {
+              'lng >= west': testPt[0] >= bounds.west,
+              'lng <= east': testPt[0] <= bounds.east,
+              'lat >= south': testPt[1] >= bounds.south,
+              'lat <= north': testPt[1] <= bounds.north,
+              bounds,
+            });
+          }
         }
 
         // Skip vessels whose historical track never intersected the monitoring box
-        if (!traceIntersectsBox(trackPoints)) continue;
+        const intersects = traceIntersectsBox(trackPoints);
+        if (tracesCheckedForIntersection <= 3) {
+          console.log(`  Intersects box: ${intersects}`);
+        }
+        if (!intersects) continue;
 
         // This vessel's trace intersects the box - include in analysis
         relevantPositions[mmsi] = vessel;
