@@ -796,6 +796,11 @@ export function VesselLegend({ count }) {
   const setVesselActivityDrawing = useMapStore((s) => s.setVesselActivityDrawing);
   const vesselActivityBox = useMapStore((s) => s.vesselActivityBox);
 
+  // Hide legend when activity panel is shown (to avoid overlap)
+  if (vesselActivityBox && !vesselActivityDrawing) {
+    return null;
+  }
+
   return (
     <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs">
       <div className="text-slate-400 font-semibold text-[10px] uppercase tracking-wide mb-1.5">
