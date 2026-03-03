@@ -401,22 +401,31 @@ export default function VesselActivityPanel() {
         return;
       }
 
-      // Fetch batch traces for all vessels in expanded area
-      const traceRes = await fetch('/api/ais/traces/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mmsis }),
-      });
+      // Fetch batch traces in chunks of 50 (API limit)
+      const BATCH_SIZE = 50;
+      const allTraces = {};
+      const allErrors = [];
 
-      if (!traceRes.ok) throw new Error('Failed to fetch traces');
-      const traceData = await traceRes.json();
-      const { traces, errors } = traceData;
+      for (let i = 0; i < mmsis.length; i += BATCH_SIZE) {
+        const batch = mmsis.slice(i, i + BATCH_SIZE);
+        try {
+          const traceRes = await fetch('/api/ais/traces/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mmsis: batch }),
+          });
 
-      // Check first trace data structure
-      const firstMmsi = mmsis[0];
-      const firstTrace = traces[firstMmsi];
-      const trackPoints = firstTrace?.properties?.trackPoints;
-      alert(`Traces: ${Object.keys(traces || {}).length}, First trace has ${trackPoints?.length || 0} points. Sample point: ${JSON.stringify(trackPoints?.[0])}`);
+          if (traceRes.ok) {
+            const { traces, errors } = await traceRes.json();
+            Object.assign(allTraces, traces);
+            if (errors) allErrors.push(...errors);
+          }
+        } catch (err) {
+          console.error('Batch trace error:', err);
+        }
+      }
+
+      const traces = allTraces;
 
       // Analyze each vessel - only include if trace intersects monitoring box
       const entered = [];
