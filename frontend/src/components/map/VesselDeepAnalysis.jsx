@@ -545,6 +545,16 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
         if (svgString) {
           try {
+            // Save SVG for inspection
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+            const svgBlobUrl = URL.createObjectURL(svgBlob);
+            const svgLink = document.createElement('a');
+            svgLink.download = `vessel_track_DEBUG.svg`;
+            svgLink.href = svgBlobUrl;
+            svgLink.click();
+            URL.revokeObjectURL(svgBlobUrl);
+            debug.push('[12b] SVG file download triggered');
+
             const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
             debug.push(`[13] SVG dataUrl length: ${svgDataUrl.length}`);
 
@@ -561,10 +571,17 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
               mapImage.src = svgDataUrl;
             });
 
+            debug.push(`[14b] Drawing at x=${offsetX}, y=${offsetY}, w=${svgWidth * scale}, h=${svgHeight * scale}`);
+            debug.push(`[14c] Canvas before draw size: ${canvas.width}x${canvas.height}`);
+
             ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
             debug.push('[15] drawImage completed');
+
+            // Verify something was drawn by sampling pixels
+            const imageData = ctx.getImageData(Math.floor(offsetX) + 10, Math.floor(offsetY) + 10, 1, 1);
+            debug.push(`[15b] Pixel sample at (${Math.floor(offsetX)+10}, ${Math.floor(offsetY)+10}): rgba(${imageData.data[0]},${imageData.data[1]},${imageData.data[2]},${imageData.data[3]})`);
           } catch (svgErr) {
-            debug.push(`[SVG ERROR] ${svgErr.message}`);
+            debug.push(`[SVG ERROR] ${svgErr.message}\n${svgErr.stack}`);
           }
         }
       } else {
