@@ -351,12 +351,11 @@ export default function VesselActivityPanel() {
     try {
       const { bounds } = vesselActivityBox;
 
-      // Expand search bounds significantly to catch vessels that passed through historically
-      // A vessel at 12-15 knots can travel 300-400km per day, so over 5 days that's 1500-2000km
-      // We use a minimum expansion of ~300km to catch vessels that have traveled away
-      // 300km ≈ 2.7° latitude, and ~5° longitude at Norwegian latitudes (60°N)
-      const MIN_LAT_EXPANSION = 2.7; // ~300km
-      const MIN_LNG_EXPANSION = 5.0; // ~300km at 60°N
+      // Expand search bounds to catch vessels that passed through historically
+      // Balance between coverage and API performance - ~50km expansion is reasonable
+      // 50km ≈ 0.45° latitude, ~0.9° longitude at Norwegian latitudes (60°N)
+      const MIN_LAT_EXPANSION = 0.45; // ~50km
+      const MIN_LNG_EXPANSION = 0.9; // ~50km at 60°N
 
       const latRange = bounds.north - bounds.south;
       const lngRange = bounds.east - bounds.west;
