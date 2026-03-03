@@ -436,12 +436,19 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
+      console.log('[Export] Starting export, miniMapRef.current:', miniMapRef.current);
+      console.log('[Export] expanded:', expanded, 'selectedPoint:', !!selectedPoint);
+
       // Get map image via the ref's method (handles WebGL properly)
       let mapImageDataUrl = null;
       let mapRect = null;
       if (miniMapRef.current) {
+        console.log('[Export] Calling getMapImage...');
         mapImageDataUrl = await miniMapRef.current.getMapImage();
         mapRect = miniMapRef.current.getMapRect();
+        console.log('[Export] Got mapImageDataUrl:', mapImageDataUrl?.substring(0, 50), 'mapRect:', mapRect);
+      } else {
+        console.log('[Export] miniMapRef.current is null/undefined');
       }
 
       const containerRect = containerRef.current.getBoundingClientRect();
