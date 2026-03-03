@@ -233,18 +233,31 @@ router.get('/trace/:mmsi', async (req, res) => {
 
     const points = await apiRes.json();
 
-    // Build LineString from points
-    const coordinates = [];
+    // Build LineString from points, preserving timestamp/speed data for deep analysis
+    const trackPoints = [];
     for (const pt of points) {
       if (pt.latitude != null && pt.longitude != null) {
-        coordinates.push([pt.longitude, pt.latitude]);
+        trackPoints.push({
+          coordinates: [pt.longitude, pt.latitude],
+          timestamp: pt.msgtime,
+          speed: pt.speedOverGround ?? null,
+          course: pt.courseOverGround ?? null,
+          heading: pt.trueHeading ?? null,
+        });
       }
     }
 
     const geojson = {
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates },
-      properties: { mmsi, pointCount: coordinates.length },
+      geometry: {
+        type: 'LineString',
+        coordinates: trackPoints.map(p => p.coordinates),
+      },
+      properties: {
+        mmsi,
+        pointCount: trackPoints.length,
+        trackPoints, // Full data for deep analysis
+      },
     };
 
     // Evict oldest if at capacity
@@ -257,6 +270,48 @@ router.get('/trace/:mmsi', async (req, res) => {
     res.json(geojson);
   } catch (err) {
     console.error('AIS trace error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// --- Vessel details endpoint: enriched data from myshiptracking.com ---
+const vesselDetailsCache = new Map();
+const VESSEL_DETAILS_TTL = 300000; // 5 minutes
+
+router.get('/vessel/:mmsi', async (req, res) => {
+  const mmsi = req.params.mmsi;
+  if (!/^\d{9}$/.test(mmsi)) {
+    return res.status(400).json({ error: 'Invalid MMSI — must be 9 digits' });
+  }
+
+  // Check cache
+  const cached = vesselDetailsCache.get(mmsi);
+  if (cached && Date.now() - cached.time < VESSEL_DETAILS_TTL) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const apiRes = await fetch(
+      `https://www.myshiptracking.com/requests/vesseldetailsTEST.php?type=json&mmsi=${mmsi}&return=&lang=`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+
+    if (!apiRes.ok) {
+      return res.status(502).json({ error: 'Failed to fetch vessel details' });
+    }
+
+    const data = await apiRes.json();
+
+    // Cache result (evict oldest if at capacity)
+    if (vesselDetailsCache.size >= 100) {
+      const oldest = vesselDetailsCache.keys().next().value;
+      vesselDetailsCache.delete(oldest);
+    }
+    vesselDetailsCache.set(mmsi, { data, time: Date.now() });
+
+    res.json(data);
+  } catch (err) {
+    console.error('Vessel details error:', err.message);
     res.status(502).json({ error: err.message });
   }
 });

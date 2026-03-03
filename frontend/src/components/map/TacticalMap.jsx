@@ -22,6 +22,7 @@ import SnowDepthLegend from './SnowDepthLegend.jsx';
 import AvalancheWarningsLegend from './AvalancheWarningsLegend.jsx';
 import AircraftLayer, { AircraftLegend } from './AircraftLayer.jsx';
 import VesselLayer, { VesselLegend } from './VesselLayer.jsx';
+import VesselDeepAnalysis from './VesselDeepAnalysis.jsx';
 import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
@@ -68,6 +69,8 @@ export default function TacticalMap() {
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
   const activePanel = useMapStore((s) => s.activePanel);
   const setAvalancheWarningRegion = useMapStore((s) => s.setAvalancheWarningRegion);
+  const vesselDeepAnalysis = useMapStore((s) => s.vesselDeepAnalysis);
+  const clearVesselDeepAnalysis = useMapStore((s) => s.clearVesselDeepAnalysis);
 
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
@@ -823,6 +826,14 @@ export default function TacticalMap() {
         />
       )}
       <MeasuringTool />
+      {/* Vessel Deep Analysis Panel */}
+      {vesselDeepAnalysis && (
+        <VesselDeepAnalysis
+          vessel={vesselDeepAnalysis.vessel}
+          traceData={vesselDeepAnalysis.traceData}
+          onClose={() => clearVesselDeepAnalysis()}
+        />
+      )}
     </div>
   );
 }

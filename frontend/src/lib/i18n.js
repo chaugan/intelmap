@@ -356,6 +356,20 @@ const translations = {
     'wasos.upload': 'Last opp',
     'wasos.cancel': 'Avbryt',
 
+    // Vessel Deep Analysis
+    'vessel.deepAnalysis': 'Dyp analyse',
+    'vessel.speedChart': 'Hastighetsgraf',
+    'vessel.stops': 'Stopp',
+    'vessel.stopCount': 'Antall stopp',
+    'vessel.avgSpeed': 'Gj.snitt',
+    'vessel.maxSpeed': 'Maks',
+    'vessel.trackPeriod': 'Sporingsperiode',
+    'vessel.stopDuration': 'Stoppvarighet',
+    'vessel.historicalPosition': 'Historisk posisjon',
+    'vessel.clickToSeePosition': 'Klikk p\u00e5 grafen for \u00e5 se posisjon',
+    'vessel.viewOnVesselFinder': 'Vis p\u00e5 VesselFinder',
+    'vessel.noTrackData': 'Ingen sporingsdata tilgjengelig',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -711,6 +725,20 @@ const translations = {
     'wasos.defaultDescription': 'Transfer from IntelMap',
     'wasos.upload': 'Upload',
     'wasos.cancel': 'Cancel',
+
+    // Vessel Deep Analysis
+    'vessel.deepAnalysis': 'Deep Analysis',
+    'vessel.speedChart': 'Speed Chart',
+    'vessel.stops': 'Stops',
+    'vessel.stopCount': 'Stop count',
+    'vessel.avgSpeed': 'Avg',
+    'vessel.maxSpeed': 'Max',
+    'vessel.trackPeriod': 'Track period',
+    'vessel.stopDuration': 'Stop duration',
+    'vessel.historicalPosition': 'Historical position',
+    'vessel.clickToSeePosition': 'Click chart to see position',
+    'vessel.viewOnVesselFinder': 'View on VesselFinder',
+    'vessel.noTrackData': 'No track data available',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

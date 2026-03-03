@@ -367,6 +367,7 @@ export default function VesselLayer({ data, mapRef }) {
           ${props.eta ? `<div><span style="color:#94a3b8">ETA:</span> ${props.eta}</div>` : ''}
           ${props.draught != null ? `<div><span style="color:#94a3b8">Draught:</span> ${props.draught}m</div>` : ''}
           ${dims ? `<div><span style="color:#94a3b8">Dimensions:</span> ${dims}</div>` : ''}
+          ${props.imoNumber ? `<div style="margin-top:6px"><a href="https://www.vesselfinder.com/vessels/details/${props.imoNumber}" target="_blank" rel="noopener" style="color:#22d3ee;text-decoration:none;font-size:11px">View on VesselFinder &nearr;</a></div>` : ''}
         </div>
       `;
 
@@ -379,6 +380,7 @@ export default function VesselLayer({ data, mapRef }) {
           </div>
           <div style="padding:10px 12px;position:relative">
             <div style="position:absolute;top:0px;right:4px;display:flex;gap:2px">
+              <button class="popup-analysis-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">\u{1F4CA} Analyze</button>
               <button class="popup-focus-btn" style="background:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#0ea5e9' : 'none'};border:none;color:${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '#fff' : '#94a3b8'};cursor:pointer;font-size:11px;padding:4px 8px;height:32px;display:flex;align-items:center;gap:3px;border-radius:4px;white-space:nowrap">${useMapStore.getState().focusedVesselMmsi === String(props.mmsi) ? '\u2299 Focused' : '\u2295 Focus'}</button>
               <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;padding:4px 8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px">\u00d7</button>
             </div>
@@ -407,6 +409,30 @@ export default function VesselLayer({ data, mapRef }) {
       focusBtn.addEventListener('mouseleave', () => {
         if (useMapStore.getState().focusedVesselMmsi !== mmsiStr) focusBtn.style.background = 'none';
       });
+
+      // Wire Deep Analysis button
+      const analysisBtn = popupEl.querySelector('.popup-analysis-btn');
+      analysisBtn.addEventListener('click', async () => {
+        analysisBtn.textContent = '...';
+        analysisBtn.disabled = true;
+        try {
+          const traceRes = await fetch(`/api/ais/trace/${props.mmsi}`);
+          if (!traceRes.ok) throw new Error('Failed to fetch trace');
+          const traceData = await traceRes.json();
+          useMapStore.getState().setVesselDeepAnalysis({
+            mmsi: props.mmsi,
+            vessel: props,
+            traceData,
+          });
+          removePopup();
+        } catch (err) {
+          console.error('Deep analysis error:', err);
+          analysisBtn.textContent = '\u{1F4CA} Analyze';
+          analysisBtn.disabled = false;
+        }
+      });
+      analysisBtn.addEventListener('mouseenter', () => { analysisBtn.style.background = '#475569'; });
+      analysisBtn.addEventListener('mouseleave', () => { analysisBtn.style.background = 'none'; });
 
       const point = mapRef.project(coords);
       popupEl.style.left = `${point.x}px`;

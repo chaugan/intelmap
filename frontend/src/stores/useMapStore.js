@@ -34,6 +34,7 @@ export const useMapStore = create((set) => ({
   vesselsFetchedAt: null,
   focusedVesselMmsi: null,
   hiddenVesselCategories: [],
+  vesselDeepAnalysis: null, // { mmsi, vessel, traceData } or null
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
@@ -129,6 +130,8 @@ export const useMapStore = create((set) => ({
       ? s.hiddenVesselCategories.filter((c) => c !== cat)
       : [...s.hiddenVesselCategories, cat],
   })),
+  setVesselDeepAnalysis: (data) => set({ vesselDeepAnalysis: data }),
+  clearVesselDeepAnalysis: () => set({ vesselDeepAnalysis: null }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({
