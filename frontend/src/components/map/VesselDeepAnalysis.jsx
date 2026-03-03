@@ -311,6 +311,7 @@ function DraggableAnalysisPanel({ vesselCoords, children, mapRef: mainMapRef }) 
   const onMouseDown = useCallback((e) => {
     if (!e.target.closest('.draggable-header')) return;
     if (e.target.closest('button')) return;
+    if (e.target.closest('.select-text')) return; // Allow text selection
     e.preventDefault();
     e.stopPropagation();
     setIsDragged(true);
