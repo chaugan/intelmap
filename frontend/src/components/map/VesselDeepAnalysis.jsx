@@ -431,32 +431,78 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     return trackPoints[trackPoints.length - 1].coordinates;
   }, [trackPoints]);
 
+  // Generate SVG for track visualization (used in export)
+  const generateTrackSVG = (width, height) => {
+    if (!trackPoints || trackPoints.length < 2 || selectedIndex == null) return null;
+
+    // Calculate bounds
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const pt of trackPoints) {
+      minLng = Math.min(minLng, pt.coordinates[0]);
+      maxLng = Math.max(maxLng, pt.coordinates[0]);
+      minLat = Math.min(minLat, pt.coordinates[1]);
+      maxLat = Math.max(maxLat, pt.coordinates[1]);
+    }
+
+    // Add padding
+    const padLng = (maxLng - minLng) * 0.1 || 0.01;
+    const padLat = (maxLat - minLat) * 0.1 || 0.01;
+    minLng -= padLng; maxLng += padLng;
+    minLat -= padLat; maxLat += padLat;
+
+    // Project coordinates to SVG space
+    const project = ([lng, lat]) => {
+      const x = ((lng - minLng) / (maxLng - minLng)) * width;
+      const y = height - ((lat - minLat) / (maxLat - minLat)) * height;
+      return [x, y];
+    };
+
+    // Build past trace path
+    const pastPoints = trackPoints.slice(0, selectedIndex + 1);
+    const pastPath = pastPoints.map((pt, i) => {
+      const [x, y] = project(pt.coordinates);
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    // Build future trace path
+    const futurePoints = trackPoints.slice(selectedIndex);
+    const futurePath = futurePoints.map((pt, i) => {
+      const [x, y] = project(pt.coordinates);
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    // Vessel position
+    const selPt = trackPoints[selectedIndex];
+    const [vx, vy] = project(selPt.coordinates);
+    const rotation = selPt.heading || selPt.course || 0;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="100%" height="100%" fill="#1e293b"/>
+      <defs>
+        <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#06b6d4"/>
+          <stop offset="100%" stop-color="#fbbf24"/>
+        </linearGradient>
+      </defs>
+      <path d="${pastPath}" fill="none" stroke="url(#traceGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${futurePath}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4" stroke-linecap="round"/>
+      <g transform="translate(${vx},${vy}) rotate(${rotation})">
+        <path d="M0,-12 L-5,0 L-4,2 L-4,14 L-3,16 L3,16 L4,14 L4,2 L5,0 Z" fill="#fbbf24" stroke="#000" stroke-width="1.5"/>
+      </g>
+      <text x="10" y="${height - 10}" fill="#64748b" font-size="11" font-family="sans-serif">Track: ${trackPoints.length} points</text>
+    </svg>`;
+  };
+
   // Export with map canvas compositing
   const handleSaveReport = async () => {
-    console.log('[Export] handleSaveReport called');
-    console.log('[Export] containerRef.current:', containerRef.current);
-    if (!containerRef.current) {
-      console.log('[Export] EARLY RETURN - containerRef.current is null');
-      return;
-    }
+    if (!containerRef.current) return;
     setExporting(true);
     try {
-      console.log('[Export] Starting export, miniMapRef.current:', miniMapRef.current);
-      console.log('[Export] expanded:', expanded, 'selectedPoint:', !!selectedPoint);
-
-      // Get map image via the ref's method (handles WebGL properly)
-      let mapImageDataUrl = null;
-      let mapRect = null;
-      if (miniMapRef.current) {
-        console.log('[Export] Calling getMapImage...');
-        mapImageDataUrl = await miniMapRef.current.getMapImage();
-        mapRect = miniMapRef.current.getMapRect();
-        console.log('[Export] Got mapImageDataUrl:', mapImageDataUrl?.substring(0, 50), 'mapRect:', mapRect);
-      } else {
-        console.log('[Export] miniMapRef.current is null/undefined');
-      }
-
       const containerRect = containerRef.current.getBoundingClientRect();
+
+      // Find the map container element to get its position
+      const mapContainer = containerRef.current.querySelector('.maplibregl-map');
+      const mapRect = mapContainer?.getBoundingClientRect();
 
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
@@ -465,21 +511,26 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
 
-      // Composite the map image onto the result
-      if (mapImageDataUrl && mapRect) {
+      // Generate and composite SVG track visualization over the map area
+      if (mapRect && selectedIndex != null) {
         const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
+        const svgWidth = Math.round(mapRect.width);
+        const svgHeight = Math.round(mapRect.height);
 
-        // Load the data URL as an image and draw it
-        const mapImage = new Image();
-        await new Promise((resolve, reject) => {
-          mapImage.onload = resolve;
-          mapImage.onerror = reject;
-          mapImage.src = mapImageDataUrl;
-        });
-        ctx.drawImage(mapImage, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+        const svgString = generateTrackSVG(svgWidth, svgHeight);
+        if (svgString) {
+          const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+          const mapImage = new Image();
+          await new Promise((resolve, reject) => {
+            mapImage.onload = resolve;
+            mapImage.onerror = reject;
+            mapImage.src = svgDataUrl;
+          });
+          ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+        }
       }
 
       const link = document.createElement('a');
@@ -499,15 +550,11 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     if (!containerRef.current) return;
     setExporting(true);
     try {
-      // Get map image via the ref's method (handles WebGL properly)
-      let mapImageDataUrl = null;
-      let mapRect = null;
-      if (miniMapRef.current) {
-        mapImageDataUrl = await miniMapRef.current.getMapImage();
-        mapRect = miniMapRef.current.getMapRect();
-      }
-
       const containerRect = containerRef.current.getBoundingClientRect();
+
+      // Find the map container element to get its position
+      const mapContainer = containerRef.current.querySelector('.maplibregl-map');
+      const mapRect = mapContainer?.getBoundingClientRect();
 
       const canvas = await html2canvas(containerRef.current, {
         scale: 2,
@@ -516,20 +563,26 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         allowTaint: true,
       });
 
-      // Composite the map image onto the result
-      if (mapImageDataUrl && mapRect) {
+      // Generate and composite SVG track visualization over the map area
+      if (mapRect && selectedIndex != null) {
         const ctx = canvas.getContext('2d');
         const scale = 2;
         const offsetX = (mapRect.left - containerRect.left) * scale;
         const offsetY = (mapRect.top - containerRect.top) * scale;
+        const svgWidth = Math.round(mapRect.width);
+        const svgHeight = Math.round(mapRect.height);
 
-        const mapImage = new Image();
-        await new Promise((resolve, reject) => {
-          mapImage.onload = resolve;
-          mapImage.onerror = reject;
-          mapImage.src = mapImageDataUrl;
-        });
-        ctx.drawImage(mapImage, offsetX, offsetY, mapRect.width * scale, mapRect.height * scale);
+        const svgString = generateTrackSVG(svgWidth, svgHeight);
+        if (svgString) {
+          const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+          const mapImage = new Image();
+          await new Promise((resolve, reject) => {
+            mapImage.onload = resolve;
+            mapImage.onerror = reject;
+            mapImage.src = svgDataUrl;
+          });
+          ctx.drawImage(mapImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+        }
       }
 
       const imageData = canvas.toDataURL('image/png');
