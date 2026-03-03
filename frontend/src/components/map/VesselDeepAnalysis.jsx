@@ -433,7 +433,12 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
   // Export with map canvas compositing
   const handleSaveReport = async () => {
-    if (!containerRef.current) return;
+    console.log('[Export] handleSaveReport called');
+    console.log('[Export] containerRef.current:', containerRef.current);
+    if (!containerRef.current) {
+      console.log('[Export] EARLY RETURN - containerRef.current is null');
+      return;
+    }
     setExporting(true);
     try {
       console.log('[Export] Starting export, miniMapRef.current:', miniMapRef.current);
