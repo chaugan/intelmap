@@ -503,8 +503,25 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         if (mapCanvas) {
           try {
             debug.push(`[11b] Found map canvas: ${mapCanvas.width}x${mapCanvas.height}`);
+
+            // Sample the map canvas directly to see if it has content
+            try {
+              const mapCtx = mapCanvas.getContext('webgl') || mapCanvas.getContext('webgl2');
+              if (mapCtx) {
+                const pixels = new Uint8Array(4);
+                mapCtx.readPixels(mapCanvas.width / 2, mapCanvas.height / 2, 1, 1, mapCtx.RGBA, mapCtx.UNSIGNED_BYTE, pixels);
+                debug.push(`[11b2] Map canvas center pixel (WebGL): rgba(${pixels[0]},${pixels[1]},${pixels[2]},${pixels[3]})`);
+              }
+            } catch (sampleErr) {
+              debug.push(`[11b2] Map canvas sample failed: ${sampleErr.message}`);
+            }
+
             ctx.drawImage(mapCanvas, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
-            debug.push('[11c] Map canvas drawn successfully');
+            debug.push('[11c] Map canvas drawn to export canvas');
+
+            // Sample the export canvas after drawing map
+            const afterMapSample = ctx.getImageData(Math.floor(offsetX) + 100, Math.floor(offsetY) + 100, 1, 1);
+            debug.push(`[11c2] Export canvas after map draw: rgba(${afterMapSample.data[0]},${afterMapSample.data[1]},${afterMapSample.data[2]},${afterMapSample.data[3]})`);
           } catch (mapErr) {
             debug.push(`[11c] Map canvas draw failed: ${mapErr.message}`);
           }
