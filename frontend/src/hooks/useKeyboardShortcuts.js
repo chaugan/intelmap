@@ -15,6 +15,7 @@ export function useKeyboardShortcuts() {
   const toggleTrafficInfo = useMapStore((s) => s.toggleTrafficInfo);
   const toggleAurora = useMapStore((s) => s.toggleAurora);
   const toggleRoadRestrictions = useMapStore((s) => s.toggleRoadRestrictions);
+  const toggleTrains = useMapStore((s) => s.toggleTrains);
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
   const toggleMeasuringTool = useMapStore((s) => s.toggleMeasuringTool);
   const toggleSunlight = useMapStore((s) => s.toggleSunlight);
@@ -77,6 +78,7 @@ export function useKeyboardShortcuts() {
         case 'r': toggleTrafficInfo(); break;
         case 'n': toggleAurora(); break;
         case 'x': toggleRoadRestrictions(); break;
+        case 'j': toggleTrains(); break;
         case 'd': toggleDrawingTools(); break;
         case 'm': toggleMeasuringTool(); break;
         case 'h': toggleSunlight(); break;
@@ -119,5 +121,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleSunlight, toggleHillshade, toggleTerrain, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleTrains, toggleDrawingTools, toggleMeasuringTool, toggleSunlight, toggleHillshade, toggleTerrain, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }

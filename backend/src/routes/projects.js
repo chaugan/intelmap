@@ -133,6 +133,12 @@ router.put('/:id', (req, res) => {
   if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
   updates.push("updated_at = datetime('now')");
+
+  const ALLOWED_FIELDS = ['name = ?', 'settings = ?', "updated_at = datetime('now')"];
+  if (!updates.every(u => ALLOWED_FIELDS.includes(u))) {
+    return res.status(400).json({ error: 'Invalid field' });
+  }
+
   values.push(req.params.id);
 
   db.prepare(`UPDATE projects_v2 SET ${updates.join(', ')} WHERE id = ?`).run(...values);
