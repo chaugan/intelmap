@@ -16,7 +16,7 @@ const OVERLAYS = [
   { id: 'snowDepth', toggleKey: 'toggleSnowDepth', visibleKey: 'snowDepthVisible', opacityKey: 'snowDepthOpacity', setOpacityKey: 'setSnowDepthOpacity', accent: 'accent-blue-500', shortcut: 'S' },
   { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500', shortcut: 'F' },
   { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
-  { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X', countKey: 'roadRestrictionsCount' },
+  { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X' },
 ];
 
 const OVERLAY_LABELS = {
@@ -110,7 +110,6 @@ export default function DataLayersDrawer() {
 
   // Overlay state
   const store = useMapStore();
-  const roadRestrictionsCount = useMapStore((s) => s.roadRestrictionsCount); // Direct subscription for reactivity
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const moveOverlayUp = useMapStore((s) => s.moveOverlayUp);
   const moveOverlayDown = useMapStore((s) => s.moveOverlayDown);
@@ -312,29 +311,39 @@ export default function DataLayersDrawer() {
       <div className="flex-1 overflow-y-auto">
         {/* Overlays section */}
         <div className="px-3 py-2.5 border-b border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">
-              {t('dataLayers.overlays', lang)}
-            </div>
-            {/* Hide all data layers button */}
-            {OVERLAYS.some((o) => store[o.visibleKey]) && (
-              <button
-                onClick={store.hideAllDataLayers}
-                className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
-                title={lang === 'no' ? 'Skjul alle' : 'Hide all'}
-              >
-                {lang === 'no' ? 'Skjul alle' : 'Hide all'}
-              </button>
-            )}
-          </div>
+          {(() => {
+            const activeCount = OVERLAYS.filter((o) => store[o.visibleKey]).length;
+            return (
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">
+                    {t('dataLayers.overlays', lang)}
+                  </span>
+                  {activeCount > 0 && (
+                    <span className="text-[10px] text-emerald-400 bg-emerald-900/50 px-1.5 py-0.5 rounded-full font-medium">
+                      {activeCount}
+                    </span>
+                  )}
+                </div>
+                {/* Hide all data layers button */}
+                {activeCount > 0 && (
+                  <button
+                    onClick={store.hideAllDataLayers}
+                    className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
+                    title={lang === 'no' ? 'Skjul alle' : 'Hide all'}
+                  >
+                    {lang === 'no' ? 'Skjul alle' : 'Hide all'}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
           <div className="space-y-1.5">
             {OVERLAYS.map((overlay) => {
               const visible = store[overlay.visibleKey];
               const toggle = store[overlay.toggleKey];
               const opacity = overlay.opacityKey ? store[overlay.opacityKey] : null;
               const setOpacity = overlay.setOpacityKey ? store[overlay.setOpacityKey] : null;
-              // Use direct subscription for roadRestrictions count (for reactivity)
-              const count = overlay.id === 'roadRestrictions' ? roadRestrictionsCount : (overlay.countKey ? store[overlay.countKey] : null);
 
               return (
                 <div key={overlay.id}>
@@ -360,12 +369,6 @@ export default function DataLayersDrawer() {
                     <button onClick={toggle} className={`text-sm flex-1 text-left cursor-pointer ${visible ? 'text-slate-200' : 'text-slate-500'}`}>
                       {OVERLAY_LABELS[overlay.id]?.[lang] || overlay.id}
                     </button>
-                    {/* Count badge */}
-                    {visible && count !== null && count !== undefined && (
-                      <span className="text-[10px] text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
-                        {count}
-                      </span>
-                    )}
                   </div>
                   {/* Opacity slider (when visible and has opacity) */}
                   {visible && setOpacity && (
