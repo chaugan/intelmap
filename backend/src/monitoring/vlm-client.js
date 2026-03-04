@@ -43,6 +43,21 @@ class VlmClient {
       }
     }
 
+    // Pattern: label embedded inside bbox array
+    // e.g. {"bbox": [360, 275, 408, 349, "militært kjøretøy"]}
+    const embeddedPattern = /\{"bbox":\s*\[\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*"([^"]+)"\s*\]\}/g;
+    const embeddedMatches = [...text.matchAll(embeddedPattern)];
+    if (embeddedMatches.length > 0) {
+      const objects = embeddedMatches.map(m =>
+        `{"bbox": [${m[1]}, ${m[2]}, ${m[3]}, ${m[4]}], "labels": ["${m[5]}"]}`
+      );
+      try {
+        return JSON.parse(`{"objects": [${objects.join(', ')}]}`);
+      } catch {
+        return null;
+      }
+    }
+
     return null;
   }
 
@@ -185,6 +200,13 @@ Rules:
       // Fix common JSON errors: missing ] before "labels"
       // e.g., {"bbox": [1, 2, 3, 4, "labels": [...]} -> {"bbox": [1, 2, 3, 4], "labels": [...]}
       responseText = responseText.replace(/\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*"labels"/g, '[$1, $2, $3, $4], "labels"');
+
+      // Fix label embedded inside bbox array
+      // e.g., {"bbox": [360, 275, 408, 349, "militært kjøretøy"]} -> {"bbox": [360, 275, 408, 349], "labels": ["militært kjøretøy"]}
+      responseText = responseText.replace(
+        /\["?(\d+)"?,\s*"?(\d+)"?,\s*"?(\d+)"?,\s*"?(\d+)"?,\s*"([^"]+)"\s*\]/g,
+        '[$1, $2, $3, $4], "labels": ["$5"]'
+      );
 
       // Fix malformed JSON where VLM puts multiple bbox/labels in same object
       // e.g., {"objects": [{"bbox": [...], "labels": [...], "bbox": [...], "labels": [...]}]}
