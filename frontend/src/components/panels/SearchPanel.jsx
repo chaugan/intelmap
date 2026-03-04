@@ -42,7 +42,16 @@ export default function SearchPanel() {
   };
 
   const handleSelect = (result) => {
-    flyTo(result.lon, result.lat, 15);
+    let zoom = 15; // default for Adresse
+    if (result.type && result.type !== 'Adresse') {
+      const t = result.type;
+      if (t === 'By' || t === 'Tettsted') zoom = 12;
+      else if (['Fjord', 'Dal', 'Vidde', 'Innsjø', 'Bre'].includes(t)) zoom = 11;
+      else if (['Fjell', 'Øy', 'Halvøy'].includes(t)) zoom = 12;
+      else if (['Bygd', 'Grend'].includes(t)) zoom = 13;
+      else zoom = 13;
+    }
+    flyTo(result.lon, result.lat, zoom);
   };
 
   return (

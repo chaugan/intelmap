@@ -6,6 +6,7 @@ import config, { setDbGetter } from '../config.js';
 import { hashPassword } from '../auth/passwords.js';
 import { runMigration } from './migrate.js';
 import { importAddresses } from './import-addresses.js';
+import { importPlaces } from './import-places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,6 +87,10 @@ export function initDb() {
   // Import addresses in background (don't block startup)
   const csvPath = process.env.MATRIKKEL_CSV || path.join(config.dataDir, 'addresses', 'matrikkelenAdresse.csv');
   importAddresses(csvPath).catch(err => console.error('Address import failed:', err.message));
+
+  // Import places in background (don't block startup)
+  const placesPath = process.env.PLACES_JSON || path.join(config.dataDir, 'places.json');
+  importPlaces(placesPath).catch(err => console.error('Places import failed:', err.message));
 
   return db;
 }

@@ -44,6 +44,49 @@ function parseQuery(q) {
   return result;
 }
 
+/**
+ * Check if query has a house number (indicating address search, not place search)
+ */
+function hasHouseNumber(parsed) {
+  return parsed.number != null;
+}
+
+/**
+ * Search places_fts for place names
+ */
+function searchPlaces(db, query, limit = 5) {
+  const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='places_fts'").get();
+  if (!tableCheck) return [];
+
+  const ftsQuery = query.replace(/['"]/g, '').split(/\s+/).map(w => `"${w}"*`).join(' ');
+  // Restrict FTS to name column only
+  const ftsMatch = `name : ${ftsQuery}`;
+
+  try {
+    const rows = db.prepare(`
+      SELECT p.name, p.type, p.municipality, p.county, p.lat, p.lon, rank
+      FROM places_fts f
+      JOIN places p ON p.id = f.rowid
+      WHERE places_fts MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(ftsMatch, limit);
+
+    return rows.map(r => ({
+      name: r.name,
+      type: r.type || '',
+      municipality: r.municipality || '',
+      county: r.county || '',
+      lat: r.lat,
+      lon: r.lon,
+      postcode: '',
+      city: '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
 router.get('/', (req, res) => {
   try {
     const { q } = req.query;
@@ -60,11 +103,12 @@ router.get('/', (req, res) => {
     }
 
     const parsed = parseQuery(q);
-    let results;
+    let addressResults = [];
+    let placeResults = [];
 
     if (parsed.postcode && !parsed.street) {
       // Postcode search — get distinct streets in this postcode
-      results = db.prepare(`
+      addressResults = db.prepare(`
         SELECT DISTINCT street, number, letter, postcode, city, municipality, lat, lon
         FROM addresses
         WHERE postcode = ?
@@ -72,8 +116,9 @@ router.get('/', (req, res) => {
         LIMIT 15
       `).all(parsed.postcode);
     } else if (parsed.street) {
-      // FTS search on street name
+      // FTS search on street name — restrict to street column only
       const ftsQuery = parsed.street.replace(/['"]/g, '').split(/\s+/).map(w => `"${w}"*`).join(' ');
+      const ftsMatch = `street : ${ftsQuery}`;
 
       let sql, params;
 
@@ -90,7 +135,7 @@ router.get('/', (req, res) => {
           LIMIT 15
         `;
         const cityLike = `%${parsed.city}%`;
-        params = [ftsQuery, parsed.number, cityLike, cityLike];
+        params = [ftsMatch, parsed.number, cityLike, cityLike];
       } else if (parsed.number && parsed.letter) {
         sql = `
           SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
@@ -103,7 +148,7 @@ router.get('/', (req, res) => {
           ORDER BY rank
           LIMIT 15
         `;
-        params = [ftsQuery, parsed.number, parsed.letter];
+        params = [ftsMatch, parsed.number, parsed.letter];
       } else if (parsed.number) {
         sql = `
           SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
@@ -115,7 +160,7 @@ router.get('/', (req, res) => {
           ORDER BY rank
           LIMIT 15
         `;
-        params = [ftsQuery, parsed.number];
+        params = [ftsMatch, parsed.number];
       } else if (parsed.city) {
         sql = `
           SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
@@ -128,7 +173,7 @@ router.get('/', (req, res) => {
           LIMIT 15
         `;
         const cityLike = `%${parsed.city}%`;
-        params = [ftsQuery, cityLike, cityLike];
+        params = [ftsMatch, cityLike, cityLike];
       } else {
         // Street name only — group by unique street+city to avoid duplicates
         sql = `
@@ -139,18 +184,23 @@ router.get('/', (req, res) => {
           WHERE addresses_fts MATCH ?
           GROUP BY a.street, a.postcode
           ORDER BY rank
-          LIMIT 15
+          LIMIT 10
         `;
-        params = [ftsQuery];
+        params = [ftsMatch];
       }
 
-      results = db.prepare(sql).all(...params);
+      addressResults = db.prepare(sql).all(...params);
+
+      // Search places when there's no house number (pure name search)
+      if (!hasHouseNumber(parsed)) {
+        placeResults = searchPlaces(db, parsed.street, 5);
+      }
     } else {
-      results = [];
+      addressResults = [];
     }
 
-    // Format response
-    const formatted = results.map(r => {
+    // Format address results
+    const formattedAddresses = addressResults.map(r => {
       let name = r.street || '';
       if (r.number) name += ` ${r.number}`;
       if (r.letter) name += r.letter;
@@ -166,7 +216,8 @@ router.get('/', (req, res) => {
       };
     });
 
-    res.json(formatted);
+    // Places first, then addresses
+    res.json([...placeResults, ...formattedAddresses]);
   } catch (err) {
     console.error('Search error:', err.message);
     res.status(500).json({ error: err.message });
