@@ -652,37 +652,38 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
   const setWeightPulsating = useMapStore((s) => s.setWeightPulsating);
   const setHeightPulsating = useMapStore((s) => s.setHeightPulsating);
 
-  // Auto-stop pulsation after 15 seconds
+  // Auto-stop pulsation after 30 seconds
   useEffect(() => {
     if (!weightPulsating) return;
-    const timer = setTimeout(() => setWeightPulsating(false), 15000);
+    const timer = setTimeout(() => setWeightPulsating(false), 30000);
     return () => clearTimeout(timer);
   }, [weightPulsating, setWeightPulsating]);
 
   useEffect(() => {
     if (!heightPulsating) return;
-    const timer = setTimeout(() => setHeightPulsating(false), 15000);
+    const timer = setTimeout(() => setHeightPulsating(false), 30000);
     return () => clearTimeout(timer);
   }, [heightPulsating, setHeightPulsating]);
 
-  // Animate map layers when pulsating (glow effect with 1 second cycle)
+  // Animate map layers when pulsating (glow effect with 4 second cycle)
   useEffect(() => {
     if (!mapRef || !weightPulsating) return;
     const startTime = performance.now();
     let animId;
     const animate = (now) => {
-      // 1 second cycle = 2π per 1000ms
-      const phase = ((now - startTime) / 1000) * Math.PI * 2;
-      const glow = 2 + 6 * Math.abs(Math.sin(phase)); // blur 2-8
-      const width = 5 + 3 * Math.abs(Math.sin(phase)); // width 5-8
-      const radius = 8 + 4 * Math.abs(Math.sin(phase)); // circle radius 8-12
+      // 4 second cycle = 2π per 4000ms
+      const phase = ((now - startTime) / 4000) * Math.PI * 2;
+      const t = Math.abs(Math.sin(phase));
+      const glow = 2 + 14 * t; // blur 2-16 (stronger)
+      const width = 5 + 6 * t; // width 5-11
+      const radius = 8 + 8 * t; // circle radius 8-16
       try {
         if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
           mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-blur', glow);
           mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-width', width);
         }
         if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', glow * 0.1);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', glow * 0.15);
           mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-radius', radius);
         }
       } catch {}
@@ -710,18 +711,19 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     const startTime = performance.now();
     let animId;
     const animate = (now) => {
-      // 1 second cycle = 2π per 1000ms
-      const phase = ((now - startTime) / 1000) * Math.PI * 2;
-      const glow = 2 + 6 * Math.abs(Math.sin(phase)); // blur 2-8
-      const width = 4 + 3 * Math.abs(Math.sin(phase)); // width 4-7
-      const radius = 8 + 4 * Math.abs(Math.sin(phase)); // circle radius 8-12
+      // 4 second cycle = 2π per 4000ms
+      const phase = ((now - startTime) / 4000) * Math.PI * 2;
+      const t = Math.abs(Math.sin(phase));
+      const glow = 2 + 14 * t; // blur 2-16 (stronger)
+      const width = 4 + 6 * t; // width 4-10
+      const radius = 8 + 8 * t; // circle radius 8-16
       try {
         if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
           mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-blur', glow);
           mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-width', width);
         }
         if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', glow * 0.1);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', glow * 0.15);
           mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-radius', radius);
         }
       } catch {}

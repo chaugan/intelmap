@@ -65,8 +65,8 @@ html, body, #root {
 /* Pulsation animation for restriction highlight */
 @keyframes pulse-color {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.2); }
+  50% { opacity: 0.4; transform: scale(1.3); }
 }
 .animate-pulse-color {
-  animation: pulse-color 1s ease-in-out infinite;
+  animation: pulse-color 4s ease-in-out infinite;
 }
