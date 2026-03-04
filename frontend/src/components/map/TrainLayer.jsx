@@ -93,9 +93,9 @@ export default function TrainLayer({ data, mapRef }) {
         type: 'line',
         source: TRACK_SOURCE,
         paint: {
-          'line-color': '#64748b',
-          'line-width': 2,
-          'line-opacity': opacity * 0.6,
+          'line-color': '#0ea5e9',
+          'line-width': 3.5,
+          'line-opacity': opacity * 0.7,
         },
         layout: {
           'line-cap': 'round',
@@ -112,10 +112,10 @@ export default function TrainLayer({ data, mapRef }) {
         source: STATION_SOURCE,
         minzoom: 8,
         paint: {
-          'circle-radius': 4,
-          'circle-color': '#cbd5e1',
-          'circle-stroke-color': '#475569',
-          'circle-stroke-width': 1.5,
+          'circle-radius': 6,
+          'circle-color': '#e2e8f0',
+          'circle-stroke-color': '#0ea5e9',
+          'circle-stroke-width': 2,
           'circle-opacity': opacity,
           'circle-stroke-opacity': opacity,
         },
@@ -128,10 +128,10 @@ export default function TrainLayer({ data, mapRef }) {
         id: LAYER_STATION_LABEL,
         type: 'symbol',
         source: STATION_SOURCE,
-        minzoom: 10,
+        minzoom: 9,
         layout: {
           'text-field': ['get', 'name'],
-          'text-size': 10,
+          'text-size': 12,
           'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
           'text-radial-offset': 0.8,
           'text-justify': 'auto',
@@ -154,7 +154,7 @@ export default function TrainLayer({ data, mapRef }) {
         source: TRAIN_SOURCE,
         layout: {
           'icon-image': IMG_TRAIN,
-          'icon-size': 0.65,
+          'icon-size': 0.9,
           'icon-rotate': ['coalesce', ['get', 'bearing'], 0],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,
@@ -177,7 +177,8 @@ export default function TrainLayer({ data, mapRef }) {
         source: TRAIN_SOURCE,
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 10,
+          'text-size': 12,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
           'text-offset': [0, 1.5],
           'text-anchor': 'top',
           'text-allow-overlap': false,
@@ -287,7 +288,7 @@ export default function TrainLayer({ data, mapRef }) {
   // Update opacity
   useEffect(() => {
     if (!mapRef) return;
-    try { if (mapRef.getLayer(LAYER_TRACK_LINE)) mapRef.setPaintProperty(LAYER_TRACK_LINE, 'line-opacity', trainsOpacity * 0.6); } catch {}
+    try { if (mapRef.getLayer(LAYER_TRACK_LINE)) mapRef.setPaintProperty(LAYER_TRACK_LINE, 'line-opacity', trainsOpacity * 0.7); } catch {}
     try { if (mapRef.getLayer(LAYER_STATION_CIRCLE)) mapRef.setPaintProperty(LAYER_STATION_CIRCLE, 'circle-opacity', trainsOpacity); } catch {}
     try { if (mapRef.getLayer(LAYER_STATION_CIRCLE)) mapRef.setPaintProperty(LAYER_STATION_CIRCLE, 'circle-stroke-opacity', trainsOpacity); } catch {}
     try { if (mapRef.getLayer(LAYER_STATION_LABEL)) mapRef.setPaintProperty(LAYER_STATION_LABEL, 'text-opacity', trainsOpacity); } catch {}

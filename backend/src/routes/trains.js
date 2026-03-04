@@ -30,7 +30,123 @@ const ENTUR_HEADERS = {
 };
 
 // Norwegian train operator route ID prefixes
-const TRAIN_OPERATORS = ['VYG', 'FLT']; // VYG = Vy Tog, FLT = Flytoget
+// VYG = Vy Tog, FLT = Flytoget, SJN = SJ Nord, GOA = Go-Ahead Nordic, SJA = SJ (additional)
+const TRAIN_OPERATORS = ['VYG', 'FLT', 'SJN', 'GOA', 'SJA'];
+
+// --- Bearing computation from track geometry ---
+
+function computeBearing(from, to) {
+  const toRad = Math.PI / 180;
+  const lat1 = from[1] * toRad;
+  const lat2 = to[1] * toRad;
+  const dLon = (to[0] - from[0]) * toRad;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+function distSq(px, py, ax, ay) {
+  const dx = (ax - px) * Math.cos(((py + ay) / 2) * Math.PI / 180);
+  const dy = ay - py;
+  return dx * dx + dy * dy;
+}
+
+function pointToSegmentDistSq(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return distSq(px, py, ax, ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return distSq(px, py, ax + t * dx, ay + t * dy);
+}
+
+/**
+ * Find the nearest track segment to a point and return its bearing.
+ * Uses a bounding box filter (~500m) for performance.
+ */
+function getBearingFromTracks(lon, lat) {
+  if (!trackCache || !trackCache.features) return null;
+
+  const SEARCH_RADIUS = 0.01; // ~1km in degrees
+  let minDist = Infinity;
+  let bestFrom = null;
+  let bestTo = null;
+
+  for (const feature of trackCache.features) {
+    const coords = feature.geometry.coordinates;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const [aLon, aLat] = coords[i];
+      const [bLon, bLat] = coords[i + 1];
+
+      // Quick bounding box proximity check
+      const minLon = Math.min(aLon, bLon);
+      const maxLon = Math.max(aLon, bLon);
+      const minLat = Math.min(aLat, bLat);
+      const maxLat = Math.max(aLat, bLat);
+      if (lon < minLon - SEARCH_RADIUS || lon > maxLon + SEARCH_RADIUS) continue;
+      if (lat < minLat - SEARCH_RADIUS || lat > maxLat + SEARCH_RADIUS) continue;
+
+      const d = pointToSegmentDistSq(lon, lat, aLon, aLat, bLon, bLat);
+      if (d < minDist) {
+        minDist = d;
+        bestFrom = coords[i];
+        bestTo = coords[i + 1];
+      }
+    }
+  }
+
+  if (!bestFrom) return null;
+  return Math.round(computeBearing(bestFrom, bestTo));
+}
+
+// Store previous positions for bearing-from-movement computation
+const prevPositions = new Map();
+
+/**
+ * Get bearing for a train. Priority:
+ * 1. GTFS-RT bearing (if non-zero)
+ * 2. Bearing from movement (if train moved since last update)
+ * 3. Bearing from nearest track segment
+ * 4. Previous known bearing
+ */
+function getTrainBearing(id, lon, lat, gtfsBearing) {
+  // If GTFS-RT provides a real bearing, use it
+  if (gtfsBearing != null && gtfsBearing !== 0) {
+    prevPositions.set(id, { lon, lat, bearing: gtfsBearing });
+    return gtfsBearing;
+  }
+
+  const prev = prevPositions.get(id);
+
+  // Try bearing from movement
+  if (prev) {
+    const dLon = lon - prev.lon;
+    const dLat = lat - prev.lat;
+    // Only compute if moved at least ~50m
+    if (Math.abs(dLon) > 0.0005 || Math.abs(dLat) > 0.0005) {
+      const moveBearing = Math.round(computeBearing([prev.lon, prev.lat], [lon, lat]));
+      prevPositions.set(id, { lon, lat, bearing: moveBearing });
+      return moveBearing;
+    }
+  }
+
+  // Try bearing from track geometry
+  const trackBearing = getBearingFromTracks(lon, lat);
+  if (trackBearing != null) {
+    prevPositions.set(id, { lon, lat, bearing: trackBearing });
+    return trackBearing;
+  }
+
+  // Fall back to previous bearing or null
+  if (prev?.bearing) {
+    prevPositions.set(id, { lon, lat, bearing: prev.bearing });
+    return prev.bearing;
+  }
+
+  prevPositions.set(id, { lon, lat, bearing: null });
+  return null;
+}
 
 function getDelayCategory(delaySec) {
   if (delaySec == null) return null;
@@ -137,6 +253,9 @@ router.get('/', async (req, res) => {
       // Build a readable line name from routeId (e.g. "VYG:Line:R12" → "R12")
       const lineName = routeId.split(':').pop() || '';
 
+      // Compute bearing: GTFS-RT → movement → track geometry → previous
+      const computedBearing = getTrainBearing(rawId, longitude, latitude, bearing);
+
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [longitude, latitude] },
@@ -146,7 +265,7 @@ router.get('/', async (req, res) => {
           tripId,
           routeId: v.trip?.routeId ?? null,
           directionId: v.trip?.directionId ?? null,
-          bearing: bearing ?? null,
+          bearing: computedBearing,
           speed: speed ?? null,
           speedKmh: speed != null ? Math.round(speed * 3.6) : null,
           stopId: v.stopId ?? null,
@@ -290,5 +409,55 @@ out geom;`;
     res.status(502).json({ error: err.message });
   }
 });
+
+// Eagerly fetch track data on startup for bearing computation
+async function preloadTracks() {
+  try {
+    const query = `[out:json][timeout:120];
+area["name"="Norge"]["admin_level"="2"]->.norway;
+way["railway"="rail"](area.norway);
+out geom;`;
+
+    const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!overpassRes.ok) throw new Error(`Overpass API ${overpassRes.status}`);
+    const data = await overpassRes.json();
+
+    const features = [];
+    for (const el of data.elements) {
+      if (el.type !== 'way' || !el.geometry) continue;
+      const coords = el.geometry.map((g) => [g.lon, g.lat]);
+      if (coords.length < 2) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords },
+        properties: {
+          id: el.id,
+          name: el.tags?.name ?? null,
+          usage: el.tags?.usage ?? null,
+          electrified: el.tags?.electrified ?? null,
+        },
+      });
+    }
+
+    trackCache = {
+      type: 'FeatureCollection',
+      meta: { total: features.length, fetchedAt: new Date().toISOString() },
+      features,
+    };
+    trackCacheTime = Date.now();
+    console.log(`Track data preloaded: ${features.length} track segments for bearing computation`);
+  } catch (err) {
+    console.error('Track preload error:', err.message);
+  }
+}
+
+// Start preloading after a short delay to not block startup
+setTimeout(preloadTracks, 5000);
 
 export default router;
