@@ -58,6 +58,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   // Support multiple open popups - Map keyed by feature id
   const [openFeatures, setOpenFeatures] = useState(new Map());
   const [pinnedIds, setPinnedIds] = useState(new Set());
+  const pinnedIdsRef = useRef(pinnedIds);
   const roadRestrictionsOpacity = useMapStore((s) => s.roadRestrictionsOpacity);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
   const showHeightLimits = useMapStore((s) => s.showHeightLimits);
@@ -66,6 +67,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   const lang = useMapStore((s) => s.lang);
 
   useEffect(() => { dataRef.current = data; }, [data]);
+  useEffect(() => { pinnedIdsRef.current = pinnedIds; }, [pinnedIds]);
 
   const addLayers = useCallback((opacity) => {
     if (!mapRef) return;
@@ -320,7 +322,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         setOpenFeatures((prev) => {
           const next = new Map();
           for (const [id, feat] of prev) {
-            if (pinnedIds.has(id)) next.set(id, feat);
+            if (pinnedIdsRef.current.has(id)) next.set(id, feat);
           }
           return next;
         });
@@ -353,7 +355,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         const next = new Map();
         // Keep pinned popups
         for (const [id, feat] of prev) {
-          if (pinnedIds.has(id)) next.set(id, feat);
+          if (pinnedIdsRef.current.has(id)) next.set(id, feat);
         }
         // Add new popup (or update if already open)
         next.set(featureId, {
@@ -396,14 +398,14 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       setOpenFeatures((prev) => {
         const next = new Map();
         for (const [id, feat] of prev) {
-          if (pinnedIds.has(id)) next.set(id, feat);
+          if (pinnedIdsRef.current.has(id)) next.set(id, feat);
         }
         return next.size !== prev.size ? next : prev;
       });
     };
     mapRef.on('movestart', closeUnpinned);
     return () => mapRef.off('movestart', closeUnpinned);
-  }, [mapRef, openFeatures.size, pinnedIds]);
+  }, [mapRef, openFeatures.size]);
 
   // Clean up pinnedIds when features are closed
   useEffect(() => {
