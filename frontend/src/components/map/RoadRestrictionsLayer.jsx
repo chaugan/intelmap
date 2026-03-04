@@ -545,7 +545,7 @@ export function RoadRestrictionsLegend({ count }) {
         </div>
       </div>
 
-      {/* Height Limits Section (dashed lines) */}
+      {/* Height Limits Section (dashed lines on map) */}
       <div className={`space-y-1.5 border-t border-slate-700 pt-2 transition-opacity ${!showHeightLimits ? 'opacity-40' : ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -566,11 +566,7 @@ export function RoadRestrictionsLegend({ count }) {
               <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
                 <div
                   className="w-full h-2.5 rounded-sm transition-colors"
-                  style={{
-                    background: showHeightLimits
-                      ? `repeating-linear-gradient(90deg, ${b.color} 0px, ${b.color} 4px, transparent 4px, transparent 8px)`
-                      : `repeating-linear-gradient(90deg, #475569 0px, #475569 4px, transparent 4px, transparent 8px)`,
-                  }}
+                  style={{ backgroundColor: showHeightLimits ? b.color : '#475569' }}
                 />
                 <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
               </div>
