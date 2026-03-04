@@ -1,5 +1,6 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
+import DraggablePopup from './DraggablePopup.jsx';
 
 const RESTRICTION_SOURCE = 'road-restrictions-data';
 const LAYER_HEIGHT_LINES = 'road-restrictions-height-lines';
@@ -51,24 +52,17 @@ const WEIGHT_COLOR_EXPR = [
 ];
 
 export default function RoadRestrictionsLayer({ data, mapRef }) {
-  const popupRef = useRef(null);
   const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState(null);
   const roadRestrictionsOpacity = useMapStore((s) => s.roadRestrictionsOpacity);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
   const showHeightLimits = useMapStore((s) => s.showHeightLimits);
   const weightFilterMax = useMapStore((s) => s.weightFilterMax);
   const heightFilterMax = useMapStore((s) => s.heightFilterMax);
+  const lang = useMapStore((s) => s.lang);
 
   useEffect(() => { dataRef.current = data; }, [data]);
-
-  const removePopup = useCallback(() => {
-    if (popupRef.current) {
-      if (popupRef.current._cleanup) popupRef.current._cleanup();
-      popupRef.current.remove();
-      popupRef.current = null;
-    }
-  }, []);
 
   const addLayers = useCallback((opacity) => {
     if (!mapRef) return;
@@ -313,11 +307,12 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
 
       const features = mapRef.queryRenderedFeatures(e.point, { layers: activeLayers });
 
-      removePopup();
-      if (features.length === 0) return;
+      if (features.length === 0) {
+        setSelectedFeature(null);
+        return;
+      }
 
       const feature = features[0];
-      const props = feature.properties;
       const geom = feature.geometry;
 
       // Get coordinates for popup placement
@@ -337,84 +332,10 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         popupCoords = [e.lngLat.lng, e.lngLat.lat];
       }
 
-      const isHeight = props.restrictionType === 'height';
-      const lang = useMapStore.getState().lang;
-
-      // Get color based on value (matching bucket thresholds)
-      let valueColor;
-      if (isHeight) {
-        const h = props.height || 5;
-        if (h < 3) valueColor = '#7c3aed';       // violet
-        else if (h < 3.5) valueColor = '#8b5cf6'; // purple
-        else if (h < 4) valueColor = '#3b82f6';   // blue
-        else if (h < 4.5) valueColor = '#0ea5e9'; // sky
-        else valueColor = '#06b6d4';              // cyan
-      } else {
-        const w = props.maxWeight || 50;
-        if (w < 20) valueColor = '#b91c1c';       // dark red
-        else if (w < 30) valueColor = '#dc2626';  // red
-        else if (w < 40) valueColor = '#ea580c';  // orange
-        else if (w < 60) valueColor = '#f59e0b';  // amber
-        else valueColor = '#fbbf24';              // yellow
-      }
-
-      const html = `
-        <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:200px">
-          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${valueColor}">
-            ${isHeight
-              ? (lang === 'no' ? 'Høydebegrensning' : 'Height Restriction')
-              : (lang === 'no' ? 'Vektbegrensning' : 'Weight Restriction')}
-          </div>
-          ${props.name ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Navn' : 'Name'}:</span> ${props.name}</div>` : ''}
-          ${props.road ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Veg' : 'Road'}:</span> ${props.road}</div>` : ''}
-          ${props.height != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks høyde' : 'Max height'}:</span> <strong style="color:${valueColor}">${props.height}m</strong></div>` : ''}
-          ${props.heightType ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Type' : 'Type'}:</span> ${props.heightType}</div>` : ''}
-          ${props.maxWeight != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span> <strong style="color:${valueColor}">${props.maxWeight}t</strong></div>` : ''}
-          ${props.loadClass ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Bruksklasse' : 'Load class'}:</span> ${props.loadClass}</div>` : ''}
-          ${props.maxVehicleLength ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks lengde' : 'Max length'}:</span> ${props.maxVehicleLength}m</div>` : ''}
-          ${props.description ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Strekning' : 'Route'}:</span> ${props.description}</div>` : ''}
-          ${props.municipality ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Kommune' : 'Municipality'}:</span> ${props.municipality}</div>` : ''}
-          <div style="margin-top:6px;font-size:10px;color:#64748b">${lang === 'no' ? 'Kilde' : 'Source'}: NVDB</div>
-        </div>
-      `;
-
-      const popupEl = document.createElement('div');
-      popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
-      popupEl.innerHTML = `
-        <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:300px;overflow:hidden">
-          <div style="display:flex;justify-content:flex-end;padding:4px">
-            <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:2px 6px">×</button>
-          </div>
-          <div style="padding:0 12px 10px 12px">
-            ${html}
-          </div>
-        </div>
-      `;
-
-      popupEl.querySelector('.popup-close-btn').addEventListener('click', () => removePopup());
-
-      const point = mapRef.project(popupCoords);
-      popupEl.style.left = `${point.x}px`;
-      popupEl.style.top = `${point.y - 10}px`;
-      popupEl.style.transform = 'translate(-50%, -100%)';
-
-      mapRef.getContainer().appendChild(popupEl);
-      popupRef.current = popupEl;
-
-      const updatePos = () => {
-        try {
-          const p = mapRef.project(popupCoords);
-          popupEl.style.left = `${p.x}px`;
-          popupEl.style.top = `${p.y - 10}px`;
-        } catch {}
-      };
-      mapRef.on('move', updatePos);
-      popupEl._cleanup = () => mapRef.off('move', updatePos);
-
-      // Hover effect on close button
-      const closeBtn = popupEl.querySelector('.popup-close-btn');
-      closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = '#475569'; });
-      closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'none'; });
+      setSelectedFeature({
+        properties: feature.properties,
+        coords: popupCoords,
+      });
     };
 
     mapRef.on('click', handleClick);
@@ -438,11 +359,168 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           mapRef.off('mouseleave', l, onLeave);
         } catch {}
       });
-      removePopup();
     };
-  }, [mapRef, removePopup]);
+  }, [mapRef]);
 
-  return null;
+  // Close popup on map click outside features or on movestart (unpinned only)
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    if (!mapRef || !selectedFeature) return;
+    const closeUnpinned = () => {
+      if (!pinned) setSelectedFeature(null);
+    };
+    mapRef.on('movestart', closeUnpinned);
+    return () => mapRef.off('movestart', closeUnpinned);
+  }, [mapRef, selectedFeature, pinned]);
+
+  // Reset pinned state when popup closes
+  useEffect(() => {
+    if (!selectedFeature) setPinned(false);
+  }, [selectedFeature]);
+
+  return selectedFeature ? (
+    <RestrictionPopupWrapper
+      feature={selectedFeature}
+      mapRef={mapRef}
+      lang={lang}
+      pinned={pinned}
+      onPin={() => setPinned(true)}
+      onClose={() => setSelectedFeature(null)}
+    />
+  ) : null;
+}
+
+// Wrapper component for the draggable popup
+function RestrictionPopupWrapper({ feature, mapRef, lang, pinned, onPin, onClose }) {
+  const [lon, lat] = feature.coords;
+
+  const popupOrigin = useMemo(() => {
+    if (!mapRef) return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    try {
+      const pt = mapRef.project([lon, lat]);
+      return { x: pt.x, y: pt.y - 30 };
+    } catch {
+      return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    }
+  }, [lon, lat, mapRef]);
+
+  return (
+    <DraggablePopup
+      originLng={lon}
+      originLat={lat}
+      originX={popupOrigin.x}
+      originY={popupOrigin.y}
+      showConnectionLine={true}
+      onPin={onPin}
+    >
+      <RestrictionPopupContent
+        properties={feature.properties}
+        lang={lang}
+        pinned={pinned}
+        onTogglePin={onPin}
+        onClose={onClose}
+      />
+    </DraggablePopup>
+  );
+}
+
+// Get color based on value (matching bucket thresholds)
+function getValueColor(props) {
+  const isHeight = props.restrictionType === 'height';
+  if (isHeight) {
+    const h = props.height || 5;
+    if (h < 3) return '#7c3aed';       // violet
+    if (h < 3.5) return '#8b5cf6';     // purple
+    if (h < 4) return '#3b82f6';       // blue
+    if (h < 4.5) return '#0ea5e9';     // sky
+    return '#06b6d4';                  // cyan
+  } else {
+    const w = props.maxWeight || 50;
+    if (w < 20) return '#b91c1c';      // dark red
+    if (w < 30) return '#dc2626';      // red
+    if (w < 40) return '#ea580c';      // orange
+    if (w < 60) return '#f59e0b';      // amber
+    return '#fbbf24';                  // yellow
+  }
+}
+
+// Popup content component
+function RestrictionPopupContent({ properties: props, lang, pinned, onTogglePin, onClose }) {
+  const isHeight = props.restrictionType === 'height';
+  const valueColor = getValueColor(props);
+
+  return (
+    <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 max-w-xs overflow-hidden">
+      {/* Header with type label - draggable area */}
+      <div
+        className="px-3 py-1.5 draggable-header cursor-grab flex justify-between items-center"
+        style={{ backgroundColor: isHeight ? 'rgba(139, 92, 246, 0.6)' : 'rgba(234, 88, 12, 0.6)' }}
+      >
+        <span className="text-white text-sm font-semibold">
+          {isHeight
+            ? (lang === 'no' ? 'Høydebegrensning' : 'Height Restriction')
+            : (lang === 'no' ? 'Vektbegrensning' : 'Weight Restriction')}
+        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Pin button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+            className={`text-xs p-0.5 rounded transition-colors ${pinned ? 'text-emerald-400' : 'text-slate-300 hover:text-white'}`}
+            title={lang === 'no' ? (pinned ? 'Løsne' : 'Fest') : (pinned ? 'Unpin' : 'Pin')}
+          >
+            <svg className="w-3.5 h-3.5" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+          </button>
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/20 text-slate-200 hover:text-white text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-3 text-xs text-slate-200 space-y-1" style={{ fontFamily: 'ui-monospace, monospace' }}>
+        {props.name && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Navn' : 'Name'}:</span> {props.name}</div>
+        )}
+        {props.road && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Veg' : 'Road'}:</span> {props.road}</div>
+        )}
+        {props.height != null && (
+          <div>
+            <span className="text-slate-400">{lang === 'no' ? 'Maks høyde' : 'Max height'}:</span>{' '}
+            <strong style={{ color: valueColor }}>{props.height}m</strong>
+          </div>
+        )}
+        {props.heightType && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Type' : 'Type'}:</span> {props.heightType}</div>
+        )}
+        {props.maxWeight != null && (
+          <div>
+            <span className="text-slate-400">{lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span>{' '}
+            <strong style={{ color: valueColor }}>{props.maxWeight}t</strong>
+          </div>
+        )}
+        {props.loadClass && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Bruksklasse' : 'Load class'}:</span> {props.loadClass}</div>
+        )}
+        {props.maxVehicleLength && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Maks lengde' : 'Max length'}:</span> {props.maxVehicleLength}m</div>
+        )}
+        {props.description && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Strekning' : 'Route'}:</span> {props.description}</div>
+        )}
+        {props.municipality && (
+          <div><span className="text-slate-400">{lang === 'no' ? 'Kommune' : 'Municipality'}:</span> {props.municipality}</div>
+        )}
+        <div className="pt-1 text-[10px] text-slate-500">{lang === 'no' ? 'Kilde' : 'Source'}: NVDB</div>
+      </div>
+    </div>
+  );
 }
 
 // Legend bucket items

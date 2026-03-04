@@ -312,8 +312,20 @@ export default function DataLayersDrawer() {
       <div className="flex-1 overflow-y-auto">
         {/* Overlays section */}
         <div className="px-3 py-2.5 border-b border-slate-700">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-2 font-semibold">
-            {t('dataLayers.overlays', lang)}
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">
+              {t('dataLayers.overlays', lang)}
+            </div>
+            {/* Hide all data layers button */}
+            {OVERLAYS.some((o) => store[o.visibleKey]) && (
+              <button
+                onClick={store.hideAllDataLayers}
+                className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Skjul alle' : 'Hide all'}
+              >
+                {lang === 'no' ? 'Skjul alle' : 'Hide all'}
+              </button>
+            )}
           </div>
           <div className="space-y-1.5">
             {OVERLAYS.map((overlay) => {
