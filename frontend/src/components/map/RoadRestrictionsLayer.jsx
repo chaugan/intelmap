@@ -492,17 +492,26 @@ function getValueColor(props) {
   }
 }
 
+// Convert hex color to rgba
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // Popup content component
 function RestrictionPopupContent({ properties: props, lang, pinned, onTogglePin, onClose }) {
   const isHeight = props.restrictionType === 'height';
   const valueColor = getValueColor(props);
+  const headerColor = hexToRgba(valueColor, 0.7);
 
   return (
     <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 max-w-xs overflow-hidden">
       {/* Header with type label - draggable area */}
       <div
         className="px-3 py-1.5 draggable-header cursor-grab flex justify-between items-center"
-        style={{ backgroundColor: isHeight ? 'rgba(139, 92, 246, 0.6)' : 'rgba(234, 88, 12, 0.6)' }}
+        style={{ backgroundColor: headerColor }}
       >
         <span className="text-white text-sm font-semibold">
           {isHeight

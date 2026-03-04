@@ -6,11 +6,51 @@ const router = Router();
 const CACHE = new Map(); // key: bbox string, value: { data, bbox: {w,s,e,n}, timestamp }
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
+// Kommune name lookup cache (nummer -> navn)
+let KOMMUNE_LOOKUP = null;
+let KOMMUNE_FETCH_PROMISE = null;
+
 const NVDB_BASE = 'https://nvdbapiles.atlas.vegvesen.no/vegobjekter';
+const NVDB_OMRADER = 'https://nvdbapiles.atlas.vegvesen.no/omrader';
 const HEADERS = {
   'X-Client': 'IntelMap/1.0',
   'Accept': 'application/json',
 };
+
+// Fetch kommune names and build lookup map
+async function getKommuneLookup() {
+  if (KOMMUNE_LOOKUP) return KOMMUNE_LOOKUP;
+
+  // Avoid parallel fetches
+  if (KOMMUNE_FETCH_PROMISE) return KOMMUNE_FETCH_PROMISE;
+
+  KOMMUNE_FETCH_PROMISE = (async () => {
+    try {
+      const res = await fetch(`${NVDB_OMRADER}/kommuner`, { headers: HEADERS });
+      if (!res.ok) {
+        console.error('Failed to fetch kommuner:', res.status);
+        return new Map();
+      }
+      const data = await res.json();
+      const lookup = new Map();
+      for (const k of data) {
+        if (k.nummer && k.navn) {
+          lookup.set(k.nummer, k.navn);
+        }
+      }
+      KOMMUNE_LOOKUP = lookup;
+      console.log(`Cached ${lookup.size} kommune names`);
+      return lookup;
+    } catch (err) {
+      console.error('Error fetching kommuner:', err);
+      return new Map();
+    } finally {
+      KOMMUNE_FETCH_PROMISE = null;
+    }
+  })();
+
+  return KOMMUNE_FETCH_PROMISE;
+}
 
 // Check if bbox1 contains bbox2
 function bboxContains(outer, inner) {
@@ -135,7 +175,7 @@ function parseWktToGeometry(wkt) {
 }
 
 // Convert height restrictions (591) to GeoJSON features
-function convertHeights(objects) {
+function convertHeights(objects, kommuneLookup) {
   const features = [];
 
   for (const obj of objects) {
@@ -171,7 +211,10 @@ function convertHeights(objects) {
 
     if (obj.lokasjon) {
       if (obj.lokasjon.kommuner?.length) {
-        props.municipality = obj.lokasjon.kommuner.map((k) => k.navn || k).join(', ');
+        const names = obj.lokasjon.kommuner
+          .map((k) => kommuneLookup.get(k) || k)
+          .filter((n) => typeof n === 'string');
+        if (names.length) props.municipality = names.join(', ');
       }
       if (obj.lokasjon.vegsystemreferanser?.length) {
         const ref = obj.lokasjon.vegsystemreferanser[0];
@@ -196,7 +239,7 @@ function convertHeights(objects) {
 }
 
 // Convert weight/load class (904) to GeoJSON features
-function convertWeights(objects) {
+function convertWeights(objects, kommuneLookup) {
   const features = [];
 
   for (const obj of objects) {
@@ -228,7 +271,10 @@ function convertWeights(objects) {
 
     if (obj.lokasjon) {
       if (obj.lokasjon.kommuner?.length) {
-        props.municipality = obj.lokasjon.kommuner.map((k) => k.navn || k).join(', ');
+        const names = obj.lokasjon.kommuner
+          .map((k) => kommuneLookup.get(k) || k)
+          .filter((n) => typeof n === 'string');
+        if (names.length) props.municipality = names.join(', ');
       }
       if (obj.lokasjon.vegsystemreferanser?.length) {
         const ref = obj.lokasjon.vegsystemreferanser[0];
@@ -300,14 +346,15 @@ router.get('/restrictions', async (req, res) => {
   }
 
   try {
-    const [heights, weights] = await Promise.all([
+    const [heights, weights, kommuneLookup] = await Promise.all([
       fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${bboxStr}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
       fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${bboxStr}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      getKommuneLookup(),
     ]);
 
     const features = [
-      ...convertHeights(heights),
-      ...convertWeights(weights),
+      ...convertHeights(heights, kommuneLookup),
+      ...convertWeights(weights, kommuneLookup),
     ];
 
     const geojson = {
