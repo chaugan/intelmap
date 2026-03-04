@@ -27,41 +27,54 @@ if ! command -v ffmpeg &>/dev/null; then
     apt install -y ffmpeg
 fi
 
-echo "[1/6] Pulling latest from GitHub..."
+echo "[1/8] Pulling latest from GitHub..."
 cd "$INSTALL_DIR"
 git config --global --add safe.directory "$INSTALL_DIR"
 git fetch origin main
 git reset --hard origin/main
 
 echo ""
-echo "[2/6] Installing backend dependencies..."
+echo "[2/8] Installing backend dependencies..."
 cd "$INSTALL_DIR/backend"
 npm ci --omit=dev
 
 echo ""
-echo "[3/6] Building frontend..."
+echo "[3/8] Downloading place names (if needed)..."
+PLACES_FILE="$INSTALL_DIR/backend/data/places.json"
+if [ ! -f "$PLACES_FILE" ]; then
+    echo "  Downloading Kartverket place names (one-time, may take a few minutes)..."
+    cd "$INSTALL_DIR/backend"
+    mkdir -p data
+    node src/db/download-places.js
+    chown intelmap:intelmap "$PLACES_FILE"
+else
+    echo "  places.json already exists, skipping download."
+fi
+
+echo ""
+echo "[4/8] Building frontend..."
 cd "$INSTALL_DIR/frontend"
 npm ci --omit=dev
 npx vite build
 
 echo ""
-echo "[4/6] Updating config files..."
+echo "[5/8] Updating config files..."
 cp "$INSTALL_DIR/nginx/intelmap.conf" /etc/nginx/sites-available/intelmap.conf
 cp "$INSTALL_DIR/intelmap.service" /etc/systemd/system/intelmap.service
 systemctl daemon-reload
 nginx -t && systemctl reload nginx
 
 echo ""
-echo "[5/7] Setting permissions..."
+echo "[6/8] Setting permissions..."
 chown -R intelmap:intelmap "$INSTALL_DIR"
 
 echo ""
-echo "[6/7] Creating timelapse directories..."
+echo "[7/8] Creating timelapse directories..."
 mkdir -p /var/lib/intelmap/timelapse/exports
 chown -R intelmap:intelmap /var/lib/intelmap/timelapse
 
 echo ""
-echo "[7/7] Restarting backend..."
+echo "[8/8] Restarting backend..."
 systemctl restart intelmap
 
 echo ""
