@@ -5,10 +5,8 @@ import { useMapStore } from '../../stores/useMapStore.js';
 const RESTRICTION_SOURCE = 'road-restrictions-data';
 const LAYER_HEIGHT_POINTS = 'road-restrictions-height-points';
 const LAYER_WEIGHT_POINTS = 'road-restrictions-weight-points';
-const LAYER_HEIGHT_LINES = 'road-restrictions-height-lines';
-const LAYER_WEIGHT_LINES = 'road-restrictions-weight-lines';
 
-const ALL_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS, LAYER_HEIGHT_LINES, LAYER_WEIGHT_LINES];
+const ALL_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS];
 
 export default function RoadRestrictionsLayer({ data, mapRef }) {
   const popupRef = useRef(null);
@@ -40,16 +38,13 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Height restriction points (red triangles via circles)
+    // Height restriction points (red circles)
     if (!mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
       mapRef.addLayer({
         id: LAYER_HEIGHT_POINTS,
         type: 'circle',
         source: RESTRICTION_SOURCE,
-        filter: ['all',
-          ['==', ['get', 'restrictionType'], 'height'],
-          ['==', ['geometry-type'], 'Point'],
-        ],
+        filter: ['==', ['get', 'restrictionType'], 'height'],
         paint: {
           'circle-radius': 10,
           'circle-color': '#dc2626',
@@ -67,10 +62,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         id: LAYER_WEIGHT_POINTS,
         type: 'circle',
         source: RESTRICTION_SOURCE,
-        filter: ['all',
-          ['==', ['get', 'restrictionType'], 'weight'],
-          ['==', ['geometry-type'], 'Point'],
-        ],
+        filter: ['==', ['get', 'restrictionType'], 'weight'],
         paint: {
           'circle-radius': [
             'case',
@@ -84,44 +76,6 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           'circle-stroke-width': 2,
           'circle-opacity': opacity,
           'circle-stroke-opacity': opacity,
-        },
-      });
-    }
-
-    // Height restriction lines (red dashed)
-    if (!mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-      mapRef.addLayer({
-        id: LAYER_HEIGHT_LINES,
-        type: 'line',
-        source: RESTRICTION_SOURCE,
-        filter: ['all',
-          ['==', ['get', 'restrictionType'], 'height'],
-          ['==', ['geometry-type'], 'LineString'],
-        ],
-        paint: {
-          'line-color': '#dc2626',
-          'line-width': 4,
-          'line-dasharray': [2, 1],
-          'line-opacity': opacity,
-        },
-      });
-    }
-
-    // Weight restriction lines (orange dashed)
-    if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-      mapRef.addLayer({
-        id: LAYER_WEIGHT_LINES,
-        type: 'line',
-        source: RESTRICTION_SOURCE,
-        filter: ['all',
-          ['==', ['get', 'restrictionType'], 'weight'],
-          ['==', ['geometry-type'], 'LineString'],
-        ],
-        paint: {
-          'line-color': '#f97316',
-          'line-width': 4,
-          'line-dasharray': [2, 1],
-          'line-opacity': opacity,
         },
       });
     }
@@ -176,17 +130,12 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   // Update opacity
   useEffect(() => {
     if (!mapRef) return;
-    [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS].forEach((l) => {
+    ALL_LAYERS.forEach((l) => {
       try {
         if (mapRef.getLayer(l)) {
           mapRef.setPaintProperty(l, 'circle-opacity', roadRestrictionsOpacity);
           mapRef.setPaintProperty(l, 'circle-stroke-opacity', roadRestrictionsOpacity);
         }
-      } catch {}
-    });
-    [LAYER_HEIGHT_LINES, LAYER_WEIGHT_LINES].forEach((l) => {
-      try {
-        if (mapRef.getLayer(l)) mapRef.setPaintProperty(l, 'line-opacity', roadRestrictionsOpacity);
       } catch {}
     });
   }, [mapRef, roadRestrictionsOpacity]);
@@ -201,25 +150,10 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         const filter = showHeightLimits
           ? ['all',
               ['==', ['get', 'restrictionType'], 'height'],
-              ['==', ['geometry-type'], 'Point'],
               ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
             ]
           : ['==', 1, 0]; // Hide all
         mapRef.setFilter(LAYER_HEIGHT_POINTS, filter);
-      }
-    } catch {}
-
-    // Height lines filter
-    try {
-      if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-        const filter = showHeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'height'],
-              ['==', ['geometry-type'], 'LineString'],
-              ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
-            ]
-          : ['==', 1, 0];
-        mapRef.setFilter(LAYER_HEIGHT_LINES, filter);
       }
     } catch {}
 
@@ -229,25 +163,10 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         const filter = showWeightLimits
           ? ['all',
               ['==', ['get', 'restrictionType'], 'weight'],
-              ['==', ['geometry-type'], 'Point'],
               ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
             ]
           : ['==', 1, 0];
         mapRef.setFilter(LAYER_WEIGHT_POINTS, filter);
-      }
-    } catch {}
-
-    // Weight lines filter
-    try {
-      if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-        const filter = showWeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'weight'],
-              ['==', ['geometry-type'], 'LineString'],
-              ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
-            ]
-          : ['==', 1, 0];
-        mapRef.setFilter(LAYER_WEIGHT_LINES, filter);
       }
     } catch {}
   }, [mapRef, showWeightLimits, showHeightLimits, weightFilterMax, heightFilterMax]);
@@ -268,17 +187,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       if (features.length === 0) return;
 
       const props = features[0].properties;
-      const geom = features[0].geometry;
-
-      // Get coordinates for popup placement
-      let coords;
-      if (geom.type === 'Point') {
-        coords = geom.coordinates.slice();
-      } else if (geom.type === 'LineString') {
-        // Use middle of line
-        const midIdx = Math.floor(geom.coordinates.length / 2);
-        coords = geom.coordinates[midIdx];
-      }
+      const coords = features[0].geometry.coordinates.slice();
 
       const isHeight = props.restrictionType === 'height';
       const lang = useMapStore.getState().lang;

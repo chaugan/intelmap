@@ -33,36 +33,49 @@ async function fetchAllPages(url) {
   return results;
 }
 
+// Parse WKT to GeoJSON Point geometry (using centroid for lines)
+// NVDB returns coords in lat/lon order, but GeoJSON needs [lon, lat]
+function parseWktToPoint(wkt) {
+  if (!wkt) return null;
+
+  // Handle POINT or POINT Z
+  if (wkt.startsWith('POINT')) {
+    const match = wkt.match(/POINT\s*Z?\s*\(\s*([\d.-]+)\s+([\d.-]+)(?:\s+[\d.-]+)?\s*\)/);
+    if (match) {
+      // NVDB returns lat/lon, swap to lon/lat for GeoJSON
+      return {
+        type: 'Point',
+        coordinates: [parseFloat(match[2]), parseFloat(match[1])],
+      };
+    }
+  }
+
+  // Handle LINESTRING or LINESTRING Z - convert to centroid point
+  if (wkt.startsWith('LINESTRING')) {
+    const match = wkt.match(/LINESTRING\s*Z?\s*\(([^)]+)\)/);
+    if (match) {
+      const coords = match[1].split(',').map((pair) => {
+        const parts = pair.trim().split(/\s+/).map(parseFloat);
+        // NVDB returns lat/lon(/z), swap to lon/lat for GeoJSON
+        return [parts[1], parts[0]];
+      });
+      if (coords.length > 0) {
+        // Use midpoint of line for marker placement
+        const midIdx = Math.floor(coords.length / 2);
+        return { type: 'Point', coordinates: coords[midIdx] };
+      }
+    }
+  }
+
+  return null;
+}
+
 // Convert height restrictions (591) to GeoJSON features
 function convertHeights(objects) {
   const features = [];
 
   for (const obj of objects) {
-    if (!obj.geometri?.wkt) continue;
-
-    // Parse WKT POINT or LINESTRING
-    const wkt = obj.geometri.wkt;
-    let geometry = null;
-
-    if (wkt.startsWith('POINT')) {
-      const match = wkt.match(/POINT\s*\(\s*([\d.]+)\s+([\d.]+)\s*\)/);
-      if (match) {
-        geometry = {
-          type: 'Point',
-          coordinates: [parseFloat(match[1]), parseFloat(match[2])],
-        };
-      }
-    } else if (wkt.startsWith('LINESTRING')) {
-      const match = wkt.match(/LINESTRING\s*\(([^)]+)\)/);
-      if (match) {
-        const coords = match[1].split(',').map((pair) => {
-          const [x, y] = pair.trim().split(/\s+/).map(parseFloat);
-          return [x, y];
-        });
-        geometry = { type: 'LineString', coordinates: coords };
-      }
-    }
-
+    const geometry = parseWktToPoint(obj.geometri?.wkt);
     if (!geometry) continue;
 
     // Extract properties from egenskaper
@@ -73,14 +86,20 @@ function convertHeights(objects) {
     };
 
     for (const eg of obj.egenskaper || []) {
-      if (eg.navn === 'Høyde') {
-        props.height = eg.verdi;
-        props.heightLabel = `${eg.verdi}m`;
+      // Various height fields - take the minimum/most restrictive
+      if (eg.navn === 'Beregnet høyde' || eg.navn === 'Skiltet høyde' || eg.navn === 'Høyde') {
+        if (props.height == null || eg.verdi < props.height) {
+          props.height = eg.verdi;
+          props.heightLabel = `${eg.verdi}m`;
+        }
       }
-      if (eg.navn === 'Skilthøyde') {
-        props.signHeight = eg.verdi;
+      if (eg.navn === 'H-min, høyre kant' || eg.navn === 'H-min, venstre kant') {
+        if (props.height == null || eg.verdi < props.height) {
+          props.height = eg.verdi;
+          props.heightLabel = `${eg.verdi}m`;
+        }
       }
-      if (eg.navn === 'Type') {
+      if (eg.navn === 'Type hinder') {
         props.heightType = eg.verdi;
       }
       if (eg.navn === 'Navn') {
@@ -120,31 +139,7 @@ function convertWeights(objects) {
   const features = [];
 
   for (const obj of objects) {
-    if (!obj.geometri?.wkt) continue;
-
-    // Parse WKT
-    const wkt = obj.geometri.wkt;
-    let geometry = null;
-
-    if (wkt.startsWith('POINT')) {
-      const match = wkt.match(/POINT\s*\(\s*([\d.]+)\s+([\d.]+)\s*\)/);
-      if (match) {
-        geometry = {
-          type: 'Point',
-          coordinates: [parseFloat(match[1]), parseFloat(match[2])],
-        };
-      }
-    } else if (wkt.startsWith('LINESTRING')) {
-      const match = wkt.match(/LINESTRING\s*\(([^)]+)\)/);
-      if (match) {
-        const coords = match[1].split(',').map((pair) => {
-          const [x, y] = pair.trim().split(/\s+/).map(parseFloat);
-          return [x, y];
-        });
-        geometry = { type: 'LineString', coordinates: coords };
-      }
-    }
-
+    const geometry = parseWktToPoint(obj.geometri?.wkt);
     if (!geometry) continue;
 
     const props = {
