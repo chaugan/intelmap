@@ -194,6 +194,11 @@ router.get('/', (req, res) => {
       // Search places when there's no house number (pure name search)
       if (!hasHouseNumber(parsed)) {
         placeResults = searchPlaces(db, parsed.street, 5);
+        // If place results found, skip address results to avoid
+        // "Trondheimsvegen" cluttering results when searching "Trondheim"
+        if (placeResults.length > 0) {
+          addressResults = [];
+        }
       }
     } else {
       addressResults = [];
