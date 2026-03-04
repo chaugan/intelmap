@@ -8,10 +8,16 @@ const LAYER_HEIGHT_LINES = 'road-restrictions-height-lines';
 const LAYER_WEIGHT_LINES = 'road-restrictions-weight-lines';
 const LAYER_HEIGHT_POINTS = 'road-restrictions-height-points';
 const LAYER_WEIGHT_POINTS = 'road-restrictions-weight-points';
+// Glow layers (rendered behind main layers for pulsation effect)
+const LAYER_HEIGHT_GLOW = 'road-restrictions-height-glow';
+const LAYER_WEIGHT_GLOW = 'road-restrictions-weight-glow';
+const LAYER_HEIGHT_POINTS_GLOW = 'road-restrictions-height-points-glow';
+const LAYER_WEIGHT_POINTS_GLOW = 'road-restrictions-weight-points-glow';
 
 const LINE_LAYERS = [LAYER_HEIGHT_LINES, LAYER_WEIGHT_LINES];
 const POINT_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS];
-const ALL_LAYERS = [...LINE_LAYERS, ...POINT_LAYERS];
+const GLOW_LAYERS = [LAYER_HEIGHT_GLOW, LAYER_WEIGHT_GLOW, LAYER_HEIGHT_POINTS_GLOW, LAYER_WEIGHT_POINTS_GLOW];
+const ALL_LAYERS = [...LINE_LAYERS, ...POINT_LAYERS, ...GLOW_LAYERS];
 
 // Discrete color buckets for restrictions
 // Height: purple/blue scheme (dark purple = very low, cyan = high)
@@ -81,6 +87,100 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
 
     // Insert layers before 3D buildings so buildings can occlude restrictions when tilted
     const beforeId = mapRef.getLayer(OFM_EXTRUSION_LAYER) ? OFM_EXTRUSION_LAYER : undefined;
+
+    // --- GLOW LAYERS (rendered first/below, hidden by default) ---
+
+    // Weight glow layer
+    if (!mapRef.getLayer(LAYER_WEIGHT_GLOW)) {
+      mapRef.addLayer({
+        id: LAYER_WEIGHT_GLOW,
+        type: 'line',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'weight'],
+          ['any',
+            ['==', ['geometry-type'], 'LineString'],
+            ['==', ['geometry-type'], 'MultiLineString'],
+          ],
+        ],
+        paint: {
+          'line-color': WEIGHT_COLOR_EXPR,
+          'line-width': 12,
+          'line-opacity': 0, // Hidden by default
+          'line-blur': 8,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }, beforeId);
+    }
+
+    // Height glow layer
+    if (!mapRef.getLayer(LAYER_HEIGHT_GLOW)) {
+      mapRef.addLayer({
+        id: LAYER_HEIGHT_GLOW,
+        type: 'line',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'height'],
+          ['any',
+            ['==', ['geometry-type'], 'LineString'],
+            ['==', ['geometry-type'], 'MultiLineString'],
+          ],
+        ],
+        paint: {
+          'line-color': HEIGHT_COLOR_EXPR,
+          'line-width': 12,
+          'line-opacity': 0, // Hidden by default
+          'line-blur': 8,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }, beforeId);
+    }
+
+    // Weight points glow layer
+    if (!mapRef.getLayer(LAYER_WEIGHT_POINTS_GLOW)) {
+      mapRef.addLayer({
+        id: LAYER_WEIGHT_POINTS_GLOW,
+        type: 'circle',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'weight'],
+          ['==', ['geometry-type'], 'Point'],
+        ],
+        paint: {
+          'circle-radius': 16,
+          'circle-color': WEIGHT_COLOR_EXPR,
+          'circle-opacity': 0, // Hidden by default
+          'circle-blur': 1,
+        },
+      }, beforeId);
+    }
+
+    // Height points glow layer
+    if (!mapRef.getLayer(LAYER_HEIGHT_POINTS_GLOW)) {
+      mapRef.addLayer({
+        id: LAYER_HEIGHT_POINTS_GLOW,
+        type: 'circle',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'height'],
+          ['==', ['geometry-type'], 'Point'],
+        ],
+        paint: {
+          'circle-radius': 16,
+          'circle-color': HEIGHT_COLOR_EXPR,
+          'circle-opacity': 0, // Hidden by default
+          'circle-blur': 1,
+        },
+      }, beforeId);
+    }
+
+    // --- MAIN LAYERS (rendered on top of glow) ---
 
     // Weight restriction lines - orange/red buckets (solid, drawn first/below)
     if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
@@ -248,60 +348,56 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   useEffect(() => {
     if (!mapRef) return;
 
-    // Height lines filter
+    // Height lines filter (main + glow)
     try {
-      if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-        const filter = showHeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'height'],
-              ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
-              ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
-            ]
-          : ['==', ['get', 'restrictionType'], '__hidden__'];
-        mapRef.setFilter(LAYER_HEIGHT_LINES, filter);
-      }
+      const filter = showHeightLimits
+        ? ['all',
+            ['==', ['get', 'restrictionType'], 'height'],
+            ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
+            ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
+          ]
+        : ['==', ['get', 'restrictionType'], '__hidden__'];
+      if (mapRef.getLayer(LAYER_HEIGHT_LINES)) mapRef.setFilter(LAYER_HEIGHT_LINES, filter);
+      if (mapRef.getLayer(LAYER_HEIGHT_GLOW)) mapRef.setFilter(LAYER_HEIGHT_GLOW, filter);
     } catch (e) { console.error('Height line filter error:', e); }
 
-    // Height points filter
+    // Height points filter (main + glow)
     try {
-      if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-        const filter = showHeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'height'],
-              ['==', ['geometry-type'], 'Point'],
-              ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
-            ]
-          : ['==', ['get', 'restrictionType'], '__hidden__'];
-        mapRef.setFilter(LAYER_HEIGHT_POINTS, filter);
-      }
+      const filter = showHeightLimits
+        ? ['all',
+            ['==', ['get', 'restrictionType'], 'height'],
+            ['==', ['geometry-type'], 'Point'],
+            ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
+          ]
+        : ['==', ['get', 'restrictionType'], '__hidden__'];
+      if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) mapRef.setFilter(LAYER_HEIGHT_POINTS, filter);
+      if (mapRef.getLayer(LAYER_HEIGHT_POINTS_GLOW)) mapRef.setFilter(LAYER_HEIGHT_POINTS_GLOW, filter);
     } catch (e) { console.error('Height point filter error:', e); }
 
-    // Weight lines filter
+    // Weight lines filter (main + glow)
     try {
-      if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-        const filter = showWeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'weight'],
-              ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
-              ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
-            ]
-          : ['==', ['get', 'restrictionType'], '__hidden__'];
-        mapRef.setFilter(LAYER_WEIGHT_LINES, filter);
-      }
+      const filter = showWeightLimits
+        ? ['all',
+            ['==', ['get', 'restrictionType'], 'weight'],
+            ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
+            ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
+          ]
+        : ['==', ['get', 'restrictionType'], '__hidden__'];
+      if (mapRef.getLayer(LAYER_WEIGHT_LINES)) mapRef.setFilter(LAYER_WEIGHT_LINES, filter);
+      if (mapRef.getLayer(LAYER_WEIGHT_GLOW)) mapRef.setFilter(LAYER_WEIGHT_GLOW, filter);
     } catch (e) { console.error('Weight line filter error:', e); }
 
-    // Weight points filter
+    // Weight points filter (main + glow)
     try {
-      if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-        const filter = showWeightLimits
-          ? ['all',
-              ['==', ['get', 'restrictionType'], 'weight'],
-              ['==', ['geometry-type'], 'Point'],
-              ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
-            ]
-          : ['==', ['get', 'restrictionType'], '__hidden__'];
-        mapRef.setFilter(LAYER_WEIGHT_POINTS, filter);
-      }
+      const filter = showWeightLimits
+        ? ['all',
+            ['==', ['get', 'restrictionType'], 'weight'],
+            ['==', ['geometry-type'], 'Point'],
+            ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
+          ]
+        : ['==', ['get', 'restrictionType'], '__hidden__'];
+      if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) mapRef.setFilter(LAYER_WEIGHT_POINTS, filter);
+      if (mapRef.getLayer(LAYER_WEIGHT_POINTS_GLOW)) mapRef.setFilter(LAYER_WEIGHT_POINTS_GLOW, filter);
     } catch (e) { console.error('Weight point filter error:', e); }
   }, [mapRef, showWeightLimits, showHeightLimits, weightFilterMax, heightFilterMax]);
 
@@ -665,26 +761,26 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     return () => clearTimeout(timer);
   }, [heightPulsating, setHeightPulsating]);
 
-  // Animate map layers when pulsating (glow effect with 4 second cycle)
+  // Animate glow layers when pulsating (5 second cycle)
   useEffect(() => {
     if (!mapRef || !weightPulsating) return;
     const startTime = performance.now();
     let animId;
     const animate = (now) => {
-      // 4 second cycle = 2π per 4000ms
-      const phase = ((now - startTime) / 4000) * Math.PI * 2;
+      // 5 second cycle = 2π per 5000ms
+      const phase = ((now - startTime) / 5000) * Math.PI * 2;
       const t = Math.abs(Math.sin(phase));
-      const glow = 2 + 14 * t; // blur 2-16 (stronger)
-      const width = 5 + 6 * t; // width 5-11
-      const radius = 8 + 8 * t; // circle radius 8-16
+      const glowOpacity = 0.3 + 0.7 * t; // opacity 0.3-1.0
+      const glowWidth = 14 + 16 * t; // width 14-30
+      const glowRadius = 16 + 12 * t; // circle radius 16-28
       try {
-        if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-blur', glow);
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-width', width);
+        if (mapRef.getLayer(LAYER_WEIGHT_GLOW)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_GLOW, 'line-opacity', glowOpacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_GLOW, 'line-width', glowWidth);
         }
-        if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', glow * 0.15);
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-radius', radius);
+        if (mapRef.getLayer(LAYER_WEIGHT_POINTS_GLOW)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS_GLOW, 'circle-opacity', glowOpacity * 0.6);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS_GLOW, 'circle-radius', glowRadius);
         }
       } catch {}
       animId = requestAnimationFrame(animate);
@@ -692,15 +788,13 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     animId = requestAnimationFrame(animate);
     return () => {
       cancelAnimationFrame(animId);
-      // Restore original values
+      // Hide glow layers
       try {
-        if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-blur', 0);
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-width', 5);
+        if (mapRef.getLayer(LAYER_WEIGHT_GLOW)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_GLOW, 'line-opacity', 0);
         }
-        if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', 0);
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-radius', 8);
+        if (mapRef.getLayer(LAYER_WEIGHT_POINTS_GLOW)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS_GLOW, 'circle-opacity', 0);
         }
       } catch {}
     };
@@ -711,20 +805,20 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     const startTime = performance.now();
     let animId;
     const animate = (now) => {
-      // 4 second cycle = 2π per 4000ms
-      const phase = ((now - startTime) / 4000) * Math.PI * 2;
+      // 5 second cycle = 2π per 5000ms
+      const phase = ((now - startTime) / 5000) * Math.PI * 2;
       const t = Math.abs(Math.sin(phase));
-      const glow = 2 + 14 * t; // blur 2-16 (stronger)
-      const width = 4 + 6 * t; // width 4-10
-      const radius = 8 + 8 * t; // circle radius 8-16
+      const glowOpacity = 0.3 + 0.7 * t; // opacity 0.3-1.0
+      const glowWidth = 14 + 16 * t; // width 14-30
+      const glowRadius = 16 + 12 * t; // circle radius 16-28
       try {
-        if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-blur', glow);
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-width', width);
+        if (mapRef.getLayer(LAYER_HEIGHT_GLOW)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_GLOW, 'line-opacity', glowOpacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_GLOW, 'line-width', glowWidth);
         }
-        if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', glow * 0.15);
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-radius', radius);
+        if (mapRef.getLayer(LAYER_HEIGHT_POINTS_GLOW)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS_GLOW, 'circle-opacity', glowOpacity * 0.6);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS_GLOW, 'circle-radius', glowRadius);
         }
       } catch {}
       animId = requestAnimationFrame(animate);
@@ -732,15 +826,13 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     animId = requestAnimationFrame(animate);
     return () => {
       cancelAnimationFrame(animId);
-      // Restore original values
+      // Hide glow layers
       try {
-        if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-blur', 0);
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-width', 4);
+        if (mapRef.getLayer(LAYER_HEIGHT_GLOW)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_GLOW, 'line-opacity', 0);
         }
-        if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', 0);
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-radius', 8);
+        if (mapRef.getLayer(LAYER_HEIGHT_POINTS_GLOW)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS_GLOW, 'circle-opacity', 0);
         }
       } catch {}
     };
