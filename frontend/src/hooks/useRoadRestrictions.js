@@ -29,6 +29,7 @@ export function useRoadRestrictions(visible) {
       const geojson = await res.json();
       setData(geojson);
       setFetchedAt(new Date());
+      useMapStore.getState().setRoadRestrictionsCount(geojson?.meta?.total || geojson?.features?.length || 0);
     } catch (err) {
       console.error('Road restrictions fetch error:', err);
     } finally {
@@ -42,6 +43,7 @@ export function useRoadRestrictions(visible) {
     if (!visible) {
       setData(null);
       setFetchedAt(null);
+      useMapStore.getState().setRoadRestrictionsCount(null);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

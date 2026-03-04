@@ -16,7 +16,7 @@ const OVERLAYS = [
   { id: 'snowDepth', toggleKey: 'toggleSnowDepth', visibleKey: 'snowDepthVisible', opacityKey: 'snowDepthOpacity', setOpacityKey: 'setSnowDepthOpacity', accent: 'accent-blue-500', shortcut: 'S' },
   { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500', shortcut: 'F' },
   { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
-  { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X' },
+  { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X', countKey: 'roadRestrictionsCount' },
 ];
 
 const OVERLAY_LABELS = {
@@ -320,6 +320,7 @@ export default function DataLayersDrawer() {
               const toggle = store[overlay.toggleKey];
               const opacity = overlay.opacityKey ? store[overlay.opacityKey] : null;
               const setOpacity = overlay.setOpacityKey ? store[overlay.setOpacityKey] : null;
+              const count = overlay.countKey ? store[overlay.countKey] : null;
 
               return (
                 <div key={overlay.id}>
@@ -345,6 +346,12 @@ export default function DataLayersDrawer() {
                     <button onClick={toggle} className={`text-sm flex-1 text-left cursor-pointer ${visible ? 'text-slate-200' : 'text-slate-500'}`}>
                       {OVERLAY_LABELS[overlay.id]?.[lang] || overlay.id}
                     </button>
+                    {/* Count badge */}
+                    {visible && count != null && (
+                      <span className="text-[10px] text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
+                        {count}
+                      </span>
+                    )}
                   </div>
                   {/* Opacity slider (when visible and has opacity) */}
                   {visible && setOpacity && (

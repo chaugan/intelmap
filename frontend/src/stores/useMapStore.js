@@ -44,6 +44,7 @@ export const useMapStore = create((set) => ({
   roadRestrictionsVisible: false,
   roadRestrictionsOpacity: 0.85,
   roadRestrictionsFetchedAt: null,
+  roadRestrictionsCount: null,
   showWeightLimits: true,
   showHeightLimits: true,
   weightFilterMax: 100, // tons
@@ -161,6 +162,7 @@ export const useMapStore = create((set) => ({
   })),
   setRoadRestrictionsOpacity: (roadRestrictionsOpacity) => set({ roadRestrictionsOpacity }),
   setRoadRestrictionsFetchedAt: (roadRestrictionsFetchedAt) => set({ roadRestrictionsFetchedAt }),
+  setRoadRestrictionsCount: (roadRestrictionsCount) => set({ roadRestrictionsCount }),
   toggleWeightLimits: () => set((s) => ({ showWeightLimits: !s.showWeightLimits })),
   toggleHeightLimits: () => set((s) => ({ showHeightLimits: !s.showHeightLimits })),
   setWeightFilterMax: (weightFilterMax) => set({ weightFilterMax }),
