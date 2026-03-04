@@ -380,6 +380,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
   const [expanded, setExpanded] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
+  const hoverInfoRef = useRef(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -857,16 +858,20 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       const pt = trackPoints[closestIdx];
       const lineX = padding.left + ((new Date(pt.timestamp).getTime() - startTime) / timeRange) * chartWidth;
       const speedY = pt.speed != null ? padding.top + chartHeight - (pt.speed / speedRange) * chartHeight : null;
-      setHoverInfo({ point: pt, index: closestIdx, lineX, speedY });
+      const info = { point: pt, index: closestIdx, lineX, speedY };
+      hoverInfoRef.current = info;
+      setHoverInfo(info);
     } else {
       setHoverInfo(null);
     }
   };
 
   const handleChartClick = () => {
-    if (hoverInfo) {
-      setSelectedPoint(hoverInfo.point);
-      setSelectedIndex(hoverInfo.index);
+    // Use ref because on touch, pointerleave clears state before click fires
+    const info = hoverInfo || hoverInfoRef.current;
+    if (info) {
+      setSelectedPoint(info.point);
+      setSelectedIndex(info.index);
       // In compact mode, clicking chart opens expanded view directly
       if (!expanded) {
         setExpanded(true);
