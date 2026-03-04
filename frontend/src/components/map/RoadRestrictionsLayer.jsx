@@ -54,7 +54,9 @@ const WEIGHT_COLOR_EXPR = [
 export default function RoadRestrictionsLayer({ data, mapRef }) {
   const dataRef = useRef(data);
   const [ready, setReady] = useState(false);
-  const [selectedFeature, setSelectedFeature] = useState(null);
+  // Support multiple open popups - Map keyed by feature id
+  const [openFeatures, setOpenFeatures] = useState(new Map());
+  const [pinnedIds, setPinnedIds] = useState(new Set());
   const roadRestrictionsOpacity = useMapStore((s) => s.roadRestrictionsOpacity);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
   const showHeightLimits = useMapStore((s) => s.showHeightLimits);
@@ -307,11 +309,19 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       const features = mapRef.queryRenderedFeatures(e.point, { layers: activeLayers });
 
       if (features.length === 0) {
-        setSelectedFeature(null);
+        // Close unpinned popups when clicking empty area
+        setOpenFeatures((prev) => {
+          const next = new Map();
+          for (const [id, feat] of prev) {
+            if (pinnedIds.has(id)) next.set(id, feat);
+          }
+          return next;
+        });
         return;
       }
 
       const feature = features[0];
+      const featureId = feature.properties.id;
       const geom = feature.geometry;
 
       // Get coordinates for popup placement
@@ -331,9 +341,20 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         popupCoords = [e.lngLat.lng, e.lngLat.lat];
       }
 
-      setSelectedFeature({
-        properties: feature.properties,
-        coords: popupCoords,
+      // Close unpinned popups, then add new one
+      setOpenFeatures((prev) => {
+        const next = new Map();
+        // Keep pinned popups
+        for (const [id, feat] of prev) {
+          if (pinnedIds.has(id)) next.set(id, feat);
+        }
+        // Add new popup (or update if already open)
+        next.set(featureId, {
+          id: featureId,
+          properties: feature.properties,
+          coords: popupCoords,
+        });
+        return next;
       });
     };
 
@@ -361,32 +382,65 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
     };
   }, [mapRef]);
 
-  // Close popup on map click outside features or on movestart (unpinned only)
-  const [pinned, setPinned] = useState(false);
+  // Close unpinned popups on movestart
   useEffect(() => {
-    if (!mapRef || !selectedFeature) return;
+    if (!mapRef || openFeatures.size === 0) return;
     const closeUnpinned = () => {
-      if (!pinned) setSelectedFeature(null);
+      setOpenFeatures((prev) => {
+        const next = new Map();
+        for (const [id, feat] of prev) {
+          if (pinnedIds.has(id)) next.set(id, feat);
+        }
+        return next.size !== prev.size ? next : prev;
+      });
     };
     mapRef.on('movestart', closeUnpinned);
     return () => mapRef.off('movestart', closeUnpinned);
-  }, [mapRef, selectedFeature, pinned]);
+  }, [mapRef, openFeatures.size, pinnedIds]);
 
-  // Reset pinned state when popup closes
+  // Clean up pinnedIds when features are closed
   useEffect(() => {
-    if (!selectedFeature) setPinned(false);
-  }, [selectedFeature]);
+    setPinnedIds((prev) => {
+      const next = new Set();
+      for (const id of prev) {
+        if (openFeatures.has(id)) next.add(id);
+      }
+      return next.size !== prev.size ? next : prev;
+    });
+  }, [openFeatures]);
 
-  return selectedFeature ? (
-    <RestrictionPopupWrapper
-      feature={selectedFeature}
-      mapRef={mapRef}
-      lang={lang}
-      pinned={pinned}
-      onPin={() => setPinned(true)}
-      onClose={() => setSelectedFeature(null)}
-    />
-  ) : null;
+  const handlePin = useCallback((id) => {
+    setPinnedIds((prev) => new Set(prev).add(id));
+  }, []);
+
+  const handleClose = useCallback((id) => {
+    setOpenFeatures((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  return (
+    <>
+      {Array.from(openFeatures.values()).map((feature) => (
+        <RestrictionPopupWrapper
+          key={feature.id}
+          feature={feature}
+          mapRef={mapRef}
+          lang={lang}
+          pinned={pinnedIds.has(feature.id)}
+          onPin={() => handlePin(feature.id)}
+          onClose={() => handleClose(feature.id)}
+        />
+      ))}
+    </>
+  );
 }
 
 // Wrapper component for the draggable popup
