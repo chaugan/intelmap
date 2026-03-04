@@ -107,6 +107,9 @@ export const useMapStore = create((set) => ({
   // Measuring tool
   measuringToolVisible: false,
 
+  // User geolocation
+  userLocation: null, // { longitude, latitude }
+
   // Fly-around rotation
   flyAroundActive: false,
 
@@ -245,6 +248,8 @@ export const useMapStore = create((set) => ({
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
   toggleMeasuringTool: () => set((s) => ({ measuringToolVisible: !s.measuringToolVisible })),
+  setUserLocation: (userLocation) => set({ userLocation }),
+  clearUserLocation: () => set({ userLocation: null }),
   setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,

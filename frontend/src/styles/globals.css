@@ -62,6 +62,41 @@ html, body, #root {
   font-size: 0.85em;
 }
 
+/* User location "You are here" marker */
+.user-location-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.user-location-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background: #3b82f6;
+  border: 2.5px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.7);
+  z-index: 1;
+}
+.user-location-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 50%;
+  animation: user-location-ripple 2s ease-out infinite;
+}
+@keyframes user-location-ripple {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
 /* Pulsation animation for restriction highlight */
 @keyframes pulse-color {
   0%, 100% { opacity: 1; transform: scale(1); }

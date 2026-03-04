@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
-import Map from 'react-map-gl/maplibre';
+import Map, { Marker } from 'react-map-gl/maplibre';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
@@ -44,6 +44,7 @@ export default function TacticalMap() {
   const mapRef = useRef(null);
   const baseLayer = useMapStore((s) => s.baseLayer);
   const webcamsVisible = useMapStore((s) => s.webcamsVisible);
+  const userLocation = useMapStore((s) => s.userLocation);
   const windVisible = useMapStore((s) => s.windVisible);
   const sunlightVisible = useMapStore((s) => s.sunlightVisible);
   const avalancheVisible = useMapStore((s) => s.avalancheVisible);
@@ -506,6 +507,14 @@ export default function TacticalMap() {
       >
         <NatoMarkerLayer localMarkers={localMarkers} setLocalMarkers={setLocalMarkers} />
         {webcamsVisible && <WebcamLayer />}
+        {userLocation && (
+          <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
+            <div className="user-location-marker" title={lang === 'no' ? 'Du er her' : 'You are here'}>
+              <div className="user-location-pulse" />
+              <div className="user-location-dot" />
+            </div>
+          </Marker>
+        )}
       </Map>
 
       {/* Compass rose */}

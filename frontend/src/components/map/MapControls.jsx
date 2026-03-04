@@ -40,18 +40,22 @@ export default function MapControls() {
   const [locating, setLocating] = useState(false);
   const dropdownRef = useRef(null);
 
+  const setUserLocation = useMapStore((s) => s.setUserLocation);
+
   const handleGeolocate = useCallback(() => {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        flyTo(pos.coords.longitude, pos.coords.latitude, 14);
+        const { longitude, latitude } = pos.coords;
+        flyTo(longitude, latitude, 14);
+        setUserLocation({ longitude, latitude });
         setLocating(false);
       },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [flyTo]);
+  }, [flyTo, setUserLocation]);
 
   useEffect(() => {
     function handleClick(e) {
