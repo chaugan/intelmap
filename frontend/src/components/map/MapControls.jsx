@@ -282,6 +282,7 @@ const VISIBILITY_KEYS = [
   'auroraVisible', 'sunlightVisible', 'windVisible', 'webcamsVisible',
   'avalancheVisible', 'avalancheWarningsVisible', 'snowDepthVisible',
   'aircraftVisible', 'vesselsVisible', 'trafficFlowVisible', 'trafficInfoVisible',
+  'roadRestrictionsVisible',
 ];
 
 function ActiveLayerBadge() {

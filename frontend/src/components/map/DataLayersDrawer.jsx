@@ -108,29 +108,8 @@ export default function DataLayersDrawer() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
 
-  // Overlay state - need individual subscriptions for reactivity
+  // Overlay state
   const store = useMapStore();
-  // Subscribe to each visibility flag individually for proper reactivity
-  const auroraVisible = useMapStore((s) => s.auroraVisible);
-  const sunlightVisible = useMapStore((s) => s.sunlightVisible);
-  const windVisible = useMapStore((s) => s.windVisible);
-  const webcamsVisible = useMapStore((s) => s.webcamsVisible);
-  const trafficFlowVisible = useMapStore((s) => s.trafficFlowVisible);
-  const trafficInfoVisible = useMapStore((s) => s.trafficInfoVisible);
-  const avalancheVisible = useMapStore((s) => s.avalancheVisible);
-  const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
-  const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
-  const aircraftVisible = useMapStore((s) => s.aircraftVisible);
-  const vesselsVisible = useMapStore((s) => s.vesselsVisible);
-  const roadRestrictionsVisible = useMapStore((s) => s.roadRestrictionsVisible);
-
-  const activeLayerCount = [
-    auroraVisible, sunlightVisible, windVisible, webcamsVisible,
-    trafficFlowVisible, trafficInfoVisible, avalancheVisible,
-    avalancheWarningsVisible, snowDepthVisible, aircraftVisible,
-    vesselsVisible, roadRestrictionsVisible
-  ].filter(Boolean).length;
-
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const moveOverlayUp = useMapStore((s) => s.moveOverlayUp);
   const moveOverlayDown = useMapStore((s) => s.moveOverlayDown);
@@ -333,18 +312,11 @@ export default function DataLayersDrawer() {
         {/* Overlays section */}
         <div className="px-3 py-2.5 border-b border-slate-700">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">
-                {t('dataLayers.overlays', lang)}
-              </span>
-              {activeLayerCount > 0 && (
-                <span className="text-[10px] text-emerald-400 bg-emerald-900/50 px-1.5 py-0.5 rounded-full font-medium">
-                  {activeLayerCount}
-                </span>
-              )}
-            </div>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">
+              {t('dataLayers.overlays', lang)}
+            </span>
             {/* Hide all data layers button */}
-            {activeLayerCount > 0 && (
+            {OVERLAYS.some((o) => store[o.visibleKey]) && (
               <button
                 onClick={store.hideAllDataLayers}
                 className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
