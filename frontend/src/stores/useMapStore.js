@@ -57,9 +57,6 @@ export const useMapStore = create((set) => ({
   trafficInfoOpacity: 0.9,
   trafficInfoFetchedAt: null,
   hiddenTrafficCategories: [],
-  trainsVisible: false,
-  trainsOpacity: 0.9,
-  trainsFetchedAt: null,
   drawingToolsVisible: false,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -83,7 +80,7 @@ export const useMapStore = create((set) => ({
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'trains', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -179,7 +176,6 @@ export const useMapStore = create((set) => ({
     roadRestrictionsVisible: false,
     trafficFlowVisible: false,
     trafficInfoVisible: false,
-    trainsVisible: false,
     sunlightVisible: false,
     auroraVisible: false,
     focusedAircraftHex: null,
@@ -196,9 +192,6 @@ export const useMapStore = create((set) => ({
   setHeightFilterMax: (heightFilterMax) => set({ heightFilterMax }),
   setWeightPulsating: (weightPulsating) => set({ weightPulsating }),
   setHeightPulsating: (heightPulsating) => set({ heightPulsating }),
-  toggleTrains: () => set((s) => ({ trainsVisible: !s.trainsVisible })),
-  setTrainsOpacity: (trainsOpacity) => set({ trainsOpacity }),
-  setTrainsFetchedAt: (trainsFetchedAt) => set({ trainsFetchedAt }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({
@@ -300,8 +293,6 @@ export const useMapStore = create((set) => ({
       ...(parsed.trafficFlowOpacity !== undefined && { trafficFlowOpacity: parsed.trafficFlowOpacity }),
       ...(parsed.trafficInfoVisible !== undefined && { trafficInfoVisible: parsed.trafficInfoVisible }),
       ...(parsed.trafficInfoOpacity !== undefined && { trafficInfoOpacity: parsed.trafficInfoOpacity }),
-      ...(parsed.trainsVisible !== undefined && { trainsVisible: parsed.trainsVisible }),
-      ...(parsed.trainsOpacity !== undefined && { trainsOpacity: parsed.trainsOpacity }),
       ...(parsed.sunlightVisible !== undefined && { sunlightVisible: parsed.sunlightVisible }),
       ...(parsed.sunlightOpacity !== undefined && { sunlightOpacity: parsed.sunlightOpacity }),
       ...(parsed.sunlightDate !== undefined && { sunlightDate: parsed.sunlightDate }),
@@ -402,8 +393,6 @@ export function getThemeState(includePosition = false) {
     trafficFlowOpacity: s.trafficFlowOpacity,
     trafficInfoVisible: s.trafficInfoVisible,
     trafficInfoOpacity: s.trafficInfoOpacity,
-    trainsVisible: s.trainsVisible,
-    trainsOpacity: s.trainsOpacity,
     sunlightVisible: s.sunlightVisible,
     sunlightOpacity: s.sunlightOpacity,
     sunlightDate: s.sunlightDate,

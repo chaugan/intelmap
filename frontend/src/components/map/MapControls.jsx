@@ -287,7 +287,6 @@ const VISIBILITY_KEYS = [
   'avalancheVisible', 'avalancheWarningsVisible', 'snowDepthVisible',
   'aircraftVisible', 'vesselsVisible', 'trafficFlowVisible', 'trafficInfoVisible',
   'roadRestrictionsVisible',
-  'trainsVisible',
 ];
 
 function ActiveLayerBadge() {

@@ -31,12 +31,10 @@ import { useVessels } from '../../hooks/useVessels.js';
 import { useTraffic } from '../../hooks/useTraffic.js';
 import { useAuroraForecast } from '../../hooks/useAuroraForecast.js';
 import { useRoadRestrictions } from '../../hooks/useRoadRestrictions.js';
-import { useTrains } from '../../hooks/useTrains.js';
 import AuroraLegend from './AuroraLegend.jsx';
 import AuroraOverlay from './AuroraOverlay.jsx';
 import TrafficLayer, { TrafficLegend, TrafficFlowLegend } from './TrafficLayer.jsx';
 import RoadRestrictionsLayer, { RoadRestrictionsLegend } from './RoadRestrictionsLayer.jsx';
-import TrainLayer, { TrainLegend } from './TrainLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 
@@ -68,8 +66,6 @@ export default function TacticalMap() {
   const setAuroraFetchedAt = useMapStore((s) => s.setAuroraFetchedAt);
   const roadRestrictionsVisible = useMapStore((s) => s.roadRestrictionsVisible);
   const setRoadRestrictionsFetchedAt = useMapStore((s) => s.setRoadRestrictionsFetchedAt);
-  const trainsVisible = useMapStore((s) => s.trainsVisible);
-  const setTrainsFetchedAt = useMapStore((s) => s.setTrainsFetchedAt);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
   const setMapRef = useMapStore((s) => s.setMapRef);
@@ -101,7 +97,6 @@ export default function TacticalMap() {
   const { data: trafficInfoData, loading: trafficInfoLoading, fetchedAt: trafficInfoFetchedAt } = useTraffic(trafficInfoVisible);
   const { data: auroraData, kpData: auroraKpData, loading: auroraLoading, fetchedAt: auroraFetchedAt } = useAuroraForecast(auroraVisible);
   const { data: roadRestrictionsData, loading: roadRestrictionsLoading, fetchedAt: roadRestrictionsFetchedAt } = useRoadRestrictions(roadRestrictionsVisible);
-  const { data: trainsData, loading: trainsLoading, fetchedAt: trainsFetchedAt } = useTrains(trainsVisible);
 
   // Sync fetchedAt to store for DataFreshness
   useEffect(() => {
@@ -127,10 +122,6 @@ export default function TacticalMap() {
   useEffect(() => {
     setRoadRestrictionsFetchedAt(roadRestrictionsFetchedAt);
   }, [roadRestrictionsFetchedAt, setRoadRestrictionsFetchedAt]);
-
-  useEffect(() => {
-    setTrainsFetchedAt(trainsFetchedAt);
-  }, [trainsFetchedAt, setTrainsFetchedAt]);
 
   const [contextMenus, setContextMenus] = useState([]);
   const [bearing, setBearing] = useState(0);
@@ -700,16 +691,15 @@ export default function TacticalMap() {
       {aircraftVisible && <AircraftLayer data={aircraftData} mapRef={mapInstance} />}
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
       {trafficInfoVisible && <TrafficLayer data={trafficInfoData} mapRef={mapInstance} />}
-      {trainsVisible && <TrainLayer data={trainsData} mapRef={mapInstance} />}
       {roadRestrictionsVisible && <RoadRestrictionsLayer data={roadRestrictionsData} mapRef={mapInstance} />}
       {auroraVisible && <AuroraOverlay />}
       {windVisible && <WindOverlay />}
       <DataFreshness />
 
       {/* Legends + loading indicators — stacked bottom-right */}
-      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficFlowVisible || trafficInfoVisible || sunlightVisible || auroraVisible || roadRestrictionsVisible || trainsVisible) && (
+      {(windVisible || snowDepthVisible || avalancheWarningsVisible || aircraftVisible || vesselsVisible || trafficFlowVisible || trafficInfoVisible || sunlightVisible || auroraVisible || roadRestrictionsVisible) && (
         <div className="absolute bottom-4 right-4 z-[6] flex flex-col gap-1.5">
-          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || trafficInfoLoading || auroraLoading || roadRestrictionsLoading || trainsLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (trafficInfoVisible && !trafficInfoData) || (auroraVisible && !auroraData) || (roadRestrictionsVisible && !roadRestrictionsData) || (trainsVisible && !trainsData)) && (
+          {(windLoading || snowDepthLoading || avalancheWarningsLoading || aircraftLoading || vesselsLoading || trafficInfoLoading || auroraLoading || roadRestrictionsLoading || (aircraftVisible && !aircraftData) || (vesselsVisible && !vesselsData) || (trafficInfoVisible && !trafficInfoData) || (auroraVisible && !auroraData) || (roadRestrictionsVisible && !roadRestrictionsData)) && (
             <div className="flex flex-col items-end gap-1">
               {windVisible && windLoading && (
                 <div className="text-xs text-cyan-400 bg-slate-800/80 px-2 py-1 rounded">
@@ -751,11 +741,6 @@ export default function TacticalMap() {
                   {lang === 'no' ? 'Henter vegrestriksjoner...' : 'Loading road restrictions...'}
                 </div>
               )}
-              {(trainsLoading || (trainsVisible && !trainsData)) && (
-                <div className="text-xs text-green-400 bg-slate-800/80 px-2 py-1 rounded">
-                  {lang === 'no' ? 'Henter togdata...' : 'Loading train data...'}
-                </div>
-              )}
             </div>
           )}
           {sunlightVisible && <SunlightLegend lang={lang} />}
@@ -768,7 +753,6 @@ export default function TacticalMap() {
           {trafficInfoVisible && <TrafficLegend count={trafficInfoData?.meta?.total} />}
           {auroraVisible && <AuroraLegend kpData={auroraKpData} />}
           {roadRestrictionsVisible && <RoadRestrictionsLegend count={roadRestrictionsData?.meta?.total} mapRef={mapInstance} />}
-          {trainsVisible && <TrainLegend count={trainsData?.meta?.total} />}
         </div>
       )}
       {contextMenus.map((menu) => (
