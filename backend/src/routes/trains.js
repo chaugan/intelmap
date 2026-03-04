@@ -193,6 +193,88 @@ async function fetchDelayData() {
   return delayMap;
 }
 
+// --- SIRI VM for operators missing from GTFS-RT ---
+// SJN (SJ Nord) doesn't publish to GTFS-RT but has SIRI VM data
+const SIRI_VM_OPERATORS = ['SJN'];
+let siriVmCache = [];
+let siriVmFetchTime = 0;
+const SIRI_VM_CACHE_TTL = 10000;
+
+function parseSiriDelay(delayStr) {
+  if (!delayStr) return null;
+  // Parse ISO 8601 duration like "PT54S", "PT2M30S", "-PT1M"
+  const neg = delayStr.startsWith('-');
+  const match = delayStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return null;
+  const h = parseInt(match[1] || 0);
+  const m = parseInt(match[2] || 0);
+  const s = parseInt(match[3] || 0);
+  const total = h * 3600 + m * 60 + s;
+  return neg ? -total : total;
+}
+
+async function fetchSiriVmTrains() {
+  const now = Date.now();
+  if (now - siriVmFetchTime < SIRI_VM_CACHE_TTL) return siriVmCache;
+
+  const features = [];
+  for (const op of SIRI_VM_OPERATORS) {
+    try {
+      const res = await fetch(
+        `https://api.entur.io/realtime/v1/rest/vm?datasetId=${op}`,
+        { headers: { 'ET-Client-Name': `coremap26-trains-${op.toLowerCase()}` }, signal: AbortSignal.timeout(10000) }
+      );
+      if (!res.ok) continue;
+      const xml = await res.text();
+
+      // Simple XML parsing — extract VehicleActivity blocks
+      const activities = xml.split('<VehicleActivity>').slice(1);
+      for (const act of activities) {
+        const lon = parseFloat(act.match(/<Longitude>([\d.-]+)/)?.[1]);
+        const lat = parseFloat(act.match(/<Latitude>([\d.-]+)/)?.[1]);
+        if (isNaN(lon) || isNaN(lat)) continue;
+
+        const lineRef = act.match(/<LineRef>([^<]+)/)?.[1] || '';
+        const vehicleRef = act.match(/<VehicleRef>([^<]+)/)?.[1] || '';
+        const journeyRef = act.match(/<VehicleJourneyRef>([^<]+)/)?.[1] || '';
+        const delayStr = act.match(/<Delay>([^<]+)/)?.[1] || '';
+        const delaySec = parseSiriDelay(delayStr);
+
+        // Extract line name (e.g. "SJN:Line:71" → "71")
+        const lineName = lineRef.split(':').pop() || '';
+
+        const computedBearing = getTrainBearing(vehicleRef, lon, lat, null);
+
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [lon, lat] },
+          properties: {
+            id: vehicleRef,
+            label: lineName || vehicleRef,
+            tripId: journeyRef || null,
+            routeId: lineRef || null,
+            directionId: null,
+            bearing: computedBearing,
+            speed: null,
+            speedKmh: null,
+            stopId: null,
+            currentStatus: null,
+            timestamp: null,
+            delay: delaySec,
+            delayCategory: getDelayCategory(delaySec),
+          },
+        });
+      }
+    } catch (err) {
+      console.error(`SIRI VM fetch error for ${op}:`, err.message);
+    }
+  }
+
+  siriVmCache = features;
+  siriVmFetchTime = now;
+  return features;
+}
+
 // GET /api/trains — Live train positions
 router.get('/', async (req, res) => {
   const now = Date.now();
@@ -212,13 +294,14 @@ router.get('/', async (req, res) => {
   lastFetchTime = Date.now();
 
   try {
-    // Fetch vehicle positions and delay data in parallel
-    const [vpRes, delays] = await Promise.all([
+    // Fetch vehicle positions, delay data, and SIRI VM in parallel
+    const [vpRes, delays, siriTrains] = await Promise.all([
       fetch(
         'https://api.entur.io/realtime/v1/gtfs-rt/vehicle-positions',
         { headers: ENTUR_HEADERS, signal: AbortSignal.timeout(10000) }
       ),
       fetchDelayData(),
+      fetchSiriVmTrains(),
     ]);
 
     if (!vpRes.ok) throw new Error(`Entur GTFS-RT ${vpRes.status}`);
@@ -274,10 +357,13 @@ router.get('/', async (req, res) => {
       });
     }
 
+    // Merge SIRI VM trains (SJN etc.) into features
+    const allFeatures = [...features, ...siriTrains];
+
     const result = {
       type: 'FeatureCollection',
-      meta: { total: features.length, fetchedAt: new Date().toISOString() },
-      features,
+      meta: { total: allFeatures.length, fetchedAt: new Date().toISOString() },
+      features: allFeatures,
     };
 
     cachedData = result;
