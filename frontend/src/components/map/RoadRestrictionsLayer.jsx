@@ -11,9 +11,44 @@ const LINE_LAYERS = [LAYER_HEIGHT_LINES, LAYER_WEIGHT_LINES];
 const POINT_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS];
 const ALL_LAYERS = [...LINE_LAYERS, ...POINT_LAYERS];
 
-// Color gradients based on restriction severity
-// Height: green (high clearance) -> yellow -> red (low clearance)
-// Weight: green (high capacity) -> yellow -> red (low capacity)
+// Discrete color buckets for restrictions
+// Height: purple/blue scheme (dark purple = very low, cyan = high)
+const HEIGHT_COLORS = [
+  { threshold: 3, color: '#7c3aed' },    // <3m: violet
+  { threshold: 3.5, color: '#8b5cf6' },  // 3-3.5m: purple
+  { threshold: 4, color: '#3b82f6' },    // 3.5-4m: blue
+  { threshold: 4.5, color: '#0ea5e9' },  // 4-4.5m: sky
+  { threshold: 999, color: '#06b6d4' },  // >4.5m: cyan
+];
+
+// Weight: orange/red scheme (dark red = very low, yellow = high)
+const WEIGHT_COLORS = [
+  { threshold: 20, color: '#b91c1c' },   // <20t: dark red
+  { threshold: 30, color: '#dc2626' },   // 20-30t: red
+  { threshold: 40, color: '#ea580c' },   // 30-40t: orange
+  { threshold: 60, color: '#f59e0b' },   // 40-60t: amber
+  { threshold: 999, color: '#fbbf24' },  // >60t: yellow
+];
+
+// MapLibre step expression for height colors
+const HEIGHT_COLOR_EXPR = [
+  'step', ['coalesce', ['get', 'height'], 5],
+  HEIGHT_COLORS[0].color,
+  3, HEIGHT_COLORS[1].color,
+  3.5, HEIGHT_COLORS[2].color,
+  4, HEIGHT_COLORS[3].color,
+  4.5, HEIGHT_COLORS[4].color,
+];
+
+// MapLibre step expression for weight colors
+const WEIGHT_COLOR_EXPR = [
+  'step', ['coalesce', ['get', 'maxWeight'], 50],
+  WEIGHT_COLORS[0].color,
+  20, WEIGHT_COLORS[1].color,
+  30, WEIGHT_COLORS[2].color,
+  40, WEIGHT_COLORS[3].color,
+  60, WEIGHT_COLORS[4].color,
+];
 
 export default function RoadRestrictionsLayer({ data, mapRef }) {
   const popupRef = useRef(null);
@@ -45,7 +80,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Height restriction lines - gradient from green (high) to red (low)
+    // Height restriction lines - purple/blue buckets
     if (!mapRef.getLayer(LAYER_HEIGHT_LINES)) {
       mapRef.addLayer({
         id: LAYER_HEIGHT_LINES,
@@ -59,13 +94,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           ],
         ],
         paint: {
-          'line-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'height'], 5],
-            2.5, '#dc2626',  // Very low (red)
-            3.5, '#f97316',  // Low (orange)
-            4.5, '#eab308',  // Medium (yellow)
-            6, '#22c55e',    // High (green)
-          ],
+          'line-color': HEIGHT_COLOR_EXPR,
           'line-width': 5,
           'line-opacity': opacity,
         },
@@ -76,7 +105,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Weight restriction lines - gradient from green (high) to red (low)
+    // Weight restriction lines - orange/red buckets
     if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
       mapRef.addLayer({
         id: LAYER_WEIGHT_LINES,
@@ -90,13 +119,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           ],
         ],
         paint: {
-          'line-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'maxWeight'], 50],
-            10, '#dc2626',   // Very low capacity (red)
-            30, '#f97316',   // Low (orange)
-            50, '#eab308',   // Medium (yellow)
-            80, '#22c55e',   // High capacity (green)
-          ],
+          'line-color': WEIGHT_COLOR_EXPR,
           'line-width': 5,
           'line-opacity': opacity,
         },
@@ -119,13 +142,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         ],
         paint: {
           'circle-radius': 8,
-          'circle-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'height'], 5],
-            2.5, '#dc2626',
-            3.5, '#f97316',
-            4.5, '#eab308',
-            6, '#22c55e',
-          ],
+          'circle-color': HEIGHT_COLOR_EXPR,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2,
           'circle-opacity': opacity,
@@ -146,13 +163,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         ],
         paint: {
           'circle-radius': 8,
-          'circle-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'maxWeight'], 50],
-            10, '#dc2626',
-            30, '#f97316',
-            50, '#eab308',
-            80, '#22c55e',
-          ],
+          'circle-color': WEIGHT_COLOR_EXPR,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2,
           'circle-opacity': opacity,
@@ -328,20 +339,22 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       const isHeight = props.restrictionType === 'height';
       const lang = useMapStore.getState().lang;
 
-      // Get color based on value
+      // Get color based on value (matching bucket thresholds)
       let valueColor;
       if (isHeight) {
         const h = props.height || 5;
-        if (h <= 3) valueColor = '#dc2626';
-        else if (h <= 4) valueColor = '#f97316';
-        else if (h <= 5) valueColor = '#eab308';
-        else valueColor = '#22c55e';
+        if (h < 3) valueColor = '#7c3aed';       // violet
+        else if (h < 3.5) valueColor = '#8b5cf6'; // purple
+        else if (h < 4) valueColor = '#3b82f6';   // blue
+        else if (h < 4.5) valueColor = '#0ea5e9'; // sky
+        else valueColor = '#06b6d4';              // cyan
       } else {
         const w = props.maxWeight || 50;
-        if (w <= 20) valueColor = '#dc2626';
-        else if (w <= 40) valueColor = '#f97316';
-        else if (w <= 60) valueColor = '#eab308';
-        else valueColor = '#22c55e';
+        if (w < 20) valueColor = '#b91c1c';       // dark red
+        else if (w < 30) valueColor = '#dc2626';  // red
+        else if (w < 40) valueColor = '#ea580c';  // orange
+        else if (w < 60) valueColor = '#f59e0b';  // amber
+        else valueColor = '#fbbf24';              // yellow
       }
 
       const html = `
@@ -431,7 +444,24 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   return null;
 }
 
-// Legend component with gradient color indicators
+// Legend bucket items
+const HEIGHT_BUCKETS = [
+  { label: '<3m', color: '#7c3aed' },
+  { label: '3-3.5', color: '#8b5cf6' },
+  { label: '3.5-4', color: '#3b82f6' },
+  { label: '4-4.5', color: '#0ea5e9' },
+  { label: '>4.5m', color: '#06b6d4' },
+];
+
+const WEIGHT_BUCKETS = [
+  { label: '<20t', color: '#b91c1c' },
+  { label: '20-30', color: '#dc2626' },
+  { label: '30-40', color: '#ea580c' },
+  { label: '40-60', color: '#f59e0b' },
+  { label: '>60t', color: '#fbbf24' },
+];
+
+// Legend component with discrete color buckets
 export function RoadRestrictionsLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
@@ -444,30 +474,31 @@ export function RoadRestrictionsLegend({ count }) {
   const setHeightFilterMax = useMapStore((s) => s.setHeightFilterMax);
 
   return (
-    <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs min-w-[200px]">
+    <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs min-w-[240px]">
       <div className="text-slate-400 font-semibold text-[10px] uppercase tracking-wide mb-1.5">
         {lang === 'no' ? 'Vegrestriksjoner' : 'Road Restrictions'}
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
       </div>
 
-      {/* Weight Limits Toggle + Filter */}
+      {/* Weight Limits Toggle + Buckets */}
       <div className="space-y-1.5 mb-2">
         <button
           onClick={toggleWeightLimits}
           className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showWeightLimits ? 'opacity-30' : ''}`}
         >
-          <div className="w-12 h-2 rounded" style={{ background: 'linear-gradient(to right, #dc2626, #f97316, #eab308, #22c55e)' }} />
-          <span className="text-slate-300 text-[11px]">
+          <span className="text-slate-300 text-[11px] font-medium">
             {lang === 'no' ? 'Vektgrenser' : 'Weight Limits'}
           </span>
         </button>
         {showWeightLimits && (
-          <div className="ml-0 space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-slate-500 px-1">
-              <span>10t</span>
-              <span>30t</span>
-              <span>50t</span>
-              <span>80t+</span>
+          <div className="space-y-1.5">
+            <div className="flex gap-0.5">
+              {WEIGHT_BUCKETS.map((b) => (
+                <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
+                  <div className="w-full h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
+                  <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
+                </div>
+              ))}
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
@@ -486,24 +517,25 @@ export function RoadRestrictionsLegend({ count }) {
         )}
       </div>
 
-      {/* Height Limits Toggle + Filter */}
+      {/* Height Limits Toggle + Buckets */}
       <div className="space-y-1.5 border-t border-slate-700 pt-2">
         <button
           onClick={toggleHeightLimits}
           className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showHeightLimits ? 'opacity-30' : ''}`}
         >
-          <div className="w-12 h-2 rounded" style={{ background: 'linear-gradient(to right, #dc2626, #f97316, #eab308, #22c55e)' }} />
-          <span className="text-slate-300 text-[11px]">
+          <span className="text-slate-300 text-[11px] font-medium">
             {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
           </span>
         </button>
         {showHeightLimits && (
-          <div className="ml-0 space-y-1">
-            <div className="flex items-center justify-between text-[9px] text-slate-500 px-1">
-              <span>2.5m</span>
-              <span>3.5m</span>
-              <span>4.5m</span>
-              <span>6m+</span>
+          <div className="space-y-1.5">
+            <div className="flex gap-0.5">
+              {HEIGHT_BUCKETS.map((b) => (
+                <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
+                  <div className="w-full h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
+                  <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
+                </div>
+              ))}
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
@@ -514,9 +546,9 @@ export function RoadRestrictionsLegend({ count }) {
                 step="0.5"
                 value={heightFilterMax}
                 onChange={(e) => setHeightFilterMax(parseFloat(e.target.value))}
-                className="flex-1 h-1 accent-red-500"
+                className="flex-1 h-1 accent-violet-500"
               />
-              <span className="text-[10px] text-red-400 w-8 text-right">{heightFilterMax}m</span>
+              <span className="text-[10px] text-violet-400 w-8 text-right">{heightFilterMax}m</span>
             </div>
           </div>
         )}
