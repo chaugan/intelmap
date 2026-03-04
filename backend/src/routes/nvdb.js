@@ -17,22 +17,37 @@ const HEADERS = {
 };
 
 // Fetch all pages from NVDB API with pagination
-async function fetchAllPages(url) {
+async function fetchAllPages(url, label = '') {
   const results = [];
   let nextUrl = url;
   let pageCount = 0;
-  const maxPages = 100; // Increased for full Norway fetch
+  const maxPages = 500; // High limit for full Norway fetch
 
   while (nextUrl && pageCount < maxPages) {
-    const res = await fetch(nextUrl, { headers: HEADERS });
-    if (!res.ok) {
-      console.error(`NVDB API error: ${res.status} ${res.statusText}`);
+    try {
+      const res = await fetch(nextUrl, { headers: HEADERS });
+      if (!res.ok) {
+        console.error(`[NVDB] ${label} API error: ${res.status} ${res.statusText}`);
+        break;
+      }
+      const data = await res.json();
+      const objects = data.objekter || [];
+      results.push(...objects);
+      nextUrl = data.metadata?.neste?.href || null;
+      pageCount++;
+
+      // Log progress for large fetches
+      if (pageCount % 10 === 0) {
+        console.log(`[NVDB] ${label} fetched ${results.length} objects (page ${pageCount})...`);
+      }
+    } catch (err) {
+      console.error(`[NVDB] ${label} fetch error on page ${pageCount}:`, err.message);
       break;
     }
-    const data = await res.json();
-    results.push(...(data.objekter || []));
-    nextUrl = data.metadata?.neste?.href || null;
-    pageCount++;
+  }
+
+  if (pageCount >= maxPages) {
+    console.warn(`[NVDB] ${label} hit max pages limit (${maxPages}), data may be incomplete`);
   }
 
   return results;
@@ -258,28 +273,35 @@ async function warmCache() {
 
   try {
     const [heights, weights] = await Promise.all([
-      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
-      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`, 'Height(591)'),
+      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`, 'Weight(904)'),
     ]);
 
-    const features = [
-      ...convertHeights(heights),
-      ...convertWeights(weights),
-    ];
+    console.log(`[NVDB] Raw data: ${heights.length} height objects, ${weights.length} weight objects`);
+
+    const heightFeatures = convertHeights(heights);
+    const weightFeatures = convertWeights(weights);
+    const features = [...heightFeatures, ...weightFeatures];
+
+    console.log(`[NVDB] Converted: ${heightFeatures.length} height features, ${weightFeatures.length} weight features`);
+
+    if (features.length === 0) {
+      console.warn('[NVDB] Warning: No features converted, cache will be empty!');
+    }
 
     norwayCache = {
       type: 'FeatureCollection',
       features,
       meta: {
         total: features.length,
-        heightCount: heights.length,
-        weightCount: weights.length,
+        heightCount: heightFeatures.length,
+        weightCount: weightFeatures.length,
       },
     };
     cacheTimestamp = Date.now();
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[NVDB] Cache warm! ${features.length} features (${heights.length} height, ${weights.length} weight) in ${elapsed}s`);
+    console.log(`[NVDB] Cache warm! ${features.length} features in ${elapsed}s`);
   } catch (err) {
     console.error('[NVDB] Failed to warm cache:', err);
   } finally {
