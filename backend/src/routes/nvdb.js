@@ -51,7 +51,7 @@ function parseWktToPoint(wkt) {
   }
 
   // Handle LINESTRING or LINESTRING Z - convert to centroid point
-  if (wkt.startsWith('LINESTRING')) {
+  if (wkt.startsWith('LINESTRING') && !wkt.startsWith('MULTILINESTRING')) {
     const match = wkt.match(/LINESTRING\s*Z?\s*\(([^)]+)\)/);
     if (match) {
       const coords = match[1].split(',').map((pair) => {
@@ -61,6 +61,22 @@ function parseWktToPoint(wkt) {
       });
       if (coords.length > 0) {
         // Use midpoint of line for marker placement
+        const midIdx = Math.floor(coords.length / 2);
+        return { type: 'Point', coordinates: coords[midIdx] };
+      }
+    }
+  }
+
+  // Handle MULTILINESTRING - extract first linestring and use its midpoint
+  if (wkt.startsWith('MULTILINESTRING')) {
+    // Match the first linestring within the multilinestring
+    const match = wkt.match(/MULTILINESTRING\s*Z?\s*\(\(([^)]+)\)/);
+    if (match) {
+      const coords = match[1].split(',').map((pair) => {
+        const parts = pair.trim().split(/\s+/).map(parseFloat);
+        return [parts[1], parts[0]]; // Swap lat/lon to lon/lat
+      });
+      if (coords.length > 0) {
         const midIdx = Math.floor(coords.length / 2);
         return { type: 'Point', coordinates: coords[midIdx] };
       }
@@ -134,7 +150,7 @@ function convertHeights(objects) {
   return features;
 }
 
-// Convert weight/load class (893) to GeoJSON features
+// Convert weight/load class (904) to GeoJSON features
 function convertWeights(objects) {
   const features = [];
 
@@ -151,22 +167,18 @@ function convertWeights(objects) {
     for (const eg of obj.egenskaper || []) {
       if (eg.navn === 'Bruksklasse') {
         props.loadClass = eg.verdi;
+        // Parse weight from strings like "Bk10 - 50 tonn" or "BkT8 - 40 tonn"
+        const weightMatch = eg.verdi.match(/(\d+)\s*tonn/i);
+        if (weightMatch) {
+          props.maxWeight = parseInt(weightMatch[1], 10);
+          props.weightLabel = `${props.maxWeight}t`;
+        }
       }
-      if (eg.navn === 'Bruksklasse, vinter') {
-        props.loadClassWinter = eg.verdi;
+      if (eg.navn === 'Strekningsbeskrivelse') {
+        props.description = eg.verdi;
       }
-      if (eg.navn === 'Maks tillatt totalvekt') {
-        props.maxWeight = eg.verdi;
-        props.weightLabel = `${eg.verdi}t`;
-      }
-      if (eg.navn === 'Maks tillatt aksellast') {
-        props.maxAxleLoad = eg.verdi;
-      }
-      if (eg.navn === 'Maks tillatt boggilast') {
-        props.maxBogieLoad = eg.verdi;
-      }
-      if (eg.navn === 'Vegtype') {
-        props.roadType = eg.verdi;
+      if (eg.navn === 'Maks vogntoglengde') {
+        props.maxVehicleLength = eg.verdi;
       }
     }
 
@@ -187,11 +199,14 @@ function convertWeights(objects) {
       }
     }
 
-    features.push({
-      type: 'Feature',
-      geometry,
-      properties: props,
-    });
+    // Only include if we have a weight value
+    if (props.maxWeight != null) {
+      features.push({
+        type: 'Feature',
+        geometry,
+        properties: props,
+      });
+    }
   }
 
   return features;
@@ -215,10 +230,10 @@ router.get('/restrictions', async (req, res) => {
   }
 
   try {
-    // Fetch height restrictions (591) and weight/load class (893) in parallel
+    // Fetch height restrictions (591) and weight/load class (904) in parallel
     const [heights, weights] = await Promise.all([
       fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${bbox}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
-      fetchAllPages(`${NVDB_BASE}/893?kartutsnitt=${bbox}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${bbox}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
     ]);
 
     const features = [

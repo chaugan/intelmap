@@ -205,7 +205,8 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           ${props.heightType ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Type' : 'Type'}:</span> ${props.heightType}</div>` : ''}
           ${props.maxWeight != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span> <strong>${props.maxWeight}t</strong></div>` : ''}
           ${props.loadClass ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Bruksklasse' : 'Load class'}:</span> ${props.loadClass}</div>` : ''}
-          ${props.maxAxleLoad != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks aksellast' : 'Max axle load'}:</span> ${props.maxAxleLoad}t</div>` : ''}
+          ${props.maxVehicleLength ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks lengde' : 'Max length'}:</span> ${props.maxVehicleLength}m</div>` : ''}
+          ${props.description ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Strekning' : 'Route'}:</span> ${props.description}</div>` : ''}
           ${props.municipality ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Kommune' : 'Municipality'}:</span> ${props.municipality}</div>` : ''}
           <div style="margin-top:6px;font-size:10px;color:#64748b">${lang === 'no' ? 'Kilde' : 'Source'}: NVDB</div>
         </div>
