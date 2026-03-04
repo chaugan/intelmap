@@ -110,10 +110,27 @@ export default function DataLayersDrawer() {
 
   // Overlay state - need individual subscriptions for reactivity
   const store = useMapStore();
-  // Subscribe to all visibility flags for badge counter reactivity
-  const activeLayerCount = useMapStore((s) =>
-    OVERLAYS.filter((o) => s[o.visibleKey]).length
-  );
+  // Subscribe to each visibility flag individually for proper reactivity
+  const auroraVisible = useMapStore((s) => s.auroraVisible);
+  const sunlightVisible = useMapStore((s) => s.sunlightVisible);
+  const windVisible = useMapStore((s) => s.windVisible);
+  const webcamsVisible = useMapStore((s) => s.webcamsVisible);
+  const trafficFlowVisible = useMapStore((s) => s.trafficFlowVisible);
+  const trafficInfoVisible = useMapStore((s) => s.trafficInfoVisible);
+  const avalancheVisible = useMapStore((s) => s.avalancheVisible);
+  const avalancheWarningsVisible = useMapStore((s) => s.avalancheWarningsVisible);
+  const snowDepthVisible = useMapStore((s) => s.snowDepthVisible);
+  const aircraftVisible = useMapStore((s) => s.aircraftVisible);
+  const vesselsVisible = useMapStore((s) => s.vesselsVisible);
+  const roadRestrictionsVisible = useMapStore((s) => s.roadRestrictionsVisible);
+
+  const activeLayerCount = [
+    auroraVisible, sunlightVisible, windVisible, webcamsVisible,
+    trafficFlowVisible, trafficInfoVisible, avalancheVisible,
+    avalancheWarningsVisible, snowDepthVisible, aircraftVisible,
+    vesselsVisible, roadRestrictionsVisible
+  ].filter(Boolean).length;
+
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const moveOverlayUp = useMapStore((s) => s.moveOverlayUp);
   const moveOverlayDown = useMapStore((s) => s.moveOverlayDown);

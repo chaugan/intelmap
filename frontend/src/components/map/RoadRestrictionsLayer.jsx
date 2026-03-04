@@ -67,7 +67,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   useEffect(() => { dataRef.current = data; }, [data]);
 
   const addLayers = useCallback((opacity) => {
-    if (!mapRef || !mapRef.isStyleLoaded()) return;
+    if (!mapRef) return;
 
     if (!mapRef.getSource(RESTRICTION_SOURCE)) {
       mapRef.addSource(RESTRICTION_SOURCE, {
@@ -176,37 +176,33 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
     let cancelled = false;
 
     const setup = () => {
-      if (!mapRef.isStyleLoaded()) return;
       try {
         addLayers(roadRestrictionsOpacity);
-        if (dataRef.current) {
-          const src = mapRef.getSource(RESTRICTION_SOURCE);
-          if (src) src.setData(dataRef.current);
-        }
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error('RoadRestrictionsLayer setup error:', err);
       }
     };
 
-    // Handle style changes (e.g., switching base map)
-    const onStyleLoad = () => {
-      // Style just loaded, re-add layers
-      setup();
+    // Re-add layers after a map style swap (e.g. changing base layer)
+    const onStyleData = () => {
+      // Style swap wipes all custom sources/layers — re-add them
+      if (!mapRef.getSource(RESTRICTION_SOURCE)) {
+        addLayers(roadRestrictionsOpacity);
+        // Re-push current data into the fresh source
+        if (dataRef.current) {
+          const src = mapRef.getSource(RESTRICTION_SOURCE);
+          if (src) src.setData(dataRef.current);
+        }
+      }
     };
 
-    // Initial setup - wait for style if not loaded
-    if (mapRef.isStyleLoaded()) {
-      setup();
-    } else {
-      mapRef.once('style.load', setup);
-    }
-
-    mapRef.on('style.load', onStyleLoad);
+    mapRef.on('styledata', onStyleData);
+    setup();
 
     return () => {
       cancelled = true;
-      mapRef.off('style.load', onStyleLoad);
+      mapRef.off('styledata', onStyleData);
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(RESTRICTION_SOURCE)) mapRef.removeSource(RESTRICTION_SOURCE); } catch {}
       setReady(false);
