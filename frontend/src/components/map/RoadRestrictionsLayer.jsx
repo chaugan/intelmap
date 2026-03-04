@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import DraggablePopup from './DraggablePopup.jsx';
+import { OFM_EXTRUSION_LAYER } from './BuildingsLayer.jsx';
 
 const RESTRICTION_SOURCE = 'road-restrictions-data';
 const LAYER_HEIGHT_LINES = 'road-restrictions-height-lines';
@@ -76,6 +77,9 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
+    // Insert layers before 3D buildings so buildings can occlude restrictions when tilted
+    const beforeId = mapRef.getLayer(OFM_EXTRUSION_LAYER) ? OFM_EXTRUSION_LAYER : undefined;
+
     // Weight restriction lines - orange/red buckets (solid, drawn first/below)
     if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
       mapRef.addLayer({
@@ -98,7 +102,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           'line-cap': 'round',
           'line-join': 'round',
         },
-      });
+      }, beforeId);
     }
 
     // Height restriction lines - purple/blue buckets (dashed, drawn on top)
@@ -124,7 +128,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           'line-cap': 'butt',
           'line-join': 'round',
         },
-      });
+      }, beforeId);
     }
 
     // Height restriction points (for Point geometries)
@@ -145,7 +149,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           'circle-opacity': opacity,
           'circle-stroke-opacity': opacity,
         },
-      });
+      }, beforeId);
     }
 
     // Weight restriction points (for Point geometries)
@@ -166,7 +170,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
           'circle-opacity': opacity,
           'circle-stroke-opacity': opacity,
         },
-      });
+      }, beforeId);
     }
   }, [mapRef]);
 
