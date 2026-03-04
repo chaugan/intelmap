@@ -29,7 +29,6 @@ const LAYER_DEFS = {
   'rail':           { category: 'transport', name: 'Railway',          type: 'line' },
   'rail_station':   { category: 'transport', name: 'Rail Stations',    type: 'point' },
   'rail_substation':{ category: 'transport', name: 'Rail Substations', type: 'point' },
-  'rail_filtered':  { category: 'transport', name: 'Rail (Filtered)',  type: 'line' },
   'railway_bridge': { category: 'transport', name: 'Railway Bridges',  type: 'line' },
   'ferry':          { category: 'transport', name: 'Ferry Routes',     type: 'line' },
   'ferry_rail':     { category: 'transport', name: 'Ferry Rail',       type: 'line' },

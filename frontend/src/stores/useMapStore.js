@@ -79,7 +79,7 @@ export const useMapStore = create((set) => ({
 
   // Infrastructure
   infraVisible: false,
-  infraOpacity: 0.9,
+  infraOpacity: 1.0,
   infraLayers: {},
 
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
