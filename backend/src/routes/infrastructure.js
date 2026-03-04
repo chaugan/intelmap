@@ -2,12 +2,13 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { requireAuth } from '../auth/middleware.js';
+import config from '../config.js';
 
 const router = Router();
 router.use(requireAuth);
 
 // GeoJSON source directory
-const GEOJSON_DIR = process.env.GEOJSON_DIR || 'C:\\Users\\Getac\\Documents\\tileserver-backup\\data\\nginx\\geojson';
+const GEOJSON_DIR = process.env.GEOJSON_DIR || path.join(config.dataDir, 'geojson');
 
 // Layer definitions with metadata
 const LAYER_DEFS = {

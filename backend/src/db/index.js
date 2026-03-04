@@ -84,7 +84,7 @@ export function initDb() {
   }
 
   // Import addresses in background (don't block startup)
-  const csvPath = process.env.MATRIKKEL_CSV || path.join(config.dataDir, 'matrikkelenAdresse.csv');
+  const csvPath = process.env.MATRIKKEL_CSV || path.join(config.dataDir, 'addresses', 'matrikkelenAdresse.csv');
   importAddresses(csvPath).catch(err => console.error('Address import failed:', err.message));
 
   return db;
