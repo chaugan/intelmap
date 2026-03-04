@@ -14,14 +14,10 @@ const IMG_TRAIN = 'img-train-sdf';
 const ALL_LAYERS = [LAYER_TRACK_LINE, LAYER_STATION_CIRCLE, LAYER_STATION_LABEL, LAYER_TRAIN_ICON, LAYER_TRAIN_LABEL];
 const ALL_SOURCES = [TRAIN_SOURCE, STATION_SOURCE, TRACK_SOURCE];
 
-// Top-down train silhouette SVG for SDF tinting
+// Top-down train silhouette SVG for SDF tinting — pure white for SDF alpha mask
 function createTrainSvgSdf() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-    <rect x="18" y="4" width="12" height="40" rx="5" ry="5" fill="#ffffff"/>
-    <rect x="16" y="10" width="16" height="8" rx="2" ry="2" fill="#ffffff"/>
-    <rect x="16" y="30" width="16" height="8" rx="2" ry="2" fill="#ffffff"/>
-    <circle cx="20" cy="6" r="2" fill="#ffffff"/>
-    <circle cx="28" cy="6" r="2" fill="#ffffff"/>
+    <path d="M24 2 L32 14 L32 38 L28 44 L20 44 L16 38 L16 14 Z" fill="#ffffff"/>
   </svg>`;
 }
 
@@ -178,7 +174,6 @@ export default function TrainLayer({ data, mapRef }) {
         layout: {
           'text-field': ['get', 'label'],
           'text-size': 12,
-          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
           'text-offset': [0, 1.5],
           'text-anchor': 'top',
           'text-allow-overlap': false,
@@ -227,6 +222,10 @@ export default function TrainLayer({ data, mapRef }) {
     return () => { cancelled = true; };
   }, [mapRef]);
 
+  // Store opacity in a ref so styledata handler always uses latest value
+  const opacityRef = useRef(trainsOpacity);
+  useEffect(() => { opacityRef.current = trainsOpacity; }, [trainsOpacity]);
+
   // Load image, create layers, handle style swaps
   useEffect(() => {
     if (!mapRef) return;
@@ -239,7 +238,7 @@ export default function TrainLayer({ data, mapRef }) {
           if (cancelled) return;
           imagesRef.current = img;
         }
-        addLayers(trainsOpacity);
+        addLayers(opacityRef.current);
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error('TrainLayer setup error:', err);
@@ -248,7 +247,7 @@ export default function TrainLayer({ data, mapRef }) {
 
     const onStyleData = () => {
       if (imagesRef.current && !mapRef.getSource(TRAIN_SOURCE)) {
-        addLayers(trainsOpacity);
+        addLayers(opacityRef.current);
         if (dataRef.current) {
           const src = mapRef.getSource(TRAIN_SOURCE);
           if (src) src.setData(dataRef.current);
@@ -276,7 +275,7 @@ export default function TrainLayer({ data, mapRef }) {
       try { if (mapRef.hasImage(IMG_TRAIN)) mapRef.removeImage(IMG_TRAIN); } catch {}
       setReady(false);
     };
-  }, [mapRef, removePopup, addLayers, trainsOpacity]);
+  }, [mapRef, removePopup, addLayers]);
 
   // Update train data
   useEffect(() => {
