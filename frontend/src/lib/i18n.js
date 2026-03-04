@@ -104,9 +104,13 @@ const translations = {
     'weather.exportReport': 'Eksporter rapport',
 
     // Search
-    'search.title': 'Stedssøk',
-    'search.placeholder': 'Søk sted...',
+    'search.title': 'Adressesøk',
+    'search.placeholder': 'Søk adresse...',
     'search.noResults': 'Ingen resultater',
+
+    // Infrastructure
+    'layer.infra': 'Infrastruktur',
+    'infra.title': 'Kritisk infrastruktur',
 
     // Chat
     'chat.title': 'AI Karthjelper',
@@ -500,9 +504,13 @@ const translations = {
     'weather.fullReport': 'Full Report',
     'weather.exportReport': 'Export Report',
 
-    'search.title': 'Place Search',
-    'search.placeholder': 'Search location...',
+    'search.title': 'Address Search',
+    'search.placeholder': 'Search address...',
     'search.noResults': 'No results',
+
+    // Infrastructure
+    'layer.infra': 'Infrastructure',
+    'infra.title': 'Critical Infrastructure',
 
     'chat.title': 'AI Map Helper',
     'chat.placeholder': 'Ask the AI map helper...',

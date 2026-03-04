@@ -285,7 +285,7 @@ export default function MapControls() {
 const VISIBILITY_KEYS = [
   'auroraVisible', 'sunlightVisible', 'windVisible', 'webcamsVisible',
   'avalancheVisible', 'avalancheWarningsVisible', 'snowDepthVisible',
-  'aircraftVisible', 'vesselsVisible', 'trafficFlowVisible', 'trafficInfoVisible',
+  'aircraftVisible', 'vesselsVisible', 'trafficFlowVisible', 'trafficInfoVisible', 'infraVisible',
   'roadRestrictionsVisible',
 ];
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearch } from '../../hooks/useSearch.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
@@ -6,8 +6,18 @@ import { t } from '../../lib/i18n.js';
 export default function SearchPanel() {
   const lang = useMapStore((s) => s.lang);
   const flyTo = useMapStore((s) => s.flyTo);
+  const setActivePanel = useMapStore((s) => s.setActivePanel);
   const [query, setQuery] = useState('');
-  const { results, loading, search } = useSearch();
+  const { results, loading, search, setResults } = useSearch();
+  const inputRef = useRef(null);
+
+  // Delayed focus to avoid keyup inserting the trigger character
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleChange = (e) => {
     setQuery(e.target.value);
@@ -15,6 +25,16 @@ export default function SearchPanel() {
   };
 
   const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      if (query.length > 0) {
+        setQuery('');
+        setResults([]);
+        e.stopPropagation();
+      } else {
+        setActivePanel(null);
+      }
+      return;
+    }
     if (e.key === 'Enter' && results.length > 0) {
       e.preventDefault();
       handleSelect(results[0]);
@@ -22,7 +42,7 @@ export default function SearchPanel() {
   };
 
   const handleSelect = (result) => {
-    flyTo(result.lon, result.lat, 13);
+    flyTo(result.lon, result.lat, 15);
   };
 
   return (
@@ -32,13 +52,13 @@ export default function SearchPanel() {
       </h2>
 
       <input
+        ref={inputRef}
         type="text"
         value={query}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={t('search.placeholder', lang)}
         className="bg-slate-700 text-sm px-3 py-2 rounded border border-slate-600 focus:border-emerald-500 focus:outline-none mb-3"
-        autoFocus
       />
 
       <div className="flex-1 overflow-y-auto space-y-1">
@@ -54,7 +74,9 @@ export default function SearchPanel() {
           >
             <div className="text-sm">{r.name}</div>
             <div className="text-[10px] text-slate-400">
-              {r.type} {r.municipality && `· ${r.municipality}`} {r.county && `· ${r.county}`}
+              {r.postcode && r.city ? `${r.postcode} ${r.city}` : r.type}
+              {r.municipality && ` · ${r.municipality}`}
+              {!r.postcode && r.county && ` · ${r.county}`}
             </div>
           </button>
         ))}

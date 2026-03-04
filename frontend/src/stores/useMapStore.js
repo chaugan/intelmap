@@ -77,10 +77,15 @@ export const useMapStore = create((set) => ({
   auroraFetchedAt: null,
   auroraGrid: null,
 
+  // Infrastructure
+  infraVisible: false,
+  infraOpacity: 0.9,
+  infraLayers: {},
+
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'infra', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -160,6 +165,14 @@ export const useMapStore = create((set) => ({
   setVesselActivityLoading: (loading) => set({ vesselActivityLoading: loading }),
   setFocusedVessels: (mmsis) => set({ focusedVesselMmsis: mmsis }),
   clearFocusedVessels: () => set({ focusedVesselMmsis: [] }),
+  toggleInfra: () => set((s) => {
+    const newVisible = !s.infraVisible;
+    return { infraVisible: newVisible, ...(!newVisible && { infraLayers: {} }) };
+  }),
+  setInfraOpacity: (infraOpacity) => set({ infraOpacity }),
+  toggleInfraLayer: (name) => set((s) => ({
+    infraLayers: { ...s.infraLayers, [name]: !s.infraLayers[name] }
+  })),
   toggleRoadRestrictions: () => set((s) => ({
     roadRestrictionsVisible: !s.roadRestrictionsVisible,
     // Reset filters when toggling on
@@ -178,6 +191,8 @@ export const useMapStore = create((set) => ({
     trafficInfoVisible: false,
     sunlightVisible: false,
     auroraVisible: false,
+    infraVisible: false,
+    infraLayers: {},
     focusedAircraftHex: null,
     focusedVesselMmsi: null,
     hiddenVesselCategories: [],

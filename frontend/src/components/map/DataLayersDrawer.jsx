@@ -3,6 +3,8 @@ import { useMapStore, getThemeState } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
+import { InfrastructureLegend } from './InfrastructureLayer.jsx';
+import { useInfrastructure } from '../../hooks/useInfrastructure.js';
 
 const OVERLAYS = [
   { id: 'aurora', toggleKey: 'toggleAurora', visibleKey: 'auroraVisible', opacityKey: 'auroraOpacity', setOpacityKey: 'setAuroraOpacity', accent: 'accent-green-500', shortcut: 'N' },
@@ -17,6 +19,7 @@ const OVERLAYS = [
   { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500', shortcut: 'F' },
   { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
   { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X' },
+  { id: 'infra', toggleKey: 'toggleInfra', visibleKey: 'infraVisible', opacityKey: 'infraOpacity', setOpacityKey: 'setInfraOpacity', accent: 'accent-indigo-500', shortcut: 'K', requiresInfraview: true },
 ];
 
 const OVERLAY_LABELS = {
@@ -32,6 +35,7 @@ const OVERLAY_LABELS = {
   aircraft: { no: 'Luftfart', en: 'Aircraft' },
   vessels: { no: 'Fartøy', en: 'Vessels' },
   roadRestrictions: { no: 'Vegrestriksjoner', en: 'Road Restrictions' },
+  infra: { no: 'Infrastruktur', en: 'Infrastructure' },
 };
 
 function SunlightControls({ lang }) {
@@ -107,6 +111,14 @@ export default function DataLayersDrawer() {
   const toggleDataLayersDrawer = useMapStore((s) => s.toggleDataLayersDrawer);
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+  const canInfra = user?.infraviewEnabled || isAdmin;
+
+  // Filter overlays based on permissions
+  const visibleOverlays = OVERLAYS.filter(o => !o.requiresInfraview || canInfra);
+
+  // Infra layer list for legend
+  const infraVisible = useMapStore((s) => s.infraVisible);
+  const { layerList: infraLayerList } = useInfrastructure(infraVisible && canInfra);
 
   // Overlay state
   const store = useMapStore();
@@ -286,7 +298,7 @@ export default function DataLayersDrawer() {
   };
 
   // Active overlays for z-order
-  const activeOverlayIds = OVERLAYS.filter((o) => store[o.visibleKey]).map((o) => o.id);
+  const activeOverlayIds = visibleOverlays.filter((o) => store[o.visibleKey]).map((o) => o.id);
 
   // Show themes section if logged in OR there are public themes
   const showThemesSection = user || themes.some(t => t.isPublic);
@@ -316,7 +328,7 @@ export default function DataLayersDrawer() {
               {t('dataLayers.overlays', lang)}
             </span>
             {/* Hide all data layers button */}
-            {OVERLAYS.some((o) => store[o.visibleKey]) && (
+            {visibleOverlays.some((o) => store[o.visibleKey]) && (
               <button
                 onClick={store.hideAllDataLayers}
                 className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
@@ -327,7 +339,7 @@ export default function DataLayersDrawer() {
             )}
           </div>
           <div className="space-y-1.5">
-            {OVERLAYS.map((overlay) => {
+            {visibleOverlays.map((overlay) => {
               const visible = store[overlay.visibleKey];
               const toggle = store[overlay.toggleKey];
               const opacity = overlay.opacityKey ? store[overlay.opacityKey] : null;
@@ -376,6 +388,12 @@ export default function DataLayersDrawer() {
                   {/* Sunlight expanded controls */}
                   {overlay.id === 'sunlight' && visible && (
                     <SunlightControls lang={lang} />
+                  )}
+                  {/* Infrastructure sublayer legend */}
+                  {overlay.id === 'infra' && visible && infraLayerList.length > 0 && (
+                    <div className="ml-6">
+                      <InfrastructureLegend layerList={infraLayerList} />
+                    </div>
                   )}
                 </div>
               );

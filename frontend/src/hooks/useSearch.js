@@ -26,5 +26,5 @@ export function useSearch() {
     }, 300);
   }, []);
 
-  return { results, loading, search };
+  return { results, loading, search, setResults };
 }

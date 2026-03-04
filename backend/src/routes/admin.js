@@ -20,7 +20,7 @@ router.use(requireAdmin);
 router.get('/users', (req, res) => {
   const db = getDb();
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, created_at, updated_at FROM users ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, created_at, updated_at FROM users ORDER BY created_at'
   ).all();
 
   // Calculate storage for each user
@@ -81,6 +81,7 @@ router.get('/users', (req, res) => {
       aiChatEnabled: !!u.ai_chat_enabled,
       timelapseEnabled: !!u.timelapse_enabled,
       wasosEnabled: !!u.wasos_enabled,
+      infraviewEnabled: !!u.infraview_enabled,
       timelapseBytes,
       detectionBytes: detectionStats.detectionBytes,
       detectionCount: detectionStats.detectionCount,
@@ -211,6 +212,17 @@ router.post('/users/:id/toggle-wasos', (req, res) => {
     db.prepare("UPDATE users SET wasos_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
   }
   res.json({ ok: true, wasosEnabled: !!newVal });
+});
+
+// Toggle InfraView access
+router.post('/users/:id/toggle-infraview', (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, infraview_enabled FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.infraview_enabled ? 0 : 1;
+  db.prepare("UPDATE users SET infraview_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  res.json({ ok: true, infraviewEnabled: !!newVal });
 });
 
 // --- AI Configuration ---

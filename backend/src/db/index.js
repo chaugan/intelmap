@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import config, { setDbGetter } from '../config.js';
 import { hashPassword } from '../auth/passwords.js';
 import { runMigration } from './migrate.js';
+import { importAddresses } from './import-addresses.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -81,6 +82,10 @@ export function initDb() {
   if (!themeCols.find(c => c.name === 'is_public')) {
     db.prepare("ALTER TABLE map_themes ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0").run();
   }
+
+  // Import addresses in background (don't block startup)
+  const csvPath = process.env.MATRIKKEL_CSV || path.join(config.dataDir, 'matrikkelenAdresse.csv');
+  importAddresses(csvPath).catch(err => console.error('Address import failed:', err.message));
 
   return db;
 }

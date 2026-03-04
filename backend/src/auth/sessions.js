@@ -15,7 +15,7 @@ export function validateSession(sessionId) {
   if (!sessionId) return null;
   const db = getDb();
   const row = db.prepare(
-    `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.must_change_password, u.locked, u.ai_chat_enabled, u.timelapse_enabled, u.wasos_enabled
+    `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.must_change_password, u.locked, u.ai_chat_enabled, u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled
      FROM sessions s JOIN users u ON s.user_id = u.id
      WHERE s.id = ? AND s.expires_at > datetime('now')`
   ).get(sessionId);
@@ -31,6 +31,7 @@ export function validateSession(sessionId) {
     timelapse_enabled: !!row.timelapse_enabled,
     timelapseEnabled: !!row.timelapse_enabled,
     wasosEnabled: !!row.wasos_enabled,
+    infraviewEnabled: !!row.infraview_enabled,
   };
 }
 

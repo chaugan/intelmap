@@ -53,6 +53,12 @@ export function runMigration() {
     console.log('Added is_paused column to monitor_subscriptions table');
   }
 
+  // InfraView column
+  if (!userCols.some(c => c.name === 'infraview_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN infraview_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added infraview_enabled column to users table');
+  }
+
   // WaSOS integration columns
   if (!userCols.some(c => c.name === 'wasos_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN wasos_enabled INTEGER NOT NULL DEFAULT 0").run();

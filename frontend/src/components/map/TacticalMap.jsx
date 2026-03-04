@@ -35,6 +35,7 @@ import AuroraLegend from './AuroraLegend.jsx';
 import AuroraOverlay from './AuroraOverlay.jsx';
 import TrafficLayer, { TrafficLegend, TrafficFlowLegend } from './TrafficLayer.jsx';
 import RoadRestrictionsLayer, { RoadRestrictionsLegend } from './RoadRestrictionsLayer.jsx';
+import InfrastructureLayer from './InfrastructureLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 
@@ -692,6 +693,7 @@ export default function TacticalMap() {
       {vesselsVisible && <VesselLayer data={vesselsData} mapRef={mapInstance} />}
       {trafficInfoVisible && <TrafficLayer data={trafficInfoData} mapRef={mapInstance} />}
       {roadRestrictionsVisible && <RoadRestrictionsLayer data={roadRestrictionsData} mapRef={mapInstance} />}
+      <InfrastructureLayer mapRef={mapInstance} />
       {auroraVisible && <AuroraOverlay />}
       {windVisible && <WindOverlay />}
       <DataFreshness />

@@ -21,6 +21,7 @@ import auroraRouter from './aurora.js';
 import monitoringRouter from './monitoring.js';
 import wasosRouter from './wasos.js';
 import nvdbRouter from './nvdb.js';
+import infrastructureRouter from './infrastructure.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -45,4 +46,5 @@ router.use('/aurora', auroraRouter);
 router.use('/monitoring', monitoringRouter);
 router.use('/wasos', wasosRouter);
 router.use('/nvdb', nvdbRouter);
+router.use('/infrastructure', infrastructureRouter);
 export default router;

@@ -1,12 +1,180 @@
 import { Router } from 'express';
+import { getDb } from '../db/index.js';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+/**
+ * Parse a search query into components: street, number, letter, postcode, city
+ */
+function parseQuery(q) {
+  const trimmed = q.trim();
+  const result = { street: null, number: null, letter: null, postcode: null, city: null };
+
+  // Pure 4-digit postcode
+  if (/^\d{4}$/.test(trimmed)) {
+    result.postcode = trimmed;
+    return result;
+  }
+
+  // Split on comma for city part
+  const commaParts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+  if (commaParts.length > 1) {
+    result.city = commaParts.slice(1).join(' ');
+  }
+  const main = commaParts[0];
+
+  // Try to extract street + number + letter
+  // Pattern: "Storgata 15B" or "Storgata 15 B"
+  const matchStreetFirst = main.match(/^(.+?)\s+(\d+)\s*([A-Za-z])?$/);
+  // Pattern: "15 Storgata" (American style)
+  const matchNumFirst = main.match(/^(\d+)\s*([A-Za-z])?\s+(.+)$/);
+
+  if (matchStreetFirst) {
+    result.street = matchStreetFirst[1];
+    result.number = parseInt(matchStreetFirst[2]);
+    result.letter = matchStreetFirst[3]?.toUpperCase() || null;
+  } else if (matchNumFirst) {
+    result.number = parseInt(matchNumFirst[1]);
+    result.letter = matchNumFirst[2]?.toUpperCase() || null;
+    result.street = matchNumFirst[3];
+  } else {
+    result.street = main;
+  }
+
+  return result;
+}
+
+router.get('/', (req, res) => {
   try {
     const { q } = req.query;
     if (!q) return res.status(400).json({ error: 'Query parameter q required' });
+    if (q.length < 2) return res.json([]);
 
+    const db = getDb();
+
+    // Check if addresses table exists and has data
+    const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='addresses_fts'").get();
+    if (!tableCheck) {
+      // Fallback to Kartverket if addresses not imported yet
+      return fallbackToKartverket(q, res);
+    }
+
+    const parsed = parseQuery(q);
+    let results;
+
+    if (parsed.postcode && !parsed.street) {
+      // Postcode search — get distinct streets in this postcode
+      results = db.prepare(`
+        SELECT DISTINCT street, number, letter, postcode, city, municipality, lat, lon
+        FROM addresses
+        WHERE postcode = ?
+        ORDER BY street, number
+        LIMIT 15
+      `).all(parsed.postcode);
+    } else if (parsed.street) {
+      // FTS search on street name
+      const ftsQuery = parsed.street.replace(/['"]/g, '').split(/\s+/).map(w => `"${w}"*`).join(' ');
+
+      let sql, params;
+
+      if (parsed.number && parsed.city) {
+        sql = `
+          SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
+                 rank
+          FROM addresses_fts f
+          JOIN addresses a ON a.id = f.rowid
+          WHERE addresses_fts MATCH ?
+            AND a.number = ?
+            AND (a.city LIKE ? OR a.municipality LIKE ?)
+          ORDER BY rank
+          LIMIT 15
+        `;
+        const cityLike = `%${parsed.city}%`;
+        params = [ftsQuery, parsed.number, cityLike, cityLike];
+      } else if (parsed.number && parsed.letter) {
+        sql = `
+          SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
+                 rank
+          FROM addresses_fts f
+          JOIN addresses a ON a.id = f.rowid
+          WHERE addresses_fts MATCH ?
+            AND a.number = ?
+            AND a.letter = ?
+          ORDER BY rank
+          LIMIT 15
+        `;
+        params = [ftsQuery, parsed.number, parsed.letter];
+      } else if (parsed.number) {
+        sql = `
+          SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
+                 rank
+          FROM addresses_fts f
+          JOIN addresses a ON a.id = f.rowid
+          WHERE addresses_fts MATCH ?
+            AND a.number = ?
+          ORDER BY rank
+          LIMIT 15
+        `;
+        params = [ftsQuery, parsed.number];
+      } else if (parsed.city) {
+        sql = `
+          SELECT a.street, a.number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
+                 rank
+          FROM addresses_fts f
+          JOIN addresses a ON a.id = f.rowid
+          WHERE addresses_fts MATCH ?
+            AND (a.city LIKE ? OR a.municipality LIKE ?)
+          ORDER BY rank
+          LIMIT 15
+        `;
+        const cityLike = `%${parsed.city}%`;
+        params = [ftsQuery, cityLike, cityLike];
+      } else {
+        // Street name only — group by unique street+city to avoid duplicates
+        sql = `
+          SELECT a.street, MIN(a.number) as number, a.letter, a.postcode, a.city, a.municipality, a.lat, a.lon,
+                 rank
+          FROM addresses_fts f
+          JOIN addresses a ON a.id = f.rowid
+          WHERE addresses_fts MATCH ?
+          GROUP BY a.street, a.postcode
+          ORDER BY rank
+          LIMIT 15
+        `;
+        params = [ftsQuery];
+      }
+
+      results = db.prepare(sql).all(...params);
+    } else {
+      results = [];
+    }
+
+    // Format response
+    const formatted = results.map(r => {
+      let name = r.street || '';
+      if (r.number) name += ` ${r.number}`;
+      if (r.letter) name += r.letter;
+      return {
+        name,
+        type: 'Adresse',
+        municipality: r.municipality || '',
+        county: '',
+        lat: r.lat,
+        lon: r.lon,
+        postcode: r.postcode || '',
+        city: r.city || '',
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('Search error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function fallbackToKartverket(q, res) {
+  try {
     const url = `https://api.kartverket.no/stedsnavn/v1/navn?sok=${encodeURIComponent(q)}&fuzzy=true&treffPerSide=10&utkoordsys=4258`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Kartverket ${response.status}`);
@@ -28,7 +196,7 @@ router.get('/', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
-});
+}
 
 // Reverse geocode - find nearest place name for coordinates
 // Prioritizes settlements and larger geographical areas over small features
@@ -50,10 +218,8 @@ router.get('/reverse', async (req, res) => {
     const getTier = (type) => {
       if (!type) return 0;
       const typeLower = type.toLowerCase();
-      // Check if type matches any term as a whole word (not as substring of longer word)
       const matchesAny = (list) => list.some(t => {
         const tLower = t.toLowerCase();
-        // Split type into words and check if any matches
         const words = typeLower.split(/[\s(),]+/).filter(Boolean);
         return words.includes(tLower) || typeLower === tLower;
       });
@@ -64,14 +230,12 @@ router.get('/reverse', async (req, res) => {
       return 0;
     };
 
-    // Fetch point search results (max radius 5000m per API limit)
     const pointUrl = `https://api.kartverket.no/stedsnavn/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258&radius=5000&treffPerSide=100`;
     const pointRes = await fetch(pointUrl);
     if (!pointRes.ok) throw new Error(`Kartverket ${pointRes.status}`);
     const pointData = await pointRes.json();
     const places = pointData.navn || [];
 
-    // Sort by tier (descending), then by proximity
     const sorted = [...places].sort((a, b) => {
       const tierA = getTier(a.navneobjekttype);
       const tierB = getTier(b.navneobjekttype);
@@ -82,14 +246,11 @@ router.get('/reverse', async (req, res) => {
     let bestPlace = sorted[0];
     let bestTier = bestPlace ? getTier(bestPlace.navneobjekttype) : -1;
 
-    // If no high-tier result found, search for nearby settlements
-    // (Tettsted/By often don't appear in point searches)
     if (bestTier < 3) {
       const latNum = parseFloat(lat);
       const lonNum = parseFloat(lon);
 
       try {
-        // Get the kommune (municipality) number from the kommuneinfo API
         const kommuneUrl = `https://ws.geonorge.no/kommuneinfo/v1/punkt?nord=${lat}&ost=${lon}&koordsys=4258`;
         const kommuneRes = await fetch(kommuneUrl);
         if (kommuneRes.ok) {
@@ -98,7 +259,6 @@ router.get('/reverse', async (req, res) => {
           const kommunenavn = kommuneData.kommunenavn;
 
           if (kommunenummer) {
-            // Search for all places in this kommune, then filter for settlements
             const searchUrl = `https://api.kartverket.no/stedsnavn/v1/navn?knr=${kommunenummer}&treffPerSide=200&utkoordsys=4258`;
             const searchRes = await fetch(searchUrl);
             if (searchRes.ok) {
@@ -107,7 +267,6 @@ router.get('/reverse', async (req, res) => {
                 n.navneobjekttype === 'Tettsted' || n.navneobjekttype === 'By'
               );
 
-              // Find closest settlement within 15km
               let closestDist = Infinity;
               let closestSettlement = null;
 
@@ -151,7 +310,6 @@ router.get('/reverse', async (req, res) => {
       const name = nameObj?.skrivemåte || null;
       const municipality = bestPlace.kommuner?.[0]?.kommunenavn || '';
 
-      // If we only found low-tier places, append municipality for context
       const displayName = bestTier === 0 && municipality ? `${name}, ${municipality}` : name;
 
       res.json({
