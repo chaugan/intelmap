@@ -68,7 +68,7 @@ function pointToSegmentDistSq(px, py, ax, ay, bx, by) {
 function getBearingFromTracks(lon, lat) {
   if (!trackCache || !trackCache.features) return null;
 
-  const SEARCH_RADIUS = 0.01; // ~1km in degrees
+  const SEARCH_RADIUS = 0.05; // ~5km in degrees
   let minDist = Infinity;
   let bestFrom = null;
   let bestTo = null;
@@ -79,13 +79,10 @@ function getBearingFromTracks(lon, lat) {
       const [aLon, aLat] = coords[i];
       const [bLon, bLat] = coords[i + 1];
 
-      // Quick bounding box proximity check
-      const minLon = Math.min(aLon, bLon);
-      const maxLon = Math.max(aLon, bLon);
-      const minLat = Math.min(aLat, bLat);
-      const maxLat = Math.max(aLat, bLat);
-      if (lon < minLon - SEARCH_RADIUS || lon > maxLon + SEARCH_RADIUS) continue;
-      if (lat < minLat - SEARCH_RADIUS || lat > maxLat + SEARCH_RADIUS) continue;
+      // Quick proximity check: at least one endpoint must be within search radius
+      const d1 = Math.abs(aLon - lon) + Math.abs(aLat - lat);
+      const d2 = Math.abs(bLon - lon) + Math.abs(bLat - lat);
+      if (d1 > SEARCH_RADIUS * 2 && d2 > SEARCH_RADIUS * 2) continue;
 
       const d = pointToSegmentDistSq(lon, lat, aLon, aLat, bLon, bLat);
       if (d < minDist) {
