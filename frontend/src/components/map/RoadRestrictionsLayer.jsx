@@ -176,30 +176,37 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
     let cancelled = false;
 
     const setup = () => {
+      if (!mapRef.isStyleLoaded()) return;
       try {
         addLayers(roadRestrictionsOpacity);
+        if (dataRef.current) {
+          const src = mapRef.getSource(RESTRICTION_SOURCE);
+          if (src) src.setData(dataRef.current);
+        }
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error('RoadRestrictionsLayer setup error:', err);
       }
     };
 
-    const onStyleData = () => {
-      if (!mapRef.getSource(RESTRICTION_SOURCE)) {
-        addLayers(roadRestrictionsOpacity);
-        if (dataRef.current) {
-          const src = mapRef.getSource(RESTRICTION_SOURCE);
-          if (src) src.setData(dataRef.current);
-        }
-      }
+    // Handle style changes (e.g., switching base map)
+    const onStyleLoad = () => {
+      // Style just loaded, re-add layers
+      setup();
     };
 
-    mapRef.on('styledata', onStyleData);
-    setup();
+    // Initial setup - wait for style if not loaded
+    if (mapRef.isStyleLoaded()) {
+      setup();
+    } else {
+      mapRef.once('style.load', setup);
+    }
+
+    mapRef.on('style.load', onStyleLoad);
 
     return () => {
       cancelled = true;
-      mapRef.off('styledata', onStyleData);
+      mapRef.off('style.load', onStyleLoad);
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(RESTRICTION_SOURCE)) mapRef.removeSource(RESTRICTION_SOURCE); } catch {}
       setReady(false);
