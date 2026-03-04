@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
@@ -25,15 +25,15 @@ const LAYER_COLORS = {
 const LAYER_NAMES_NO = {
   '66kv': '66 kV', '110kv': '110 kV', '132kv': '132 kV', '220kv': '220 kV',
   '300kv': '300 kV', '420kv': '420 kV', 'distribution': 'Distribusjon',
-  'subsea_power': 'Sjokabel strom', 'transformator': 'Transformator',
+  'subsea_power': 'Sj\u00f8kabel str\u00f8m', 'transformator': 'Transformator',
   'eroad': 'Europavei', 'rail': 'Jernbane', 'rail_station': 'Jernbanestasjoner',
   'rail_substation': 'Jernbanetransformatorer', 'railway_bridge': 'Jernbanebroer',
   'ferry': 'Fergeruter', 'ferry_rail': 'Fergeleier v/jernbane',
-  'fiber': 'Sjokabel fiber', 'radiotowers2': 'Radiotarn', 'radar': 'Radar',
+  'fiber': 'Sj\u00f8kabel fiber', 'radiotowers2': 'Radiot\u00e5rn', 'radar': 'Radar',
   'airport': 'Flyplasser', 'lufthinder': 'Lufthindre',
-  'military': 'Militaere omrader',
+  'military': 'Milit\u00e6re omr\u00e5der',
   'hydro': 'Vannkraftverk', 'wind': 'Vindkraftverk', 'oil_gas_chem': 'Olje/gass/kjemi',
-  'pipes': 'Rorledninger', 'tilfluktsrom': 'Tilfluktsrom',
+  'pipes': 'R\u00f8rledninger', 'tilfluktsrom': 'Tilfluktsrom',
 };
 
 // Map layer ID to category for popup display
@@ -52,11 +52,11 @@ const LAYER_CATEGORY = {
 };
 
 const CATEGORIES = {
-  power:     { no: 'Stromnett', en: 'Power Grid' },
+  power:     { no: 'Str\u00f8mnett', en: 'Power Grid' },
   transport: { no: 'Transport', en: 'Transport' },
   telecom:   { no: 'Telekom', en: 'Telecom' },
   aviation:  { no: 'Luftfart', en: 'Aviation' },
-  military:  { no: 'Militaert', en: 'Military' },
+  military:  { no: 'Milit\u00e6rt', en: 'Military' },
   energy:    { no: 'Energi', en: 'Energy' },
   other:     { no: 'Annet', en: 'Other' },
 };
@@ -94,7 +94,6 @@ function computeCentroid(feature) {
   if (!ring || ring.length === 0) return null;
 
   let sumLon = 0, sumLat = 0;
-  // Exclude last point (same as first in closed ring)
   const n = ring.length > 1 ? ring.length - 1 : ring.length;
   for (let i = 0; i < n; i++) {
     sumLon += ring[i][0];
@@ -119,7 +118,6 @@ function buildPopupHtml(props, layerName) {
     if (SKIP_PROPS.has(key)) continue;
     if (val === null || val === undefined || val === '') continue;
     if (/^(Name|name|NAME|navn|official_name)$/.test(key)) continue;
-    // Skip HTML Description fields (from KML conversion)
     if (/^[Dd]escription$/.test(key)) {
       if (typeof val === 'string' && (val.includes('<html') || val.includes('<table') || val.trim() === '')) continue;
     }
@@ -138,13 +136,13 @@ function buildPopupHtml(props, layerName) {
       <div style="font-weight:600;margin-bottom:2px;border-bottom:2px solid ${color};padding-bottom:4px;font-size:14px">
         ${name || layerLabel}
       </div>
-      <div style="color:#64748b;font-size:10px;margin-bottom:6px">${catLabel} — ${layerLabel}</div>
+      <div style="color:#64748b;font-size:10px;margin-bottom:6px">${catLabel} \u2014 ${layerLabel}</div>
       ${rows.length > 0 ? `<table style="border-collapse:collapse">${rows.join('')}</table>` : ''}
     </div>
   `;
 }
 
-// Sub-layer suffixes: polygons, centroids (circles for polygon centroids), points, lines
+// Sub-layer suffixes
 const SUFFIXES = ['-polygons', '-centroids', '-points', '-lines'];
 
 export default function InfrastructureLayer({ mapRef }) {
@@ -179,81 +177,62 @@ export default function InfrastructureLayer({ mapRef }) {
     const isRail = name === 'rail';
     const isHighVoltage = name.includes('kv');
 
-    // Polygons → fill layer + centroid circles (for visibility at all zoom levels)
+    // Polygons + centroid circles
     if (polygons.length > 0) {
       const sid = `infra-${name}-polygons`;
-      if (!map.getSource(sid)) {
-        map.addSource(sid, { type: 'geojson', data: fc(polygons) });
-      }
+      if (!map.getSource(sid)) map.addSource(sid, { type: 'geojson', data: fc(polygons) });
       if (!map.getLayer(sid)) {
         map.addLayer({
           id: sid, type: 'fill', source: sid,
-          paint: {
-            'fill-color': color,
-            'fill-opacity': opacity * 0.5,
-            'fill-outline-color': '#000000',
-          },
+          paint: { 'fill-color': color, 'fill-opacity': opacity * 0.5, 'fill-outline-color': '#000000' },
         }, beforeId);
       }
 
-      // Centroid circles so polygons are visible at any zoom
       const centroids = polygons.map(computeCentroid).filter(Boolean);
       if (centroids.length > 0) {
         const csid = `infra-${name}-centroids`;
-        if (!map.getSource(csid)) {
-          map.addSource(csid, { type: 'geojson', data: fc(centroids) });
-        }
+        if (!map.getSource(csid)) map.addSource(csid, { type: 'geojson', data: fc(centroids) });
         if (!map.getLayer(csid)) {
           map.addLayer({
             id: csid, type: 'circle', source: csid,
             paint: {
               'circle-color': color,
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 8, 5, 12, 8, 16, 12],
-              'circle-opacity': opacity * 0.65,
-              'circle-stroke-width': 0.8,
-              'circle-stroke-color': '#000000',
+              'circle-opacity': opacity * 0.65, 'circle-stroke-width': 0.8, 'circle-stroke-color': '#000000',
             },
           }, beforeId);
         }
       }
     }
 
-    // Points → circle layer
+    // Points
     if (points.length > 0) {
       const sid = `infra-${name}-points`;
-      if (!map.getSource(sid)) {
-        map.addSource(sid, { type: 'geojson', data: fc(points) });
-      }
+      if (!map.getSource(sid)) map.addSource(sid, { type: 'geojson', data: fc(points) });
       if (!map.getLayer(sid)) {
         map.addLayer({
           id: sid, type: 'circle', source: sid,
           paint: {
             'circle-color': color,
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 8, 6, 12, 10, 16, 14],
-            'circle-opacity': opacity,
-            'circle-stroke-width': 1,
-            'circle-stroke-color': '#000000',
+            'circle-opacity': opacity, 'circle-stroke-width': 1, 'circle-stroke-color': '#000000',
           },
         }, beforeId);
       }
     }
 
-    // Lines → line layer
+    // Lines
     if (lines.length > 0) {
       const sid = `infra-${name}-lines`;
-      if (!map.getSource(sid)) {
-        map.addSource(sid, { type: 'geojson', data: fc(lines) });
-      }
+      if (!map.getSource(sid)) map.addSource(sid, { type: 'geojson', data: fc(lines) });
       if (!map.getLayer(sid)) {
         map.addLayer({
           id: sid, type: 'line', source: sid,
           paint: {
             'line-color': color,
             'line-width': ['interpolate', ['linear'], ['zoom'],
-              5, isHighVoltage ? 2 : 1.5,
-              8, isHighVoltage ? 3.5 : 2.5,
-              12, isHighVoltage ? 5 : 4,
-              16, isHighVoltage ? 7 : 5,
+              5, isHighVoltage ? 2 : 1.5, 8, isHighVoltage ? 3.5 : 2.5,
+              12, isHighVoltage ? 5 : 4, 16, isHighVoltage ? 7 : 5,
             ],
             'line-opacity': opacity,
             ...(isRail ? { 'line-dasharray': [4, 2] } : {}),
@@ -273,8 +252,7 @@ export default function InfrastructureLayer({ mapRef }) {
         if (!layer) continue;
         if (layer.type === 'fill') map.setPaintProperty(id, 'fill-opacity', opacity * 0.5);
         else if (layer.type === 'circle') {
-          const isC = suffix === '-centroids';
-          map.setPaintProperty(id, 'circle-opacity', isC ? opacity * 0.65 : opacity);
+          map.setPaintProperty(id, 'circle-opacity', suffix === '-centroids' ? opacity * 0.65 : opacity);
         }
         else if (layer.type === 'line') map.setPaintProperty(id, 'line-opacity', opacity);
       } catch {}
@@ -287,16 +265,12 @@ export default function InfrastructureLayer({ mapRef }) {
     if (!map || !map.getStyle()) return;
 
     if (!infraVisible || !canView) {
-      for (const name of [...addedRef.current]) {
-        removeLayers(map, name);
-      }
+      for (const name of [...addedRef.current]) removeLayers(map, name);
       return;
     }
 
     for (const name of [...addedRef.current]) {
-      if (!infraLayers[name] || !layerData[name]) {
-        removeLayers(map, name);
-      }
+      if (!infraLayers[name] || !layerData[name]) removeLayers(map, name);
     }
 
     for (const [name, data] of Object.entries(layerData)) {
@@ -304,11 +278,8 @@ export default function InfrastructureLayer({ mapRef }) {
       if (addedRef.current.has(name)) {
         updateOpacity(map, name, infraOpacity);
       } else {
-        try {
-          addLayers(map, name, data, infraOpacity);
-        } catch (err) {
-          console.warn(`Failed to add infra layer ${name}:`, err.message);
-        }
+        try { addLayers(map, name, data, infraOpacity); }
+        catch (err) { console.warn(`Failed to add infra layer ${name}:`, err.message); }
       }
     }
   }, [infraVisible, canView, infraLayers, layerData, infraOpacity]);
@@ -352,7 +323,6 @@ export default function InfrastructureLayer({ mapRef }) {
       const layerName = (f.layer?.id || '').replace(/^infra-/, '').replace(/-(polygons|centroids|points|lines)$/, '');
 
       if (popupRef.current) popupRef.current.remove();
-
       popupRef.current = new maplibregl.Popup({ closeOnClick: true, maxWidth: '340px' })
         .setLngLat(e.lngLat)
         .setHTML(buildPopupHtml(props, layerName))
@@ -390,10 +360,7 @@ export default function InfrastructureLayer({ mapRef }) {
 
     return () => {
       for (const id of attached) {
-        try {
-          map.off('mouseenter', id, enter);
-          map.off('mouseleave', id, leave);
-        } catch {}
+        try { map.off('mouseenter', id, enter); map.off('mouseleave', id, leave); } catch {}
       }
       map.getCanvas().style.cursor = '';
     };
@@ -402,13 +369,145 @@ export default function InfrastructureLayer({ mapRef }) {
   return null;
 }
 
-// Legend component for Data Layers Drawer
+// ─── Infrastructure Search ───────────────────────────────────────────────────
+
+function InfraSearch({ onFilter }) {
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(-1);
+  const timerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const doSearch = useCallback((q) => {
+    if (!q || q.length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      fetch(`/api/infrastructure/search?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then(results => {
+          setSuggestions(results.slice(0, 3));
+          setShowDropdown(results.length > 0);
+          setSelectedIdx(-1);
+        })
+        .catch(() => {});
+    }, 150);
+  }, []);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    doSearch(val);
+    // As user types, trigger fuzzy filter on all layers
+    if (val.length >= 2) {
+      onFilter({ type: 'fuzzy', query: val });
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIdx(prev => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIdx(prev => Math.max(prev - 1, -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedIdx >= 0 && suggestions[selectedIdx]) {
+        // Exact match on selected suggestion
+        const s = suggestions[selectedIdx];
+        setQuery(s.name);
+        onFilter({ type: 'exact', name: s.name });
+      } else if (query.length >= 2) {
+        // General fuzzy filter
+        onFilter({ type: 'fuzzy', query });
+      }
+      setShowDropdown(false);
+    } else if (e.key === 'Escape') {
+      e.stopPropagation();
+      setShowDropdown(false);
+    }
+  };
+
+  const handleSelect = (s) => {
+    setQuery(s.name);
+    onFilter({ type: 'exact', name: s.name });
+    setShowDropdown(false);
+  };
+
+  const handleClear = () => {
+    setQuery('');
+    setSuggestions([]);
+    setShowDropdown(false);
+    onFilter({ type: 'clear' });
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div className="relative mb-1.5">
+      <div className="flex items-center gap-1">
+        <div className="relative flex-1">
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
+            placeholder="S\u00f8k infrastruktur..."
+            className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+          />
+          {query && (
+            <button
+              onClick={handleClear}
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs px-1"
+            >
+              \u2715
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Dropdown suggestions */}
+      {showDropdown && suggestions.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 mt-0.5 bg-slate-800 border border-slate-600 rounded shadow-lg overflow-hidden">
+          {suggestions.map((s, i) => {
+            const color = LAYER_COLORS[s.layer] || '#94a3b8';
+            const layerLabel = LAYER_NAMES_NO[s.layer] || s.layer;
+            return (
+              <button
+                key={`${s.layer}-${s.name}-${i}`}
+                onClick={() => handleSelect(s)}
+                className={`w-full text-left px-2 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
+                  i === selectedIdx ? 'bg-indigo-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                <span className="truncate flex-1">{s.name}</span>
+                <span className="text-[9px] text-slate-500 shrink-0">{layerLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Legend Component ────────────────────────────────────────────────────────
+
 export function InfrastructureLegend({ layerList }) {
   const lang = useMapStore((s) => s.lang);
   const infraLayers = useMapStore((s) => s.infraLayers);
   const toggleInfraLayer = useMapStore((s) => s.toggleInfraLayer);
   const [collapsed, setCollapsed] = useState(true);
   const [collapsedCats, setCollapsedCats] = useState({});
+  const [searchActive, setSearchActive] = useState(false);
+  const { layerData } = useInfrastructure(false); // just for name lookups, doesn't trigger fetches
 
   const toggleCat = (cat) => setCollapsedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
 
@@ -426,6 +525,63 @@ export function InfrastructureLegend({ layerList }) {
     if (lang === 'no' && LAYER_NAMES_NO[layer.id]) return LAYER_NAMES_NO[layer.id];
     return layer.name;
   };
+
+  // Handle search filter
+  const handleFilter = useCallback((filter) => {
+    const store = useMapStore.getState();
+
+    if (filter.type === 'clear') {
+      // Deselect all infra layers
+      const reset = {};
+      for (const key of Object.keys(store.infraLayers)) {
+        reset[key] = false;
+      }
+      useMapStore.setState({ infraLayers: reset });
+      setSearchActive(false);
+      return;
+    }
+
+    setSearchActive(true);
+
+    if (filter.type === 'exact') {
+      // Enable only layers containing features with this exact name
+      const matchingLayers = {};
+      // Check which layers from layerList would contain this name
+      // We search on backend, but for toggling we need to know which layers match
+      fetch(`/api/infrastructure/search?q=${encodeURIComponent(filter.name)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then(results => {
+          const newLayers = {};
+          // Disable all first
+          for (const key of Object.keys(store.infraLayers)) {
+            newLayers[key] = false;
+          }
+          // Enable matching layers (exact name match)
+          for (const r of results) {
+            if (r.name === filter.name) {
+              newLayers[r.layer] = true;
+            }
+          }
+          useMapStore.setState({ infraLayers: newLayers });
+        })
+        .catch(() => {});
+    } else if (filter.type === 'fuzzy') {
+      // Enable all layers containing features matching the query
+      fetch(`/api/infrastructure/search?q=${encodeURIComponent(filter.query)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then(results => {
+          const newLayers = {};
+          for (const key of Object.keys(store.infraLayers)) {
+            newLayers[key] = false;
+          }
+          for (const r of results) {
+            newLayers[r.layer] = true;
+          }
+          useMapStore.setState({ infraLayers: newLayers });
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   return (
     <div className="mt-1">
@@ -450,56 +606,61 @@ export function InfrastructureLegend({ layerList }) {
       </button>
 
       {!collapsed && (
-        <div className="mt-1 space-y-2">
-          {CATEGORY_ORDER.map(cat => {
-            const layers = grouped[cat];
-            if (!layers || layers.length === 0) return null;
-            const catCollapsed = !!collapsedCats[cat];
-            const catActiveCount = layers.filter(l => !!infraLayers[l.id]).length;
+        <div className="mt-1">
+          {/* Search bar */}
+          <InfraSearch onFilter={handleFilter} />
 
-            return (
-              <div key={cat}>
-                <button
-                  onClick={() => toggleCat(cat)}
-                  className="flex items-center gap-1 w-full text-left py-0.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  <svg
-                    className={`w-3 h-3 transition-transform ${catCollapsed ? '' : 'rotate-90'}`}
-                    fill="currentColor" viewBox="0 0 20 20"
+          <div className="space-y-2">
+            {CATEGORY_ORDER.map(cat => {
+              const layers = grouped[cat];
+              if (!layers || layers.length === 0) return null;
+              const catCollapsed = !!collapsedCats[cat];
+              const catActiveCount = layers.filter(l => !!infraLayers[l.id]).length;
+
+              return (
+                <div key={cat}>
+                  <button
+                    onClick={() => toggleCat(cat)}
+                    className="flex items-center gap-1 w-full text-left py-0.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
                   >
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span className="uppercase tracking-wide font-semibold">
-                    {CATEGORIES[cat]?.[lang] || cat}
-                  </span>
-                  {catActiveCount > 0 && (
-                    <span className="text-[10px] text-indigo-400">({catActiveCount})</span>
+                    <svg
+                      className={`w-3 h-3 transition-transform ${catCollapsed ? '' : 'rotate-90'}`}
+                      fill="currentColor" viewBox="0 0 20 20"
+                    >
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="uppercase tracking-wide font-semibold">
+                      {CATEGORIES[cat]?.[lang] || cat}
+                    </span>
+                    {catActiveCount > 0 && (
+                      <span className="text-[10px] text-indigo-400">({catActiveCount})</span>
+                    )}
+                  </button>
+                  {!catCollapsed && (
+                    <div className="ml-3 space-y-0.5">
+                      {layers.map(layer => {
+                        const on = !!infraLayers[layer.id];
+                        const color = LAYER_COLORS[layer.id] || '#fff';
+                        return (
+                          <button
+                            key={layer.id}
+                            onClick={() => toggleInfraLayer(layer.id)}
+                            className={`flex items-center gap-2 w-full text-left px-1.5 py-1 rounded transition-colors ${on ? 'bg-slate-700/50 text-slate-200' : 'text-slate-500 hover:text-slate-400'}`}
+                          >
+                            <span
+                              className="w-3 h-3 rounded-sm shrink-0"
+                              style={{ backgroundColor: on ? color : '#475569' }}
+                            />
+                            <span className="text-[12px] truncate">{getLayerName(layer)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </button>
-                {!catCollapsed && (
-                  <div className="ml-3 space-y-0.5">
-                    {layers.map(layer => {
-                      const on = !!infraLayers[layer.id];
-                      const color = LAYER_COLORS[layer.id] || '#fff';
-                      return (
-                        <button
-                          key={layer.id}
-                          onClick={() => toggleInfraLayer(layer.id)}
-                          className={`flex items-center gap-2 w-full text-left px-1.5 py-1 rounded transition-colors ${on ? 'bg-slate-700/50 text-slate-200' : 'text-slate-500 hover:text-slate-400'}`}
-                        >
-                          <span
-                            className="w-3 h-3 rounded-sm shrink-0"
-                            style={{ backgroundColor: on ? color : '#475569' }}
-                          />
-                          <span className="text-[12px] truncate">{getLayerName(layer)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

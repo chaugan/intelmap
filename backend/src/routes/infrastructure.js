@@ -115,6 +115,56 @@ router.get('/:layer', (req, res) => {
   }
 });
 
+// Search: return feature names grouped by layer (for frontend search)
+let nameIndex = null;
+
+function buildNameIndex() {
+  if (nameIndex) return nameIndex;
+  nameIndex = {};
+  for (const [id, def] of Object.entries(LAYER_DEFS)) {
+    if (id === 'lufthinder') continue; // too large, skip
+    const filePath = path.join(GEOJSON_DIR, `${id}.geojson`);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      let data;
+      if (cache.has(id)) {
+        data = cache.get(id);
+      } else {
+        data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        cache.set(id, data);
+      }
+      const names = [];
+      for (const f of data.features || []) {
+        const p = f.properties || {};
+        const n = p.Name || p.name || p.NAME || p.navn || p.official_name || '';
+        if (n && !names.includes(n)) names.push(n);
+      }
+      if (names.length > 0) nameIndex[id] = names;
+    } catch {}
+  }
+  return nameIndex;
+}
+
+router.get('/search', (req, res) => {
+  const q = (req.query.q || '').toLowerCase().trim();
+  if (!q || q.length < 2) return res.json([]);
+
+  const idx = buildNameIndex();
+  const results = [];
+
+  for (const [layerId, names] of Object.entries(idx)) {
+    for (const name of names) {
+      if (name.toLowerCase().includes(q)) {
+        results.push({ name, layer: layerId });
+        if (results.length >= 20) break;
+      }
+    }
+    if (results.length >= 20) break;
+  }
+
+  res.json(results);
+});
+
 // Lufthinder: large file, serve bbox-filtered
 let lufthinderData = null;
 
