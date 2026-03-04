@@ -14,10 +14,14 @@ const IMG_TRAIN = 'img-train-sdf';
 const ALL_LAYERS = [LAYER_TRACK_LINE, LAYER_STATION_CIRCLE, LAYER_STATION_LABEL, LAYER_TRAIN_ICON, LAYER_TRAIN_LABEL];
 const ALL_SOURCES = [TRAIN_SOURCE, STATION_SOURCE, TRACK_SOURCE];
 
-// Top-down train silhouette SVG for SDF tinting — pure white for SDF alpha mask
+// Top-down train silhouette SVG for SDF tinting
 function createTrainSvgSdf() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-    <path d="M24 2 L32 14 L32 38 L28 44 L20 44 L16 38 L16 14 Z" fill="#ffffff"/>
+    <rect x="18" y="4" width="12" height="40" rx="5" ry="5" fill="#ffffff"/>
+    <rect x="16" y="10" width="16" height="8" rx="2" ry="2" fill="#ffffff"/>
+    <rect x="16" y="30" width="16" height="8" rx="2" ry="2" fill="#ffffff"/>
+    <circle cx="20" cy="6" r="2" fill="#ffffff"/>
+    <circle cx="28" cy="6" r="2" fill="#ffffff"/>
   </svg>`;
 }
 
