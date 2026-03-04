@@ -327,18 +327,18 @@ function DraggableAnalysisPanel({ vesselCoords, children, mapRef: mainMapRef }) 
     };
     const onMouseUp = () => {
       dragRef.current = false;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('pointermove', onMouseMove);
+      window.removeEventListener('pointerup', onMouseUp);
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onMouseMove);
+    window.addEventListener('pointerup', onMouseUp);
   }, [offset]);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.addEventListener('mousedown', onMouseDown);
-    return () => el.removeEventListener('mousedown', onMouseDown);
+    el.addEventListener('pointerdown', onMouseDown);
+    return () => el.removeEventListener('pointerdown', onMouseDown);
   }, [onMouseDown]);
 
   return (
@@ -935,8 +935,8 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         className={`rounded ${expanded ? 'bg-slate-800 w-full' : 'bg-slate-900/50 w-full'}`}
         style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? '400px' : '160px', cursor: 'crosshair' }}
         preserveAspectRatio="xMidYMid meet"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverInfo(null)}
+        onPointerMove={handleMouseMove}
+        onPointerLeave={() => setHoverInfo(null)}
         onClick={handleChartClick}
       >
         {/* Grid lines - horizontal */}

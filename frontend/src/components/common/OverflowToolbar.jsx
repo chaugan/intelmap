@@ -79,8 +79,8 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
         setMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
   }, [menuOpen]);
 
   // Position menu

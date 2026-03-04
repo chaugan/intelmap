@@ -235,12 +235,18 @@ export default function VesselActivityBox({ mapRef }) {
     mapRef.on('mousedown', handleMouseDown);
     mapRef.on('mousemove', handleMouseMove);
     mapRef.on('mouseup', handleMouseUp);
+    mapRef.on('touchstart', handleMouseDown);
+    mapRef.on('touchmove', handleMouseMove);
+    mapRef.on('touchend', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       mapRef.off('mousedown', handleMouseDown);
       mapRef.off('mousemove', handleMouseMove);
       mapRef.off('mouseup', handleMouseUp);
+      mapRef.off('touchstart', handleMouseDown);
+      mapRef.off('touchmove', handleMouseMove);
+      mapRef.off('touchend', handleMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       mapRef.getCanvas().style.cursor = '';
       mapRef.dragPan.enable();

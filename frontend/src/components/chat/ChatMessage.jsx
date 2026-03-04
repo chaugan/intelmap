@@ -41,7 +41,7 @@ export default function ChatMessage({ message, lang }) {
         }`}
       >
         {!isUser && message.content && (
-          <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5">
+          <div className="absolute top-1 right-1 hidden group-hover:flex group-focus-within:flex gap-0.5">
             <button
               onClick={() => downloadMd(message.content)}
               className="p-0.5 rounded hover:bg-slate-600 text-slate-400 hover:text-white transition-colors"

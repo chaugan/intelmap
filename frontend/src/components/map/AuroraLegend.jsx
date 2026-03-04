@@ -113,7 +113,7 @@ export default function AuroraLegend({ kpData }) {
             viewBox="0 0 260 60"
             preserveAspectRatio="none"
             className=""
-            onMouseMove={(e) => {
+            onPointerMove={(e) => {
               const svg = e.currentTarget;
               const rect = svg.getBoundingClientRect();
               const x = ((e.clientX - rect.left) / rect.width) * 260;
@@ -129,7 +129,7 @@ export default function AuroraLegend({ kpData }) {
                 setHoveredBar({ i, hour, kp: entry.kp, x: i * barWidth + barWidth / 2, cursorX: x });
               }
             }}
-            onMouseLeave={() => setHoveredBar(null)}
+            onPointerLeave={() => setHoveredBar(null)}
           >
             <defs>
               {kpData.hourly.slice(0, 24).map((entry, i) => {

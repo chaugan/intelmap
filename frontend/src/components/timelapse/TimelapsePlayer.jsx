@@ -615,13 +615,13 @@ function FrameTimelineSlider({ camera, frames, currentIndex, progress, onSeek, o
     onSeek(percent);
   }, [frames.length, onSeek]);
 
-  const handleMouseDown = useCallback((e) => {
+  const handlePointerDown = useCallback((e) => {
     setIsDragging(true);
     if (onPause) onPause();
     handleInteraction(e.clientX);
   }, [handleInteraction, onPause]);
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
@@ -636,25 +636,25 @@ function FrameTimelineSlider({ camera, frames, currentIndex, progress, onSeek, o
     }
   }, [isDragging, handleInteraction]);
 
-  const handleMouseLeave = useCallback(() => {
+  const handlePointerLeave = useCallback(() => {
     setHoverPercent(null);
     if (!isDragging) setIsDragging(false);
   }, [isDragging]);
 
   useEffect(() => {
     if (isDragging) {
-      const handleGlobalMove = (e) => handleMouseMove(e);
+      const handleGlobalMove = (e) => handlePointerMove(e);
       const handleGlobalUp = () => setIsDragging(false);
 
-      document.addEventListener('mousemove', handleGlobalMove);
-      document.addEventListener('mouseup', handleGlobalUp);
+      document.addEventListener('pointermove', handleGlobalMove);
+      document.addEventListener('pointerup', handleGlobalUp);
 
       return () => {
-        document.removeEventListener('mousemove', handleGlobalMove);
-        document.removeEventListener('mouseup', handleGlobalUp);
+        document.removeEventListener('pointermove', handleGlobalMove);
+        document.removeEventListener('pointerup', handleGlobalUp);
       };
     }
-  }, [isDragging, handleMouseMove]);
+  }, [isDragging, handlePointerMove]);
 
   // Get timestamp at percent
   const getDateAtPercent = (percent) => {
@@ -723,9 +723,10 @@ function FrameTimelineSlider({ camera, frames, currentIndex, progress, onSeek, o
       <div
         ref={sliderRef}
         className="relative h-6 bg-slate-700 rounded-full cursor-pointer"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        style={{ touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
       >
         {/* Progress fill */}
         <div

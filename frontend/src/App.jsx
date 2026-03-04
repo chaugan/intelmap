@@ -49,50 +49,50 @@ export default function App() {
   const applyTheme = useMapStore((s) => s.applyTheme);
   const mapRef = useMapStore((s) => s.mapRef);
 
-  const handleChatMouseDown = useCallback((e) => {
+  const handleChatPointerDown = useCallback((e) => {
     e.preventDefault();
     setIsDraggingChat(true);
     draggingChatRef.current = true;
 
-    const onMouseMove = (e) => {
+    const onPointerMove = (e) => {
       if (!draggingChatRef.current) return;
       const newWidth = window.innerWidth - e.clientX;
       const clamped = Math.max(384, Math.min(newWidth, window.innerWidth * 0.5));
       setChatDrawerWidth(clamped);
     };
 
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       draggingChatRef.current = false;
       setIsDraggingChat(false);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
   }, [setChatDrawerWidth]);
 
-  const handleTimelapseMouseDown = useCallback((e) => {
+  const handleTimelapsePointerDown = useCallback((e) => {
     e.preventDefault();
     setIsDraggingTimelapse(true);
     draggingTimelapseRef.current = true;
 
-    const onMouseMove = (e) => {
+    const onPointerMove = (e) => {
       if (!draggingTimelapseRef.current) return;
       const newWidth = window.innerWidth - e.clientX;
       const clamped = Math.max(400, Math.min(newWidth, window.innerWidth * 0.7));
       setTimelapseDrawerWidth(clamped);
     };
 
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       draggingTimelapseRef.current = false;
       setIsDraggingTimelapse(false);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
   }, [setTimelapseDrawerWidth]);
 
   const user = useAuthStore((s) => s.user);
@@ -233,8 +233,9 @@ export default function App() {
           {showChat && (
             <>
               <div
-                onMouseDown={handleChatMouseDown}
+                onPointerDown={handleChatPointerDown}
                 className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
+                style={{ touchAction: 'none' }}
               />
               <AiChatPanel />
             </>
@@ -251,8 +252,9 @@ export default function App() {
           {showTimelapse && (
             <>
               <div
-                onMouseDown={handleTimelapseMouseDown}
+                onPointerDown={handleTimelapsePointerDown}
                 className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-cyan-500/30 active:bg-cyan-500/50 transition-colors"
+                style={{ touchAction: 'none' }}
               />
               <TimelapsePanel />
             </>

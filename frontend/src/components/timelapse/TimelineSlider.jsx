@@ -33,14 +33,14 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek, 
     }
   }, [duration, effectiveDuration, timeRangeMs, onSeek]);
 
-  const handleMouseDown = useCallback((e) => {
+  const handlePointerDown = useCallback((e) => {
     setIsDragging(true);
     // Pause video when user clicks on timeline
     if (onPause) onPause();
     handleInteraction(e.clientX);
   }, [handleInteraction, onPause]);
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
@@ -55,30 +55,30 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek, 
     }
   }, [isDragging, duration, handleInteraction]);
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
-  const handleMouseLeave = useCallback(() => {
+  const handlePointerLeave = useCallback(() => {
     setHoverPercent(null);
     setIsDragging(false);
   }, []);
 
-  // Global mouse handlers for dragging
+  // Global pointer handlers for dragging
   useEffect(() => {
     if (isDragging) {
-      const handleGlobalMove = (e) => handleMouseMove(e);
+      const handleGlobalMove = (e) => handlePointerMove(e);
       const handleGlobalUp = () => setIsDragging(false);
 
-      document.addEventListener('mousemove', handleGlobalMove);
-      document.addEventListener('mouseup', handleGlobalUp);
+      document.addEventListener('pointermove', handleGlobalMove);
+      document.addEventListener('pointerup', handleGlobalUp);
 
       return () => {
-        document.removeEventListener('mousemove', handleGlobalMove);
-        document.removeEventListener('mouseup', handleGlobalUp);
+        document.removeEventListener('pointermove', handleGlobalMove);
+        document.removeEventListener('pointerup', handleGlobalUp);
       };
     }
-  }, [isDragging, handleMouseMove]);
+  }, [isDragging, handlePointerMove]);
 
   const progress = effectiveDuration > 0 ? (currentTime || 0) / effectiveDuration : 0;
 
@@ -152,9 +152,10 @@ export default function TimelineSlider({ camera, currentTime, duration, onSeek, 
       <div
         ref={sliderRef}
         className="relative h-6 bg-slate-700 rounded-full cursor-pointer"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        style={{ touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
       >
         {/* Progress fill */}
         <div

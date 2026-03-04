@@ -437,8 +437,8 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         className={`rounded ${expanded ? 'bg-slate-800 w-full' : 'bg-slate-900/50 w-full'}`}
         style={{ aspectRatio: `${width} / ${height}`, maxHeight: expanded ? 'calc(90vh - 140px)' : height }}
         preserveAspectRatio="xMidYMid meet"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        onPointerMove={handleMouseMove}
+        onPointerLeave={handleMouseLeave}
       >
         {/* Grid lines - horizontal */}
         {yLabels.map((label, i) => {
@@ -747,6 +747,7 @@ export default function MeasuringTool() {
 
     mapRef.on('click', handleClick);
     mapRef.on('mousemove', handleMouseMove);
+    mapRef.on('touchmove', handleMouseMove);
 
     // Force re-render on map move to keep SVG in sync
     const onMove = () => setTick((n) => n + 1);
@@ -761,6 +762,7 @@ export default function MeasuringTool() {
     return () => {
       mapRef.off('click', handleClick);
       mapRef.off('mousemove', handleMouseMove);
+      mapRef.off('touchmove', handleMouseMove);
       mapRef.off('move', onMove);
       mapRef.doubleClickZoom.enable();
       mapRef.getCanvas().style.cursor = '';

@@ -191,7 +191,9 @@ export default function DrawingLayer() {
 
     const canvas = mapRefValue.getCanvas();
 
-    const onMouseDown = (e) => {
+    canvas.style.touchAction = 'none';
+
+    const onPointerDown = (e) => {
       if (e.button !== 0) return;
       isDraggingRef.current = true;
       const rect = canvas.getBoundingClientRect();
@@ -202,7 +204,7 @@ export default function DrawingLayer() {
       mapRefValue.dragPan.disable();
     };
 
-    const onMouseMove = (e) => {
+    const onPointerMove = (e) => {
       if (!isDraggingRef.current) return;
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -210,7 +212,7 @@ export default function DrawingLayer() {
       setSelectionRect(prev => prev ? { ...prev, endX: x, endY: y } : null);
     };
 
-    const onMouseUp = (e) => {
+    const onPointerUp = (e) => {
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       mapRefValue.dragPan.enable();
@@ -253,13 +255,14 @@ export default function DrawingLayer() {
       });
     };
 
-    canvas.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
     return () => {
-      canvas.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      canvas.style.touchAction = '';
       mapRefValue.dragPan.enable();
     };
   }, [selectMode, mapRefValue]);

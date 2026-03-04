@@ -59,8 +59,8 @@ export default function MapControls() {
         setShowBaseDropdown(false);
       }
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
   }, []);
 
   const baseLabels = {

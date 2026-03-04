@@ -136,7 +136,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center hover:bg-red-500"
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex group-focus-within:flex items-center justify-center hover:bg-red-500"
               >
                 x
               </button>
@@ -187,7 +187,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); onLocalDelete(marker); }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex items-center justify-center hover:bg-red-500"
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex group-focus-within:flex items-center justify-center hover:bg-red-500"
               >
                 x
               </button>

@@ -30,12 +30,12 @@ export default function ItemInfoPopup({ projectId, layerId, x, y, onClose }) {
     window.addEventListener('keydown', onKey);
     // Use capture phase + small delay to avoid immediate close from the opening right-click
     const timer = setTimeout(() => {
-      document.addEventListener('mousedown', onMouseDown, true);
+      document.addEventListener('pointerdown', onMouseDown, true);
       document.addEventListener('contextmenu', onMouseDown, true);
     }, 50);
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onMouseDown, true);
+      document.removeEventListener('pointerdown', onMouseDown, true);
       document.removeEventListener('contextmenu', onMouseDown, true);
       clearTimeout(timer);
     };
