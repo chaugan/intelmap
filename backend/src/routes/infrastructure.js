@@ -66,7 +66,60 @@ function requireInfraview(req, res, next) {
 
 router.use(requireInfraview);
 
-// List available layers
+// ── Search endpoint (MUST be before /:layer to avoid being caught) ──────────
+
+let nameIndex = null;
+
+function buildNameIndex() {
+  if (nameIndex) return nameIndex;
+  nameIndex = {};
+  for (const [id] of Object.entries(LAYER_DEFS)) {
+    if (id === 'lufthinder') continue; // too large
+    const filePath = path.join(GEOJSON_DIR, `${id}.geojson`);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      let data;
+      if (cache.has(id)) {
+        data = cache.get(id);
+      } else {
+        data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        cache.set(id, data);
+      }
+      const names = [];
+      for (const f of data.features || []) {
+        const p = f.properties || {};
+        const n = p.Name || p.name || p.NAME || p.navn || p.official_name || '';
+        if (n && !names.includes(n)) names.push(n);
+      }
+      if (names.length > 0) nameIndex[id] = names;
+    } catch {}
+  }
+  console.log(`Built infrastructure name index: ${Object.values(nameIndex).reduce((s, a) => s + a.length, 0)} names across ${Object.keys(nameIndex).length} layers`);
+  return nameIndex;
+}
+
+router.get('/search', (req, res) => {
+  const q = (req.query.q || '').toLowerCase().trim();
+  if (!q || q.length < 2) return res.json([]);
+
+  const idx = buildNameIndex();
+  const results = [];
+
+  for (const [layerId, names] of Object.entries(idx)) {
+    for (const name of names) {
+      if (name.toLowerCase().includes(q)) {
+        results.push({ name, layer: layerId });
+        if (results.length >= 20) break;
+      }
+    }
+    if (results.length >= 20) break;
+  }
+
+  res.json(results);
+});
+
+// ── List available layers ───────────────────────────────────────────────────
+
 router.get('/layers', (req, res) => {
   const layers = [];
   for (const [id, def] of Object.entries(LAYER_DEFS)) {
@@ -83,7 +136,8 @@ router.get('/layers', (req, res) => {
   res.json(layers);
 });
 
-// Get a specific layer's GeoJSON
+// ── Get a specific layer's GeoJSON ──────────────────────────────────────────
+
 router.get('/:layer', (req, res) => {
   const { layer } = req.params;
 
@@ -115,58 +169,10 @@ router.get('/:layer', (req, res) => {
   }
 });
 
-// Search: return feature names grouped by layer (for frontend search)
-let nameIndex = null;
+// ── Lufthinder: large file, serve bbox-filtered ─────────────────────────────
 
-function buildNameIndex() {
-  if (nameIndex) return nameIndex;
-  nameIndex = {};
-  for (const [id, def] of Object.entries(LAYER_DEFS)) {
-    if (id === 'lufthinder') continue; // too large, skip
-    const filePath = path.join(GEOJSON_DIR, `${id}.geojson`);
-    if (!fs.existsSync(filePath)) continue;
-    try {
-      let data;
-      if (cache.has(id)) {
-        data = cache.get(id);
-      } else {
-        data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        cache.set(id, data);
-      }
-      const names = [];
-      for (const f of data.features || []) {
-        const p = f.properties || {};
-        const n = p.Name || p.name || p.NAME || p.navn || p.official_name || '';
-        if (n && !names.includes(n)) names.push(n);
-      }
-      if (names.length > 0) nameIndex[id] = names;
-    } catch {}
-  }
-  return nameIndex;
-}
-
-router.get('/search', (req, res) => {
-  const q = (req.query.q || '').toLowerCase().trim();
-  if (!q || q.length < 2) return res.json([]);
-
-  const idx = buildNameIndex();
-  const results = [];
-
-  for (const [layerId, names] of Object.entries(idx)) {
-    for (const name of names) {
-      if (name.toLowerCase().includes(q)) {
-        results.push({ name, layer: layerId });
-        if (results.length >= 20) break;
-      }
-    }
-    if (results.length >= 20) break;
-  }
-
-  res.json(results);
-});
-
-// Lufthinder: large file, serve bbox-filtered
 let lufthinderData = null;
+let lufthinderSwapped = false; // true if coords are [lat, lon] instead of [lon, lat]
 
 function loadLufthinder() {
   if (lufthinderData) return lufthinderData;
@@ -174,6 +180,16 @@ function loadLufthinder() {
   if (!fs.existsSync(filePath)) return null;
   try {
     lufthinderData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    // Detect coordinate order: if first coord[0] > 50, it's likely latitude (Norway: lat 58-71)
+    const firstFeature = lufthinderData.features?.[0];
+    if (firstFeature?.geometry?.coordinates?.[0]) {
+      const c = firstFeature.geometry.coordinates[0];
+      const val = Array.isArray(c) ? c[0] : c;
+      if (val > 50) {
+        lufthinderSwapped = true;
+        console.log('lufthinder.geojson: detected [lat, lon] coordinate order, swapping');
+      }
+    }
     console.log(`Loaded lufthinder.geojson: ${lufthinderData.features?.length || 0} features`);
     return lufthinderData;
   } catch (err) {
@@ -188,7 +204,6 @@ function serveLufthinder(req, res) {
   if (!data) return res.status(404).json({ error: 'lufthinder not available' });
 
   if (!bbox) {
-    // No bbox = return feature count only (too large for full)
     return res.json({
       type: 'FeatureCollection',
       features: [],
@@ -204,20 +219,38 @@ function serveLufthinder(req, res) {
   const filtered = data.features.filter(f => {
     const coords = f.geometry?.coordinates;
     if (!coords) return false;
-    // Handle Point geometry
+
+    let lon, lat;
     if (f.geometry.type === 'Point') {
-      const [lon, lat] = coords;
-      return lon >= west && lon <= east && lat >= south && lat <= north;
+      [lon, lat] = lufthinderSwapped ? [coords[1], coords[0]] : coords;
+    } else {
+      // LineString/MultiLineString: check first coordinate
+      const first = Array.isArray(coords[0]) ? (Array.isArray(coords[0][0]) ? coords[0][0] : coords[0]) : coords;
+      [lon, lat] = lufthinderSwapped ? [first[1], first[0]] : [first[0], first[1]];
     }
-    // For other types, check first coordinate
-    const first = Array.isArray(coords[0]) ? (Array.isArray(coords[0][0]) ? coords[0][0] : coords[0]) : coords;
-    return first[0] >= west && first[0] <= east && first[1] >= south && first[1] <= north;
+
+    return lon >= west && lon <= east && lat >= south && lat <= north;
   });
 
-  res.json({
-    type: 'FeatureCollection',
-    features: filtered,
-  });
+  // If coords are swapped, swap them in the output so MapLibre renders correctly
+  if (lufthinderSwapped) {
+    const swapped = filtered.map(f => ({
+      ...f,
+      geometry: {
+        ...f.geometry,
+        coordinates: f.geometry.type === 'Point'
+          ? [f.geometry.coordinates[1], f.geometry.coordinates[0], f.geometry.coordinates[2]]
+          : f.geometry.coordinates.map(c =>
+              Array.isArray(c[0])
+                ? c.map(pt => [pt[1], pt[0], ...(pt.length > 2 ? [pt[2]] : [])])
+                : [c[1], c[0], ...(c.length > 2 ? [c[2]] : [])]
+            ),
+      },
+    }));
+    return res.json({ type: 'FeatureCollection', features: swapped });
+  }
+
+  res.json({ type: 'FeatureCollection', features: filtered });
 }
 
 export default router;
