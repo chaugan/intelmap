@@ -380,7 +380,6 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
 
   const [expanded, setExpanded] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
-  const hoverInfoRef = useRef(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -858,21 +857,36 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
       const pt = trackPoints[closestIdx];
       const lineX = padding.left + ((new Date(pt.timestamp).getTime() - startTime) / timeRange) * chartWidth;
       const speedY = pt.speed != null ? padding.top + chartHeight - (pt.speed / speedRange) * chartHeight : null;
-      const info = { point: pt, index: closestIdx, lineX, speedY };
-      hoverInfoRef.current = info;
-      setHoverInfo(info);
+      setHoverInfo({ point: pt, index: closestIdx, lineX, speedY });
     } else {
       setHoverInfo(null);
     }
   };
 
-  const handleChartClick = () => {
-    // Use ref because on touch, pointerleave clears state before click fires
-    const info = hoverInfo || hoverInfoRef.current;
-    if (info) {
-      setSelectedPoint(info.point);
-      setSelectedIndex(info.index);
-      // In compact mode, clicking chart opens expanded view directly
+  // Resolve chart X position to nearest track point
+  const resolvePointFromX = (clientX) => {
+    if (!svgRef.current || trackPoints.length === 0) return null;
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const x = (clientX - rect.left) * scaleX;
+    if (x < padding.left || x > padding.left + chartWidth) return null;
+    const fraction = (x - padding.left) / chartWidth;
+    const targetTime = startTime + fraction * timeRange;
+    let closestIdx = 0;
+    let closestDiff = Infinity;
+    for (let i = 0; i < trackPoints.length; i++) {
+      const diff = Math.abs(new Date(trackPoints[i].timestamp).getTime() - targetTime);
+      if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+    }
+    return { point: trackPoints[closestIdx], index: closestIdx };
+  };
+
+  const handleChartClick = (e) => {
+    // Compute directly from click/tap X position — works for both mouse and touch
+    const resolved = resolvePointFromX(e.clientX);
+    if (resolved) {
+      setSelectedPoint(resolved.point);
+      setSelectedIndex(resolved.index);
       if (!expanded) {
         setExpanded(true);
       }
