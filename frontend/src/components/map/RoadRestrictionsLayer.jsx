@@ -65,7 +65,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   useEffect(() => { dataRef.current = data; }, [data]);
 
   const addLayers = useCallback((opacity) => {
-    if (!mapRef) return;
+    if (!mapRef || !mapRef.isStyleLoaded()) return;
 
     if (!mapRef.getSource(RESTRICTION_SOURCE)) {
       mapRef.addSource(RESTRICTION_SOURCE, {
@@ -198,12 +198,11 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
     return () => {
       cancelled = true;
       mapRef.off('styledata', onStyleData);
-      removePopup();
       ALL_LAYERS.forEach((l) => { try { if (mapRef.getLayer(l)) mapRef.removeLayer(l); } catch {} });
       try { if (mapRef.getSource(RESTRICTION_SOURCE)) mapRef.removeSource(RESTRICTION_SOURCE); } catch {}
       setReady(false);
     };
-  }, [mapRef, removePopup, addLayers, roadRestrictionsOpacity]);
+  }, [mapRef, addLayers, roadRestrictionsOpacity]);
 
   // Update data source when data changes
   useEffect(() => {
