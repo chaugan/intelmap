@@ -81,6 +81,7 @@ export const useMapStore = create((set) => ({
   infraVisible: false,
   infraOpacity: 1.0,
   infraLayers: {},
+  infraSearchFilter: null, // null = show all, { layerId: [name1, name2, ...] } = show only matching features
 
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
@@ -167,12 +168,14 @@ export const useMapStore = create((set) => ({
   clearFocusedVessels: () => set({ focusedVesselMmsis: [] }),
   toggleInfra: () => set((s) => {
     const newVisible = !s.infraVisible;
-    return { infraVisible: newVisible, ...(!newVisible && { infraLayers: {} }) };
+    return { infraVisible: newVisible, ...(!newVisible && { infraLayers: {}, infraSearchFilter: null }) };
   }),
   setInfraOpacity: (infraOpacity) => set({ infraOpacity }),
   toggleInfraLayer: (name) => set((s) => ({
-    infraLayers: { ...s.infraLayers, [name]: !s.infraLayers[name] }
+    infraLayers: { ...s.infraLayers, [name]: !s.infraLayers[name] },
+    infraSearchFilter: null, // clear search filter when manually toggling
   })),
+  setInfraSearchFilter: (filter) => set({ infraSearchFilter: filter }),
   toggleRoadRestrictions: () => set((s) => ({
     roadRestrictionsVisible: !s.roadRestrictionsVisible,
     // Reset filters when toggling on
@@ -193,6 +196,7 @@ export const useMapStore = create((set) => ({
     auroraVisible: false,
     infraVisible: false,
     infraLayers: {},
+    infraSearchFilter: null,
     focusedAircraftHex: null,
     focusedVesselMmsi: null,
     hiddenVesselCategories: [],

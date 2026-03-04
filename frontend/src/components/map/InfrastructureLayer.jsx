@@ -131,15 +131,32 @@ function buildPopupHtml(props, layerName) {
 
 const SUFFIXES = ['-polygons', '-centroids', '-points', '-lines'];
 
+function getFeatureName(f) {
+  const p = f.properties || {};
+  return p.Name || p.name || p.NAME || p.navn || p.official_name || '';
+}
+
+function filterFeaturesByNames(geojson, names) {
+  if (!names || names.length === 0) return geojson;
+  const nameSet = new Set(names.map(n => n.toLowerCase()));
+  const filtered = (geojson?.features || []).filter(f => {
+    const n = getFeatureName(f);
+    return n && nameSet.has(n.toLowerCase());
+  });
+  return { type: 'FeatureCollection', features: filtered };
+}
+
 export default function InfrastructureLayer({ mapRef }) {
   const infraVisible = useMapStore((s) => s.infraVisible);
   const infraOpacity = useMapStore((s) => s.infraOpacity);
   const infraLayers = useMapStore((s) => s.infraLayers);
+  const infraSearchFilter = useMapStore((s) => s.infraSearchFilter);
   const user = useAuthStore((s) => s.user);
   const canView = user?.infraviewEnabled || user?.role === 'admin';
   const { layerData } = useInfrastructure(infraVisible && canView);
   const addedRef = useRef(new Set());
   const popupRef = useRef(null);
+  const prevFilterRef = useRef(null);
   const getMap = () => mapRef?.getMap?.() || mapRef;
 
   function removeLayers(map, name) {
@@ -212,17 +229,32 @@ export default function InfrastructureLayer({ mapRef }) {
     if (!map || !map.getStyle()) return;
     if (!infraVisible || !canView) {
       for (const name of [...addedRef.current]) removeLayers(map, name);
+      prevFilterRef.current = infraSearchFilter;
       return;
     }
     for (const name of [...addedRef.current]) {
       if (!infraLayers[name] || !layerData[name]) removeLayers(map, name);
     }
+    const filterChanged = infraSearchFilter !== prevFilterRef.current;
     for (const [name, data] of Object.entries(layerData)) {
       if (!infraLayers[name]) continue;
-      if (addedRef.current.has(name)) { updateOpacity(map, name, infraOpacity); }
-      else { try { addLayers(map, name, data, infraOpacity); } catch (err) { console.warn('Failed to add infra layer ' + name + ':', err.message); } }
+      const filteredData = infraSearchFilter && infraSearchFilter[name]
+        ? filterFeaturesByNames(data, infraSearchFilter[name])
+        : data;
+      if (addedRef.current.has(name)) {
+        if (filterChanged) {
+          // Filter state changed — remove and re-add with correct data
+          removeLayers(map, name);
+          try { addLayers(map, name, filteredData, infraOpacity); } catch (err) { console.warn('Failed to add infra layer ' + name + ':', err.message); }
+        } else {
+          updateOpacity(map, name, infraOpacity);
+        }
+      } else {
+        try { addLayers(map, name, filteredData, infraOpacity); } catch (err) { console.warn('Failed to add infra layer ' + name + ':', err.message); }
+      }
     }
-  }, [infraVisible, canView, infraLayers, layerData, infraOpacity]);
+    prevFilterRef.current = infraSearchFilter;
+  }, [infraVisible, canView, infraLayers, layerData, infraOpacity, infraSearchFilter]);
 
   useEffect(() => {
     const map = getMap();
@@ -232,12 +264,15 @@ export default function InfrastructureLayer({ mapRef }) {
       if (!infraVisible || !canView) return;
       for (const [name, data] of Object.entries(layerData)) {
         if (!infraLayers[name]) continue;
-        try { addLayers(map, name, data, infraOpacity); } catch {}
+        const filteredData = infraSearchFilter && infraSearchFilter[name]
+          ? filterFeaturesByNames(data, infraSearchFilter[name])
+          : data;
+        try { addLayers(map, name, filteredData, infraOpacity); } catch {}
       }
     };
     map.on('styledata', handler);
     return () => map.off('styledata', handler);
-  }, [infraVisible, canView, infraLayers, layerData, infraOpacity]);
+  }, [infraVisible, canView, infraLayers, layerData, infraOpacity, infraSearchFilter]);
 
   useEffect(() => {
     const map = getMap();
@@ -291,6 +326,7 @@ function InfraSearch({ onFilter }) {
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
   const sok = 'S' + String.fromCharCode(0xF8) + 'k infrastruktur...';
 
   const doSearch = useCallback((q) => {
@@ -299,7 +335,7 @@ function InfraSearch({ onFilter }) {
     timerRef.current = setTimeout(() => {
       fetch('/api/infrastructure/search?q=' + encodeURIComponent(q), { credentials: 'include' })
         .then(r => r.ok ? r.json() : [])
-        .then(results => { setSuggestions(results.slice(0, 3)); setShowDropdown(results.length > 0); setSelectedIdx(-1); })
+        .then(results => { setSuggestions(results.slice(0, 50)); setShowDropdown(results.length > 0); setSelectedIdx(-1); })
         .catch(() => {});
     }, 150);
   }, []);
@@ -308,12 +344,25 @@ function InfraSearch({ onFilter }) {
     const val = e.target.value;
     setQuery(val);
     doSearch(val);
-    if (val.length >= 2) { onFilter({ type: 'fuzzy', query: val }); }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(prev => Math.min(prev + 1, suggestions.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(prev => Math.max(prev - 1, -1)); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIdx(prev => {
+        const next = Math.min(prev + 1, suggestions.length - 1);
+        setTimeout(() => { dropdownRef.current?.children[next]?.scrollIntoView({ block: 'nearest' }); }, 0);
+        return next;
+      });
+    }
+    else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIdx(prev => {
+        const next = Math.max(prev - 1, -1);
+        if (next >= 0) setTimeout(() => { dropdownRef.current?.children[next]?.scrollIntoView({ block: 'nearest' }); }, 0);
+        return next;
+      });
+    }
     else if (e.key === 'Enter') {
       e.preventDefault();
       if (selectedIdx >= 0 && suggestions[selectedIdx]) {
@@ -348,7 +397,7 @@ function InfraSearch({ onFilter }) {
         </div>
       </div>
       {showDropdown && suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-0.5 bg-slate-800 border border-slate-600 rounded shadow-lg overflow-hidden">
+        <div ref={dropdownRef} className="absolute z-50 left-0 right-0 mt-0.5 bg-slate-800 border border-slate-600 rounded shadow-lg overflow-y-auto" style={{ maxHeight: '160px' }}>
           {suggestions.map((s, i) => {
             const color = LAYER_COLORS[s.layer] || '#94a3b8';
             const layerLabel = LAYER_NAMES_NO[s.layer] || s.layer;
@@ -397,26 +446,40 @@ export function InfrastructureLegend({ layerList }) {
     if (filter.type === 'clear') {
       const reset = {};
       for (const key of Object.keys(store.infraLayers)) reset[key] = false;
-      useMapStore.setState({ infraLayers: reset });
+      useMapStore.setState({ infraLayers: reset, infraSearchFilter: null });
       return;
     }
     if (filter.type === 'exact') {
+      // Exact: clicked a specific entry — show only features with that exact name
       fetch('/api/infrastructure/search?q=' + encodeURIComponent(filter.name), { credentials: 'include' })
         .then(r => r.ok ? r.json() : [])
         .then(results => {
           const newLayers = {};
+          const nameFilter = {};
           for (const key of Object.keys(store.infraLayers)) newLayers[key] = false;
-          for (const r of results) { if (r.name === filter.name) newLayers[r.layer] = true; }
-          useMapStore.setState({ infraLayers: newLayers });
+          for (const r of results) {
+            if (r.name === filter.name) {
+              newLayers[r.layer] = true;
+              if (!nameFilter[r.layer]) nameFilter[r.layer] = [];
+              nameFilter[r.layer].push(r.name);
+            }
+          }
+          useMapStore.setState({ infraLayers: newLayers, infraSearchFilter: nameFilter });
         }).catch(() => {});
     } else if (filter.type === 'fuzzy') {
+      // Enter pressed: show all matching features across all matching layers
       fetch('/api/infrastructure/search?q=' + encodeURIComponent(filter.query), { credentials: 'include' })
         .then(r => r.ok ? r.json() : [])
         .then(results => {
           const newLayers = {};
+          const nameFilter = {};
           for (const key of Object.keys(store.infraLayers)) newLayers[key] = false;
-          for (const r of results) newLayers[r.layer] = true;
-          useMapStore.setState({ infraLayers: newLayers });
+          for (const r of results) {
+            newLayers[r.layer] = true;
+            if (!nameFilter[r.layer]) nameFilter[r.layer] = [];
+            if (!nameFilter[r.layer].includes(r.name)) nameFilter[r.layer].push(r.name);
+          }
+          useMapStore.setState({ infraLayers: newLayers, infraSearchFilter: nameFilter });
         }).catch(() => {});
     }
   }, []);

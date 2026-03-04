@@ -109,10 +109,10 @@ router.get('/search', (req, res) => {
     for (const name of names) {
       if (name.toLowerCase().includes(q)) {
         results.push({ name, layer: layerId });
-        if (results.length >= 20) break;
+        if (results.length >= 50) break;
       }
     }
-    if (results.length >= 20) break;
+    if (results.length >= 50) break;
   }
 
   res.json(results);
