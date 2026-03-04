@@ -196,12 +196,12 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:180px">
           <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${isHeight ? '#dc2626' : '#f97316'}">
             ${isHeight
-              ? (lang === 'no' ? 'Hoydebegrensning' : 'Height Restriction')
+              ? (lang === 'no' ? 'Høydebegrensning' : 'Height Restriction')
               : (lang === 'no' ? 'Vektbegrensning' : 'Weight Restriction')}
           </div>
           ${props.name ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Navn' : 'Name'}:</span> ${props.name}</div>` : ''}
           ${props.road ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Veg' : 'Road'}:</span> ${props.road}</div>` : ''}
-          ${props.height != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks hoyde' : 'Max height'}:</span> <strong>${props.height}m</strong></div>` : ''}
+          ${props.height != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks høyde' : 'Max height'}:</span> <strong>${props.height}m</strong></div>` : ''}
           ${props.heightType ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Type' : 'Type'}:</span> ${props.heightType}</div>` : ''}
           ${props.maxWeight != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span> <strong>${props.maxWeight}t</strong></div>` : ''}
           ${props.loadClass ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Bruksklasse' : 'Load class'}:</span> ${props.loadClass}</div>` : ''}
@@ -339,13 +339,13 @@ export function RoadRestrictionsLegend({ count }) {
         >
           <div className="w-4 h-4 rounded-full bg-red-600 border-2 border-white flex-shrink-0" />
           <span className="text-slate-300 text-[11px]">
-            {lang === 'no' ? 'Hoydegrenser' : 'Height Limits'}
+            {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
           </span>
         </button>
         {showHeightLimits && (
           <div className="ml-5 space-y-0.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-slate-500 w-14">{lang === 'no' ? 'Maks hoyde' : 'Max height'}:</span>
+              <span className="text-[9px] text-slate-500 w-14">{lang === 'no' ? 'Maks høyde' : 'Max height'}:</span>
               <input
                 type="range"
                 min="2"
