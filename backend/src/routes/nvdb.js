@@ -2,8 +2,13 @@ import { Router } from 'express';
 
 const router = Router();
 
-const CACHE = new Map();
+// Norway-wide cache
+let norwayCache = null;
+let cacheTimestamp = null;
+let cacheLoading = false;
+
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const NORWAY_BBOX = '4.5,57.9,31.1,71.2'; // Full Norway bounding box
 
 const NVDB_BASE = 'https://nvdbapiles.atlas.vegvesen.no/vegobjekter';
 const HEADERS = {
@@ -16,7 +21,7 @@ async function fetchAllPages(url) {
   const results = [];
   let nextUrl = url;
   let pageCount = 0;
-  const maxPages = 10; // Safety limit
+  const maxPages = 100; // Increased for full Norway fetch
 
   while (nextUrl && pageCount < maxPages) {
     const res = await fetch(nextUrl, { headers: HEADERS });
@@ -219,28 +224,42 @@ function convertWeights(objects) {
   return features;
 }
 
-// GET /api/nvdb/restrictions?south=...&north=...&east=...&west=...
-router.get('/restrictions', async (req, res) => {
-  const { south, north, east, west } = req.query;
+// Check if a feature intersects with the given bounding box
+function featureIntersectsBbox(feature, west, south, east, north) {
+  const geom = feature.geometry;
+  if (!geom) return false;
 
-  if (!south || !north || !east || !west) {
-    return res.status(400).json({ error: 'Missing bounding box parameters' });
+  // Get all coordinates from the geometry
+  let coords = [];
+  if (geom.type === 'Point') {
+    coords = [geom.coordinates];
+  } else if (geom.type === 'LineString') {
+    coords = geom.coordinates;
+  } else if (geom.type === 'MultiLineString') {
+    coords = geom.coordinates.flat();
   }
 
-  const bbox = `${west},${south},${east},${north}`;
-  const cacheKey = `restrictions-${bbox}`;
-
-  // Check cache
-  const cached = CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return res.json(cached.data);
+  // Check if any coordinate is within the bbox
+  for (const [lon, lat] of coords) {
+    if (lon >= west && lon <= east && lat >= south && lat <= north) {
+      return true;
+    }
   }
+  return false;
+}
+
+// Fetch all Norway restrictions and cache them
+async function warmCache() {
+  if (cacheLoading) return;
+  cacheLoading = true;
+
+  console.log('[NVDB] Warming cache - fetching all Norway restrictions...');
+  const startTime = Date.now();
 
   try {
-    // Fetch height restrictions (591) and weight/load class (904) in parallel
     const [heights, weights] = await Promise.all([
-      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${bbox}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
-      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${bbox}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
     ]);
 
     const features = [
@@ -248,7 +267,7 @@ router.get('/restrictions', async (req, res) => {
       ...convertWeights(weights),
     ];
 
-    const geojson = {
+    norwayCache = {
       type: 'FeatureCollection',
       features,
       meta: {
@@ -257,15 +276,73 @@ router.get('/restrictions', async (req, res) => {
         weightCount: weights.length,
       },
     };
+    cacheTimestamp = Date.now();
 
-    // Cache the result
-    CACHE.set(cacheKey, { data: geojson, timestamp: Date.now() });
-
-    res.json(geojson);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[NVDB] Cache warm! ${features.length} features (${heights.length} height, ${weights.length} weight) in ${elapsed}s`);
   } catch (err) {
-    console.error('NVDB API error:', err);
-    res.status(500).json({ error: 'Failed to fetch NVDB data' });
+    console.error('[NVDB] Failed to warm cache:', err);
+  } finally {
+    cacheLoading = false;
   }
+}
+
+// Check if cache needs refresh
+function shouldRefreshCache() {
+  if (!norwayCache || !cacheTimestamp) return true;
+  return Date.now() - cacheTimestamp > CACHE_TTL;
+}
+
+// Start background cache warming on module load
+warmCache();
+
+// Schedule refresh every 6 hours
+setInterval(() => {
+  if (shouldRefreshCache()) {
+    warmCache();
+  }
+}, CACHE_TTL);
+
+// GET /api/nvdb/restrictions?south=...&north=...&east=...&west=...
+router.get('/restrictions', async (req, res) => {
+  const { south, north, east, west } = req.query;
+
+  if (!south || !north || !east || !west) {
+    return res.status(400).json({ error: 'Missing bounding box parameters' });
+  }
+
+  // If cache not ready, return empty with loading flag
+  if (!norwayCache) {
+    return res.json({
+      type: 'FeatureCollection',
+      features: [],
+      meta: { total: 0, heightCount: 0, weightCount: 0, loading: true },
+    });
+  }
+
+  // Filter cached features by requested bbox
+  const w = parseFloat(west);
+  const s = parseFloat(south);
+  const e = parseFloat(east);
+  const n = parseFloat(north);
+
+  const filteredFeatures = norwayCache.features.filter((f) =>
+    featureIntersectsBbox(f, w, s, e, n)
+  );
+
+  const heightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'height').length;
+  const weightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'weight').length;
+
+  res.json({
+    type: 'FeatureCollection',
+    features: filteredFeatures,
+    meta: {
+      total: filteredFeatures.length,
+      heightCount,
+      weightCount,
+      cachedAt: cacheTimestamp,
+    },
+  });
 });
 
 export default router;
