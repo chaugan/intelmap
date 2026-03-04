@@ -87,6 +87,60 @@ function searchPlaces(db, query, limit = 5) {
   }
 }
 
+/**
+ * Fallback: detect city/municipality matches from the addresses table
+ * when places_fts is not available or returns no results.
+ */
+function searchCitiesFromAddresses(db, query, limit = 5) {
+  const like = `${query}%`;
+  try {
+    // Check for city matches (exact-ish via LIKE prefix)
+    const rows = db.prepare(`
+      SELECT city as name, municipality, AVG(lat) as lat, AVG(lon) as lon, COUNT(*) as cnt
+      FROM addresses
+      WHERE city LIKE ? COLLATE NOCASE
+      GROUP BY city
+      ORDER BY cnt DESC
+      LIMIT ?
+    `).all(like, limit);
+
+    // Also check municipality matches if no city match
+    if (rows.length === 0) {
+      const mRows = db.prepare(`
+        SELECT municipality as name, municipality, AVG(lat) as lat, AVG(lon) as lon, COUNT(*) as cnt
+        FROM addresses
+        WHERE municipality LIKE ? COLLATE NOCASE
+        GROUP BY municipality
+        ORDER BY cnt DESC
+        LIMIT ?
+      `).all(like, limit);
+      return mRows.map(r => ({
+        name: r.name,
+        type: 'By',
+        municipality: r.municipality || '',
+        county: '',
+        lat: r.lat,
+        lon: r.lon,
+        postcode: '',
+        city: '',
+      }));
+    }
+
+    return rows.map(r => ({
+      name: r.name,
+      type: 'Tettsted',
+      municipality: r.municipality || '',
+      county: '',
+      lat: r.lat,
+      lon: r.lon,
+      postcode: '',
+      city: '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
 router.get('/', (req, res) => {
   try {
     const { q } = req.query;
@@ -194,6 +248,10 @@ router.get('/', (req, res) => {
       // Search places when there's no house number (pure name search)
       if (!hasHouseNumber(parsed)) {
         placeResults = searchPlaces(db, parsed.street, 5);
+        // Fallback: detect city/municipality from addresses table
+        if (placeResults.length === 0) {
+          placeResults = searchCitiesFromAddresses(db, parsed.street, 5);
+        }
         // If place results found, skip address results to avoid
         // "Trondheimsvegen" cluttering results when searching "Trondheim"
         if (placeResults.length > 0) {
