@@ -3,7 +3,7 @@ import { Router } from 'express';
 const router = Router();
 
 const CACHE = new Map();
-const CACHE_TTL = 30 * 60 * 1000; // 30 min
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
 const NVDB_BASE = 'https://nvdbapiles.atlas.vegvesen.no/vegobjekter';
 const HEADERS = {
