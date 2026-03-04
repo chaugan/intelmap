@@ -20,9 +20,8 @@ const LAYER_DEFS = {
   '300kv':          { category: 'power', name: '300 kV',         type: 'line' },
   '420kv':          { category: 'power', name: '420 kV',         type: 'line' },
   'distribution':   { category: 'power', name: 'Distribution',   type: 'line' },
-  'powerlines':     { category: 'power', name: 'Powerlines',     type: 'line' },
   'subsea_power':   { category: 'power', name: 'Subsea Power',   type: 'line' },
-  'transformator':  { category: 'power', name: 'Transformator',  type: 'point' },
+  'transformator':  { category: 'power', name: 'Transformator',  type: 'mixed' },
 
   // Transport
   'eroad':          { category: 'transport', name: 'E-roads',          type: 'line' },
@@ -40,13 +39,13 @@ const LAYER_DEFS = {
 
   // Aviation
   'airport':        { category: 'aviation', name: 'Airports',      type: 'polygon' },
-  'lufthinder':     { category: 'aviation', name: 'Air Obstacles', type: 'point' },
+  'lufthinder':     { category: 'aviation', name: 'Air Obstacles', type: 'line' },
 
   // Military
   'military':       { category: 'military', name: 'Military Areas', type: 'polygon' },
 
   // Energy
-  'hydro':          { category: 'energy', name: 'Hydro Power',   type: 'point' },
+  'hydro':          { category: 'energy', name: 'Hydro Power',   type: 'mixed' },
   'wind':           { category: 'energy', name: 'Wind Power',    type: 'point' },
   'oil_gas_chem':   { category: 'energy', name: 'Oil/Gas/Chem',  type: 'point' },
 

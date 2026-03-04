@@ -105,3 +105,38 @@ html, body, #root {
 .animate-pulse-color {
   animation: pulse-color 5s ease-in-out infinite;
 }
+
+/* Dark theme for MapLibre popups */
+.maplibregl-popup-content {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+.maplibregl-popup-close-button {
+  color: #94a3b8 !important;
+  font-size: 18px !important;
+  right: 4px !important;
+  top: 2px !important;
+}
+.maplibregl-popup-close-button:hover {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+.maplibregl-popup-tip {
+  border-top-color: #1e293b !important;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #1e293b !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #1e293b !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #1e293b !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #1e293b !important;
+}

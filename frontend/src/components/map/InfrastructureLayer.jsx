@@ -10,8 +10,8 @@ const OFM_EXTRUSION_LAYER = 'openmaptiles-3d-buildings';
 const LAYER_COLORS = {
   '66kv': '#eab308', '110kv': '#f97316', '132kv': '#f97316', '220kv': '#ef4444',
   '300kv': '#a855f7', '420kv': '#991b1b', 'distribution': '#84cc16',
-  'powerlines': '#facc15', 'subsea_power': '#06b6d4', 'transformator': '#f59e0b',
-  'eroad': '#3b82f6', 'rail': '#6b7280', 'rail_station': '#ef4444',
+  'subsea_power': '#06b6d4', 'transformator': '#f59e0b',
+  'eroad': '#00975e', 'rail': '#6b7280', 'rail_station': '#ef4444',
   'rail_substation': '#f97316', 'railway_bridge': '#78716c',
   'ferry': '#0ea5e9', 'ferry_rail': '#0284c7',
   'fiber': '#a78bfa', 'radiotowers2': '#f43f5e', 'radar': '#ec4899',
@@ -21,12 +21,27 @@ const LAYER_COLORS = {
   'pipes': '#a855f7', 'tilfluktsrom': '#14b8a6',
 };
 
+// Norwegian translations for sublayer names
+const LAYER_NAMES_NO = {
+  '66kv': '66 kV', '110kv': '110 kV', '132kv': '132 kV', '220kv': '220 kV',
+  '300kv': '300 kV', '420kv': '420 kV', 'distribution': 'Distribusjon',
+  'subsea_power': 'Sjøkabel strøm', 'transformator': 'Transformator',
+  'eroad': 'Europavei', 'rail': 'Jernbane', 'rail_station': 'Jernbanestasjoner',
+  'rail_substation': 'Jernbane-understasjoner', 'railway_bridge': 'Jernbanebroer',
+  'ferry': 'Fergeruter', 'ferry_rail': 'Fergeleier v/jernbane',
+  'fiber': 'Sjøkabel fiber', 'radiotowers2': 'Radiotårn', 'radar': 'Radar',
+  'airport': 'Flyplasser', 'lufthinder': 'Lufthindre',
+  'military': 'Militære områder',
+  'hydro': 'Vannkraftverk', 'wind': 'Vindkraftverk', 'oil_gas_chem': 'Olje/gass/kjemi',
+  'pipes': 'Rørledninger', 'tilfluktsrom': 'Tilfluktsrom',
+};
+
 const CATEGORIES = {
-  power:     { no: 'Stromnett', en: 'Power Grid' },
+  power:     { no: 'Strømnett', en: 'Power Grid' },
   transport: { no: 'Transport', en: 'Transport' },
   telecom:   { no: 'Telekom', en: 'Telecom' },
   aviation:  { no: 'Luftfart', en: 'Aviation' },
-  military:  { no: 'Militaert', en: 'Military' },
+  military:  { no: 'Militært', en: 'Military' },
   energy:    { no: 'Energi', en: 'Energy' },
   other:     { no: 'Annet', en: 'Other' },
 };
@@ -77,14 +92,14 @@ function buildPopupHtml(props, layerName) {
   return `
     <div style="font-size:13px;color:#e2e8f0;max-width:320px">
       <div style="font-weight:600;margin-bottom:6px;border-bottom:2px solid ${color};padding-bottom:4px;font-size:14px">
-        ${name || layerName}
+        ${name || (LAYER_NAMES_NO[layerName] || layerName)}
       </div>
-      ${rows.length > 0 ? `<table style="border-collapse:collapse">${rows.join('')}</table>` : '<div style="color:#94a3b8;font-size:11px">No metadata</div>'}
+      ${rows.length > 0 ? `<table style="border-collapse:collapse">${rows.join('')}</table>` : '<div style="color:#94a3b8;font-size:11px">Ingen metadata</div>'}
     </div>
   `;
 }
 
-// Sub-layer IDs for a given infra layer name (matches original pattern: -polygons, -points, -lines)
+// Sub-layer IDs for a given infra layer name
 const SUFFIXES = ['-polygons', '-points', '-lines'];
 
 export default function InfrastructureLayer({ mapRef }) {
@@ -95,13 +110,11 @@ export default function InfrastructureLayer({ mapRef }) {
   const canView = user?.infraviewEnabled || user?.role === 'admin';
 
   const { layerData } = useInfrastructure(infraVisible && canView);
-  // Track which infra layer names have been added to the map
   const addedRef = useRef(new Set());
   const popupRef = useRef(null);
 
   const getMap = () => mapRef?.getMap?.() || mapRef;
 
-  // Remove all MapLibre layers/sources for a given infra layer name
   function removeLayers(map, name) {
     for (const suffix of SUFFIXES) {
       const id = `infra-${name}${suffix}`;
@@ -111,7 +124,6 @@ export default function InfrastructureLayer({ mapRef }) {
     addedRef.current.delete(name);
   }
 
-  // Add MapLibre layers for a given infra layer name, splitting by geometry type
   function addLayers(map, name, data, opacity) {
     const color = LAYER_COLORS[name] || '#ffffff';
     const { points, lines, polygons } = splitByGeometry(data);
@@ -187,7 +199,6 @@ export default function InfrastructureLayer({ mapRef }) {
     addedRef.current.add(name);
   }
 
-  // Update opacity for existing layers
   function updateOpacity(map, name, opacity) {
     for (const suffix of SUFFIXES) {
       const id = `infra-${name}${suffix}`;
@@ -206,7 +217,6 @@ export default function InfrastructureLayer({ mapRef }) {
     const map = getMap();
     if (!map || !map.getStyle()) return;
 
-    // Remove everything if not visible
     if (!infraVisible || !canView) {
       for (const name of [...addedRef.current]) {
         removeLayers(map, name);
@@ -236,7 +246,7 @@ export default function InfrastructureLayer({ mapRef }) {
     }
   }, [infraVisible, canView, infraLayers, layerData, infraOpacity]);
 
-  // Re-add on style change (map base layer switch)
+  // Re-add on style change
   useEffect(() => {
     const map = getMap();
     if (!map) return;
@@ -258,7 +268,6 @@ export default function InfrastructureLayer({ mapRef }) {
     if (!map || !infraVisible || !canView) return;
 
     const handler = (e) => {
-      // Collect all visible infra layer IDs
       const queryLayers = [];
       for (const name of addedRef.current) {
         for (const suffix of SUFFIXES) {
@@ -273,7 +282,6 @@ export default function InfrastructureLayer({ mapRef }) {
 
       const f = features[0];
       const props = f.properties || {};
-      // Extract layer name from ID like "infra-rail-lines" → "rail"
       const layerName = (f.layer?.id || '').replace(/^infra-/, '').replace(/-(polygons|points|lines)$/, '');
 
       if (popupRef.current) popupRef.current.remove();
@@ -347,6 +355,11 @@ export function InfrastructureLegend({ layerList }) {
 
   const activeCount = Object.values(infraLayers).filter(Boolean).length;
 
+  const getLayerName = (layer) => {
+    if (lang === 'no' && LAYER_NAMES_NO[layer.id]) return LAYER_NAMES_NO[layer.id];
+    return layer.name;
+  };
+
   return (
     <div className="mt-1">
       {/* Collapsible header */}
@@ -412,7 +425,7 @@ export function InfrastructureLegend({ layerList }) {
                             className="w-3 h-3 rounded-sm shrink-0"
                             style={{ backgroundColor: on ? color : '#475569' }}
                           />
-                          <span className="text-[12px] truncate">{layer.name}</span>
+                          <span className="text-[12px] truncate">{getLayerName(layer)}</span>
                         </button>
                       );
                     })}
