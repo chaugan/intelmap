@@ -20,6 +20,7 @@ import timelapseRouter from './timelapse.js';
 import auroraRouter from './aurora.js';
 import monitoringRouter from './monitoring.js';
 import wasosRouter from './wasos.js';
+import nvdbRouter from './nvdb.js';
 
 const router = Router();
 
@@ -44,5 +45,6 @@ router.use('/timelapse', timelapseRouter);
 router.use('/aurora', auroraRouter);
 router.use('/monitoring', monitoringRouter);
 router.use('/wasos', wasosRouter);
+router.use('/nvdb', nvdbRouter);
 
 export default router;

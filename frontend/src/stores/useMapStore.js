@@ -41,6 +41,13 @@ export const useMapStore = create((set) => ({
   vesselActivityAnalysis: null, // { entered: [], exited: [], inside: [], anomalies: {} }
   vesselActivityLoading: false,
   focusedVesselMmsis: [], // Array for multi-vessel focus
+  roadRestrictionsVisible: false,
+  roadRestrictionsOpacity: 0.85,
+  roadRestrictionsFetchedAt: null,
+  showWeightLimits: true,
+  showHeightLimits: true,
+  weightFilterMax: 100, // tons
+  heightFilterMax: 10,  // meters
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
@@ -147,6 +154,17 @@ export const useMapStore = create((set) => ({
   setVesselActivityLoading: (loading) => set({ vesselActivityLoading: loading }),
   setFocusedVessels: (mmsis) => set({ focusedVesselMmsis: mmsis }),
   clearFocusedVessels: () => set({ focusedVesselMmsis: [] }),
+  toggleRoadRestrictions: () => set((s) => ({
+    roadRestrictionsVisible: !s.roadRestrictionsVisible,
+    // Reset filters when toggling on
+    ...(!s.roadRestrictionsVisible && { showWeightLimits: true, showHeightLimits: true }),
+  })),
+  setRoadRestrictionsOpacity: (roadRestrictionsOpacity) => set({ roadRestrictionsOpacity }),
+  setRoadRestrictionsFetchedAt: (roadRestrictionsFetchedAt) => set({ roadRestrictionsFetchedAt }),
+  toggleWeightLimits: () => set((s) => ({ showWeightLimits: !s.showWeightLimits })),
+  toggleHeightLimits: () => set((s) => ({ showHeightLimits: !s.showHeightLimits })),
+  setWeightFilterMax: (weightFilterMax) => set({ weightFilterMax }),
+  setHeightFilterMax: (heightFilterMax) => set({ heightFilterMax }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({

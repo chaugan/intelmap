@@ -16,6 +16,7 @@ const OVERLAYS = [
   { id: 'snowDepth', toggleKey: 'toggleSnowDepth', visibleKey: 'snowDepthVisible', opacityKey: 'snowDepthOpacity', setOpacityKey: 'setSnowDepthOpacity', accent: 'accent-blue-500', shortcut: 'S' },
   { id: 'aircraft', toggleKey: 'toggleAircraft', visibleKey: 'aircraftVisible', opacityKey: 'aircraftOpacity', setOpacityKey: 'setAircraftOpacity', accent: 'accent-amber-500', shortcut: 'F' },
   { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
+  { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X' },
 ];
 
 const OVERLAY_LABELS = {
@@ -30,6 +31,7 @@ const OVERLAY_LABELS = {
   avalancheWarnings: { no: 'Skredvarsel', en: 'Aval. Warnings' },
   aircraft: { no: 'Luftfart', en: 'Aircraft' },
   vessels: { no: 'Fartøy', en: 'Vessels' },
+  roadRestrictions: { no: 'Vegrestriksjoner', en: 'Road Restrictions' },
 };
 
 function SunlightControls({ lang }) {
