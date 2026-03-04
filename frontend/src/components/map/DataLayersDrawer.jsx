@@ -110,6 +110,7 @@ export default function DataLayersDrawer() {
 
   // Overlay state
   const store = useMapStore();
+  const roadRestrictionsCount = useMapStore((s) => s.roadRestrictionsCount); // Direct subscription for reactivity
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const moveOverlayUp = useMapStore((s) => s.moveOverlayUp);
   const moveOverlayDown = useMapStore((s) => s.moveOverlayDown);
@@ -320,7 +321,8 @@ export default function DataLayersDrawer() {
               const toggle = store[overlay.toggleKey];
               const opacity = overlay.opacityKey ? store[overlay.opacityKey] : null;
               const setOpacity = overlay.setOpacityKey ? store[overlay.setOpacityKey] : null;
-              const count = overlay.countKey ? store[overlay.countKey] : null;
+              // Use direct subscription for roadRestrictions count (for reactivity)
+              const count = overlay.id === 'roadRestrictions' ? roadRestrictionsCount : (overlay.countKey ? store[overlay.countKey] : null);
 
               return (
                 <div key={overlay.id}>
@@ -347,7 +349,7 @@ export default function DataLayersDrawer() {
                       {OVERLAY_LABELS[overlay.id]?.[lang] || overlay.id}
                     </button>
                     {/* Count badge */}
-                    {visible && count != null && (
+                    {visible && count !== null && count !== undefined && (
                       <span className="text-[10px] text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
                         {count}
                       </span>
