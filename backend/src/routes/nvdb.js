@@ -2,13 +2,9 @@ import { Router } from 'express';
 
 const router = Router();
 
-// Norway-wide cache
-let norwayCache = null;
-let cacheTimestamp = null;
-let cacheLoading = false;
-
+// Cache with bbox containment check
+const CACHE = new Map(); // key: bbox string, value: { data, bbox: {w,s,e,n}, timestamp }
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
-const NORWAY_BBOX = '4.5,57.9,31.1,71.2'; // Full Norway bounding box
 
 const NVDB_BASE = 'https://nvdbapiles.atlas.vegvesen.no/vegobjekter';
 const HEADERS = {
@@ -16,63 +12,79 @@ const HEADERS = {
   'Accept': 'application/json',
 };
 
+// Check if bbox1 contains bbox2
+function bboxContains(outer, inner) {
+  return outer.w <= inner.w && outer.s <= inner.s &&
+         outer.e >= inner.e && outer.n >= inner.n;
+}
+
+// Check if a feature intersects with the given bounding box
+function featureIntersectsBbox(feature, w, s, e, n) {
+  const geom = feature.geometry;
+  if (!geom) return false;
+
+  let coords = [];
+  if (geom.type === 'Point') {
+    coords = [geom.coordinates];
+  } else if (geom.type === 'LineString') {
+    coords = geom.coordinates;
+  } else if (geom.type === 'MultiLineString') {
+    coords = geom.coordinates.flat();
+  }
+
+  for (const [lon, lat] of coords) {
+    if (lon >= w && lon <= e && lat >= s && lat <= n) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Find a cached bbox that contains the requested bbox
+function findContainingCache(reqBbox) {
+  const now = Date.now();
+  for (const [key, entry] of CACHE.entries()) {
+    // Skip expired entries
+    if (now - entry.timestamp > CACHE_TTL) {
+      CACHE.delete(key);
+      continue;
+    }
+    // Check if this cached bbox contains the requested bbox
+    if (bboxContains(entry.bbox, reqBbox)) {
+      return entry;
+    }
+  }
+  return null;
+}
+
 // Fetch all pages from NVDB API with pagination
-async function fetchAllPages(url, label = '') {
+async function fetchAllPages(url) {
   const results = [];
   let nextUrl = url;
   let pageCount = 0;
-  const maxPages = 500; // High limit for full Norway fetch
-  let emptyPages = 0;
+  const maxPages = 50;
 
   while (nextUrl && pageCount < maxPages) {
-    try {
-      const res = await fetch(nextUrl, { headers: HEADERS });
-      if (!res.ok) {
-        console.error(`[NVDB] ${label} API error: ${res.status} ${res.statusText}`);
-        break;
-      }
-      const data = await res.json();
-      const objects = data.objekter || [];
-
-      // Stop if we get empty pages (API sometimes returns nextUrl even when done)
-      if (objects.length === 0) {
-        emptyPages++;
-        if (emptyPages >= 2) {
-          console.log(`[NVDB] ${label} stopping after ${emptyPages} empty pages`);
-          break;
-        }
-      } else {
-        emptyPages = 0;
-        results.push(...objects);
-      }
-
-      nextUrl = data.metadata?.neste?.href || null;
-      pageCount++;
-
-      // Log progress for large fetches
-      if (pageCount % 10 === 0) {
-        console.log(`[NVDB] ${label} fetched ${results.length} objects (page ${pageCount})...`);
-      }
-    } catch (err) {
-      console.error(`[NVDB] ${label} fetch error on page ${pageCount}:`, err.message);
+    const res = await fetch(nextUrl, { headers: HEADERS });
+    if (!res.ok) {
+      console.error(`NVDB API error: ${res.status} ${res.statusText}`);
       break;
     }
+    const data = await res.json();
+    const objects = data.objekter || [];
+    if (objects.length === 0) break; // No more data
+    results.push(...objects);
+    nextUrl = data.metadata?.neste?.href || null;
+    pageCount++;
   }
 
-  if (pageCount >= maxPages) {
-    console.warn(`[NVDB] ${label} hit max pages limit (${maxPages}), data may be incomplete`);
-  }
-
-  console.log(`[NVDB] ${label} complete: ${results.length} objects in ${pageCount} pages`);
   return results;
 }
 
 // Parse WKT to GeoJSON geometry
-// NVDB returns coords in lat/lon order, but GeoJSON needs [lon, lat]
 function parseWktToGeometry(wkt) {
   if (!wkt) return null;
 
-  // Handle POINT or POINT Z
   if (wkt.startsWith('POINT')) {
     const match = wkt.match(/POINT\s*Z?\s*\(\s*([\d.-]+)\s+([\d.-]+)(?:\s+[\d.-]+)?\s*\)/);
     if (match) {
@@ -83,13 +95,12 @@ function parseWktToGeometry(wkt) {
     }
   }
 
-  // Handle LINESTRING or LINESTRING Z
   if (wkt.startsWith('LINESTRING') && !wkt.startsWith('MULTILINESTRING')) {
     const match = wkt.match(/LINESTRING\s*Z?\s*\(([^)]+)\)/);
     if (match) {
       const coords = match[1].split(',').map((pair) => {
         const parts = pair.trim().split(/\s+/).map(parseFloat);
-        return [parts[1], parts[0]]; // Swap lat/lon to lon/lat
+        return [parts[1], parts[0]];
       });
       if (coords.length > 0) {
         return { type: 'LineString', coordinates: coords };
@@ -97,20 +108,16 @@ function parseWktToGeometry(wkt) {
     }
   }
 
-  // Handle MULTILINESTRING - convert to MultiLineString geometry
   if (wkt.startsWith('MULTILINESTRING')) {
-    // Extract all linestrings from MULTILINESTRING Z ((...),(...),...)
     const innerMatch = wkt.match(/MULTILINESTRING\s*Z?\s*\((.+)\)$/);
     if (innerMatch) {
       const lineStrings = [];
-      // Split by ),( to get individual linestrings
       const parts = innerMatch[1].split(/\)\s*,\s*\(/);
       for (const part of parts) {
-        // Clean up parentheses
         const clean = part.replace(/^\(/, '').replace(/\)$/, '');
         const coords = clean.split(',').map((pair) => {
           const nums = pair.trim().split(/\s+/).map(parseFloat);
-          return [nums[1], nums[0]]; // Swap lat/lon to lon/lat
+          return [nums[1], nums[0]];
         });
         if (coords.length > 0) {
           lineStrings.push(coords);
@@ -135,7 +142,6 @@ function convertHeights(objects) {
     const geometry = parseWktToGeometry(obj.geometri?.wkt);
     if (!geometry) continue;
 
-    // Extract properties from egenskaper
     const props = {
       id: obj.id,
       type: 'height',
@@ -143,7 +149,6 @@ function convertHeights(objects) {
     };
 
     for (const eg of obj.egenskaper || []) {
-      // Various height fields - take the minimum/most restrictive
       if (eg.navn === 'Beregnet høyde' || eg.navn === 'Skiltet høyde' || eg.navn === 'Høyde') {
         if (props.height == null || eg.verdi < props.height) {
           props.height = eg.verdi;
@@ -164,7 +169,6 @@ function convertHeights(objects) {
       }
     }
 
-    // Get location info
     if (obj.lokasjon) {
       if (obj.lokasjon.kommuner?.length) {
         props.municipality = obj.lokasjon.kommuner.map((k) => k.navn || k).join(', ');
@@ -208,7 +212,6 @@ function convertWeights(objects) {
     for (const eg of obj.egenskaper || []) {
       if (eg.navn === 'Bruksklasse') {
         props.loadClass = eg.verdi;
-        // Parse weight from strings like "Bk10 - 50 tonn" or "BkT8 - 40 tonn"
         const weightMatch = eg.verdi.match(/(\d+)\s*tonn/i);
         if (weightMatch) {
           props.maxWeight = parseInt(weightMatch[1], 10);
@@ -223,7 +226,6 @@ function convertWeights(objects) {
       }
     }
 
-    // Get location info
     if (obj.lokasjon) {
       if (obj.lokasjon.kommuner?.length) {
         props.municipality = obj.lokasjon.kommuner.map((k) => k.navn || k).join(', ');
@@ -240,7 +242,6 @@ function convertWeights(objects) {
       }
     }
 
-    // Only include if we have a weight value
     if (props.maxWeight != null) {
       features.push({
         type: 'Feature',
@@ -253,92 +254,6 @@ function convertWeights(objects) {
   return features;
 }
 
-// Check if a feature intersects with the given bounding box
-function featureIntersectsBbox(feature, west, south, east, north) {
-  const geom = feature.geometry;
-  if (!geom) return false;
-
-  // Get all coordinates from the geometry
-  let coords = [];
-  if (geom.type === 'Point') {
-    coords = [geom.coordinates];
-  } else if (geom.type === 'LineString') {
-    coords = geom.coordinates;
-  } else if (geom.type === 'MultiLineString') {
-    coords = geom.coordinates.flat();
-  }
-
-  // Check if any coordinate is within the bbox
-  for (const [lon, lat] of coords) {
-    if (lon >= west && lon <= east && lat >= south && lat <= north) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Fetch all Norway restrictions and cache them
-async function warmCache() {
-  if (cacheLoading) return;
-  cacheLoading = true;
-
-  console.log('[NVDB] Warming cache - fetching all Norway restrictions...');
-  const startTime = Date.now();
-
-  try {
-    const [heights, weights] = await Promise.all([
-      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`, 'Height(591)'),
-      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${NORWAY_BBOX}&srid=4326&inkluder=geometri,egenskaper,lokasjon`, 'Weight(904)'),
-    ]);
-
-    console.log(`[NVDB] Raw data: ${heights.length} height objects, ${weights.length} weight objects`);
-
-    const heightFeatures = convertHeights(heights);
-    const weightFeatures = convertWeights(weights);
-    const features = [...heightFeatures, ...weightFeatures];
-
-    console.log(`[NVDB] Converted: ${heightFeatures.length} height features, ${weightFeatures.length} weight features`);
-
-    if (features.length === 0) {
-      console.warn('[NVDB] Warning: No features converted, cache will be empty!');
-    }
-
-    norwayCache = {
-      type: 'FeatureCollection',
-      features,
-      meta: {
-        total: features.length,
-        heightCount: heightFeatures.length,
-        weightCount: weightFeatures.length,
-      },
-    };
-    cacheTimestamp = Date.now();
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[NVDB] Cache warm! ${features.length} features in ${elapsed}s`);
-  } catch (err) {
-    console.error('[NVDB] Failed to warm cache:', err);
-  } finally {
-    cacheLoading = false;
-  }
-}
-
-// Check if cache needs refresh
-function shouldRefreshCache() {
-  if (!norwayCache || !cacheTimestamp) return true;
-  return Date.now() - cacheTimestamp > CACHE_TTL;
-}
-
-// Start background cache warming on module load
-warmCache();
-
-// Schedule refresh every 6 hours
-setInterval(() => {
-  if (shouldRefreshCache()) {
-    warmCache();
-  }
-}, CACHE_TTL);
-
 // GET /api/nvdb/restrictions?south=...&north=...&east=...&west=...
 router.get('/restrictions', async (req, res) => {
   const { south, north, east, west } = req.query;
@@ -347,38 +262,76 @@ router.get('/restrictions', async (req, res) => {
     return res.status(400).json({ error: 'Missing bounding box parameters' });
   }
 
-  // If cache not ready, return empty with loading flag
-  if (!norwayCache) {
+  const reqBbox = {
+    w: parseFloat(west),
+    s: parseFloat(south),
+    e: parseFloat(east),
+    n: parseFloat(north),
+  };
+
+  // Check if we have a cached bbox that contains this request
+  const containingCache = findContainingCache(reqBbox);
+  if (containingCache) {
+    // Filter the cached data to the requested bbox
+    const filteredFeatures = containingCache.data.features.filter((f) =>
+      featureIntersectsBbox(f, reqBbox.w, reqBbox.s, reqBbox.e, reqBbox.n)
+    );
+
+    const heightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'height').length;
+    const weightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'weight').length;
+
     return res.json({
       type: 'FeatureCollection',
-      features: [],
-      meta: { total: 0, heightCount: 0, weightCount: 0, loading: true },
+      features: filteredFeatures,
+      meta: {
+        total: filteredFeatures.length,
+        heightCount,
+        weightCount,
+        fromCache: true,
+      },
     });
   }
 
-  // Filter cached features by requested bbox
-  const w = parseFloat(west);
-  const s = parseFloat(south);
-  const e = parseFloat(east);
-  const n = parseFloat(north);
+  // Check exact cache match
+  const bboxStr = `${west},${south},${east},${north}`;
+  const exactCache = CACHE.get(bboxStr);
+  if (exactCache && Date.now() - exactCache.timestamp < CACHE_TTL) {
+    return res.json(exactCache.data);
+  }
 
-  const filteredFeatures = norwayCache.features.filter((f) =>
-    featureIntersectsBbox(f, w, s, e, n)
-  );
+  try {
+    const [heights, weights] = await Promise.all([
+      fetchAllPages(`${NVDB_BASE}/591?kartutsnitt=${bboxStr}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+      fetchAllPages(`${NVDB_BASE}/904?kartutsnitt=${bboxStr}&srid=4326&inkluder=geometri,egenskaper,lokasjon`),
+    ]);
 
-  const heightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'height').length;
-  const weightCount = filteredFeatures.filter((f) => f.properties.restrictionType === 'weight').length;
+    const features = [
+      ...convertHeights(heights),
+      ...convertWeights(weights),
+    ];
 
-  res.json({
-    type: 'FeatureCollection',
-    features: filteredFeatures,
-    meta: {
-      total: filteredFeatures.length,
-      heightCount,
-      weightCount,
-      cachedAt: cacheTimestamp,
-    },
-  });
+    const geojson = {
+      type: 'FeatureCollection',
+      features,
+      meta: {
+        total: features.length,
+        heightCount: heights.length,
+        weightCount: weights.length,
+      },
+    };
+
+    // Cache the result with bbox info
+    CACHE.set(bboxStr, {
+      data: geojson,
+      bbox: reqBbox,
+      timestamp: Date.now(),
+    });
+
+    res.json(geojson);
+  } catch (err) {
+    console.error('NVDB API error:', err);
+    res.status(500).json({ error: 'Failed to fetch NVDB data' });
+  }
 });
 
 export default router;
