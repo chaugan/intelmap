@@ -25,23 +25,38 @@ const LAYER_COLORS = {
 const LAYER_NAMES_NO = {
   '66kv': '66 kV', '110kv': '110 kV', '132kv': '132 kV', '220kv': '220 kV',
   '300kv': '300 kV', '420kv': '420 kV', 'distribution': 'Distribusjon',
-  'subsea_power': 'Sjøkabel strøm', 'transformator': 'Transformator',
+  'subsea_power': 'Sjokabel strom', 'transformator': 'Transformator',
   'eroad': 'Europavei', 'rail': 'Jernbane', 'rail_station': 'Jernbanestasjoner',
-  'rail_substation': 'Jernbane-understasjoner', 'railway_bridge': 'Jernbanebroer',
+  'rail_substation': 'Jernbanetransformatorer', 'railway_bridge': 'Jernbanebroer',
   'ferry': 'Fergeruter', 'ferry_rail': 'Fergeleier v/jernbane',
-  'fiber': 'Sjøkabel fiber', 'radiotowers2': 'Radiotårn', 'radar': 'Radar',
+  'fiber': 'Sjokabel fiber', 'radiotowers2': 'Radiotarn', 'radar': 'Radar',
   'airport': 'Flyplasser', 'lufthinder': 'Lufthindre',
-  'military': 'Militære områder',
+  'military': 'Militaere omrader',
   'hydro': 'Vannkraftverk', 'wind': 'Vindkraftverk', 'oil_gas_chem': 'Olje/gass/kjemi',
-  'pipes': 'Rørledninger', 'tilfluktsrom': 'Tilfluktsrom',
+  'pipes': 'Rorledninger', 'tilfluktsrom': 'Tilfluktsrom',
+};
+
+// Map layer ID to category for popup display
+const LAYER_CATEGORY = {
+  '66kv': 'power', '110kv': 'power', '132kv': 'power', '220kv': 'power',
+  '300kv': 'power', '420kv': 'power', 'distribution': 'power',
+  'subsea_power': 'power', 'transformator': 'power',
+  'eroad': 'transport', 'rail': 'transport', 'rail_station': 'transport',
+  'rail_substation': 'transport', 'railway_bridge': 'transport',
+  'ferry': 'transport', 'ferry_rail': 'transport',
+  'fiber': 'telecom', 'radiotowers2': 'telecom', 'radar': 'telecom',
+  'airport': 'aviation', 'lufthinder': 'aviation',
+  'military': 'military',
+  'hydro': 'energy', 'wind': 'energy', 'oil_gas_chem': 'energy',
+  'pipes': 'other', 'tilfluktsrom': 'other',
 };
 
 const CATEGORIES = {
-  power:     { no: 'Strømnett', en: 'Power Grid' },
+  power:     { no: 'Stromnett', en: 'Power Grid' },
   transport: { no: 'Transport', en: 'Transport' },
   telecom:   { no: 'Telekom', en: 'Telecom' },
   aviation:  { no: 'Luftfart', en: 'Aviation' },
-  military:  { no: 'Militært', en: 'Military' },
+  military:  { no: 'Militaert', en: 'Military' },
   energy:    { no: 'Energi', en: 'Energy' },
   other:     { no: 'Annet', en: 'Other' },
 };
@@ -51,7 +66,7 @@ const CATEGORY_ORDER = ['power', 'transport', 'telecom', 'aviation', 'military',
 // Properties to skip in metadata popup
 const SKIP_PROPS = new Set(['@id', 'id', 'ogc_fid', 'gml_id', 'fid']);
 
-// Split GeoJSON features by geometry type (same approach as original implementation)
+// Split GeoJSON features by geometry type
 function splitByGeometry(geojson) {
   const points = [];
   const lines = [];
@@ -65,6 +80,31 @@ function splitByGeometry(geojson) {
     else if (t === 'Polygon' || t === 'MultiPolygon') polygons.push(f);
   }
   return { points, lines, polygons };
+}
+
+// Compute centroid of a polygon (average of exterior ring coords)
+function computeCentroid(feature) {
+  const geom = feature.geometry;
+  let ring;
+  if (geom.type === 'Polygon') {
+    ring = geom.coordinates[0];
+  } else if (geom.type === 'MultiPolygon') {
+    ring = geom.coordinates[0][0];
+  }
+  if (!ring || ring.length === 0) return null;
+
+  let sumLon = 0, sumLat = 0;
+  // Exclude last point (same as first in closed ring)
+  const n = ring.length > 1 ? ring.length - 1 : ring.length;
+  for (let i = 0; i < n; i++) {
+    sumLon += ring[i][0];
+    sumLat += ring[i][1];
+  }
+  return {
+    type: 'Feature',
+    properties: feature.properties,
+    geometry: { type: 'Point', coordinates: [sumLon / n, sumLat / n] },
+  };
 }
 
 function fc(features) {
@@ -89,18 +129,23 @@ function buildPopupHtml(props, layerName) {
   }
 
   const color = LAYER_COLORS[layerName] || '#94a3b8';
+  const cat = LAYER_CATEGORY[layerName];
+  const catLabel = cat ? (CATEGORIES[cat]?.no || cat) : '';
+  const layerLabel = LAYER_NAMES_NO[layerName] || layerName;
+
   return `
     <div style="font-size:13px;color:#e2e8f0;max-width:320px">
-      <div style="font-weight:600;margin-bottom:6px;border-bottom:2px solid ${color};padding-bottom:4px;font-size:14px">
-        ${name || (LAYER_NAMES_NO[layerName] || layerName)}
+      <div style="font-weight:600;margin-bottom:2px;border-bottom:2px solid ${color};padding-bottom:4px;font-size:14px">
+        ${name || layerLabel}
       </div>
-      ${rows.length > 0 ? `<table style="border-collapse:collapse">${rows.join('')}</table>` : '<div style="color:#94a3b8;font-size:11px">Ingen metadata</div>'}
+      <div style="color:#64748b;font-size:10px;margin-bottom:6px">${catLabel} — ${layerLabel}</div>
+      ${rows.length > 0 ? `<table style="border-collapse:collapse">${rows.join('')}</table>` : ''}
     </div>
   `;
 }
 
-// Sub-layer IDs for a given infra layer name
-const SUFFIXES = ['-polygons', '-points', '-lines'];
+// Sub-layer suffixes: polygons, centroids (circles for polygon centroids), points, lines
+const SUFFIXES = ['-polygons', '-centroids', '-points', '-lines'];
 
 export default function InfrastructureLayer({ mapRef }) {
   const infraVisible = useMapStore((s) => s.infraVisible);
@@ -134,7 +179,7 @@ export default function InfrastructureLayer({ mapRef }) {
     const isRail = name === 'rail';
     const isHighVoltage = name.includes('kv');
 
-    // Polygons → fill layer
+    // Polygons → fill layer + centroid circles (for visibility at all zoom levels)
     if (polygons.length > 0) {
       const sid = `infra-${name}-polygons`;
       if (!map.getSource(sid)) {
@@ -149,6 +194,27 @@ export default function InfrastructureLayer({ mapRef }) {
             'fill-outline-color': '#000000',
           },
         }, beforeId);
+      }
+
+      // Centroid circles so polygons are visible at any zoom
+      const centroids = polygons.map(computeCentroid).filter(Boolean);
+      if (centroids.length > 0) {
+        const csid = `infra-${name}-centroids`;
+        if (!map.getSource(csid)) {
+          map.addSource(csid, { type: 'geojson', data: fc(centroids) });
+        }
+        if (!map.getLayer(csid)) {
+          map.addLayer({
+            id: csid, type: 'circle', source: csid,
+            paint: {
+              'circle-color': color,
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3, 8, 5, 12, 8, 16, 12],
+              'circle-opacity': opacity * 0.65,
+              'circle-stroke-width': 0.8,
+              'circle-stroke-color': '#000000',
+            },
+          }, beforeId);
+        }
       }
     }
 
@@ -206,7 +272,10 @@ export default function InfrastructureLayer({ mapRef }) {
         const layer = map.getLayer(id);
         if (!layer) continue;
         if (layer.type === 'fill') map.setPaintProperty(id, 'fill-opacity', opacity * 0.5);
-        else if (layer.type === 'circle') map.setPaintProperty(id, 'circle-opacity', opacity);
+        else if (layer.type === 'circle') {
+          const isC = suffix === '-centroids';
+          map.setPaintProperty(id, 'circle-opacity', isC ? opacity * 0.65 : opacity);
+        }
         else if (layer.type === 'line') map.setPaintProperty(id, 'line-opacity', opacity);
       } catch {}
     }
@@ -224,14 +293,12 @@ export default function InfrastructureLayer({ mapRef }) {
       return;
     }
 
-    // Remove layers that should no longer be shown
     for (const name of [...addedRef.current]) {
       if (!infraLayers[name] || !layerData[name]) {
         removeLayers(map, name);
       }
     }
 
-    // Add/update layers that should be shown
     for (const [name, data] of Object.entries(layerData)) {
       if (!infraLayers[name]) continue;
       if (addedRef.current.has(name)) {
@@ -282,7 +349,7 @@ export default function InfrastructureLayer({ mapRef }) {
 
       const f = features[0];
       const props = f.properties || {};
-      const layerName = (f.layer?.id || '').replace(/^infra-/, '').replace(/-(polygons|points|lines)$/, '');
+      const layerName = (f.layer?.id || '').replace(/^infra-/, '').replace(/-(polygons|centroids|points|lines)$/, '');
 
       if (popupRef.current) popupRef.current.remove();
 
@@ -362,7 +429,6 @@ export function InfrastructureLegend({ layerList }) {
 
   return (
     <div className="mt-1">
-      {/* Collapsible header */}
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center gap-1.5 w-full text-left py-1 text-xs text-slate-400 hover:text-slate-300 transition-colors"
