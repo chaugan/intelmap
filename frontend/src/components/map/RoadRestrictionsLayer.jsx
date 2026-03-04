@@ -461,6 +461,24 @@ const WEIGHT_BUCKETS = [
   { label: '>60t', color: '#fbbf24' },
 ];
 
+// Toggle switch component
+function ToggleSwitch({ checked, onChange, accentClass }) {
+  return (
+    <button
+      onClick={onChange}
+      className={`relative w-7 h-4 rounded-full transition-colors cursor-pointer ${
+        checked ? accentClass : 'bg-slate-600'
+      }`}
+    >
+      <div
+        className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${
+          checked ? 'translate-x-3.5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
 // Legend component with discrete color buckets
 export function RoadRestrictionsLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
@@ -480,78 +498,90 @@ export function RoadRestrictionsLegend({ count }) {
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
       </div>
 
-      {/* Weight Limits Toggle + Buckets */}
-      <div className="space-y-1.5 mb-2">
-        <button
-          onClick={toggleWeightLimits}
-          className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showWeightLimits ? 'opacity-30' : ''}`}
-        >
+      {/* Weight Limits Section */}
+      <div className={`space-y-1.5 mb-2 transition-opacity ${!showWeightLimits ? 'opacity-40' : ''}`}>
+        <div className="flex items-center justify-between">
           <span className="text-slate-300 text-[11px] font-medium">
             {lang === 'no' ? 'Vektgrenser' : 'Weight Limits'}
           </span>
-        </button>
-        {showWeightLimits && (
-          <div className="space-y-1.5">
-            <div className="flex gap-0.5">
-              {WEIGHT_BUCKETS.map((b) => (
-                <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
-                  <div className="w-full h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
-                  <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
-              <input
-                type="range"
-                min="10"
-                max="100"
-                step="5"
-                value={weightFilterMax}
-                onChange={(e) => setWeightFilterMax(parseInt(e.target.value))}
-                className="flex-1 h-1 accent-orange-500"
-              />
-              <span className="text-[10px] text-orange-400 w-8 text-right">{weightFilterMax}t</span>
-            </div>
+          <ToggleSwitch
+            checked={showWeightLimits}
+            onChange={toggleWeightLimits}
+            accentClass="bg-orange-500"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex gap-0.5">
+            {WEIGHT_BUCKETS.map((b) => (
+              <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
+                <div
+                  className="w-full h-2.5 rounded-sm transition-colors"
+                  style={{ backgroundColor: showWeightLimits ? b.color : '#475569' }}
+                />
+                <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
+              </div>
+            ))}
           </div>
-        )}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              step="5"
+              value={weightFilterMax}
+              onChange={(e) => setWeightFilterMax(parseInt(e.target.value))}
+              className="flex-1 h-1 accent-orange-500"
+              disabled={!showWeightLimits}
+            />
+            <span className={`text-[10px] w-8 text-right ${showWeightLimits ? 'text-orange-400' : 'text-slate-500'}`}>
+              {weightFilterMax}t
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Height Limits Toggle + Buckets */}
-      <div className="space-y-1.5 border-t border-slate-700 pt-2">
-        <button
-          onClick={toggleHeightLimits}
-          className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showHeightLimits ? 'opacity-30' : ''}`}
-        >
+      {/* Height Limits Section */}
+      <div className={`space-y-1.5 border-t border-slate-700 pt-2 transition-opacity ${!showHeightLimits ? 'opacity-40' : ''}`}>
+        <div className="flex items-center justify-between">
           <span className="text-slate-300 text-[11px] font-medium">
             {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
           </span>
-        </button>
-        {showHeightLimits && (
-          <div className="space-y-1.5">
-            <div className="flex gap-0.5">
-              {HEIGHT_BUCKETS.map((b) => (
-                <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
-                  <div className="w-full h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
-                  <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
-              <input
-                type="range"
-                min="2"
-                max="10"
-                step="0.5"
-                value={heightFilterMax}
-                onChange={(e) => setHeightFilterMax(parseFloat(e.target.value))}
-                className="flex-1 h-1 accent-violet-500"
-              />
-              <span className="text-[10px] text-violet-400 w-8 text-right">{heightFilterMax}m</span>
-            </div>
+          <ToggleSwitch
+            checked={showHeightLimits}
+            onChange={toggleHeightLimits}
+            accentClass="bg-violet-500"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex gap-0.5">
+            {HEIGHT_BUCKETS.map((b) => (
+              <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
+                <div
+                  className="w-full h-2.5 rounded-sm transition-colors"
+                  style={{ backgroundColor: showHeightLimits ? b.color : '#475569' }}
+                />
+                <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
+              </div>
+            ))}
           </div>
-        )}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
+            <input
+              type="range"
+              min="2"
+              max="10"
+              step="0.5"
+              value={heightFilterMax}
+              onChange={(e) => setHeightFilterMax(parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-violet-500"
+              disabled={!showHeightLimits}
+            />
+            <span className={`text-[10px] w-8 text-right ${showHeightLimits ? 'text-violet-400' : 'text-slate-500'}`}>
+              {heightFilterMax}m
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
