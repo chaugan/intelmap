@@ -61,3 +61,12 @@ html, body, #root {
   overflow-x: auto;
   font-size: 0.85em;
 }
+
+/* Pulsation animation for restriction highlight */
+@keyframes pulse-color {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.15); }
+}
+.animate-pulse-color {
+  animation: pulse-color 0.8s ease-in-out infinite;
+}

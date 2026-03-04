@@ -615,8 +615,31 @@ function ToggleSwitch({ checked, onChange, accentClass }) {
   );
 }
 
+// Vibration/pulsation icon SVG
+function VibrationIcon({ color, pulsating }) {
+  return (
+    <svg
+      className={`w-4 h-4 ${pulsating ? 'animate-pulse-color' : ''}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={pulsating ? { filter: `drop-shadow(0 0 4px ${color})` } : undefined}
+    >
+      {/* Chevron left pair */}
+      <path d="M4 4l4 4-4 4" />
+      <path d="M8 8l4 4-4 4" />
+      {/* Chevron right pair (mirrored) */}
+      <path d="M20 4l-4 4 4 4" />
+      <path d="M16 8l-4 4 4 4" />
+    </svg>
+  );
+}
+
 // Legend component with discrete color buckets
-export function RoadRestrictionsLegend({ count }) {
+export function RoadRestrictionsLegend({ count, mapRef }) {
   const lang = useMapStore((s) => s.lang);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
   const showHeightLimits = useMapStore((s) => s.showHeightLimits);
@@ -626,6 +649,94 @@ export function RoadRestrictionsLegend({ count }) {
   const heightFilterMax = useMapStore((s) => s.heightFilterMax);
   const setWeightFilterMax = useMapStore((s) => s.setWeightFilterMax);
   const setHeightFilterMax = useMapStore((s) => s.setHeightFilterMax);
+  const weightPulsating = useMapStore((s) => s.weightPulsating);
+  const heightPulsating = useMapStore((s) => s.heightPulsating);
+  const setWeightPulsating = useMapStore((s) => s.setWeightPulsating);
+  const setHeightPulsating = useMapStore((s) => s.setHeightPulsating);
+
+  // Auto-stop pulsation after 15 seconds
+  useEffect(() => {
+    if (!weightPulsating) return;
+    const timer = setTimeout(() => setWeightPulsating(false), 15000);
+    return () => clearTimeout(timer);
+  }, [weightPulsating, setWeightPulsating]);
+
+  useEffect(() => {
+    if (!heightPulsating) return;
+    const timer = setTimeout(() => setHeightPulsating(false), 15000);
+    return () => clearTimeout(timer);
+  }, [heightPulsating, setHeightPulsating]);
+
+  // Animate map layers when pulsating
+  useEffect(() => {
+    if (!mapRef || !weightPulsating) return;
+    let frame = 0;
+    let animId;
+    const animate = () => {
+      frame++;
+      const opacity = 0.4 + 0.5 * Math.abs(Math.sin(frame * 0.08));
+      try {
+        if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-opacity', opacity);
+        }
+        if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+        }
+      } catch {}
+      animId = requestAnimationFrame(animate);
+    };
+    animId = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animId);
+      // Restore original opacity
+      const opacity = useMapStore.getState().roadRestrictionsOpacity;
+      try {
+        if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-opacity', opacity);
+        }
+        if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+        }
+      } catch {}
+    };
+  }, [mapRef, weightPulsating]);
+
+  useEffect(() => {
+    if (!mapRef || !heightPulsating) return;
+    let frame = 0;
+    let animId;
+    const animate = () => {
+      frame++;
+      const opacity = 0.4 + 0.5 * Math.abs(Math.sin(frame * 0.08));
+      try {
+        if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-opacity', opacity);
+        }
+        if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+        }
+      } catch {}
+      animId = requestAnimationFrame(animate);
+    };
+    animId = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animId);
+      // Restore original opacity
+      const opacity = useMapStore.getState().roadRestrictionsOpacity;
+      try {
+        if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-opacity', opacity);
+        }
+        if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+        }
+      } catch {}
+    };
+  }, [mapRef, heightPulsating]);
 
   return (
     <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs min-w-[240px]">
@@ -643,11 +754,23 @@ export function RoadRestrictionsLegend({ count }) {
             </span>
             <span className="text-slate-500 text-[9px]">({lang === 'no' ? 'heltrukket' : 'solid'})</span>
           </div>
-          <ToggleSwitch
-            checked={showWeightLimits}
-            onChange={toggleWeightLimits}
-            accentClass="bg-orange-500"
-          />
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setWeightPulsating(!weightPulsating)}
+              className={`p-0.5 rounded transition-all cursor-pointer ${
+                weightPulsating ? 'bg-orange-500/30' : 'hover:bg-slate-700'
+              }`}
+              title={lang === 'no' ? 'Pulsér for å fremheve' : 'Pulse to highlight'}
+              disabled={!showWeightLimits}
+            >
+              <VibrationIcon color={weightPulsating ? '#f97316' : '#94a3b8'} pulsating={weightPulsating} />
+            </button>
+            <ToggleSwitch
+              checked={showWeightLimits}
+              onChange={toggleWeightLimits}
+              accentClass="bg-orange-500"
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <div className="flex gap-0.5">
@@ -689,11 +812,23 @@ export function RoadRestrictionsLegend({ count }) {
             </span>
             <span className="text-slate-500 text-[9px]">({lang === 'no' ? 'stiplet' : 'dashed'})</span>
           </div>
-          <ToggleSwitch
-            checked={showHeightLimits}
-            onChange={toggleHeightLimits}
-            accentClass="bg-violet-500"
-          />
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setHeightPulsating(!heightPulsating)}
+              className={`p-0.5 rounded transition-all cursor-pointer ${
+                heightPulsating ? 'bg-violet-500/30' : 'hover:bg-slate-700'
+              }`}
+              title={lang === 'no' ? 'Pulsér for å fremheve' : 'Pulse to highlight'}
+              disabled={!showHeightLimits}
+            >
+              <VibrationIcon color={heightPulsating ? '#8b5cf6' : '#94a3b8'} pulsating={heightPulsating} />
+            </button>
+            <ToggleSwitch
+              checked={showHeightLimits}
+              onChange={toggleHeightLimits}
+              accentClass="bg-violet-500"
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <div className="flex gap-0.5">

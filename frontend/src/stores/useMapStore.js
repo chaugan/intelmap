@@ -49,6 +49,8 @@ export const useMapStore = create((set) => ({
   showHeightLimits: true,
   weightFilterMax: 100, // tons
   heightFilterMax: 10,  // meters
+  weightPulsating: false,
+  heightPulsating: false,
   trafficFlowVisible: false,
   trafficFlowOpacity: 0.9,
   trafficInfoVisible: false,
@@ -185,6 +187,8 @@ export const useMapStore = create((set) => ({
   toggleHeightLimits: () => set((s) => ({ showHeightLimits: !s.showHeightLimits })),
   setWeightFilterMax: (weightFilterMax) => set({ weightFilterMax }),
   setHeightFilterMax: (heightFilterMax) => set({ heightFilterMax }),
+  setWeightPulsating: (weightPulsating) => set({ weightPulsating }),
+  setHeightPulsating: (heightPulsating) => set({ heightPulsating }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
   toggleTrafficInfo: () => set((s) => ({

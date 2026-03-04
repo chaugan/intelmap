@@ -743,7 +743,7 @@ export default function TacticalMap() {
           {trafficFlowVisible && <TrafficFlowLegend />}
           {trafficInfoVisible && <TrafficLegend count={trafficInfoData?.meta?.total} />}
           {auroraVisible && <AuroraLegend kpData={auroraKpData} />}
-          {roadRestrictionsVisible && <RoadRestrictionsLegend count={roadRestrictionsData?.meta?.total} />}
+          {roadRestrictionsVisible && <RoadRestrictionsLegend count={roadRestrictionsData?.meta?.total} mapRef={mapInstance} />}
         </div>
       )}
       {contextMenus.map((menu) => (
