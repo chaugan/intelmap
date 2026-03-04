@@ -333,22 +333,8 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       const featureId = feature.properties.id;
       const geom = feature.geometry;
 
-      // Get coordinates for popup placement
-      let popupCoords;
-      if (geom.type === 'Point') {
-        popupCoords = geom.coordinates;
-      } else if (geom.type === 'LineString') {
-        // Use midpoint of line
-        const midIdx = Math.floor(geom.coordinates.length / 2);
-        popupCoords = geom.coordinates[midIdx];
-      } else if (geom.type === 'MultiLineString') {
-        // Use midpoint of first line
-        const firstLine = geom.coordinates[0];
-        const midIdx = Math.floor(firstLine.length / 2);
-        popupCoords = firstLine[midIdx];
-      } else {
-        popupCoords = [e.lngLat.lng, e.lngLat.lat];
-      }
+      // Use actual click location for popup placement
+      const popupCoords = [e.lngLat.lng, e.lngLat.lat];
 
       // Close unpinned popups, then add new one
       setOpenFeatures((prev) => {
