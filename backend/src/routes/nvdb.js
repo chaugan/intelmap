@@ -33,16 +33,15 @@ async function fetchAllPages(url) {
   return results;
 }
 
-// Parse WKT to GeoJSON Point geometry (using centroid for lines)
+// Parse WKT to GeoJSON geometry
 // NVDB returns coords in lat/lon order, but GeoJSON needs [lon, lat]
-function parseWktToPoint(wkt) {
+function parseWktToGeometry(wkt) {
   if (!wkt) return null;
 
   // Handle POINT or POINT Z
   if (wkt.startsWith('POINT')) {
     const match = wkt.match(/POINT\s*Z?\s*\(\s*([\d.-]+)\s+([\d.-]+)(?:\s+[\d.-]+)?\s*\)/);
     if (match) {
-      // NVDB returns lat/lon, swap to lon/lat for GeoJSON
       return {
         type: 'Point',
         coordinates: [parseFloat(match[2]), parseFloat(match[1])],
@@ -50,35 +49,43 @@ function parseWktToPoint(wkt) {
     }
   }
 
-  // Handle LINESTRING or LINESTRING Z - convert to centroid point
+  // Handle LINESTRING or LINESTRING Z
   if (wkt.startsWith('LINESTRING') && !wkt.startsWith('MULTILINESTRING')) {
     const match = wkt.match(/LINESTRING\s*Z?\s*\(([^)]+)\)/);
-    if (match) {
-      const coords = match[1].split(',').map((pair) => {
-        const parts = pair.trim().split(/\s+/).map(parseFloat);
-        // NVDB returns lat/lon(/z), swap to lon/lat for GeoJSON
-        return [parts[1], parts[0]];
-      });
-      if (coords.length > 0) {
-        // Use midpoint of line for marker placement
-        const midIdx = Math.floor(coords.length / 2);
-        return { type: 'Point', coordinates: coords[midIdx] };
-      }
-    }
-  }
-
-  // Handle MULTILINESTRING - extract first linestring and use its midpoint
-  if (wkt.startsWith('MULTILINESTRING')) {
-    // Match the first linestring within the multilinestring
-    const match = wkt.match(/MULTILINESTRING\s*Z?\s*\(\(([^)]+)\)/);
     if (match) {
       const coords = match[1].split(',').map((pair) => {
         const parts = pair.trim().split(/\s+/).map(parseFloat);
         return [parts[1], parts[0]]; // Swap lat/lon to lon/lat
       });
       if (coords.length > 0) {
-        const midIdx = Math.floor(coords.length / 2);
-        return { type: 'Point', coordinates: coords[midIdx] };
+        return { type: 'LineString', coordinates: coords };
+      }
+    }
+  }
+
+  // Handle MULTILINESTRING - convert to MultiLineString geometry
+  if (wkt.startsWith('MULTILINESTRING')) {
+    // Extract all linestrings from MULTILINESTRING Z ((...),(...),...)
+    const innerMatch = wkt.match(/MULTILINESTRING\s*Z?\s*\((.+)\)$/);
+    if (innerMatch) {
+      const lineStrings = [];
+      // Split by ),( to get individual linestrings
+      const parts = innerMatch[1].split(/\)\s*,\s*\(/);
+      for (const part of parts) {
+        // Clean up parentheses
+        const clean = part.replace(/^\(/, '').replace(/\)$/, '');
+        const coords = clean.split(',').map((pair) => {
+          const nums = pair.trim().split(/\s+/).map(parseFloat);
+          return [nums[1], nums[0]]; // Swap lat/lon to lon/lat
+        });
+        if (coords.length > 0) {
+          lineStrings.push(coords);
+        }
+      }
+      if (lineStrings.length === 1) {
+        return { type: 'LineString', coordinates: lineStrings[0] };
+      } else if (lineStrings.length > 1) {
+        return { type: 'MultiLineString', coordinates: lineStrings };
       }
     }
   }
@@ -91,7 +98,7 @@ function convertHeights(objects) {
   const features = [];
 
   for (const obj of objects) {
-    const geometry = parseWktToPoint(obj.geometri?.wkt);
+    const geometry = parseWktToGeometry(obj.geometri?.wkt);
     if (!geometry) continue;
 
     // Extract properties from egenskaper
@@ -155,7 +162,7 @@ function convertWeights(objects) {
   const features = [];
 
   for (const obj of objects) {
-    const geometry = parseWktToPoint(obj.geometri?.wkt);
+    const geometry = parseWktToGeometry(obj.geometri?.wkt);
     if (!geometry) continue;
 
     const props = {

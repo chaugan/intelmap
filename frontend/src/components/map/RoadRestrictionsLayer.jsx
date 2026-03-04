@@ -1,12 +1,19 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import maplibregl from 'maplibre-gl';
 import { useMapStore } from '../../stores/useMapStore.js';
 
 const RESTRICTION_SOURCE = 'road-restrictions-data';
+const LAYER_HEIGHT_LINES = 'road-restrictions-height-lines';
+const LAYER_WEIGHT_LINES = 'road-restrictions-weight-lines';
 const LAYER_HEIGHT_POINTS = 'road-restrictions-height-points';
 const LAYER_WEIGHT_POINTS = 'road-restrictions-weight-points';
 
-const ALL_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS];
+const LINE_LAYERS = [LAYER_HEIGHT_LINES, LAYER_WEIGHT_LINES];
+const POINT_LAYERS = [LAYER_HEIGHT_POINTS, LAYER_WEIGHT_POINTS];
+const ALL_LAYERS = [...LINE_LAYERS, ...POINT_LAYERS];
+
+// Color gradients based on restriction severity
+// Height: green (high clearance) -> yellow -> red (low clearance)
+// Weight: green (high capacity) -> yellow -> red (low capacity)
 
 export default function RoadRestrictionsLayer({ data, mapRef }) {
   const popupRef = useRef(null);
@@ -38,16 +45,87 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Height restriction points (red circles)
+    // Height restriction lines - gradient from green (high) to red (low)
+    if (!mapRef.getLayer(LAYER_HEIGHT_LINES)) {
+      mapRef.addLayer({
+        id: LAYER_HEIGHT_LINES,
+        type: 'line',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'height'],
+          ['any',
+            ['==', ['geometry-type'], 'LineString'],
+            ['==', ['geometry-type'], 'MultiLineString'],
+          ],
+        ],
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'height'], 5],
+            2.5, '#dc2626',  // Very low (red)
+            3.5, '#f97316',  // Low (orange)
+            4.5, '#eab308',  // Medium (yellow)
+            6, '#22c55e',    // High (green)
+          ],
+          'line-width': 5,
+          'line-opacity': opacity,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      });
+    }
+
+    // Weight restriction lines - gradient from green (high) to red (low)
+    if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
+      mapRef.addLayer({
+        id: LAYER_WEIGHT_LINES,
+        type: 'line',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'weight'],
+          ['any',
+            ['==', ['geometry-type'], 'LineString'],
+            ['==', ['geometry-type'], 'MultiLineString'],
+          ],
+        ],
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'maxWeight'], 50],
+            10, '#dc2626',   // Very low capacity (red)
+            30, '#f97316',   // Low (orange)
+            50, '#eab308',   // Medium (yellow)
+            80, '#22c55e',   // High capacity (green)
+          ],
+          'line-width': 5,
+          'line-opacity': opacity,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      });
+    }
+
+    // Height restriction points (for Point geometries)
     if (!mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
       mapRef.addLayer({
         id: LAYER_HEIGHT_POINTS,
         type: 'circle',
         source: RESTRICTION_SOURCE,
-        filter: ['==', ['get', 'restrictionType'], 'height'],
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'height'],
+          ['==', ['geometry-type'], 'Point'],
+        ],
         paint: {
-          'circle-radius': 10,
-          'circle-color': '#dc2626',
+          'circle-radius': 8,
+          'circle-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'height'], 5],
+            2.5, '#dc2626',
+            3.5, '#f97316',
+            4.5, '#eab308',
+            6, '#22c55e',
+          ],
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2,
           'circle-opacity': opacity,
@@ -56,22 +134,25 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Weight restriction points (orange circles)
+    // Weight restriction points (for Point geometries)
     if (!mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
       mapRef.addLayer({
         id: LAYER_WEIGHT_POINTS,
         type: 'circle',
         source: RESTRICTION_SOURCE,
-        filter: ['==', ['get', 'restrictionType'], 'weight'],
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'weight'],
+          ['==', ['geometry-type'], 'Point'],
+        ],
         paint: {
-          'circle-radius': [
-            'case',
-            ['<', ['coalesce', ['get', 'maxWeight'], 100], 10], 14,
-            ['<', ['coalesce', ['get', 'maxWeight'], 100], 20], 12,
-            ['<', ['coalesce', ['get', 'maxWeight'], 100], 50], 10,
-            8,
+          'circle-radius': 8,
+          'circle-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'maxWeight'], 50],
+            10, '#dc2626',
+            30, '#f97316',
+            50, '#eab308',
+            80, '#22c55e',
           ],
-          'circle-color': '#f97316',
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2,
           'circle-opacity': opacity,
@@ -130,7 +211,14 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   // Update opacity
   useEffect(() => {
     if (!mapRef) return;
-    ALL_LAYERS.forEach((l) => {
+    LINE_LAYERS.forEach((l) => {
+      try {
+        if (mapRef.getLayer(l)) {
+          mapRef.setPaintProperty(l, 'line-opacity', roadRestrictionsOpacity);
+        }
+      } catch {}
+    });
+    POINT_LAYERS.forEach((l) => {
       try {
         if (mapRef.getLayer(l)) {
           mapRef.setPaintProperty(l, 'circle-opacity', roadRestrictionsOpacity);
@@ -144,18 +232,47 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   useEffect(() => {
     if (!mapRef) return;
 
+    // Height lines filter
+    try {
+      if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
+        const filter = showHeightLimits
+          ? ['all',
+              ['==', ['get', 'restrictionType'], 'height'],
+              ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
+              ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
+            ]
+          : ['==', ['get', 'restrictionType'], '__hidden__'];
+        mapRef.setFilter(LAYER_HEIGHT_LINES, filter);
+      }
+    } catch (e) { console.error('Height line filter error:', e); }
+
     // Height points filter
     try {
       if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
         const filter = showHeightLimits
           ? ['all',
               ['==', ['get', 'restrictionType'], 'height'],
+              ['==', ['geometry-type'], 'Point'],
               ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
             ]
-          : ['==', ['get', 'restrictionType'], '__hidden__']; // Never matches
+          : ['==', ['get', 'restrictionType'], '__hidden__'];
         mapRef.setFilter(LAYER_HEIGHT_POINTS, filter);
       }
-    } catch (e) { console.error('Height filter error:', e); }
+    } catch (e) { console.error('Height point filter error:', e); }
+
+    // Weight lines filter
+    try {
+      if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
+        const filter = showWeightLimits
+          ? ['all',
+              ['==', ['get', 'restrictionType'], 'weight'],
+              ['any', ['==', ['geometry-type'], 'LineString'], ['==', ['geometry-type'], 'MultiLineString']],
+              ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
+            ]
+          : ['==', ['get', 'restrictionType'], '__hidden__'];
+        mapRef.setFilter(LAYER_WEIGHT_LINES, filter);
+      }
+    } catch (e) { console.error('Weight line filter error:', e); }
 
     // Weight points filter
     try {
@@ -163,12 +280,13 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         const filter = showWeightLimits
           ? ['all',
               ['==', ['get', 'restrictionType'], 'weight'],
+              ['==', ['geometry-type'], 'Point'],
               ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
             ]
-          : ['==', ['get', 'restrictionType'], '__hidden__']; // Never matches
+          : ['==', ['get', 'restrictionType'], '__hidden__'];
         mapRef.setFilter(LAYER_WEIGHT_POINTS, filter);
       }
-    } catch (e) { console.error('Weight filter error:', e); }
+    } catch (e) { console.error('Weight point filter error:', e); }
   }, [mapRef, showWeightLimits, showHeightLimits, weightFilterMax, heightFilterMax]);
 
   // Click handler for popups
@@ -186,24 +304,58 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       removePopup();
       if (features.length === 0) return;
 
-      const props = features[0].properties;
-      const coords = features[0].geometry.coordinates.slice();
+      const feature = features[0];
+      const props = feature.properties;
+      const geom = feature.geometry;
+
+      // Get coordinates for popup placement
+      let popupCoords;
+      if (geom.type === 'Point') {
+        popupCoords = geom.coordinates;
+      } else if (geom.type === 'LineString') {
+        // Use midpoint of line
+        const midIdx = Math.floor(geom.coordinates.length / 2);
+        popupCoords = geom.coordinates[midIdx];
+      } else if (geom.type === 'MultiLineString') {
+        // Use midpoint of first line
+        const firstLine = geom.coordinates[0];
+        const midIdx = Math.floor(firstLine.length / 2);
+        popupCoords = firstLine[midIdx];
+      } else {
+        popupCoords = [e.lngLat.lng, e.lngLat.lat];
+      }
 
       const isHeight = props.restrictionType === 'height';
       const lang = useMapStore.getState().lang;
 
+      // Get color based on value
+      let valueColor;
+      if (isHeight) {
+        const h = props.height || 5;
+        if (h <= 3) valueColor = '#dc2626';
+        else if (h <= 4) valueColor = '#f97316';
+        else if (h <= 5) valueColor = '#eab308';
+        else valueColor = '#22c55e';
+      } else {
+        const w = props.maxWeight || 50;
+        if (w <= 20) valueColor = '#dc2626';
+        else if (w <= 40) valueColor = '#f97316';
+        else if (w <= 60) valueColor = '#eab308';
+        else valueColor = '#22c55e';
+      }
+
       const html = `
-        <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:180px">
-          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${isHeight ? '#dc2626' : '#f97316'}">
+        <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;min-width:200px">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;color:${valueColor}">
             ${isHeight
               ? (lang === 'no' ? 'Høydebegrensning' : 'Height Restriction')
               : (lang === 'no' ? 'Vektbegrensning' : 'Weight Restriction')}
           </div>
           ${props.name ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Navn' : 'Name'}:</span> ${props.name}</div>` : ''}
           ${props.road ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Veg' : 'Road'}:</span> ${props.road}</div>` : ''}
-          ${props.height != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks høyde' : 'Max height'}:</span> <strong>${props.height}m</strong></div>` : ''}
+          ${props.height != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks høyde' : 'Max height'}:</span> <strong style="color:${valueColor}">${props.height}m</strong></div>` : ''}
           ${props.heightType ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Type' : 'Type'}:</span> ${props.heightType}</div>` : ''}
-          ${props.maxWeight != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span> <strong>${props.maxWeight}t</strong></div>` : ''}
+          ${props.maxWeight != null ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span> <strong style="color:${valueColor}">${props.maxWeight}t</strong></div>` : ''}
           ${props.loadClass ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Bruksklasse' : 'Load class'}:</span> ${props.loadClass}</div>` : ''}
           ${props.maxVehicleLength ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Maks lengde' : 'Max length'}:</span> ${props.maxVehicleLength}m</div>` : ''}
           ${props.description ? `<div><span style="color:#94a3b8">${lang === 'no' ? 'Strekning' : 'Route'}:</span> ${props.description}</div>` : ''}
@@ -215,7 +367,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       const popupEl = document.createElement('div');
       popupEl.style.cssText = 'position:absolute;z-index:50;pointer-events:auto';
       popupEl.innerHTML = `
-        <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:280px;overflow:hidden">
+        <div style="background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.5);max-width:300px;overflow:hidden">
           <div style="display:flex;justify-content:flex-end;padding:4px">
             <button class="popup-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:2px 6px">×</button>
           </div>
@@ -227,7 +379,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
 
       popupEl.querySelector('.popup-close-btn').addEventListener('click', () => removePopup());
 
-      const point = mapRef.project(coords);
+      const point = mapRef.project(popupCoords);
       popupEl.style.left = `${point.x}px`;
       popupEl.style.top = `${point.y - 10}px`;
       popupEl.style.transform = 'translate(-50%, -100%)';
@@ -237,7 +389,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
 
       const updatePos = () => {
         try {
-          const p = mapRef.project(coords);
+          const p = mapRef.project(popupCoords);
           popupEl.style.left = `${p.x}px`;
           popupEl.style.top = `${p.y - 10}px`;
         } catch {}
@@ -279,7 +431,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
   return null;
 }
 
-// Legend component
+// Legend component with gradient color indicators
 export function RoadRestrictionsLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
   const showWeightLimits = useMapStore((s) => s.showWeightLimits);
@@ -292,7 +444,7 @@ export function RoadRestrictionsLegend({ count }) {
   const setHeightFilterMax = useMapStore((s) => s.setHeightFilterMax);
 
   return (
-    <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs min-w-[180px]">
+    <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs min-w-[200px]">
       <div className="text-slate-400 font-semibold text-[10px] uppercase tracking-wide mb-1.5">
         {lang === 'no' ? 'Vegrestriksjoner' : 'Road Restrictions'}
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
@@ -304,15 +456,21 @@ export function RoadRestrictionsLegend({ count }) {
           onClick={toggleWeightLimits}
           className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showWeightLimits ? 'opacity-30' : ''}`}
         >
-          <div className="w-4 h-4 rounded-full bg-orange-500 border-2 border-white flex-shrink-0" />
+          <div className="w-12 h-2 rounded" style={{ background: 'linear-gradient(to right, #dc2626, #f97316, #eab308, #22c55e)' }} />
           <span className="text-slate-300 text-[11px]">
             {lang === 'no' ? 'Vektgrenser' : 'Weight Limits'}
           </span>
         </button>
         {showWeightLimits && (
-          <div className="ml-5 space-y-0.5">
+          <div className="ml-0 space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-slate-500 px-1">
+              <span>10t</span>
+              <span>30t</span>
+              <span>50t</span>
+              <span>80t+</span>
+            </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-slate-500 w-14">{lang === 'no' ? 'Maks vekt' : 'Max weight'}:</span>
+              <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
               <input
                 type="range"
                 min="10"
@@ -324,9 +482,6 @@ export function RoadRestrictionsLegend({ count }) {
               />
               <span className="text-[10px] text-orange-400 w-8 text-right">{weightFilterMax}t</span>
             </div>
-            <div className="text-[9px] text-slate-500">
-              {lang === 'no' ? `Viser broer under ${weightFilterMax}t` : `Showing bridges under ${weightFilterMax}t`}
-            </div>
           </div>
         )}
       </div>
@@ -337,15 +492,21 @@ export function RoadRestrictionsLegend({ count }) {
           onClick={toggleHeightLimits}
           className={`flex items-center gap-1.5 w-full text-left transition-opacity cursor-pointer ${!showHeightLimits ? 'opacity-30' : ''}`}
         >
-          <div className="w-4 h-4 rounded-full bg-red-600 border-2 border-white flex-shrink-0" />
+          <div className="w-12 h-2 rounded" style={{ background: 'linear-gradient(to right, #dc2626, #f97316, #eab308, #22c55e)' }} />
           <span className="text-slate-300 text-[11px]">
             {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
           </span>
         </button>
         {showHeightLimits && (
-          <div className="ml-5 space-y-0.5">
+          <div className="ml-0 space-y-1">
+            <div className="flex items-center justify-between text-[9px] text-slate-500 px-1">
+              <span>2.5m</span>
+              <span>3.5m</span>
+              <span>4.5m</span>
+              <span>6m+</span>
+            </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-slate-500 w-14">{lang === 'no' ? 'Maks høyde' : 'Max height'}:</span>
+              <span className="text-[9px] text-slate-500">{lang === 'no' ? 'Vis under' : 'Show under'}:</span>
               <input
                 type="range"
                 min="2"
@@ -356,9 +517,6 @@ export function RoadRestrictionsLegend({ count }) {
                 className="flex-1 h-1 accent-red-500"
               />
               <span className="text-[10px] text-red-400 w-8 text-right">{heightFilterMax}m</span>
-            </div>
-            <div className="text-[9px] text-slate-500">
-              {lang === 'no' ? `Viser under ${heightFilterMax}m` : `Showing under ${heightFilterMax}m`}
             </div>
           </div>
         )}
