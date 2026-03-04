@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useWeatherStore } from '../../stores/useWeatherStore.js';
 
@@ -22,6 +22,8 @@ export default function DataFreshness() {
   const windFetchedAt = useWeatherStore((s) => s.windFetchedAt);
   const [avalancheLoadedAt, setAvalancheLoadedAt] = useState(null);
   const [snowDepthDate, setSnowDepthDate] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const toggle = useCallback(() => setCollapsed((c) => !c), []);
 
   useEffect(() => {
     if (avalancheVisible) {
@@ -100,17 +102,25 @@ export default function DataFreshness() {
   if (items.length === 0) return null;
 
   return (
-    <div className="absolute bottom-4 left-4 z-[6] bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs pointer-events-none space-y-1.5">
-      <div className="text-slate-500 font-semibold text-[10px] uppercase tracking-wide">
+    <div
+      className="absolute bottom-4 left-4 z-[6] bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs cursor-pointer select-none"
+      onClick={toggle}
+    >
+      <div className="text-slate-500 font-semibold text-[10px] uppercase tracking-wide flex items-center gap-1.5">
         {lang === 'no' ? 'Datakilder' : 'Data Sources'}
+        <span className="text-[8px]">{collapsed ? '▶' : '▼'}</span>
       </div>
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span className={`${item.color} font-medium`}>{item.label}</span>
-          <span className="text-slate-300 font-mono">{item.value}</span>
-          {item.sub && <span className="text-slate-600 text-[9px]">{item.sub}</span>}
+      {!collapsed && (
+        <div className="space-y-1.5 mt-1.5">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-center gap-2">
+              <span className={`${item.color} font-medium`}>{item.label}</span>
+              <span className="text-slate-300 font-mono">{item.value}</span>
+              {item.sub && <span className="text-slate-600 text-[9px]">{item.sub}</span>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
