@@ -22,6 +22,7 @@ async function fetchAllPages(url, label = '') {
   let nextUrl = url;
   let pageCount = 0;
   const maxPages = 500; // High limit for full Norway fetch
+  let emptyPages = 0;
 
   while (nextUrl && pageCount < maxPages) {
     try {
@@ -32,7 +33,19 @@ async function fetchAllPages(url, label = '') {
       }
       const data = await res.json();
       const objects = data.objekter || [];
-      results.push(...objects);
+
+      // Stop if we get empty pages (API sometimes returns nextUrl even when done)
+      if (objects.length === 0) {
+        emptyPages++;
+        if (emptyPages >= 2) {
+          console.log(`[NVDB] ${label} stopping after ${emptyPages} empty pages`);
+          break;
+        }
+      } else {
+        emptyPages = 0;
+        results.push(...objects);
+      }
+
       nextUrl = data.metadata?.neste?.href || null;
       pageCount++;
 
@@ -50,6 +63,7 @@ async function fetchAllPages(url, label = '') {
     console.warn(`[NVDB] ${label} hit max pages limit (${maxPages}), data may be incomplete`);
   }
 
+  console.log(`[NVDB] ${label} complete: ${results.length} objects in ${pageCount} pages`);
   return results;
 }
 
