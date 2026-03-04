@@ -80,32 +80,7 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
       });
     }
 
-    // Height restriction lines - purple/blue buckets
-    if (!mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-      mapRef.addLayer({
-        id: LAYER_HEIGHT_LINES,
-        type: 'line',
-        source: RESTRICTION_SOURCE,
-        filter: ['all',
-          ['==', ['get', 'restrictionType'], 'height'],
-          ['any',
-            ['==', ['geometry-type'], 'LineString'],
-            ['==', ['geometry-type'], 'MultiLineString'],
-          ],
-        ],
-        paint: {
-          'line-color': HEIGHT_COLOR_EXPR,
-          'line-width': 5,
-          'line-opacity': opacity,
-        },
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-      });
-    }
-
-    // Weight restriction lines - orange/red buckets
+    // Weight restriction lines - orange/red buckets (solid, drawn first/below)
     if (!mapRef.getLayer(LAYER_WEIGHT_LINES)) {
       mapRef.addLayer({
         id: LAYER_WEIGHT_LINES,
@@ -125,6 +100,32 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
         },
         layout: {
           'line-cap': 'round',
+          'line-join': 'round',
+        },
+      });
+    }
+
+    // Height restriction lines - purple/blue buckets (dashed, drawn on top)
+    if (!mapRef.getLayer(LAYER_HEIGHT_LINES)) {
+      mapRef.addLayer({
+        id: LAYER_HEIGHT_LINES,
+        type: 'line',
+        source: RESTRICTION_SOURCE,
+        filter: ['all',
+          ['==', ['get', 'restrictionType'], 'height'],
+          ['any',
+            ['==', ['geometry-type'], 'LineString'],
+            ['==', ['geometry-type'], 'MultiLineString'],
+          ],
+        ],
+        paint: {
+          'line-color': HEIGHT_COLOR_EXPR,
+          'line-width': 4,
+          'line-opacity': opacity,
+          'line-dasharray': [2, 2],
+        },
+        layout: {
+          'line-cap': 'butt',
           'line-join': 'round',
         },
       });
@@ -498,12 +499,15 @@ export function RoadRestrictionsLegend({ count }) {
         {count != null && <span className="ml-1 text-slate-500">({count})</span>}
       </div>
 
-      {/* Weight Limits Section */}
+      {/* Weight Limits Section (solid lines) */}
       <div className={`space-y-1.5 mb-2 transition-opacity ${!showWeightLimits ? 'opacity-40' : ''}`}>
         <div className="flex items-center justify-between">
-          <span className="text-slate-300 text-[11px] font-medium">
-            {lang === 'no' ? 'Vektgrenser' : 'Weight Limits'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-300 text-[11px] font-medium">
+              {lang === 'no' ? 'Vektgrenser' : 'Weight Limits'}
+            </span>
+            <span className="text-slate-500 text-[9px]">({lang === 'no' ? 'heltrukket' : 'solid'})</span>
+          </div>
           <ToggleSwitch
             checked={showWeightLimits}
             onChange={toggleWeightLimits}
@@ -541,12 +545,15 @@ export function RoadRestrictionsLegend({ count }) {
         </div>
       </div>
 
-      {/* Height Limits Section */}
+      {/* Height Limits Section (dashed lines) */}
       <div className={`space-y-1.5 border-t border-slate-700 pt-2 transition-opacity ${!showHeightLimits ? 'opacity-40' : ''}`}>
         <div className="flex items-center justify-between">
-          <span className="text-slate-300 text-[11px] font-medium">
-            {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-300 text-[11px] font-medium">
+              {lang === 'no' ? 'Høydegrenser' : 'Height Limits'}
+            </span>
+            <span className="text-slate-500 text-[9px]">({lang === 'no' ? 'stiplet' : 'dashed'})</span>
+          </div>
           <ToggleSwitch
             checked={showHeightLimits}
             onChange={toggleHeightLimits}
@@ -559,7 +566,11 @@ export function RoadRestrictionsLegend({ count }) {
               <div key={b.label} className="flex flex-col items-center flex-1 min-w-0">
                 <div
                   className="w-full h-2.5 rounded-sm transition-colors"
-                  style={{ backgroundColor: showHeightLimits ? b.color : '#475569' }}
+                  style={{
+                    background: showHeightLimits
+                      ? `repeating-linear-gradient(90deg, ${b.color} 0px, ${b.color} 4px, transparent 4px, transparent 8px)`
+                      : `repeating-linear-gradient(90deg, #475569 0px, #475569 4px, transparent 4px, transparent 8px)`,
+                  }}
                 />
                 <span className="text-slate-500 text-[8px] mt-0.5 whitespace-nowrap">{b.label}</span>
               </div>
