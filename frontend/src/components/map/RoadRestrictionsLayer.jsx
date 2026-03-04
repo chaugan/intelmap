@@ -152,10 +152,10 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
               ['==', ['get', 'restrictionType'], 'height'],
               ['<', ['coalesce', ['get', 'height'], 999], heightFilterMax],
             ]
-          : ['==', 1, 0]; // Hide all
+          : ['==', ['get', 'restrictionType'], '__hidden__']; // Never matches
         mapRef.setFilter(LAYER_HEIGHT_POINTS, filter);
       }
-    } catch {}
+    } catch (e) { console.error('Height filter error:', e); }
 
     // Weight points filter
     try {
@@ -165,10 +165,10 @@ export default function RoadRestrictionsLayer({ data, mapRef }) {
               ['==', ['get', 'restrictionType'], 'weight'],
               ['<', ['coalesce', ['get', 'maxWeight'], 999], weightFilterMax],
             ]
-          : ['==', 1, 0];
+          : ['==', ['get', 'restrictionType'], '__hidden__']; // Never matches
         mapRef.setFilter(LAYER_WEIGHT_POINTS, filter);
       }
-    } catch {}
+    } catch (e) { console.error('Weight filter error:', e); }
   }, [mapRef, showWeightLimits, showHeightLimits, weightFilterMax, heightFilterMax]);
 
   // Click handler for popups
