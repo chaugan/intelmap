@@ -339,7 +339,6 @@ export default function VesselActivityPanel() {
   const [loading, setLoading] = useState(false);
   const [expandedSection, setExpandedSection] = useState('entered');
   const [vesselPositions, setVesselPositions] = useState({});
-  const [debugInfo, setDebugInfo] = useState(null);
 
   // Analyze vessel activity when box is set
   const analyzeActivity = useCallback(async () => {
@@ -372,7 +371,6 @@ export default function VesselActivityPanel() {
       };
 
       // Fetch current vessels from expanded area
-      console.log('Fetching vessels from expanded bounds:', expandedBounds);
       const res = await fetch(
         `/api/ais?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}`
       );
@@ -390,12 +388,10 @@ export default function VesselActivityPanel() {
 
       // Get unique MMSIs from expanded area
       const mmsis = Object.keys(positions);
-      console.log('Found ' + mmsis.length + ' vessels in expanded area');
 
       if (mmsis.length === 0) {
         setAnalysisData({ entered: [], exited: [], inside: [], anomalies: {} });
         setVesselPositions({});
-        setDebugInfo({ vesselsInArea: 0, tracesChecked: 0, relevantVessels: 0 });
         setLoading(false);
         return;
       }
@@ -485,46 +481,16 @@ export default function VesselActivityPanel() {
         return false;
       };
 
-      let tracesWithData = 0;
-      let tracesCheckedForIntersection = 0;
-
       for (const mmsi of mmsis) {
         const trace = traces[mmsi];
         const vessel = positions[mmsi];
 
         if (!trace || !trace.properties?.trackPoints) continue;
-        tracesWithData++;
 
         const trackPoints = [...trace.properties.trackPoints].reverse();
-        tracesCheckedForIntersection++;
-
-        // Debug: log first few vessels' trace info
-        if (tracesCheckedForIntersection <= 3) {
-          const sampleCoords = trackPoints.slice(0, 3).map(p => p.coordinates);
-          console.log(`Trace ${tracesCheckedForIntersection} (${mmsi}):`, {
-            pointCount: trackPoints.length,
-            firstPoint: trackPoints[0],
-            sampleCoords,
-          });
-          // Test point-in-box manually for debugging
-          if (trackPoints.length > 0) {
-            const testPt = trackPoints[0].coordinates;
-            console.log(`  First point [${testPt}] vs bounds:`, {
-              'lng >= west': testPt[0] >= bounds.west,
-              'lng <= east': testPt[0] <= bounds.east,
-              'lat >= south': testPt[1] >= bounds.south,
-              'lat <= north': testPt[1] <= bounds.north,
-              bounds,
-            });
-          }
-        }
 
         // Skip vessels whose historical track never intersected the monitoring box
-        const intersects = traceIntersectsBox(trackPoints);
-        if (tracesCheckedForIntersection <= 3) {
-          console.log(`  Intersects box: ${intersects}`);
-        }
-        if (!intersects) continue;
+        if (!traceIntersectsBox(trackPoints)) continue;
 
         // This vessel's trace intersects the box - include in analysis
         relevantPositions[mmsi] = vessel;
@@ -555,13 +521,7 @@ export default function VesselActivityPanel() {
         }
       }
 
-      const relevantCount = Object.keys(relevantPositions).length;
-      console.log(`Activity box: ${tracesWithData} traces had data, ${relevantCount} intersected the box`);
-      console.log(`Activity box: entered=${entered.length}, exited=${exited.length}, inside=${inside.length}`);
-      console.log('Monitoring box bounds:', bounds);
-
       setVesselPositions(relevantPositions);
-      setDebugInfo({ vesselsInArea: mmsis.length, tracesChecked: mmsis.length, relevantVessels: relevantCount });
       setAnalysisData({ entered, exited, inside, anomalies: allAnomalies });
     } catch (err) {
       console.error('Activity analysis error:', err);
@@ -626,11 +586,6 @@ export default function VesselActivityPanel() {
         </div>
         <div className="text-[10px] text-slate-400 mt-1">
           {vesselActivityBox.widthKm.toFixed(0)}km &times; {vesselActivityBox.heightKm.toFixed(0)}km | {t('vesselActivity.last5Days', lang)}
-          {debugInfo && (
-            <span className="ml-2 text-slate-500">
-              ({debugInfo.vesselsInArea} scanned, {debugInfo.relevantVessels} matched)
-            </span>
-          )}
         </div>
       </div>
 
