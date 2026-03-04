@@ -620,20 +620,18 @@ function VibrationIcon({ color, pulsating }) {
   return (
     <svg
       className={`w-4 h-4 ${pulsating ? 'animate-pulse-color' : ''}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 0 32 32"
+      fill={color}
       style={pulsating ? { filter: `drop-shadow(0 0 4px ${color})` } : undefined}
     >
-      {/* Chevron left pair */}
-      <path d="M4 4l4 4-4 4" />
-      <path d="M8 8l4 4-4 4" />
-      {/* Chevron right pair (mirrored) */}
-      <path d="M20 4l-4 4 4 4" />
-      <path d="M16 8l-4 4 4 4" />
+      {/* Left zigzag pair */}
+      <path d="M2 25.2c0-.4.5-1.3 1.2-2 .8-.8.8-1.5-.2-2.7-1-1.2-1-1.8 0-3s1-1.8 0-3 -1-1.8 0-3 -1-1.8 0-3c-2.1-2.5-.2-3.1 2.2-.7 1.8 1.7 1.9 2.3.8 3.6-1 1.3-1 1.9 0 3.1s1 1.8 0 3-1 1.8 0 3 1 1.9-.5 3.5c-1.9 2.1-3.5 2.6-3.5 1.2z" />
+      <path d="M6 25.2c0-.4.5-1.3 1.2-2 .8-.8.8-1.5-.2-2.7-1-1.2-1-1.8 0-3s1-1.8 0-3-1-1.8 0-3-1-1.8 0-3c-2.1-2.5-.2-3.1 2.2-.7 1.8 1.7 1.9 2.3.8 3.6-1 1.3-1 1.9 0 3.1s1 1.8 0 3-1 1.8 0 3 1 1.9-.5 3.5c-1.9 2.1-3.5 2.6-3.5 1.2z" />
+      {/* Right zigzag pair */}
+      <path d="M22.5 24c-1.5-1.6-1.5-2.2-.5-3.5s1-1.8 0-3-1-1.8 0-3 1-1.8 0-3.1c-1.1-1.3-1-1.9.8-3.6 2.4-2.4 4.3-1.8 2.2.7-1 1.2-1 1.8 0 3s1 1.8 0 3-1 1.8 0 3 1 1.8 0 3c-1 1.2-1 1.9-.2 2.7.7.7 1.2 1.6 1.2 2 0 1.4-1.6.9-3.5-1.2z" />
+      <path d="M26.5 24c-1.5-1.6-1.5-2.2-.5-3.5s1-1.8 0-3-1-1.8 0-3 1-1.8 0-3.1c-1.1-1.3-1-1.9.8-3.6 2.4-2.4 4.3-1.8 2.2.7-1 1.2-1 1.8 0 3s1 1.8 0 3-1 1.8 0 3 1 1.8 0 3c-1 1.2-1 1.9-.2 2.7.7.7 1.2 1.6 1.2 2 0 1.4-1.6.9-3.5-1.2z" />
+      {/* Center circle */}
+      <path d="M13 18.5c-1.5-1.8-1-4.5 1.3-5.9 3.4-2.2 7.3 2.7 4.7 5.9-1.6 1.9-4.4 1.9-6 0zm4.6-1.6c1-1.7-1.3-3.6-2.7-2.2-1.2 1.2-.4 3.3 1.1 3.3.5 0 1.2-.5 1.6-1.1z" />
     </svg>
   );
 }
@@ -667,21 +665,25 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     return () => clearTimeout(timer);
   }, [heightPulsating, setHeightPulsating]);
 
-  // Animate map layers when pulsating
+  // Animate map layers when pulsating (glow effect with 1 second cycle)
   useEffect(() => {
     if (!mapRef || !weightPulsating) return;
-    let frame = 0;
+    const startTime = performance.now();
     let animId;
-    const animate = () => {
-      frame++;
-      const opacity = 0.4 + 0.5 * Math.abs(Math.sin(frame * 0.08));
+    const animate = (now) => {
+      // 1 second cycle = 2π per 1000ms
+      const phase = ((now - startTime) / 1000) * Math.PI * 2;
+      const glow = 2 + 6 * Math.abs(Math.sin(phase)); // blur 2-8
+      const width = 5 + 3 * Math.abs(Math.sin(phase)); // width 5-8
+      const radius = 8 + 4 * Math.abs(Math.sin(phase)); // circle radius 8-12
       try {
         if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-blur', glow);
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-width', width);
         }
         if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-opacity', opacity);
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', glow * 0.1);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-radius', radius);
         }
       } catch {}
       animId = requestAnimationFrame(animate);
@@ -689,15 +691,15 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     animId = requestAnimationFrame(animate);
     return () => {
       cancelAnimationFrame(animId);
-      // Restore original opacity
-      const opacity = useMapStore.getState().roadRestrictionsOpacity;
+      // Restore original values
       try {
         if (mapRef.getLayer(LAYER_WEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-blur', 0);
+          mapRef.setPaintProperty(LAYER_WEIGHT_LINES, 'line-width', 5);
         }
         if (mapRef.getLayer(LAYER_WEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-opacity', opacity);
-          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-blur', 0);
+          mapRef.setPaintProperty(LAYER_WEIGHT_POINTS, 'circle-radius', 8);
         }
       } catch {}
     };
@@ -705,18 +707,22 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
 
   useEffect(() => {
     if (!mapRef || !heightPulsating) return;
-    let frame = 0;
+    const startTime = performance.now();
     let animId;
-    const animate = () => {
-      frame++;
-      const opacity = 0.4 + 0.5 * Math.abs(Math.sin(frame * 0.08));
+    const animate = (now) => {
+      // 1 second cycle = 2π per 1000ms
+      const phase = ((now - startTime) / 1000) * Math.PI * 2;
+      const glow = 2 + 6 * Math.abs(Math.sin(phase)); // blur 2-8
+      const width = 4 + 3 * Math.abs(Math.sin(phase)); // width 4-7
+      const radius = 8 + 4 * Math.abs(Math.sin(phase)); // circle radius 8-12
       try {
         if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-blur', glow);
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-width', width);
         }
         if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-opacity', opacity);
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', glow * 0.1);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-radius', radius);
         }
       } catch {}
       animId = requestAnimationFrame(animate);
@@ -724,15 +730,15 @@ export function RoadRestrictionsLegend({ count, mapRef }) {
     animId = requestAnimationFrame(animate);
     return () => {
       cancelAnimationFrame(animId);
-      // Restore original opacity
-      const opacity = useMapStore.getState().roadRestrictionsOpacity;
+      // Restore original values
       try {
         if (mapRef.getLayer(LAYER_HEIGHT_LINES)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-blur', 0);
+          mapRef.setPaintProperty(LAYER_HEIGHT_LINES, 'line-width', 4);
         }
         if (mapRef.getLayer(LAYER_HEIGHT_POINTS)) {
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-opacity', opacity);
-          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-stroke-opacity', opacity);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-blur', 0);
+          mapRef.setPaintProperty(LAYER_HEIGHT_POINTS, 'circle-radius', 8);
         }
       } catch {}
     };
