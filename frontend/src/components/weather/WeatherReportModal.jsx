@@ -651,8 +651,8 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
 
   // Chart dimensions for aurora forecast
   const chartWidth = 220;
-  const chartHeight = 80;
-  const padding = { top: 18, right: 8, bottom: 4, left: 8 };
+  const chartHeight = 96;
+  const padding = { top: 18, right: 8, bottom: 16, left: 8 };
   const w = chartWidth - padding.left - padding.right;
   const h = chartHeight - padding.top - padding.bottom;
   const barWidth = (w / kpForecast.length) * 0.75;
@@ -687,10 +687,12 @@ function AuroraSection({ kp, lang, isDark, bgCard, textMuted }) {
               const barH = (k.kp / 9) * h;
               const x = padding.left + (i / kpForecast.length) * w + (w / kpForecast.length - barWidth) / 2;
               const y = padding.top + h - barH;
+              const timeLabel = k.time ? new Date(k.time).toLocaleTimeString(lang === 'no' ? 'nb-NO' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
               return (
                 <g key={i}>
                   <rect x={x} y={y} width={barWidth} height={barH} fill={getKpColor(k.kp)} rx="2" />
                   <text x={x + barWidth / 2} y={y - 3} fontSize="10" fill={isDark ? '#e2e8f0' : '#334155'} textAnchor="middle" fontWeight="600">{k.kp.toFixed(1)}</text>
+                  {timeLabel && <text x={x + barWidth / 2} y={chartHeight - 2} fontSize="7" fill={isDark ? '#94a3b8' : '#64748b'} textAnchor="middle">{timeLabel}</text>}
                 </g>
               );
             })}
@@ -761,16 +763,18 @@ function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
       {kpForecast.length > 0 && (
         <div className="flex-1 flex flex-col mt-2 min-h-0">
           <div className={`text-xs ${textMuted} mb-1 shrink-0`}>{lang === 'no' ? 'Neste 24 timer' : 'Next 24 hours'}</div>
-          <div className="flex-1 flex items-end gap-1">
+          <div className="flex-1 flex items-end gap-1 min-h-0">
             {kpForecast.map((k, i) => {
               const barH = Math.max(8, (k.kp / 9) * 100);
+              const timeLabel = k.time ? new Date(k.time).toLocaleTimeString(lang === 'no' ? 'nb-NO' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
               return (
-                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
                   <div className="text-xs font-semibold mb-0.5" style={{ color: getKpColor(k.kp) }}>{k.kp.toFixed(1)}</div>
                   <div
                     className="w-full rounded-t"
                     style={{ height: `${barH}%`, backgroundColor: getKpColor(k.kp), minHeight: '6px' }}
                   />
+                  {timeLabel && <div className={`text-[8px] lg:text-[9px] ${textMuted} mt-0.5 leading-none truncate w-full text-center`}>{timeLabel}</div>}
                 </div>
               );
             })}
