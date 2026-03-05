@@ -36,16 +36,20 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const isDark = theme === 'dark';
   const showAurora = lat > 58;
 
+  // Force desktop layout on cloned DOM for consistent PNG export
+  const exportHtml2canvasOpts = {
+    scale: 2,
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+    useCORS: true,
+    allowTaint: true,
+    onclone: (_doc, el) => { el.classList.add('weather-export-mode'); },
+  };
+
   const handleSaveReport = async () => {
     if (!reportRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-        useCORS: true,
-        allowTaint: true,
-      });
+      const canvas = await html2canvas(reportRef.current, exportHtml2canvasOpts);
       const link = document.createElement('a');
       // Use LOCAL time for filename, not UTC
       const now = new Date();
@@ -64,12 +68,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
     if (!reportRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-        useCORS: true,
-        allowTaint: true,
-      });
+      const canvas = await html2canvas(reportRef.current, exportHtml2canvasOpts);
       const imageData = canvas.toDataURL('image/png');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
@@ -152,16 +151,16 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
 
             {data && !loading && (
               <div
-                className="p-3 lg:p-4 lg:h-full flex flex-col gap-3 lg:grid lg:gap-3"
+                className="wr-content p-3 lg:p-4 lg:h-full flex flex-col gap-3 lg:grid lg:gap-3"
                 style={{ gridTemplateRows: 'auto 44% 1fr 100px auto' }}
               >
                 {/* Row 1: Header (auto height) */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
                 {/* Row 2: Top section — stacked on mobile, side-by-side on desktop */}
-                <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:overflow-hidden">
+                <div className="wr-top-section flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:overflow-hidden">
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
-                  <div className="lg:col-span-4 flex flex-col gap-3 lg:overflow-hidden">
+                  <div className="wr-left-col lg:col-span-4 flex flex-col gap-3 lg:overflow-hidden">
                     {/* Current conditions */}
                     <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                       <CurrentConditionsHero
@@ -189,7 +188,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
 
                   {/* Right: Trends */}
-                  <div className="lg:col-span-8 lg:overflow-hidden">
+                  <div className="wr-right-col lg:col-span-8 lg:overflow-hidden">
                     <TrendCharts
                       daily={data.daily}
                       lang={lang}
@@ -201,7 +200,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Row 3: 7-day forecast */}
-                <div className="lg:overflow-hidden">
+                <div className="wr-forecast lg:overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -213,7 +212,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                 </div>
 
                 {/* Row 4: Moon and Sun */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:overflow-hidden" style={{ minHeight: '100px' }}>
+                <div className="wr-moon-sun grid grid-cols-1 sm:grid-cols-2 gap-3 lg:overflow-hidden" style={{ minHeight: '100px' }}>
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -307,7 +306,7 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
       </div>
 
       {/* Stat boxes - 2 columns on mobile, 3 on larger screens */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 lg:gap-2 flex-1">
+      <div className="wr-stat-grid grid grid-cols-2 lg:grid-cols-3 gap-1.5 lg:gap-2 flex-1">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
         <StatBox icon={<WindChillIcon />} label={lang === 'no' ? 'Føles som' : 'Feels like'} value={current.feelsLike != null ? `${current.feelsLike.toFixed(1)}°C` : '-'} isDark={isDark} />
@@ -358,8 +357,8 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
               {/* Day and date */}
               <div className="text-center shrink-0">
                 <div className="text-sm lg:text-lg font-bold">
-                  <span className="lg:hidden">{dayNameShort}</span>
-                  <span className="hidden lg:inline">{dayNameLong}</span>
+                  <span className="wr-day-short lg:hidden">{dayNameShort}</span>
+                  <span className="wr-day-long hidden lg:inline">{dayNameLong}</span>
                 </div>
                 <div className={`text-xs lg:text-base ${textMuted}`}>{dateNum}. {month}</div>
               </div>
