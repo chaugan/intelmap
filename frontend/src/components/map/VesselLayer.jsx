@@ -9,9 +9,13 @@ const IMG_SHIP = 'img-ship-sdf';
 
 const TRACE_SOURCE = 'vessel-trace';
 const TRACE_LAYER = 'vessel-trace-line';
+const TRACE_GAP_SOURCE = 'vessel-trace-gaps';
+const TRACE_GAP_BG_LAYER = 'vessel-trace-gap-bg';
+const TRACE_GAP_DASH_LAYER = 'vessel-trace-gap-dash';
 const FUTURE_TRACE_SOURCE = 'vessel-future-trace';
 const FUTURE_TRACE_LAYER = 'vessel-future-trace-line';
 const TIME_TRAVEL_MARKER_ID = 'vessel-time-travel-marker';
+const AIS_GAP_THRESHOLD = 30 * 60 * 1000; // 30 minutes
 
 const SYMBOL_LAYERS = [LAYER_ICON];
 const ALL_LAYERS = [LAYER_RING, LAYER_ICON];
@@ -67,10 +71,86 @@ function formatDimensions(length, width) {
 }
 
 function removeTrace(map) {
+  try { if (map.getLayer(TRACE_GAP_DASH_LAYER)) map.removeLayer(TRACE_GAP_DASH_LAYER); } catch {}
+  try { if (map.getLayer(TRACE_GAP_BG_LAYER)) map.removeLayer(TRACE_GAP_BG_LAYER); } catch {}
+  try { if (map.getSource(TRACE_GAP_SOURCE)) map.removeSource(TRACE_GAP_SOURCE); } catch {}
   try { if (map.getLayer(TRACE_LAYER)) map.removeLayer(TRACE_LAYER); } catch {}
   try { if (map.getSource(TRACE_SOURCE)) map.removeSource(TRACE_SOURCE); } catch {}
   try { if (map.getLayer(FUTURE_TRACE_LAYER)) map.removeLayer(FUTURE_TRACE_LAYER); } catch {}
   try { if (map.getSource(FUTURE_TRACE_SOURCE)) map.removeSource(FUTURE_TRACE_SOURCE); } catch {}
+}
+
+function formatTimeSince(isoString) {
+  const ms = Date.now() - new Date(isoString).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ${min % 60}m ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function isStale(isoString) {
+  return Date.now() - new Date(isoString).getTime() > AIS_GAP_THRESHOLD;
+}
+
+// Draw trace layers from already-fetched GeoJSON (used for initial draw and style-change restoration)
+function drawTraceFromData(map, geojson) {
+  removeTrace(map);
+
+  map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson, lineMetrics: true });
+  map.addLayer({
+    id: TRACE_LAYER,
+    type: 'line',
+    source: TRACE_SOURCE,
+    paint: {
+      'line-gradient': [
+        'interpolate', ['linear'], ['line-progress'],
+        0, '#06b6d4',
+        1, '#f43f5e',
+      ],
+      'line-width': 3,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  }, LAYER_RING);
+
+  // Draw gap overlay layers if timestamps are available
+  const timestamps = geojson.properties?.timestamps;
+  const coords = geojson.geometry?.coordinates;
+  if (timestamps && coords && timestamps.length === coords.length && timestamps.length > 1) {
+    const gapSegments = [];
+    for (let i = 1; i < timestamps.length; i++) {
+      const delta = new Date(timestamps[i]).getTime() - new Date(timestamps[i - 1]).getTime();
+      if (delta > AIS_GAP_THRESHOLD) {
+        gapSegments.push([coords[i - 1], coords[i]]);
+      }
+    }
+
+    if (gapSegments.length > 0) {
+      const gapGeoJson = {
+        type: 'Feature',
+        geometry: { type: 'MultiLineString', coordinates: gapSegments },
+      };
+      map.addSource(TRACE_GAP_SOURCE, { type: 'geojson', data: gapGeoJson });
+      map.addLayer({
+        id: TRACE_GAP_BG_LAYER,
+        type: 'line',
+        source: TRACE_GAP_SOURCE,
+        paint: { 'line-color': '#1e293b', 'line-width': 5 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+      }, LAYER_RING);
+      map.addLayer({
+        id: TRACE_GAP_DASH_LAYER,
+        type: 'line',
+        source: TRACE_GAP_SOURCE,
+        paint: { 'line-color': '#f59e0b', 'line-width': 3, 'line-dasharray': [6, 4] },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+      }, LAYER_RING);
+    }
+  }
 }
 
 async function fetchAndDrawTrace(map, mmsi, currentCoords) {
@@ -84,32 +164,20 @@ async function fetchAndDrawTrace(map, mmsi, currentCoords) {
     // so the gradient (cyan→red) correctly shows oldest→newest
     geojson.geometry.coordinates.reverse();
 
+    // Also reverse timestamps array if present
+    if (geojson.properties?.timestamps) {
+      geojson.properties.timestamps.reverse();
+    }
+
     // Append vessel's current live position so the line connects to the icon
     if (currentCoords) {
       geojson.geometry.coordinates.push(currentCoords);
+      if (geojson.properties?.timestamps) {
+        geojson.properties.timestamps.push(new Date().toISOString());
+      }
     }
 
-    removeTrace(map);
-
-    map.addSource(TRACE_SOURCE, { type: 'geojson', data: geojson, lineMetrics: true });
-    map.addLayer({
-      id: TRACE_LAYER,
-      type: 'line',
-      source: TRACE_SOURCE,
-      paint: {
-        'line-gradient': [
-          'interpolate', ['linear'], ['line-progress'],
-          0, '#06b6d4',
-          1, '#f43f5e',
-        ],
-        'line-width': 3,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    }, LAYER_RING);
-
+    drawTraceFromData(map, geojson);
     return geojson;
   } catch (err) {
     console.error('Failed to fetch vessel trace:', err);
@@ -172,7 +240,9 @@ function drawTimeTravelTrace(map, trackPoints, selectedIndex) {
 export default function VesselLayer({ data, mapRef }) {
   const popupRef = useRef(null);
   const dataRef = useRef(data);
+  const traceDataRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [styleVersion, setStyleVersion] = useState(0);
   const vesselsOpacity = useMapStore((s) => s.vesselsOpacity);
   const focusedVesselMmsi = useMapStore((s) => s.focusedVesselMmsi);
   const setFocusedVessel = useMapStore((s) => s.setFocusedVessel);
@@ -282,6 +352,11 @@ export default function VesselLayer({ data, mapRef }) {
           const src = mapRef.getSource(VESSEL_SOURCE);
           if (src) src.setData(dataRef.current);
         }
+        setStyleVersion(v => v + 1);
+        // Restore trace if a vessel is focused
+        if (traceDataRef.current && useMapStore.getState().focusedVesselMmsi) {
+          try { drawTraceFromData(mapRef, traceDataRef.current); } catch {}
+        }
       }
     };
 
@@ -357,7 +432,7 @@ export default function VesselLayer({ data, mapRef }) {
               ]);
       } catch {}
     }
-  }, [mapRef, focusedVesselMmsi, hiddenCategories]);
+  }, [mapRef, focusedVesselMmsi, hiddenCategories, styleVersion]);
 
   // Continuous trace refresh when focused (but not in time travel mode)
   useEffect(() => {
@@ -365,7 +440,7 @@ export default function VesselLayer({ data, mapRef }) {
     let intervalId = null;
     let cancelled = false;
 
-    const refreshTrace = () => {
+    const refreshTrace = async () => {
       const mmsi = focusedVesselMmsi;
       let currentCoords = null;
       const features = dataRef.current?.features;
@@ -373,7 +448,8 @@ export default function VesselLayer({ data, mapRef }) {
         const f = features.find((ft) => String(ft.properties?.mmsi) === mmsi);
         if (f) currentCoords = f.geometry.coordinates;
       }
-      fetchAndDrawTrace(mapRef, mmsi, currentCoords);
+      const result = await fetchAndDrawTrace(mapRef, mmsi, currentCoords);
+      if (result) traceDataRef.current = result;
     };
 
     refreshTrace();
@@ -385,6 +461,7 @@ export default function VesselLayer({ data, mapRef }) {
       cancelled = true;
       if (intervalId) clearInterval(intervalId);
       removeTrace(mapRef);
+      traceDataRef.current = null;
     };
   }, [mapRef, focusedVesselMmsi, vesselTimeTravel]);
 
@@ -550,6 +627,7 @@ export default function VesselLayer({ data, mapRef }) {
           <div><span style="color:#94a3b8">Course:</span> ${props.courseOverGround != null ? `${props.courseOverGround.toFixed(1)}°` : 'N/A'}</div>
           <div><span style="color:#94a3b8">Heading:</span> ${props.trueHeading != null ? `${props.trueHeading}°` : 'N/A'}</div>
           <div><span style="color:#94a3b8">Nav Status:</span> ${props.navStatusText || 'N/A'}</div>
+          ${props.msgtime ? `<div><span style="color:#94a3b8">Last seen:</span> <span style="color:${isStale(props.msgtime) ? '#f59e0b' : '#4ade80'}">${formatTimeSince(props.msgtime)}</span></div>` : ''}
           ${props.destination ? `<div><span style="color:#94a3b8">Destination:</span> ${props.destination}</div>` : ''}
           ${props.eta ? `<div><span style="color:#94a3b8">ETA:</span> ${props.eta}</div>` : ''}
           ${props.draught != null ? `<div><span style="color:#94a3b8">Draught:</span> ${props.draught}m</div>` : ''}

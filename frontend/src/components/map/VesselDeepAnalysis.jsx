@@ -69,6 +69,16 @@ function formatSpeed(kts) {
   return `${kts.toFixed(1)} kn`;
 }
 
+function formatTimeSince(isoString) {
+  const ms = Date.now() - new Date(isoString).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ${min % 60}m ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 function calculateStats(trackPoints) {
   if (!trackPoints || trackPoints.length === 0) return null;
   const speeds = trackPoints.filter(p => p.speed != null).map(p => p.speed);
@@ -764,7 +774,10 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   const chartHeight = height - padding.top - padding.bottom;
 
   const startTime = new Date(trackPoints[0].timestamp).getTime();
-  const endTime = new Date(trackPoints[trackPoints.length - 1].timestamp).getTime();
+  const rawEndTime = new Date(trackPoints[trackPoints.length - 1].timestamp).getTime();
+  const staleness = Date.now() - rawEndTime;
+  const isStaleVessel = staleness > AIS_GAP_THRESHOLD;
+  const endTime = isStaleVessel ? Date.now() : rawEndTime;
   const timeRange = endTime - startTime || 1;
 
   const speeds = trackPoints.filter(p => p.speed != null).map(p => p.speed);
@@ -945,6 +958,7 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
         <span className="text-green-400">{t('vessel.maxSpeed', lang)}: {stats ? formatSpeed(stats.maxSpeed) : '—'}</span>
         <span className="text-red-400">{t('vessel.stopCount', lang)}: {stops.length}</span>
         {aisGaps.length > 0 && <span className="text-amber-400">{t('vessel.aisGaps', lang)}: {aisGaps.length}</span>}
+        {stats && <span className={Date.now() - new Date(stats.endTime).getTime() > 30 * 60 * 1000 ? 'text-amber-400' : 'text-green-400'}>{lang === 'no' ? 'Sist sett' : 'Last seen'}: {formatTimeSince(stats.endTime)}</span>}
       </div>
 
       {/* Speed-Time Chart */}
@@ -1037,6 +1051,23 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
             </g>
           );
         })}
+
+        {/* Stale vessel gap: extend from last data point to now */}
+        {isStaleVessel && (() => {
+          const lastDataX = padding.left + ((rawEndTime - startTime) / timeRange) * chartWidth;
+          const nowX = padding.left + chartWidth;
+          const midX = (lastDataX + nowX) / 2;
+          const bottomY = padding.top + chartHeight;
+          return (
+            <g>
+              <rect x={lastDataX} y={padding.top} width={nowX - lastDataX} height={chartHeight} fill="#f59e0b" fillOpacity="0.1" />
+              <line x1={lastDataX} y1={bottomY} x2={nowX} y2={bottomY} stroke="#f59e0b" strokeWidth={expanded ? 2 : 1.5} strokeDasharray="4 3" strokeLinecap="round" />
+              <circle cx={midX} cy={padding.top + (expanded ? 24 : 18)} r={expanded ? 8 : 6} fill="#f59e0b" />
+              <text x={midX} y={padding.top + (expanded ? 28 : 21)} textAnchor="middle" fill="#000" fontSize={expanded ? 9 : 7} fontWeight="bold">?</text>
+              <text x={nowX} y={padding.top - 4} textAnchor="end" fill="#f59e0b" fontSize={expanded ? 10 : 8} fontWeight="bold">{lang === 'no' ? 'Nå' : 'Now'}</text>
+            </g>
+          );
+        })()}
 
         {/* Scrubber */}
         {hoverInfo && (

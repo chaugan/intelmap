@@ -168,6 +168,7 @@ router.get('/', async (req, res) => {
           shipLength: v.shipLength ?? null,
           shipWidth: v.shipWidth ?? null,
           countryCode: v.countryCode || null,
+          msgtime: v.msgtime || null,
           military: shipType === 35,
           lawEnforcement: shipType === 55,
         },
@@ -258,6 +259,7 @@ router.get('/trace/:mmsi', async (req, res) => {
       properties: {
         mmsi,
         pointCount: trackPoints.length,
+        timestamps: trackPoints.map(p => p.timestamp),
         trackPoints, // Full data for deep analysis
       },
     };
@@ -381,6 +383,7 @@ router.post('/traces/batch', async (req, res) => {
           properties: {
             mmsi,
             pointCount: trackPoints.length,
+            timestamps: trackPoints.map(p => p.timestamp),
             trackPoints,
           },
         };
