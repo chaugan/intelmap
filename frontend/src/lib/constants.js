@@ -11,6 +11,7 @@ export const BASE_LAYERS = {
     id: 'grayscale',
     name: 'Kartverket Gråtone',
     url: 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png',
+    variant: true,
   },
   toporaster: {
     id: 'toporaster',

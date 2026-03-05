@@ -31,6 +31,7 @@ export function buildMapStyle(baseLayerId, {
     },
   };
 
+  const isGrayscale = layer.grayscale;
   const layers = [
     {
       id: 'base-tiles',
@@ -38,6 +39,7 @@ export function buildMapStyle(baseLayerId, {
       source: 'base',
       minzoom: 0,
       maxzoom: 20,
+      ...(isGrayscale ? { paint: { 'raster-saturation': -1 } } : {}),
     },
   ];
 

@@ -161,15 +161,18 @@ export default function MapControls() {
         </button>
         {showBaseDropdown && (
           <div className="absolute top-full mt-1 left-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[160px]">
-            {Object.entries(BASE_LAYERS).map(([id, layer]) => (
-              <button
-                key={id}
-                onClick={() => { setBaseLayer(id); setShowBaseDropdown(false); }}
-                className={`block w-full text-left py-2 hover:bg-slate-600 transition-colors ${layer.grayscale ? 'pl-6 pr-3 text-slate-300' : 'px-3'} ${baseLayer === id ? 'text-emerald-400' : ''}`}
-              >
-                {baseLabels[id]}
-              </button>
-            ))}
+            {Object.entries(BASE_LAYERS).map(([id, layer]) => {
+              const isVariant = layer.grayscale || layer.variant;
+              return (
+                <button
+                  key={id}
+                  onClick={() => { setBaseLayer(id); setShowBaseDropdown(false); }}
+                  className={`block w-full text-left py-2 hover:bg-slate-600 transition-colors ${isVariant ? 'pl-6 pr-3 text-slate-300' : 'px-3'} ${baseLayer === id ? 'text-emerald-400' : ''}`}
+                >
+                  {baseLabels[id]}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
