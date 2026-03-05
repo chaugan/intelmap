@@ -71,7 +71,9 @@ export default function MapControls() {
     topo: t('base.topo', lang),
     grayscale: t('base.grayscale', lang),
     toporaster: t('base.toporaster', lang),
+    toporaster_gray: t('base.toporaster_gray', lang),
     osm: t('base.osm', lang),
+    osm_gray: t('base.osm_gray', lang),
   };
 
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
@@ -159,11 +161,11 @@ export default function MapControls() {
         </button>
         {showBaseDropdown && (
           <div className="absolute top-full mt-1 left-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[160px]">
-            {Object.entries(BASE_LAYERS).map(([id]) => (
+            {Object.entries(BASE_LAYERS).map(([id, layer]) => (
               <button
                 key={id}
                 onClick={() => { setBaseLayer(id); setShowBaseDropdown(false); }}
-                className={`block w-full text-left px-3 py-2 hover:bg-slate-600 transition-colors ${baseLayer === id ? 'text-emerald-400' : ''}`}
+                className={`block w-full text-left py-2 hover:bg-slate-600 transition-colors ${layer.grayscale ? 'pl-6 pr-3 text-slate-300' : 'px-3'} ${baseLayer === id ? 'text-emerald-400' : ''}`}
               >
                 {baseLabels[id]}
               </button>

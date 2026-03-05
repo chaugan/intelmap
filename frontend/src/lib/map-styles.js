@@ -19,7 +19,7 @@ export function buildMapStyle(baseLayerId, {
       type: 'raster',
       tiles: [layer.url],
       tileSize: 256,
-      attribution: baseLayerId === 'osm'
+      attribution: baseLayerId.startsWith('osm')
         ? '&copy; OpenStreetMap contributors'
         : '&copy; Kartverket',
     },

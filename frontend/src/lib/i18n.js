@@ -40,7 +40,9 @@ const translations = {
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Gråtone',
     'base.toporaster': 'Raster',
+    'base.toporaster_gray': 'Raster gr\u00e5tone',
     'base.osm': 'OpenStreetMap',
+    'base.osm_gray': 'OSM gr\u00e5tone',
 
     // Panels
     'panel.layers': 'Lag',
@@ -283,6 +285,21 @@ const translations = {
     'themes.permissionDeniedDesc': 'Du har ikke tilgang til dette temaet.',
     'themes.loginPrompt': 'Logg inn på IntelMap',
 
+    // Share tokens
+    'share.currentAccess': 'Gjeldende tilgangsrettigheter',
+    'share.directLink': 'Med direktelenke',
+    'share.directLinkNote': 'Alle med denne lenken kan se (skrivebeskyttet)',
+    'share.expiry': 'Utløper',
+    'share.expiry24h': '24 timer',
+    'share.expiry7d': '7 dager',
+    'share.expiry30d': '30 dager',
+    'share.expiryNever': 'Aldri',
+    'share.generating': 'Genererer...',
+    'share.expired': 'Lenken har utløpt',
+    'share.invalid': 'Ugyldig delingslenke',
+    'share.qrTitle': 'QR-kode',
+    'share.projectQr': 'Prosjekt QR-kode',
+
     // Timelapse
     'timelapse.title': 'Tidslapse',
     'timelapse.cameras': 'Kameraer',
@@ -446,7 +463,9 @@ const translations = {
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Grayscale',
     'base.toporaster': 'Raster',
+    'base.toporaster_gray': 'Raster Grayscale',
     'base.osm': 'OpenStreetMap',
+    'base.osm_gray': 'OSM Grayscale',
 
     'panel.layers': 'Layers',
     'panel.symbols': 'Symbols',
@@ -681,6 +700,21 @@ const translations = {
     'themes.permissionDenied': 'Permission denied',
     'themes.permissionDeniedDesc': 'You do not have access to this theme.',
     'themes.loginPrompt': 'Log in to IntelMap',
+
+    // Share tokens
+    'share.currentAccess': 'Current access rights',
+    'share.directLink': 'With direct link',
+    'share.directLinkNote': 'Anyone with this link can view (read-only)',
+    'share.expiry': 'Expires',
+    'share.expiry24h': '24 hours',
+    'share.expiry7d': '7 days',
+    'share.expiry30d': '30 days',
+    'share.expiryNever': 'Never',
+    'share.generating': 'Generating...',
+    'share.expired': 'This link has expired',
+    'share.invalid': 'Invalid share link',
+    'share.qrTitle': 'QR Code',
+    'share.projectQr': 'Project QR Code',
 
     // Timelapse
     'timelapse.title': 'Timelapse',

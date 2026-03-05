@@ -235,6 +235,107 @@ router.delete('/:id/share/:groupId', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Share Token management ---
+
+function generateToken() {
+  const bytes = crypto.randomBytes(32);
+  return bytes.toString('base64url');
+}
+
+function parseExpiresIn(expiresIn) {
+  if (!expiresIn || expiresIn === 'never') return null;
+  const now = Date.now();
+  switch (expiresIn) {
+    case '24h': return new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    case '7d': return new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
+    case '30d': return new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+    default: return null;
+  }
+}
+
+// Create share token for a theme
+router.post('/:id/share-token', requireAuth, (req, res) => {
+  const db = getDb();
+  const theme = db.prepare('SELECT * FROM map_themes WHERE id = ?').get(req.params.id);
+  if (!theme) return res.status(404).json({ error: 'Theme not found' });
+
+  // Must be owner or admin
+  if (theme.created_by !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const id = crypto.randomUUID();
+  const token = generateToken();
+  const expiresAt = parseExpiresIn(req.body.expiresIn);
+
+  db.prepare(
+    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, token, 'theme', req.params.id, req.user.id, req.user.orgId, expiresAt);
+
+  const url = `${req.protocol}://${req.get('host')}/?share=${token}`;
+  res.status(201).json({ id, token, url, expiresAt });
+});
+
+// List share tokens for a theme
+router.get('/:id/share-tokens', requireAuth, (req, res) => {
+  const db = getDb();
+  const theme = db.prepare('SELECT * FROM map_themes WHERE id = ?').get(req.params.id);
+  if (!theme) return res.status(404).json({ error: 'Theme not found' });
+
+  if (theme.created_by !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const tokens = db.prepare(
+    `SELECT id, token, expires_at, created_at FROM share_tokens
+     WHERE resource_type = 'theme' AND resource_id = ?
+     ORDER BY created_at DESC`
+  ).all(req.params.id);
+
+  res.json(tokens);
+});
+
+// Revoke a share token
+router.delete('/share-token/:tokenId', requireAuth, (req, res) => {
+  const db = getDb();
+  const tokenRow = db.prepare('SELECT * FROM share_tokens WHERE id = ?').get(req.params.tokenId);
+  if (!tokenRow) return res.status(404).json({ error: 'Token not found' });
+
+  // Must be creator of token or admin
+  if (tokenRow.created_by !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  db.prepare('DELETE FROM share_tokens WHERE id = ?').run(req.params.tokenId);
+  res.json({ ok: true });
+});
+
+// Check access to a theme via share token
+router.get('/:id/access-token', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ error: 'Token required' });
+
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT * FROM share_tokens WHERE token = ? AND resource_type = 'theme' AND resource_id = ?`
+  ).get(token, req.params.id);
+
+  if (!row) return res.json({ canAccess: false, error: 'invalidToken' });
+  if (row.expires_at && new Date(row.expires_at) < new Date()) {
+    return res.json({ canAccess: false, error: 'expired' });
+  }
+
+  const theme = db.prepare('SELECT id, name, state FROM map_themes WHERE id = ?').get(req.params.id);
+  if (!theme) return res.json({ canAccess: false, error: 'notFound' });
+
+  let state = theme.state;
+  if (typeof state === 'string') {
+    try { state = JSON.parse(state); } catch { /* keep */ }
+  }
+
+  res.json({ canAccess: true, readOnly: true, theme: { id: theme.id, name: theme.name, state } });
+});
+
 // Delete theme (owner, admin, or editor in shared group)
 router.delete('/:id', requireAuth, (req, res) => {
   const db = getDb();

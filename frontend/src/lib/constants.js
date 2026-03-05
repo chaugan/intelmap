@@ -17,10 +17,22 @@ export const BASE_LAYERS = {
     name: 'Kartverket Raster',
     url: 'https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png',
   },
+  toporaster_gray: {
+    id: 'toporaster_gray',
+    name: 'Raster Gråtone',
+    url: 'https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png',
+    grayscale: true,
+  },
   osm: {
     id: 'osm',
     name: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  },
+  osm_gray: {
+    id: 'osm_gray',
+    name: 'OSM Gråtone',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    grayscale: true,
   },
 };
 

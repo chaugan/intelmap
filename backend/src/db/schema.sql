@@ -306,6 +306,20 @@ CREATE INDEX IF NOT EXISTS idx_admin_events_level ON admin_events(level);
 CREATE INDEX IF NOT EXISTS idx_admin_events_category ON admin_events(category);
 CREATE INDEX IF NOT EXISTS idx_admin_events_created ON admin_events(created_at DESC);
 
+-- Share tokens (direct link access for themes/projects)
+CREATE TABLE IF NOT EXISTS share_tokens (
+  id TEXT PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_resource ON share_tokens(resource_type, resource_id);
+
 -- Organization indexes
 CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)
   WHERE delete_permanently_at IS NOT NULL;

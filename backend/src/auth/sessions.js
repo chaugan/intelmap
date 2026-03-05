@@ -17,7 +17,8 @@ export function validateSession(sessionId) {
   const row = db.prepare(
     `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.org_id,
             u.must_change_password, u.locked, u.ai_chat_enabled,
-            u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled
+            u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled,
+            o.name as org_name
      FROM sessions s
      JOIN users u ON s.user_id = u.id
      LEFT JOIN organizations o ON u.org_id = o.id
@@ -38,6 +39,7 @@ export function validateSession(sessionId) {
     timelapseEnabled: !!row.timelapse_enabled,
     wasosEnabled: !!row.wasos_enabled,
     infraviewEnabled: !!row.infraview_enabled,
+    orgName: row.org_name || null,
   };
 }
 

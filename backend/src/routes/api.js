@@ -23,6 +23,7 @@ import wasosRouter from './wasos.js';
 import nvdbRouter from './nvdb.js';
 import infrastructureRouter from './infrastructure.js';
 import superAdminRouter from './super-admin.js';
+import sharesRouter from './shares.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -49,4 +50,5 @@ router.use('/wasos', wasosRouter);
 router.use('/nvdb', nvdbRouter);
 router.use('/infrastructure', infrastructureRouter);
 router.use('/super-admin', superAdminRouter);
+router.use('/share', sharesRouter);
 export default router;

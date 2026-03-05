@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useSocket } from './hooks/useSocket.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import TacticalMap from './components/map/TacticalMap.jsx';
@@ -103,6 +103,34 @@ export default function App() {
     checkSession();
   }, [checkSession]);
 
+  // Handle share token deep linking via URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareToken = params.get('share');
+    if (!shareToken) return;
+
+    fetch(`/api/share/${shareToken}`)
+      .then((res) => res.json())
+      .then((data) => {
+        // Clear URL parameter
+        window.history.replaceState({}, '', window.location.pathname);
+
+        if (data.valid && data.resourceType === 'theme' && data.theme) {
+          pendingThemeRef.current = data.theme.state;
+          if (useMapStore.getState().mapRef) {
+            applyTheme(data.theme.state);
+            pendingThemeRef.current = null;
+          }
+        } else if (!data.valid) {
+          setThemeError(data.error === 'expired' ? 'expired' : 'notFound');
+        }
+      })
+      .catch(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+        setThemeError('notFound');
+      });
+  }, [applyTheme]);
+
   // Handle theme deep linking via URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -201,12 +229,7 @@ export default function App() {
         <MapControls />
         <div className="flex items-center gap-2 shrink-0">
           <UserMenu />
-          <button
-            onClick={() => setLang(lang === 'no' ? 'en' : 'no')}
-            className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-          >
-            {t('lang.switch', lang)}
-          </button>
+          <LanguageSelector lang={lang} setLang={setLang} />
         </div>
       </header>
 
@@ -289,6 +312,54 @@ export default function App() {
             window.history.replaceState({}, '', window.location.pathname);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+const LANG_OPTIONS = [
+  { code: 'no', flag: '\u{1F1F3}\u{1F1F4}', label: 'Norsk' },
+  { code: 'en', flag: '\u{1F1EC}\u{1F1E7}', label: 'English' },
+];
+
+function LanguageSelector({ lang, setLang }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
+  }, []);
+
+  const current = LANG_OPTIONS.find((o) => o.code === lang) || LANG_OPTIONS[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="px-2 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors flex items-center gap-1"
+      >
+        <span className="text-base leading-none">{current.flag}</span>
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[140px]">
+          {LANG_OPTIONS.map((opt) => (
+            <button
+              key={opt.code}
+              onClick={() => { setLang(opt.code); setOpen(false); }}
+              className={`block w-full text-left px-3 py-2 text-sm hover:bg-slate-600 transition-colors flex items-center gap-2 ${lang === opt.code ? 'text-emerald-400' : ''}`}
+            >
+              <span className="text-base leading-none">{opt.flag}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -51,6 +51,11 @@ export default function UserMenu() {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[180px] py-1">
+          {user.orgName && (
+            <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-600">
+              <span className="text-slate-500">Org:</span> <span className="text-emerald-400">{user.orgName}</span>
+            </div>
+          )}
           <button
             onClick={() => { toggleProjectDrawer(); setOpen(false); }}
             className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors"

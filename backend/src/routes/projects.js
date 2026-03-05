@@ -7,6 +7,38 @@ import { getProjectRole } from '../auth/project-access.js';
 import { projectStore } from '../store/index.js';
 
 const router = Router();
+
+// Public route: shared-view via token (no auth required) - must be before requireAuth
+router.get('/:id/shared-view', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ error: 'Token required' });
+
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT * FROM share_tokens WHERE token = ? AND resource_type = 'project' AND resource_id = ?`
+  ).get(token, req.params.id);
+
+  if (!row) return res.status(403).json({ error: 'Invalid or expired token' });
+  if (row.expires_at && new Date(row.expires_at) < new Date()) {
+    return res.status(403).json({ error: 'Token expired' });
+  }
+
+  const project = db.prepare('SELECT * FROM projects_v2 WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const state = projectStore.getProjectState(req.params.id);
+  let settings = {};
+  try { settings = JSON.parse(project.settings); } catch { /* fallback */ }
+
+  res.json({
+    id: project.id,
+    name: project.name,
+    settings,
+    readOnly: true,
+    ...state,
+  });
+});
+
 router.use(requireAuth);
 
 // List own + group-shared projects (metadata + counts, no tactical data)
@@ -193,6 +225,71 @@ router.delete('/:id/share', (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(req.params.id);
   db.prepare("UPDATE projects_v2 SET updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Share Token management for projects ---
+
+function generateToken() {
+  const bytes = crypto.randomBytes(32);
+  return bytes.toString('base64url');
+}
+
+function parseExpiresIn(expiresIn) {
+  if (!expiresIn || expiresIn === 'never') return null;
+  const now = Date.now();
+  switch (expiresIn) {
+    case '24h': return new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    case '7d': return new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
+    case '30d': return new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+    default: return null;
+  }
+}
+
+// Create share token for a project
+router.post('/:id/share-token', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const token = generateToken();
+  const expiresAt = parseExpiresIn(req.body.expiresIn);
+
+  db.prepare(
+    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, token, 'project', req.params.id, req.user.id, req.user.orgId, expiresAt);
+
+  const url = `${req.protocol}://${req.get('host')}/?share=${token}`;
+  res.status(201).json({ id, token, url, expiresAt });
+});
+
+// List share tokens for a project
+router.get('/:id/share-tokens', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const db = getDb();
+  const tokens = db.prepare(
+    `SELECT id, token, expires_at, created_at FROM share_tokens
+     WHERE resource_type = 'project' AND resource_id = ?
+     ORDER BY created_at DESC`
+  ).all(req.params.id);
+
+  res.json(tokens);
+});
+
+// Revoke a share token for a project
+router.delete('/share-token/:tokenId', (req, res) => {
+  const db = getDb();
+  const tokenRow = db.prepare('SELECT * FROM share_tokens WHERE id = ?').get(req.params.tokenId);
+  if (!tokenRow) return res.status(404).json({ error: 'Token not found' });
+
+  if (tokenRow.created_by !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  db.prepare('DELETE FROM share_tokens WHERE id = ?').run(req.params.tokenId);
   res.json({ ok: true });
 });
 

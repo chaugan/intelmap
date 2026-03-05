@@ -31,8 +31,8 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await fetch(`${API}/me`, { credentials: 'include' });
       const data = await res.json();
-      // Normalize: ensure orgId is available
-      const user = data ? { ...data, orgId: data.orgId || null } : null;
+      // Normalize: ensure orgId and orgName are available
+      const user = data ? { ...data, orgId: data.orgId || null, orgName: data.orgName || null } : null;
       set({ user, loading: false });
       if (user) {
         if (!socket.connected) socket.connect();

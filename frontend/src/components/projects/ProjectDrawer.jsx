@@ -5,6 +5,7 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
+import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
 
 export default function ProjectDrawer() {
   const lang = useMapStore((s) => s.lang);
@@ -45,6 +46,7 @@ export default function ProjectDrawer() {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
+  const [qrProject, setQrProject] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -274,6 +276,25 @@ export default function ProjectDrawer() {
                   )}
                 </div>
 
+                {/* QR Code */}
+                {p.role === 'admin' && (
+                  <button
+                    onClick={() => setQrProject(p)}
+                    className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title={t('themes.generateQr', lang)}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <rect x="3" y="3" width="7" height="7" rx="1" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" />
+                      <rect x="14" y="14" width="3" height="3" />
+                      <rect x="18" y="18" width="3" height="3" />
+                      <rect x="18" y="14" width="3" height="1" />
+                      <rect x="14" y="18" width="1" height="3" />
+                    </svg>
+                  </button>
+                )}
+
                 {/* Expand layers */}
                 <button
                   onClick={() => setExpandedProject(expanded ? null : p.id)}
@@ -460,6 +481,16 @@ export default function ProjectDrawer() {
           </div>
         );
       })()}
+
+      {/* QR Code Overlay for projects */}
+      {qrProject && (
+        <QRCodeOverlay
+          resourceType="project"
+          resourceId={qrProject.id}
+          resourceName={qrProject.name}
+          onClose={() => setQrProject(null)}
+        />
+      )}
     </div>
   );
 }

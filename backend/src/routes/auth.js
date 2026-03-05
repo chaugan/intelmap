@@ -72,6 +72,14 @@ router.post('/login', (req, res) => {
   }
 
   clearRateLimit(ip);
+
+  // Fetch org name
+  let orgName = null;
+  if (user.org_id) {
+    const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(user.org_id);
+    orgName = org?.name || null;
+  }
+
   const session = createSession(user.id);
   res.cookie('session', session.id, COOKIE_OPTS);
   res.json({
@@ -79,6 +87,7 @@ router.post('/login', (req, res) => {
     username: user.username,
     role: user.role,
     orgId: user.org_id || null,
+    orgName,
     mustChangePassword: !!user.must_change_password,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,
@@ -100,6 +109,7 @@ router.get('/me', optionalAuth, (req, res) => {
     username: req.user.username,
     role: req.user.role,
     orgId: req.user.orgId || null,
+    orgName: req.user.orgName || null,
     mustChangePassword: req.user.mustChangePassword,
     aiChatEnabled: req.user.aiChatEnabled,
     timelapseEnabled: req.user.timelapseEnabled,
@@ -135,11 +145,19 @@ router.post('/change-password', requireAuth, (req, res) => {
   const session = createSession(user.id);
   res.cookie('session', session.id, COOKIE_OPTS);
 
+  // Fetch org name for change-password response
+  let cpOrgName = null;
+  if (user.org_id) {
+    const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(user.org_id);
+    cpOrgName = org?.name || null;
+  }
+
   res.json({
     id: user.id,
     username: user.username,
     role: user.role,
     orgId: user.org_id || null,
+    orgName: cpOrgName,
     mustChangePassword: false,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,

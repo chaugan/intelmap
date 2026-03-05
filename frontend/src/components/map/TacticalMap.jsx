@@ -4,7 +4,7 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { buildMapStyle } from '../../lib/map-styles.js';
-import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../lib/constants.js';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, BASE_LAYERS } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
 import { useWeatherStore } from '../../stores/useWeatherStore.js';
 import { t } from '../../lib/i18n.js';
@@ -173,6 +173,14 @@ export default function TacticalMap() {
       map.getCanvas().addEventListener('contextmenu', (e) => e.preventDefault());
     }
   }, [setMapRef, updateBounds]);
+
+  // Apply/remove CSS grayscale filter based on base layer
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const isGrayscale = BASE_LAYERS[baseLayer]?.grayscale;
+    map.getCanvas().style.filter = isGrayscale ? 'grayscale(100%)' : '';
+  }, [baseLayer]);
 
   const onMove = useCallback((evt) => {
     const { longitude, latitude, zoom } = evt.viewState;

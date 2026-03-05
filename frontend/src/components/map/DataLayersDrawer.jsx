@@ -739,8 +739,9 @@ export default function DataLayersDrawer() {
       {/* QR Code Overlay */}
       {qrOverlayTheme && (
         <QRCodeOverlay
-          themeId={qrOverlayTheme.id}
-          themeName={qrOverlayTheme.name}
+          resourceType="theme"
+          resourceId={qrOverlayTheme.id}
+          resourceName={qrOverlayTheme.name}
           onClose={() => setQrOverlayTheme(null)}
         />
       )}
