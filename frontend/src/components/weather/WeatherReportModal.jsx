@@ -36,12 +36,16 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const isDark = theme === 'dark';
   const showAurora = lat > 58;
 
-  // Force desktop layout on cloned DOM for consistent PNG export
+  // Force desktop layout for consistent PNG export regardless of screen size
   const exportHtml2canvasOpts = {
     scale: 2,
     backgroundColor: isDark ? '#1e293b' : '#f8fafc',
     useCORS: true,
     allowTaint: true,
+    windowWidth: 1600,   // makes lg: breakpoints activate
+    windowHeight: 1000,
+    width: 1600,
+    height: 1000,
     onclone: (_doc, el) => { el.classList.add('weather-export-mode'); },
   };
 
