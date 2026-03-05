@@ -15,103 +15,63 @@ export function setDbGetter(fn) {
   _getDb = fn;
 }
 
-export function getAnthropicApiKey() {
+/**
+ * Get org-scoped setting with fallback to app_settings then env.
+ * @param {string} key - Setting key
+ * @param {string|null} orgId - Organization ID (null = global only)
+ * @param {string} envFallback - Environment variable value
+ */
+function getSettingWithOrgFallback(key, orgId, envFallback) {
   if (_getDb) {
     try {
       const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'anthropic_api_key'").get();
+      // Try org_settings first if orgId provided
+      if (orgId) {
+        const orgRow = db.prepare('SELECT value FROM org_settings WHERE org_id = ? AND key = ?').get(orgId, key);
+        if (orgRow?.value) return orgRow.value;
+      }
+      // Fallback to app_settings
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key);
       if (row?.value) return row.value;
     } catch {}
   }
-  return process.env.ANTHROPIC_API_KEY || '';
+  return envFallback;
 }
 
-export function getGoogleMapsApiKey() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'google_maps_api_key'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.GOOGLE_MAPS_API_KEY || '';
+export function getAnthropicApiKey(orgId = null) {
+  return getSettingWithOrgFallback('anthropic_api_key', orgId, process.env.ANTHROPIC_API_KEY || '');
 }
 
-export function getBarentsWatchClientId() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_id'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.BARENTSWATCH_CLIENT_ID || '';
+export function getGoogleMapsApiKey(orgId = null) {
+  return getSettingWithOrgFallback('google_maps_api_key', orgId, process.env.GOOGLE_MAPS_API_KEY || '');
 }
 
-export function getBarentsWatchClientSecret() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_secret'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.BARENTSWATCH_CLIENT_SECRET || '';
+export function getBarentsWatchClientId(orgId = null) {
+  return getSettingWithOrgFallback('barentswatch_client_id', orgId, process.env.BARENTSWATCH_CLIENT_ID || '');
 }
 
-export function getNtfyToken() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_token'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.NTFY_TOKEN || '';
+export function getBarentsWatchClientSecret(orgId = null) {
+  return getSettingWithOrgFallback('barentswatch_client_secret', orgId, process.env.BARENTSWATCH_CLIENT_SECRET || '');
 }
 
-export function getNtfyUrl() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_url'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.NTFY_URL || 'https://ntfy.intelmap.no';
+export function getNtfyToken(orgId = null) {
+  return getSettingWithOrgFallback('ntfy_token', orgId, process.env.NTFY_TOKEN || '');
 }
 
-export function getVlmApiToken() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.VLM_API_TOKEN || '';
+export function getNtfyUrl(orgId = null) {
+  return getSettingWithOrgFallback('ntfy_url', orgId, process.env.NTFY_URL || 'https://ntfy.intelmap.no');
 }
 
-export function getVlmUrl() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.VLM_URL || 'https://vision.homeprem.no';
+export function getVlmApiToken(orgId = null) {
+  return getSettingWithOrgFallback('vlm_api_token', orgId, process.env.VLM_API_TOKEN || '');
+}
+
+export function getVlmUrl(orgId = null) {
+  return getSettingWithOrgFallback('vlm_url', orgId, process.env.VLM_URL || 'https://vision.homeprem.no');
 }
 
 export function getPublicUrl() {
-  if (_getDb) {
-    try {
-      const db = _getDb();
-      const row = db.prepare("SELECT value FROM app_settings WHERE key = 'public_url'").get();
-      if (row?.value) return row.value;
-    } catch {}
-  }
-  return process.env.PUBLIC_URL || 'https://intelmap.homeprem.no';
+  return getSettingWithOrgFallback('public_url', null, process.env.PUBLIC_URL || 'https://intelmap.homeprem.no');
 }
 
 export function getAdminNtfyChannel() {

@@ -16,12 +16,49 @@ import crypto from 'crypto';
 const router = Router();
 router.use(requireAdmin);
 
-// List all users (no hashes) with storage stats
+// Helper: get org setting with fallback to app_settings
+function getOrgSetting(db, orgId, key) {
+  if (orgId) {
+    const row = db.prepare('SELECT value FROM org_settings WHERE org_id = ? AND key = ?').get(orgId, key);
+    if (row) return row.value;
+  }
+  const fallback = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key);
+  return fallback?.value || null;
+}
+
+// Helper: set org setting
+function setOrgSetting(db, orgId, key, value) {
+  if (orgId) {
+    db.prepare(`
+      INSERT INTO org_settings (org_id, key, value, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(org_id, key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+    `).run(orgId, key, value);
+  } else {
+    db.prepare(`
+      INSERT INTO app_settings (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+    `).run(key, value);
+  }
+}
+
+// Helper: delete org setting
+function deleteOrgSetting(db, orgId, key) {
+  if (orgId) {
+    db.prepare('DELETE FROM org_settings WHERE org_id = ? AND key = ?').run(orgId, key);
+  } else {
+    db.prepare('DELETE FROM app_settings WHERE key = ?').run(key);
+  }
+}
+
+// List all users (no hashes) with storage stats — filtered by org
 router.get('/users', (req, res) => {
   const db = getDb();
+  const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, created_at, updated_at FROM users ORDER BY created_at'
-  ).all();
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
+  ).all(orgId);
 
   // Calculate storage for each user
   const result = users.map(u => {
@@ -105,13 +142,14 @@ router.post('/users', (req, res) => {
 
   const { hash, salt } = hashPassword(password);
   const id = crypto.randomUUID();
+  const orgId = req.user.orgId;
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, salt, role, must_change_password, ai_chat_enabled)
-     VALUES (?, ?, ?, ?, 'user', 1, 0)`
-  ).run(id, username, hash, salt);
+    `INSERT INTO users (id, username, password_hash, salt, role, org_id, must_change_password, ai_chat_enabled)
+     VALUES (?, ?, ?, ?, 'user', ?, 1, 0)`
+  ).run(id, username, hash, salt, orgId);
 
-  // Auto-add new user to all existing groups as viewer
-  const groups = db.prepare('SELECT id FROM groups').all();
+  // Auto-add new user to all existing groups in the org as viewer
+  const groups = db.prepare('SELECT id FROM groups WHERE org_id = ?').all(orgId);
   const insertMember = db.prepare(
     `INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, 'viewer', datetime('now'))`
   );
@@ -127,7 +165,7 @@ router.delete('/users/:id', (req, res) => {
   if (req.params.id === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
 
   const db = getDb();
-  const result = db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  const result = db.prepare('DELETE FROM users WHERE id = ? AND org_id = ?').run(req.params.id, req.user.orgId);
   if (result.changes === 0) return res.status(404).json({ error: 'User not found' });
   disconnectUser(req.params.id);
   res.json({ ok: true });
@@ -139,7 +177,7 @@ router.post('/users/:id/reset-password', (req, res) => {
   if (!validatePassword(password)) return res.status(400).json({ error: 'Password must be 6-128 characters' });
 
   const db = getDb();
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const { hash, salt } = hashPassword(password);
@@ -155,7 +193,7 @@ router.post('/users/:id/toggle-admin', (req, res) => {
   if (req.params.id === req.user.id) return res.status(400).json({ error: 'Cannot change your own role' });
 
   const db = getDb();
-  const user = db.prepare('SELECT id, role FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, role FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const newRole = user.role === 'admin' ? 'user' : 'admin';
@@ -166,7 +204,7 @@ router.post('/users/:id/toggle-admin', (req, res) => {
 // Unlock account
 router.post('/users/:id/unlock', (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   db.prepare("UPDATE users SET locked = 0, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(req.params.id);
@@ -178,7 +216,7 @@ router.post('/users/:id/unlock', (req, res) => {
 // Toggle AI chat access
 router.post('/users/:id/toggle-ai-chat', (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, ai_chat_enabled FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, ai_chat_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const newVal = user.ai_chat_enabled ? 0 : 1;
@@ -189,7 +227,7 @@ router.post('/users/:id/toggle-ai-chat', (req, res) => {
 // Toggle timelapse access
 router.post('/users/:id/toggle-timelapse', (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, timelapse_enabled FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, timelapse_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const newVal = user.timelapse_enabled ? 0 : 1;
@@ -200,7 +238,7 @@ router.post('/users/:id/toggle-timelapse', (req, res) => {
 // Toggle WaSOS access
 router.post('/users/:id/toggle-wasos', (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, wasos_enabled FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, wasos_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const newVal = user.wasos_enabled ? 0 : 1;
@@ -217,7 +255,7 @@ router.post('/users/:id/toggle-wasos', (req, res) => {
 // Toggle InfraView access
 router.post('/users/:id/toggle-infraview', (req, res) => {
   const db = getDb();
-  const user = db.prepare('SELECT id, infraview_enabled FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, infraview_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const newVal = user.infraview_enabled ? 0 : 1;
@@ -230,8 +268,7 @@ router.post('/users/:id/toggle-infraview', (req, res) => {
 // Get AI config (model + whether key is set)
 router.get('/ai-config', (req, res) => {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'anthropic_api_key'").get();
-  const hasKey = !!(row?.value);
+  const hasKey = !!getOrgSetting(db, req.user.orgId, 'anthropic_api_key');
   res.json({
     model: config.claudeModel,
     hasKey,
@@ -246,18 +283,14 @@ router.put('/ai-config', (req, res) => {
   }
 
   const db = getDb();
-  db.prepare(
-    `INSERT INTO app_settings (key, value, updated_at) VALUES ('anthropic_api_key', ?, datetime('now'))
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-  ).run(apiKey.trim());
-
+  setOrgSetting(db, req.user.orgId, 'anthropic_api_key', apiKey.trim());
   res.json({ ok: true });
 });
 
 // Remove AI API key
 router.delete('/ai-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key = 'anthropic_api_key'").run();
+  deleteOrgSetting(db, req.user.orgId, 'anthropic_api_key');
   res.json({ ok: true });
 });
 
@@ -266,8 +299,8 @@ router.delete('/ai-config', (req, res) => {
 // Get Maps config (whether Google Maps API key is set)
 router.get('/maps-config', (req, res) => {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'google_maps_api_key'").get();
-  res.json({ hasKey: !!(row?.value) });
+  const hasKey = !!getOrgSetting(db, req.user.orgId, 'google_maps_api_key');
+  res.json({ hasKey });
 });
 
 // Set Google Maps API key
@@ -278,18 +311,14 @@ router.put('/maps-config', (req, res) => {
   }
 
   const db = getDb();
-  db.prepare(
-    `INSERT INTO app_settings (key, value, updated_at) VALUES ('google_maps_api_key', ?, datetime('now'))
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-  ).run(apiKey.trim());
-
+  setOrgSetting(db, req.user.orgId, 'google_maps_api_key', apiKey.trim());
   res.json({ ok: true });
 });
 
 // Remove Google Maps API key
 router.delete('/maps-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key = 'google_maps_api_key'").run();
+  deleteOrgSetting(db, req.user.orgId, 'google_maps_api_key');
   res.json({ ok: true });
 });
 
@@ -298,12 +327,9 @@ router.delete('/maps-config', (req, res) => {
 // Get AIS config (whether BarentsWatch credentials are set)
 router.get('/ais-config', (req, res) => {
   const db = getDb();
-  const idRow = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_id'").get();
-  const secretRow = db.prepare("SELECT value FROM app_settings WHERE key = 'barentswatch_client_secret'").get();
-  res.json({
-    hasClientId: !!(idRow?.value),
-    hasClientSecret: !!(secretRow?.value),
-  });
+  const hasClientId = !!getOrgSetting(db, req.user.orgId, 'barentswatch_client_id');
+  const hasClientSecret = !!getOrgSetting(db, req.user.orgId, 'barentswatch_client_secret');
+  res.json({ hasClientId, hasClientSecret });
 });
 
 // Set BarentsWatch credentials
@@ -312,16 +338,10 @@ router.put('/ais-config', (req, res) => {
 
   const db = getDb();
   if (clientId && typeof clientId === 'string' && clientId.trim().length >= 1) {
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('barentswatch_client_id', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(clientId.trim());
+    setOrgSetting(db, req.user.orgId, 'barentswatch_client_id', clientId.trim());
   }
   if (clientSecret && typeof clientSecret === 'string' && clientSecret.trim().length >= 1) {
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('barentswatch_client_secret', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(clientSecret.trim());
+    setOrgSetting(db, req.user.orgId, 'barentswatch_client_secret', clientSecret.trim());
   }
 
   res.json({ ok: true });
@@ -330,7 +350,8 @@ router.put('/ais-config', (req, res) => {
 // Remove BarentsWatch credentials
 router.delete('/ais-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key IN ('barentswatch_client_id', 'barentswatch_client_secret')").run();
+  deleteOrgSetting(db, req.user.orgId, 'barentswatch_client_id');
+  deleteOrgSetting(db, req.user.orgId, 'barentswatch_client_secret');
   res.json({ ok: true });
 });
 
@@ -339,12 +360,9 @@ router.delete('/ais-config', (req, res) => {
 // Get ntfy config (whether token is set)
 router.get('/ntfy-config', (req, res) => {
   const db = getDb();
-  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_token'").get();
-  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'ntfy_url'").get();
-  res.json({
-    hasToken: !!(tokenRow?.value),
-    url: urlRow?.value || '',
-  });
+  const hasToken = !!getOrgSetting(db, req.user.orgId, 'ntfy_token');
+  const url = getOrgSetting(db, req.user.orgId, 'ntfy_url') || '';
+  res.json({ hasToken, url });
 });
 
 // Validate and set ntfy credentials
@@ -396,19 +414,12 @@ router.put('/ntfy-config', async (req, res) => {
 
     // Connection successful, save settings
     const db = getDb();
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_url', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(ntfyUrl);
+    setOrgSetting(db, req.user.orgId, 'ntfy_url', ntfyUrl);
 
     if (ntfyToken) {
-      db.prepare(
-        `INSERT INTO app_settings (key, value, updated_at) VALUES ('ntfy_token', ?, datetime('now'))
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-      ).run(ntfyToken);
+      setOrgSetting(db, req.user.orgId, 'ntfy_token', ntfyToken);
     } else {
-      // Remove any existing token if not provided
-      db.prepare("DELETE FROM app_settings WHERE key = 'ntfy_token'").run();
+      deleteOrgSetting(db, req.user.orgId, 'ntfy_token');
     }
 
     res.json({
@@ -426,7 +437,8 @@ router.put('/ntfy-config', async (req, res) => {
 // Remove ntfy credentials
 router.delete('/ntfy-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key IN ('ntfy_token', 'ntfy_url')").run();
+  deleteOrgSetting(db, req.user.orgId, 'ntfy_token');
+  deleteOrgSetting(db, req.user.orgId, 'ntfy_url');
   res.json({ ok: true });
 });
 
@@ -435,12 +447,9 @@ router.delete('/ntfy-config', (req, res) => {
 // Get VLM config (whether token is set + URL)
 router.get('/vlm-config', (req, res) => {
   const db = getDb();
-  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
-  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
-  res.json({
-    hasToken: !!(tokenRow?.value),
-    url: urlRow?.value || 'https://vision.homeprem.no',
-  });
+  const hasToken = !!getOrgSetting(db, req.user.orgId, 'vlm_api_token');
+  const url = getOrgSetting(db, req.user.orgId, 'vlm_url') || 'https://vision.homeprem.no';
+  res.json({ hasToken, url });
 });
 
 // Validate and set VLM credentials
@@ -482,15 +491,8 @@ router.put('/vlm-config', async (req, res) => {
 
     // Connection successful, save settings
     const db = getDb();
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('vlm_url', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(vlmUrl);
-
-    db.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES ('vlm_api_token', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(vlmToken);
+    setOrgSetting(db, req.user.orgId, 'vlm_url', vlmUrl);
+    setOrgSetting(db, req.user.orgId, 'vlm_api_token', vlmToken);
 
     res.json({ ok: true, message: 'VLM API configured successfully' });
 
@@ -504,16 +506,16 @@ router.put('/vlm-config', async (req, res) => {
 // Get VLM service status (live data from API)
 router.get('/vlm-status', async (req, res) => {
   const db = getDb();
-  const urlRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_url'").get();
-  const tokenRow = db.prepare("SELECT value FROM app_settings WHERE key = 'vlm_api_token'").get();
+  const vlmUrl = getOrgSetting(db, req.user.orgId, 'vlm_url');
+  const vlmToken = getOrgSetting(db, req.user.orgId, 'vlm_api_token');
 
-  if (!urlRow?.value || !tokenRow?.value) {
+  if (!vlmUrl || !vlmToken) {
     return res.status(400).json({ error: 'VLM not configured' });
   }
 
   try {
     // Status endpoint doesn't require auth
-    const response = await fetch(`${urlRow.value}/api/v1/status`, {
+    const response = await fetch(`${vlmUrl}/api/v1/status`, {
       method: 'GET',
     });
 
@@ -547,7 +549,8 @@ router.get('/vlm-status', async (req, res) => {
 // Remove VLM credentials
 router.delete('/vlm-config', (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM app_settings WHERE key IN ('vlm_api_token', 'vlm_url')").run();
+  deleteOrgSetting(db, req.user.orgId, 'vlm_api_token');
+  deleteOrgSetting(db, req.user.orgId, 'vlm_url');
   eventLogger.config.info('VLM credentials removed');
   res.json({ ok: true });
 });
@@ -595,15 +598,15 @@ router.delete('/vlm-prompt', (req, res) => {
 
 // --- Admin Events ---
 
-// Get recent events
+// Get recent events — filtered by org
 router.get('/events', (req, res) => {
   const db = getDb();
   const level = req.query.level; // filter by level
   const category = req.query.category; // filter by category
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
 
-  let query = 'SELECT * FROM admin_events WHERE 1=1';
-  const params = [];
+  let query = 'SELECT * FROM admin_events WHERE org_id = ?';
+  const params = [req.user.orgId];
 
   if (level) {
     query += ' AND level = ?';
@@ -624,14 +627,14 @@ router.get('/events', (req, res) => {
   })));
 });
 
-// Clear events (optionally by level or category)
+// Clear events (optionally by level or category) — filtered by org
 router.delete('/events', (req, res) => {
   const db = getDb();
   const level = req.query.level;
   const category = req.query.category;
 
-  let query = 'DELETE FROM admin_events WHERE 1=1';
-  const params = [];
+  let query = 'DELETE FROM admin_events WHERE org_id = ?';
+  const params = [req.user.orgId];
 
   if (level) {
     query += ' AND level = ?';
@@ -647,14 +650,15 @@ router.delete('/events', (req, res) => {
   res.json({ ok: true, deleted: result.changes });
 });
 
-// Get event counts by level
+// Get event counts by level — filtered by org
 router.get('/events/counts', (req, res) => {
   const db = getDb();
   const counts = db.prepare(`
     SELECT level, COUNT(*) as count
     FROM admin_events
+    WHERE org_id = ?
     GROUP BY level
-  `).all();
+  `).all(req.user.orgId);
 
   const result = { error: 0, warning: 0, info: 0 };
   for (const row of counts) {

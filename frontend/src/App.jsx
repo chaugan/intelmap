@@ -15,6 +15,7 @@ import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
 import TimelapsePanel from './components/timelapse/TimelapsePanel.jsx';
 import ThemeErrorDialog from './components/common/ThemeErrorDialog.jsx';
+import SuperAdminPanel from './components/super-admin/SuperAdminPanel.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { useTimelapseStore } from './stores/useTimelapseStore.js';
@@ -178,6 +179,16 @@ export default function App() {
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
   const isDragging = isDraggingChat || isDraggingTimelapse;
+
+  // Super-admins see the management dashboard, not the map
+  if (user?.role === 'super_admin') {
+    return (
+      <>
+        <SuperAdminPanel />
+        <PasswordChangeDialog />
+      </>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">

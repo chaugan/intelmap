@@ -19,9 +19,9 @@ export function getProjectRole(userId, projectId) {
   // Owner always has admin
   if (project.user_id === userId) return 'admin';
 
-  // Check if user is a site admin
+  // Check if user is a site admin or super admin
   const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId);
-  if (user?.role === 'admin') return 'admin';
+  if (user?.role === 'admin' || user?.role === 'super_admin') return 'admin';
 
   // Check all groups this project is shared with
   const shares = db.prepare(

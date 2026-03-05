@@ -59,6 +59,14 @@ router.post('/login', (req, res) => {
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.locked) return res.status(403).json({ error: 'Account locked' });
 
+  // Check if user's org is soft-deleted (super_admins have org_id = NULL, skip check)
+  if (user.org_id) {
+    const org = db.prepare('SELECT deleted_at FROM organizations WHERE id = ?').get(user.org_id);
+    if (!org || org.deleted_at) {
+      return res.status(403).json({ error: 'Organization has been deactivated' });
+    }
+  }
+
   if (!verifyPassword(password, user.password_hash, user.salt)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -70,6 +78,7 @@ router.post('/login', (req, res) => {
     id: user.id,
     username: user.username,
     role: user.role,
+    orgId: user.org_id || null,
     mustChangePassword: !!user.must_change_password,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,
@@ -90,6 +99,7 @@ router.get('/me', optionalAuth, (req, res) => {
     id: req.user.id,
     username: req.user.username,
     role: req.user.role,
+    orgId: req.user.orgId || null,
     mustChangePassword: req.user.mustChangePassword,
     aiChatEnabled: req.user.aiChatEnabled,
     timelapseEnabled: req.user.timelapseEnabled,
@@ -129,6 +139,7 @@ router.post('/change-password', requireAuth, (req, res) => {
     id: user.id,
     username: user.username,
     role: user.role,
+    orgId: user.org_id || null,
     mustChangePassword: false,
     aiChatEnabled: !!user.ai_chat_enabled,
     timelapseEnabled: !!user.timelapse_enabled,

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import config, { setDbGetter } from '../config.js';
 import { hashPassword } from '../auth/passwords.js';
 import { runMigration } from './migrate.js';
+import { migrateOrgs } from './migrate-orgs.js';
 import { importAddresses } from './import-addresses.js';
 import { importPlaces } from './import-places.js';
 
@@ -83,6 +84,9 @@ export function initDb() {
   if (!themeCols.find(c => c.name === 'is_public')) {
     db.prepare("ALTER TABLE map_themes ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0").run();
   }
+
+  // Run organizations migration (one-time, idempotent)
+  migrateOrgs();
 
   // Import addresses in background (don't block startup)
   const csvPath = process.env.MATRIKKEL_CSV || path.join(config.dataDir, 'addresses', 'matrikkelenAdresse.csv');

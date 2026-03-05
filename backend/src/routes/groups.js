@@ -10,15 +10,16 @@ router.use(requireAuth);
 router.get('/', (req, res) => {
   const db = getDb();
   let groups;
-  if (req.user.role === 'admin') {
-    // Admin sees all groups
+  if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+    // Admin sees all groups in their org
     groups = db.prepare(
       `SELECT g.*, u.username as created_by_name,
               (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) as member_count
        FROM groups g
        LEFT JOIN users u ON g.created_by = u.id
+       WHERE g.org_id = ?
        ORDER BY g.name`
-    ).all();
+    ).all(req.user.orgId);
   } else {
     groups = db.prepare(
       `SELECT g.*, u.username as created_by_name, gm.role as my_role,
@@ -26,9 +27,9 @@ router.get('/', (req, res) => {
        FROM group_members gm
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.created_by = u.id
-       WHERE gm.user_id = ?
+       WHERE gm.user_id = ? AND g.org_id = ?
        ORDER BY g.name`
-    ).all(req.user.id);
+    ).all(req.user.id, req.user.orgId);
   }
   res.json(groups);
 });
@@ -63,7 +64,7 @@ router.post('/', requireAdmin, (req, res) => {
 
   const db = getDb();
   const id = crypto.randomUUID();
-  db.prepare('INSERT INTO groups (id, name, created_by) VALUES (?, ?, ?)').run(id, name, req.user.id);
+  db.prepare('INSERT INTO groups (id, name, created_by, org_id) VALUES (?, ?, ?, ?)').run(id, name, req.user.id, req.user.orgId);
   res.status(201).json({ id, name, created_by: req.user.id, member_count: 0 });
 });
 

@@ -30,7 +30,9 @@ export const useAuthStore = create((set, get) => ({
   checkSession: async () => {
     try {
       const res = await fetch(`${API}/me`, { credentials: 'include' });
-      const user = await res.json();
+      const data = await res.json();
+      // Normalize: ensure orgId is available
+      const user = data ? { ...data, orgId: data.orgId || null } : null;
       set({ user, loading: false });
       if (user) {
         if (!socket.connected) socket.connect();

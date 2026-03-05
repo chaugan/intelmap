@@ -16,7 +16,7 @@ const WORKER_PATH = path.join(__dirname, '..', 'ai', 'worker.mjs');
 const router = Router();
 
 router.get('/status', requireAuth, (req, res) => {
-  const hasKey = !!getAnthropicApiKey();
+  const hasKey = !!getAnthropicApiKey(req.user.orgId);
   res.json({
     hasKey,
     model: config.claudeModel,
@@ -96,7 +96,7 @@ router.post('/chat', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'AI chat not enabled for your account' });
   }
 
-  const apiKey = getAnthropicApiKey();
+  const apiKey = getAnthropicApiKey(req.user.orgId);
   if (!apiKey) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
   }

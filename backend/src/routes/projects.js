@@ -25,11 +25,12 @@ router.get('/', (req, res) => {
     LEFT JOIN users u ON p.user_id = u.id
     LEFT JOIN project_shares ps ON ps.project_id = p.id
     LEFT JOIN group_members gm ON gm.group_id = ps.group_id AND gm.user_id = ?
-    WHERE p.user_id = ?
-       OR gm.user_id IS NOT NULL
-       OR ? = 'admin'
+    WHERE p.org_id = ?
+      AND (p.user_id = ?
+           OR gm.user_id IS NOT NULL
+           OR ? = 'admin')
     ORDER BY p.updated_at DESC
-  `).all(userId, userId, req.user.role);
+  `).all(userId, req.user.orgId, userId, req.user.role);
 
   // Fetch shared groups for each project
   const getShares = db.prepare(`
@@ -66,8 +67,8 @@ router.post('/', (req, res) => {
   const db = getDb();
   const id = crypto.randomUUID();
   const settings = JSON.stringify(req.body.settings || {});
-  db.prepare('INSERT INTO projects_v2 (id, user_id, name, settings) VALUES (?, ?, ?, ?)')
-    .run(id, req.user.id, name, settings);
+  db.prepare('INSERT INTO projects_v2 (id, user_id, name, settings, org_id) VALUES (?, ?, ?, ?, ?)')
+    .run(id, req.user.id, name, settings, req.user.orgId);
 
   // Optionally share with a group on creation
   const groupId = req.body.groupId || null;

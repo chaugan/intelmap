@@ -1,3 +1,24 @@
+-- Organizations (top-level tenant)
+CREATE TABLE IF NOT EXISTS organizations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  created_by TEXT,
+  deleted_at TEXT,
+  delete_permanently_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Per-org configuration (API keys, feature flags)
+CREATE TABLE IF NOT EXISTS org_settings (
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (org_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
@@ -284,3 +305,7 @@ CREATE TABLE IF NOT EXISTS admin_events (
 CREATE INDEX IF NOT EXISTS idx_admin_events_level ON admin_events(level);
 CREATE INDEX IF NOT EXISTS idx_admin_events_category ON admin_events(category);
 CREATE INDEX IF NOT EXISTS idx_admin_events_created ON admin_events(created_at DESC);
+
+-- Organization indexes
+CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)
+  WHERE delete_permanently_at IS NOT NULL;

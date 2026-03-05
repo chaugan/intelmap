@@ -14,6 +14,7 @@ import { startPurgeScheduler } from './timelapse/purge-service.js';
 import { frameManager } from './monitoring/frame-manager.js';
 import { monitorService } from './monitoring/monitor-service.js';
 import { registerPublicRoutes } from './routes/monitoring.js';
+import { startOrgCleanupScheduler } from './services/org-cleanup.js';
 
 const app = express();
 const server = createServer(app);
@@ -56,6 +57,9 @@ startPurgeScheduler();
 frameManager.init();
 monitorService.init();
 monitorService.resumeMonitoring();
+
+// Initialize org cleanup scheduler (nightly purge of soft-deleted orgs)
+startOrgCleanupScheduler();
 
 server.listen(config.port, () => {
   console.log(`IntelMap backend listening on port ${config.port}`);

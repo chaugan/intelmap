@@ -22,6 +22,7 @@ import monitoringRouter from './monitoring.js';
 import wasosRouter from './wasos.js';
 import nvdbRouter from './nvdb.js';
 import infrastructureRouter from './infrastructure.js';
+import superAdminRouter from './super-admin.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -47,4 +48,5 @@ router.use('/monitoring', monitoringRouter);
 router.use('/wasos', wasosRouter);
 router.use('/nvdb', nvdbRouter);
 router.use('/infrastructure', infrastructureRouter);
+router.use('/super-admin', superAdminRouter);
 export default router;

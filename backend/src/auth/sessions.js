@@ -15,9 +15,14 @@ export function validateSession(sessionId) {
   if (!sessionId) return null;
   const db = getDb();
   const row = db.prepare(
-    `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.must_change_password, u.locked, u.ai_chat_enabled, u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled
-     FROM sessions s JOIN users u ON s.user_id = u.id
-     WHERE s.id = ? AND s.expires_at > datetime('now')`
+    `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.org_id,
+            u.must_change_password, u.locked, u.ai_chat_enabled,
+            u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled
+     FROM sessions s
+     JOIN users u ON s.user_id = u.id
+     LEFT JOIN organizations o ON u.org_id = o.id
+     WHERE s.id = ? AND s.expires_at > datetime('now')
+       AND (u.org_id IS NULL OR o.deleted_at IS NULL)`
   ).get(sessionId);
   if (!row) return null;
   return {
@@ -25,6 +30,7 @@ export function validateSession(sessionId) {
     id: row.user_id,
     username: row.username,
     role: row.role,
+    orgId: row.org_id,
     mustChangePassword: !!row.must_change_password,
     locked: !!row.locked,
     aiChatEnabled: !!row.ai_chat_enabled,

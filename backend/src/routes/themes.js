@@ -43,35 +43,36 @@ router.get('/', optionalAuth, (req, res) => {
        ORDER BY t.name`
     ).all();
   } else if (isAdmin) {
-    // Admin sees all themes
+    // Admin sees all themes in their org
     themes = db.prepare(
       `SELECT t.*, u.username as created_by_name
        FROM map_themes t
        LEFT JOIN users u ON t.created_by = u.id
+       WHERE t.org_id = ?
        ORDER BY t.name`
-    ).all();
+    ).all(req.user.orgId);
   } else {
     const userGroupIds = getUserGroupIds(db, userId);
     if (userGroupIds.length === 0) {
-      // User not in any groups - own themes + public themes
+      // User not in any groups - own themes + public themes (within org)
       themes = db.prepare(
         `SELECT t.*, u.username as created_by_name
          FROM map_themes t
          LEFT JOIN users u ON t.created_by = u.id
-         WHERE t.created_by = ? OR t.is_public = 1
+         WHERE t.org_id = ? AND (t.created_by = ? OR t.is_public = 1)
          ORDER BY t.name`
-      ).all(userId);
+      ).all(req.user.orgId, userId);
     } else {
-      // User's own themes + themes shared with their groups + public themes
+      // User's own themes + themes shared with their groups + public themes (within org)
       const placeholders = userGroupIds.map(() => '?').join(',');
       themes = db.prepare(
         `SELECT DISTINCT t.*, u.username as created_by_name
          FROM map_themes t
          LEFT JOIN users u ON t.created_by = u.id
          LEFT JOIN theme_shares ts ON t.id = ts.theme_id
-         WHERE t.created_by = ? OR ts.group_id IN (${placeholders}) OR t.is_public = 1
+         WHERE t.org_id = ? AND (t.created_by = ? OR ts.group_id IN (${placeholders}) OR t.is_public = 1)
          ORDER BY t.name`
-      ).all(userId, ...userGroupIds);
+      ).all(req.user.orgId, userId, ...userGroupIds);
     }
   }
 
@@ -151,7 +152,7 @@ router.post('/', requireAuth, (req, res) => {
   const db = getDb();
   const id = crypto.randomUUID();
 
-  db.prepare('INSERT INTO map_themes (id, name, state, created_by) VALUES (?, ?, ?, ?)').run(id, name, stateJson, req.user.id);
+  db.prepare('INSERT INTO map_themes (id, name, state, created_by, org_id) VALUES (?, ?, ?, ?, ?)').run(id, name, stateJson, req.user.id, req.user.orgId);
   res.status(201).json({ id, name, state: stateJson, created_by: req.user.id, isOwner: true, isPublic: false, sharedGroups: [] });
 });
 
