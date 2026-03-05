@@ -130,44 +130,40 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
           </button>
         </div>
 
-        {/* Report content (16:10 aspect ratio, centered) */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Report content — scrollable on mobile, 16:10 aspect on desktop */}
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
           <div
             ref={reportRef}
-            className={`${bg} ${text} rounded-lg shadow-2xl overflow-hidden`}
-            style={{ aspectRatio: '16/10', height: '100%', maxHeight: 'calc(95vh - 60px)' }}
+            className={`${bg} ${text} rounded-lg shadow-2xl overflow-y-auto lg:overflow-hidden w-full lg:w-auto weather-report-container`}
+            style={{ maxHeight: 'calc(95vh - 60px)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {loading && (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full min-h-[200px]">
                 <div className={`text-xl ${textMuted}`}>{t('weather.loading', lang)}</div>
               </div>
             )}
 
             {error && (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full min-h-[200px]">
                 <div className="text-red-400 text-lg">{error}</div>
               </div>
             )}
 
             {data && !loading && (
               <div
-                className="h-full p-4 overflow-hidden"
-                style={{
-                  display: 'grid',
-                  gridTemplateRows: 'auto 44% 1fr 100px auto',
-                  gap: '12px'
-                }}
+                className="p-3 lg:p-4 lg:h-full flex flex-col gap-3 lg:grid lg:gap-3"
+                style={{ gridTemplateRows: 'auto 44% 1fr 100px auto' }}
               >
                 {/* Row 1: Header (auto height) */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
 
-                {/* Row 2: Top section - 44% of container */}
-                <div className="overflow-hidden grid grid-cols-12 gap-3">
+                {/* Row 2: Top section — stacked on mobile, side-by-side on desktop */}
+                <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:overflow-hidden">
                   {/* Left column: Current conditions (top) + Aurora (bottom) */}
-                  <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
-                    {/* Current conditions - horizontal layout */}
-                    <div className="flex-1 min-h-0 overflow-hidden">
+                  <div className="lg:col-span-4 flex flex-col gap-3 lg:overflow-hidden">
+                    {/* Current conditions */}
+                    <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                       <CurrentConditionsHero
                         current={data.current}
                         snowDepth={data.snowDepth}
@@ -180,7 +176,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
 
                     {/* Aurora below current conditions */}
                     {showAurora && data.kp && (
-                      <div className="flex-1 min-h-0 overflow-hidden">
+                      <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                         <AuroraSectionHorizontal
                           kp={data.kp}
                           lang={lang}
@@ -193,7 +189,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
 
                   {/* Right: Trends */}
-                  <div className="col-span-8 overflow-hidden">
+                  <div className="lg:col-span-8 lg:overflow-hidden">
                     <TrendCharts
                       daily={data.daily}
                       lang={lang}
@@ -204,8 +200,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   </div>
                 </div>
 
-                {/* Row 3: 7-day forecast - fills remaining space (1fr) */}
-                <div className="overflow-hidden">
+                {/* Row 3: 7-day forecast */}
+                <div className="lg:overflow-hidden">
                   <SevenDayForecastHorizontal
                     daily={data.daily}
                     lang={lang}
@@ -216,8 +212,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
                   />
                 </div>
 
-                {/* Row 4: Moon and Sun - fixed 100px height */}
-                <div className="overflow-hidden grid grid-cols-2 gap-3">
+                {/* Row 4: Moon and Sun */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:overflow-hidden" style={{ minHeight: '100px' }}>
                   <MoonPhasesSection
                     daily={data.daily}
                     lang={lang}
@@ -261,17 +257,17 @@ function ReportHeader({ data, lang, accent, textMuted }) {
   const coords = `${data.location.lat.toFixed(4)}°N, ${data.location.lon.toFixed(4)}°E`;
 
   return (
-    <div className="flex items-center justify-between shrink-0">
-      <div>
-        <h1 className={`text-2xl font-bold ${accent}`}>
+    <div className="flex items-center justify-between shrink-0 gap-2">
+      <div className="min-w-0">
+        <h1 className={`text-lg lg:text-2xl font-bold ${accent} truncate`}>
           {locationName || coords}
         </h1>
         {locationName && (
-          <div className={`text-base ${textMuted}`}>{coords}</div>
+          <div className={`text-sm lg:text-base ${textMuted}`}>{coords}</div>
         )}
       </div>
-      <div className="text-right">
-        <div className={`text-base ${textMuted}`}>{dateStr}</div>
+      <div className="text-right shrink-0">
+        <div className={`text-sm lg:text-base ${textMuted}`}>{dateStr}</div>
       </div>
     </div>
   );
@@ -295,23 +291,23 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div className="flex items-center gap-2">
           {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
-          <div className={`text-3xl font-bold ${tempColor}`}>
+          <div className={`text-2xl lg:text-3xl font-bold ${tempColor}`}>
             {current.temperature?.toFixed(1)}°C
           </div>
-          <div className="ml-2">
+          <div className="ml-2 hidden sm:block">
             {current.symbol && (
               <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
             )}
           </div>
         </div>
-        <div className={`text-base font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+        <div className={`text-sm lg:text-base font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
           {lang === 'no' ? 'Været nå' : 'Weather now'}<br />
-          <span className={`text-sm font-normal ${textMuted}`}>{nowStr}</span>
+          <span className={`text-xs lg:text-sm font-normal ${textMuted}`}>{nowStr}</span>
         </div>
       </div>
 
-      {/* Stat boxes - 3 columns to fill more space */}
-      <div className="grid grid-cols-3 gap-2 flex-1">
+      {/* Stat boxes - 2 columns on mobile, 3 on larger screens */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 lg:gap-2 flex-1">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
         <StatBox icon={<WindChillIcon />} label={lang === 'no' ? 'Føles som' : 'Feels like'} value={current.feelsLike != null ? `${current.feelsLike.toFixed(1)}°C` : '-'} isDark={isDark} />
@@ -329,24 +325,25 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
 function StatBox({ icon, label, value, isDark }) {
   return (
-    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-2 text-center flex flex-col justify-center`}>
-      <div className="flex justify-center mb-1 opacity-70">{icon}</div>
-      <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
-      <div className="font-semibold text-base">{value}</div>
+    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-1.5 lg:p-2 text-center flex flex-col justify-center`}>
+      <div className="flex justify-center mb-0.5 lg:mb-1 opacity-70">{icon}</div>
+      <div className={`text-xs lg:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
+      <div className="font-semibold text-sm lg:text-base">{value}</div>
     </div>
   );
 }
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
   return (
-    <div className={`${bgCard} rounded-lg p-3 flex flex-col overflow-hidden`} style={{ height: '100%' }}>
+    <div className={`${bgCard} rounded-lg p-3 flex flex-col`} style={{ height: '100%' }}>
       <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
-      <div className="flex-1 flex gap-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex gap-2 min-h-0 overflow-x-auto lg:overflow-hidden">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
+          const dayNameShort = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
+          const dayNameLong = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
           const dateNum = date.getDate();
           const month = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { month: 'short' });
 
@@ -356,12 +353,15 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
           return (
             <div
               key={day.date}
-              className={`flex-1 flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50' : 'bg-blue-50') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
+              className={`flex-1 min-w-[70px] flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50' : 'bg-blue-50') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
               {/* Day and date */}
               <div className="text-center shrink-0">
-                <div className="text-lg font-bold">{dayName}</div>
-                <div className={`text-base ${textMuted}`}>{dateNum}. {month}</div>
+                <div className="text-sm lg:text-lg font-bold">
+                  <span className="lg:hidden">{dayNameShort}</span>
+                  <span className="hidden lg:inline">{dayNameLong}</span>
+                </div>
+                <div className={`text-xs lg:text-base ${textMuted}`}>{dateNum}. {month}</div>
               </div>
 
               {/* Weather icon */}
@@ -371,17 +371,17 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
 
               {/* Temperatures */}
               <div className="text-center shrink-0">
-                <div className={`text-2xl font-bold ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
-                <div className={`text-xl ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
+                <div className={`text-xl lg:text-2xl font-bold ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
+                <div className={`text-base lg:text-xl ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
               </div>
 
               {/* Extra info */}
               <div className="text-center space-y-0 shrink-0">
-                <div className={`text-base ${day.precipitation > 0.1 ? 'text-blue-400 font-medium' : textMuted}`}>
+                <div className={`text-xs lg:text-base ${day.precipitation > 0.1 ? 'text-blue-400 font-medium' : textMuted}`}>
                   {(day.precipitation || 0).toFixed(1)} mm
                 </div>
-                <div className={`text-base ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
-                <div className={`text-sm ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
+                <div className={`text-xs lg:text-base ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
+                <div className={`text-xs lg:text-sm ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
               </div>
             </div>
           );
@@ -721,14 +721,14 @@ function AuroraSectionHorizontal({ kp, lang, isDark, bgCard, textMuted }) {
           </div>
         </div>
         {/* Info text */}
-        <div className="flex-1">
-          <div className="flex items-baseline gap-2">
-            <h3 className={`text-base font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className={`text-sm lg:text-base font-semibold ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
               {lang === 'no' ? 'Nordlys' : 'Aurora'}
             </h3>
-            <span className="text-base font-bold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</span>
+            <span className="text-sm lg:text-base font-bold" style={{ color: getKpColor(currentKp) }}>{getActivityLevel(currentKp)}</span>
           </div>
-          <div className={`text-sm ${textMuted}`}>
+          <div className={`text-xs lg:text-sm ${textMuted}`}>
             Kp-indeks &bull; {lang === 'no' ? 'Synlig ned til' : 'Visible to'} ~{getVisibilityLat(currentKp)}°N
           </div>
         </div>
@@ -766,14 +766,14 @@ function MoonPhasesSection({ daily, lang, isDark, bgCard, textMuted }) {
       <h3 className={`text-sm font-semibold mb-1 shrink-0 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
         {lang === 'no' ? 'Månefaser' : 'Moon Phases'}
       </h3>
-      <div className="flex justify-between items-center flex-1">
+      <div className="flex items-center flex-1 overflow-x-auto gap-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
           const illum = day.moonphase != null ? getIllumination(day.moonphase) : null;
           return (
-            <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-xs font-medium">{dayName}</div>
+            <div key={day.date} className={`text-center flex-1 min-w-[48px] ${i === 0 ? 'font-medium' : ''}`}>
+              <div className="text-xs font-medium truncate">{dayName}</div>
               <div className="flex justify-center my-0.5">
                 {day.moonphase != null ? <MoonPhaseIcon degree={day.moonphase} size={28} /> : <div className="w-7 h-7 rounded-full bg-slate-600" />}
               </div>
@@ -801,13 +801,13 @@ function SunTimesSection({ daily, lang, isDark, bgCard, textMuted }) {
       <h3 className={`text-sm font-semibold mb-1 shrink-0 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
         {lang === 'no' ? 'Sol' : 'Sun'}
       </h3>
-      <div className="flex justify-between items-center flex-1">
+      <div className="flex items-center flex-1 overflow-x-auto gap-1">
         {daily.map((day, i) => {
           const date = new Date(day.date);
-          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'long' });
+          const dayName = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
           return (
-            <div key={day.date} className={`text-center flex-1 ${i === 0 ? 'font-medium' : ''}`}>
-              <div className="text-xs font-medium">{dayName}</div>
+            <div key={day.date} className={`text-center flex-1 min-w-[48px] ${i === 0 ? 'font-medium' : ''}`}>
+              <div className="text-xs font-medium truncate">{dayName}</div>
               <div className="text-xs text-yellow-500">{formatTime(day.sunrise)}</div>
               <div className="text-xs text-orange-500">{formatTime(day.sunset)}</div>
             </div>

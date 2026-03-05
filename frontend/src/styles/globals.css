@@ -106,6 +106,14 @@ html, body, #root {
   animation: pulse-color 5s ease-in-out infinite;
 }
 
+/* Weather report: 16:10 aspect on large screens only */
+@media (min-width: 1024px) {
+  .weather-report-container {
+    aspect-ratio: 16 / 10;
+    height: 100%;
+  }
+}
+
 /* Dark theme for MapLibre popups */
 .maplibregl-popup-content {
   background: #1e293b !important;
