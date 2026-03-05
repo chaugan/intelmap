@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDb } from './index.js';
+import { hashPassword } from '../auth/passwords.js';
 
 /**
  * Idempotent migration: adds org_id columns to all tenant-scoped tables,
@@ -60,6 +61,18 @@ export function migrateOrgs() {
   if (firstAdmin) {
     db.prepare("UPDATE users SET role = 'super_admin', org_id = NULL WHERE id = ?").run(firstAdmin.id);
     console.log(`[OrgMigration] Promoted "${firstAdmin.username}" to super_admin`);
+
+    // Check if Gunnerside still has an admin — if not, create one
+    const remainingAdmin = db.prepare("SELECT id FROM users WHERE role = 'admin' AND org_id = ?").get(orgId);
+    if (!remainingAdmin) {
+      const { hash, salt } = hashPassword('admin123');
+      const adminId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO users (id, username, password_hash, salt, role, org_id, must_change_password, ai_chat_enabled)
+        VALUES (?, 'gunnerside-admin', ?, ?, 'admin', ?, 1, 0)
+      `).run(adminId, hash, salt, orgId);
+      console.log('[OrgMigration] Created "gunnerside-admin" (password: admin123, must change on first login) as org admin for Gunnerside');
+    }
   }
 
   // 5. Copy per-org API keys from app_settings into org_settings
