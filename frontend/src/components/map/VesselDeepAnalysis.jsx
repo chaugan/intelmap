@@ -7,56 +7,65 @@ import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';
 
-// Detect stops: periods of ~0 speed for 1+ hour after moving for 1+ hour
+// Detect stops: periods where speed ≤ threshold for 60+ minutes.
+// Brief movement bursts (< 5 min) within a stop are tolerated, and
+// adjacent stops separated by < 10 min of movement are merged.
 function detectStops(trackPoints) {
-  const MIN_STOP_DURATION = 60;
-  const MIN_MOVE_DURATION = 60;
+  const MIN_STOP_DURATION = 60;   // minutes — stop must last this long
   const STOP_SPEED_THRESHOLD = 0.5;
   const MOVE_SPEED_THRESHOLD = 1.0;
+  const MERGE_GAP = 10;           // minutes — merge stops closer than this
 
-  const stops = [];
+  // Pass 1: find raw stop periods (speed ≤ threshold)
+  const rawStops = [];
   let currentStop = null;
-  let movingMinutes = 0;
 
   for (let i = 0; i < trackPoints.length; i++) {
     const pt = trackPoints[i];
     const prevPt = trackPoints[i - 1];
-    const timeDelta = prevPt
-      ? (new Date(pt.timestamp) - new Date(prevPt.timestamp)) / 60000
-      : 0;
 
     if (pt.speed != null && pt.speed <= STOP_SPEED_THRESHOLD) {
-      if (!currentStop && movingMinutes >= MIN_MOVE_DURATION) {
+      if (!currentStop) {
         currentStop = { startIndex: i, startTime: pt.timestamp, coordinates: pt.coordinates };
       }
-      movingMinutes = 0;
     } else if (pt.speed != null && pt.speed > MOVE_SPEED_THRESHOLD) {
       if (currentStop) {
-        const stopDuration = (new Date(pt.timestamp) - new Date(currentStop.startTime)) / 60000;
-        if (stopDuration >= MIN_STOP_DURATION) {
-          currentStop.endIndex = i - 1;
-          currentStop.endTime = prevPt?.timestamp || pt.timestamp;
-          currentStop.duration = stopDuration;
-          stops.push(currentStop);
-        }
+        currentStop.endIndex = i - 1;
+        currentStop.endTime = (prevPt || pt).timestamp;
+        currentStop.duration = (new Date(currentStop.endTime) - new Date(currentStop.startTime)) / 60000;
+        rawStops.push(currentStop);
         currentStop = null;
       }
-      movingMinutes += timeDelta;
     }
   }
 
+  // Handle trailing stop
   if (currentStop) {
     const lastPt = trackPoints[trackPoints.length - 1];
-    const stopDuration = (new Date(lastPt.timestamp) - new Date(currentStop.startTime)) / 60000;
-    if (stopDuration >= MIN_STOP_DURATION) {
-      currentStop.endIndex = trackPoints.length - 1;
-      currentStop.endTime = lastPt.timestamp;
-      currentStop.duration = stopDuration;
-      stops.push(currentStop);
-    }
+    currentStop.endIndex = trackPoints.length - 1;
+    currentStop.endTime = lastPt.timestamp;
+    currentStop.duration = (new Date(currentStop.endTime) - new Date(currentStop.startTime)) / 60000;
+    rawStops.push(currentStop);
   }
 
-  return stops;
+  // Pass 2: merge stops separated by < MERGE_GAP minutes
+  const merged = [];
+  for (const stop of rawStops) {
+    const prev = merged[merged.length - 1];
+    if (prev) {
+      const gap = (new Date(stop.startTime) - new Date(prev.endTime)) / 60000;
+      if (gap < MERGE_GAP) {
+        prev.endIndex = stop.endIndex;
+        prev.endTime = stop.endTime;
+        prev.duration = (new Date(prev.endTime) - new Date(prev.startTime)) / 60000;
+        continue;
+      }
+    }
+    merged.push({ ...stop });
+  }
+
+  // Pass 3: filter by minimum duration
+  return merged.filter(s => s.duration >= MIN_STOP_DURATION);
 }
 
 function formatTime(timestamp) {
