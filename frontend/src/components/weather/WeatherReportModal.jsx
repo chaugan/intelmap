@@ -36,17 +36,71 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const isDark = theme === 'dark';
   const showAurora = lat > 58;
 
-  // Force desktop layout for consistent PNG export regardless of screen size
+  // Force desktop landscape layout for consistent PNG export regardless of screen size
+  const EXPORT_W = 1600;
+  const EXPORT_H = 1000;
   const exportHtml2canvasOpts = {
     scale: 2,
     backgroundColor: isDark ? '#1e293b' : '#f8fafc',
     useCORS: true,
     allowTaint: true,
-    windowWidth: 1600,   // makes lg: breakpoints activate
-    windowHeight: 1000,
-    width: 1600,
-    height: 1000,
-    onclone: (_doc, el) => { el.classList.add('weather-export-mode'); },
+    windowWidth: EXPORT_W,
+    windowHeight: EXPORT_H,
+    width: EXPORT_W,
+    height: EXPORT_H,
+    onclone: (_doc, el) => {
+      // Force container to fixed landscape dimensions
+      Object.assign(el.style, {
+        width: `${EXPORT_W}px`, height: `${EXPORT_H}px`,
+        overflow: 'hidden', maxHeight: 'none',
+      });
+      // Force content to CSS grid with desktop row sizing
+      const content = el.querySelector('.wr-content');
+      if (content) Object.assign(content.style, {
+        display: 'grid', flexDirection: 'unset',
+        gridTemplateRows: 'auto 44% 1fr 100px auto',
+        gap: '12px', height: '100%', padding: '1rem',
+      });
+      // Force top section to 12-col grid
+      const top = el.querySelector('.wr-top-section');
+      if (top) Object.assign(top.style, {
+        display: 'grid', flexDirection: 'unset',
+        gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
+        overflow: 'hidden',
+      });
+      // Left col: span 4
+      const left = el.querySelector('.wr-left-col');
+      if (left) Object.assign(left.style, {
+        gridColumn: 'span 4', overflow: 'hidden',
+      });
+      if (left) left.querySelectorAll(':scope > div').forEach(d => Object.assign(d.style, {
+        flex: '1', minHeight: '0', overflow: 'hidden',
+      }));
+      // Right col: span 8
+      const right = el.querySelector('.wr-right-col');
+      if (right) Object.assign(right.style, {
+        gridColumn: 'span 8', overflow: 'hidden',
+      });
+      // Forecast: prevent horizontal scroll
+      const forecast = el.querySelector('.wr-forecast');
+      if (forecast) forecast.style.overflow = 'hidden';
+      const fcInner = forecast?.querySelector(':scope > div > div');
+      if (fcInner) fcInner.style.overflow = 'hidden';
+      // Moon/Sun: force 2-col grid
+      const moonSun = el.querySelector('.wr-moon-sun');
+      if (moonSun) Object.assign(moonSun.style, {
+        display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        overflow: 'hidden',
+      });
+      // Stat boxes: force 3-col
+      const statGrid = el.querySelector('.wr-stat-grid');
+      if (statGrid) Object.assign(statGrid.style, {
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.5rem',
+      });
+      // Day names: show long, hide short
+      el.querySelectorAll('.wr-day-short').forEach(s => s.style.display = 'none');
+      el.querySelectorAll('.wr-day-long').forEach(s => { s.style.display = 'inline'; s.style.fontSize = '1.125rem'; });
+    },
   };
 
   const handleSaveReport = async () => {
