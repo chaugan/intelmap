@@ -36,80 +36,46 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const isDark = theme === 'dark';
   const showAurora = lat > 58;
 
-  // Force desktop landscape layout for consistent PNG export regardless of screen size
-  const EXPORT_W = 1600;
-  const EXPORT_H = 1000;
-  const exportHtml2canvasOpts = {
-    scale: 2,
-    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-    useCORS: true,
-    allowTaint: true,
-    windowWidth: EXPORT_W,
-    windowHeight: EXPORT_H,
-    width: EXPORT_W,
-    height: EXPORT_H,
-    onclone: (_doc, el) => {
-      // Force container to fixed landscape dimensions
-      Object.assign(el.style, {
-        width: `${EXPORT_W}px`, height: `${EXPORT_H}px`,
-        overflow: 'hidden', maxHeight: 'none',
+  // Capture at desktop size: clone the element off-screen at fixed landscape
+  // dimensions, let the browser do a real reflow, then capture with html2canvas.
+  const captureAsDesktop = async () => {
+    const el = reportRef.current;
+    if (!el) return null;
+
+    // Deep-clone the report and place it off-screen at desktop size
+    const clone = el.cloneNode(true);
+    Object.assign(clone.style, {
+      position: 'fixed', left: '-9999px', top: '0',
+      width: '1600px', height: '1000px',
+      overflow: 'hidden', maxHeight: 'none', zIndex: '-1',
+    });
+    clone.classList.add('weather-export-mode');
+    document.body.appendChild(clone);
+
+    // Let the browser reflow at the new size
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+      return await html2canvas(clone, {
+        scale: 2,
+        backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+        useCORS: true,
+        allowTaint: true,
+        width: 1600,
+        height: 1000,
       });
-      // Force content to CSS grid with desktop row sizing
-      const content = el.querySelector('.wr-content');
-      if (content) Object.assign(content.style, {
-        display: 'grid', flexDirection: 'unset',
-        gridTemplateRows: 'auto 44% 1fr 100px auto',
-        gap: '12px', height: '100%', padding: '1rem',
-      });
-      // Force top section to 12-col grid
-      const top = el.querySelector('.wr-top-section');
-      if (top) Object.assign(top.style, {
-        display: 'grid', flexDirection: 'unset',
-        gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
-        overflow: 'hidden',
-      });
-      // Left col: span 4
-      const left = el.querySelector('.wr-left-col');
-      if (left) Object.assign(left.style, {
-        gridColumn: 'span 4', overflow: 'hidden',
-      });
-      if (left) left.querySelectorAll(':scope > div').forEach(d => Object.assign(d.style, {
-        flex: '1', minHeight: '0', overflow: 'hidden',
-      }));
-      // Right col: span 8
-      const right = el.querySelector('.wr-right-col');
-      if (right) Object.assign(right.style, {
-        gridColumn: 'span 8', overflow: 'hidden',
-      });
-      // Forecast: prevent horizontal scroll
-      const forecast = el.querySelector('.wr-forecast');
-      if (forecast) forecast.style.overflow = 'hidden';
-      const fcInner = forecast?.querySelector(':scope > div > div');
-      if (fcInner) fcInner.style.overflow = 'hidden';
-      // Moon/Sun: force 2-col grid
-      const moonSun = el.querySelector('.wr-moon-sun');
-      if (moonSun) Object.assign(moonSun.style, {
-        display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-        overflow: 'hidden',
-      });
-      // Stat boxes: force 3-col
-      const statGrid = el.querySelector('.wr-stat-grid');
-      if (statGrid) Object.assign(statGrid.style, {
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.5rem',
-      });
-      // Day names: show long, hide short
-      el.querySelectorAll('.wr-day-short').forEach(s => s.style.display = 'none');
-      el.querySelectorAll('.wr-day-long').forEach(s => { s.style.display = 'inline'; s.style.fontSize = '1.125rem'; });
-    },
+    } finally {
+      document.body.removeChild(clone);
+    }
   };
 
   const handleSaveReport = async () => {
     if (!reportRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, exportHtml2canvasOpts);
+      const canvas = await captureAsDesktop();
+      if (!canvas) return;
       const link = document.createElement('a');
-      // Use LOCAL time for filename, not UTC
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       link.download = `weather_report_${localTime}.png`;
@@ -126,13 +92,13 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
     if (!reportRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, exportHtml2canvasOpts);
+      const canvas = await captureAsDesktop();
+      if (!canvas) return;
       const imageData = canvas.toDataURL('image/png');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       const filename = `weather_report_${localTime}.png`;
 
-      // Close weather report first, then open upload dialog
       onClose();
       prepareWasosUpload(imageData, [lon, lat], filename);
     } catch (err) {
