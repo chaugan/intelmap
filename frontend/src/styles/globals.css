@@ -117,18 +117,21 @@ html, body, #root {
 /* Force desktop layout for PNG export (applied to cloned DOM by html2canvas) */
 .weather-export-mode {
   width: 1600px !important;
-  aspect-ratio: 16 / 10 !important;
+  height: 1000px !important;
   overflow: hidden !important;
   max-height: none !important;
 }
 .weather-export-mode .wr-content {
   display: grid !important;
+  flex-direction: unset !important;
   grid-template-rows: auto 44% 1fr 100px auto !important;
+  gap: 12px !important;
   height: 100% !important;
   padding: 1rem !important;
 }
 .weather-export-mode .wr-top-section {
   display: grid !important;
+  flex-direction: unset !important;
   grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
   overflow: hidden !important;
 }
@@ -148,6 +151,9 @@ html, body, #root {
 .weather-export-mode .wr-forecast {
   overflow: hidden !important;
 }
+.weather-export-mode .wr-forecast > div {
+  height: 100% !important;
+}
 .weather-export-mode .wr-forecast > div > div {
   overflow: hidden !important;
 }
@@ -158,9 +164,12 @@ html, body, #root {
 /* Show long day names, hide short ones */
 .weather-export-mode .wr-day-short { display: none !important; }
 .weather-export-mode .wr-day-long { display: inline !important; }
+/* Force desktop text sizes */
+.weather-export-mode .wr-day-long { font-size: 1.125rem !important; }
 /* Force 3-column stat grid */
 .weather-export-mode .wr-stat-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
 }
 
 /* Dark theme for MapLibre popups */
