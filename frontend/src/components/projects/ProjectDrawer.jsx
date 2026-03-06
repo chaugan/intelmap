@@ -123,7 +123,6 @@ export default function ProjectDrawer() {
       } else {
         await shareWithOrg(id, orgRole);
       }
-      setOrgShareId(null);
     } catch (err) {
       setError(err.message);
     }
