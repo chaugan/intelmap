@@ -346,7 +346,20 @@ async function fallbackToKartverket(q, res) {
     if (!response.ok) throw new Error(`Kartverket ${response.status}`);
     const data = await response.json();
 
-    const results = (data.navn || []).map((n) => {
+    // Deduplicate by stedsnummer, preferring Norwegian names
+    const allNames = data.navn || [];
+    const byStedsnr = new Map();
+    for (const n of allNames) {
+      const key = n.stedsnummer || n.skrivemåte;
+      const existing = byStedsnr.get(key);
+      if (!existing) {
+        byStedsnr.set(key, n);
+      } else if (isNorwegian(n.språk) && !isNorwegian(existing.språk)) {
+        byStedsnr.set(key, n);
+      }
+    }
+
+    const results = Array.from(byStedsnr.values()).map((n) => {
       const rep = n.representasjonspunkt || {};
       return {
         name: pickNorwegianName(n),
@@ -455,9 +468,21 @@ router.get('/reverse', async (req, res) => {
             const searchRes = await fetch(searchUrl);
             if (searchRes.ok) {
               const searchData = await searchRes.json();
-              const settlements = (searchData.navn || []).filter(n =>
+              const allSettlements = (searchData.navn || []).filter(n =>
                 n.navneobjekttype === 'Tettsted' || n.navneobjekttype === 'By'
               );
+              // Deduplicate by stedsnummer, preferring Norwegian over Sami
+              const byStedsnummer = new Map();
+              for (const s of allSettlements) {
+                const key = s.stedsnummer || s.skrivemåte;
+                const existing = byStedsnummer.get(key);
+                if (!existing) {
+                  byStedsnummer.set(key, s);
+                } else if (isNorwegian(s.språk) && !isNorwegian(existing.språk)) {
+                  byStedsnummer.set(key, s); // Replace Sami with Norwegian
+                }
+              }
+              const settlements = Array.from(byStedsnummer.values());
 
               let closestDist = Infinity;
               let closestSettlement = null;
