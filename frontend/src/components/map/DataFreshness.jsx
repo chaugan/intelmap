@@ -103,7 +103,7 @@ export default function DataFreshness() {
 
   return (
     <div
-      className="absolute bottom-4 left-4 z-[6] bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs cursor-pointer select-none"
+      className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs cursor-pointer select-none"
       onClick={toggle}
     >
       <div className="text-slate-500 font-semibold text-[10px] uppercase tracking-wide flex items-center gap-1.5">
