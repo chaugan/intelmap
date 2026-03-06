@@ -300,22 +300,28 @@ export default function ProjectDrawer() {
                   )}
                 </div>
 
-                {/* Expand layers */}
+                {/* Expand / collapse */}
                 <button
                   onClick={() => setExpandedProject(expanded ? null : p.id)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 text-base"
+                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300"
+                  title={expanded ? t('general.close', lang) : t('drawer.expand', lang)}
                 >
-                  {expanded ? '\u25B4' : '\u25BE'}
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <circle cx="4" cy="10" r="1.5" />
+                    <circle cx="10" cy="10" r="1.5" />
+                    <circle cx="16" cy="10" r="1.5" />
+                  </svg>
                 </button>
               </div>
 
-              {/* Expanded: layer list */}
-              {expanded && projData && (
+              {/* Expanded section */}
+              {expanded && (
                 <div className="px-6 pb-2.5 space-y-1">
-                  {projData.layers.length === 0 && (
+                  {/* Layers (only when project is loaded) */}
+                  {projData && projData.layers.length === 0 && (
                     <p className="text-xs text-slate-600">{t('layers.noLayers', lang)}</p>
                   )}
-                  {projData.layers.map((layer) => {
+                  {projData && projData.layers.map((layer) => {
                     const vis = layerVisibility[layer.id] !== false;
                     const isActiveLayer = active && activeLayerId === layer.id;
                     const mCount = projData.markers.filter(m => m.layerId === layer.id).length;
@@ -361,7 +367,7 @@ export default function ProjectDrawer() {
                     );
                   })}
                   {/* Counts for unassigned items */}
-                  {(() => {
+                  {projData && (() => {
                     const mNoLayer = projData.markers.filter(m => !m.layerId).length;
                     const dNoLayer = projData.drawings.filter(d => !d.layerId).length;
                     if (mNoLayer + dNoLayer === 0) return null;
