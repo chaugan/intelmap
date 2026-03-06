@@ -68,7 +68,7 @@ export default function SatelliteInfo({ map }) {
   if (!isSatellite || !info) return null;
 
   return (
-    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-full flex items-center gap-2 pointer-events-none z-10 whitespace-nowrap">
+    <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-full flex items-center gap-2 pointer-events-none whitespace-nowrap">
       <span className="font-semibold">{info.date}</span>
       <span className="text-slate-400">|</span>
       <span>{info.resolution}m</span>

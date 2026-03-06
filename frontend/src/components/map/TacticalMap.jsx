@@ -715,8 +715,9 @@ export default function TacticalMap() {
       <InfrastructureLayer mapRef={mapInstance} />
       {auroraVisible && <AuroraOverlay />}
       {windVisible && <WindOverlay />}
-      {/* Bottom-left: WMS toggles + data sources */}
+      {/* Bottom-left: satellite info + WMS toggles + data sources */}
       <div className="absolute bottom-4 left-4 z-[6] flex flex-col gap-1.5 items-start">
+        <SatelliteInfo map={mapInstance} />
         <WmsOverlayToggles />
         <DataFreshness />
       </div>
@@ -878,7 +879,6 @@ export default function TacticalMap() {
         />
       )}
       <MeasuringTool />
-      <SatelliteInfo map={mapInstance} />
       {/* Vessel Activity Box Drawing */}
       {vesselsVisible && <VesselActivityBox mapRef={mapInstance} />}
       {/* Vessel Activity Panel */}
