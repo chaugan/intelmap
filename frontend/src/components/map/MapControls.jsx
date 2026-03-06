@@ -47,9 +47,11 @@ export default function MapControls() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { longitude, latitude } = pos.coords;
-        flyTo(longitude, latitude, 14);
-        setUserLocation({ longitude, latitude });
+        const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        if (!isFinite(lng) || !isFinite(lat)) { setLocating(false); return; }
+        flyTo(lng, lat, 14);
+        setUserLocation({ longitude: lng, latitude: lat });
         setLocating(false);
       },
       () => setLocating(false),

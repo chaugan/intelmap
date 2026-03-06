@@ -419,7 +419,7 @@ export const useMapStore = create((set) => ({
   },
   flyTo: (lon, lat, zoom) => set((s) => {
     const map = s.mapRef;
-    if (map) {
+    if (map && isFinite(lon) && isFinite(lat)) {
       map.flyTo({ center: [lon, lat], zoom: zoom || 13, duration: 2000 });
     }
     return {};
