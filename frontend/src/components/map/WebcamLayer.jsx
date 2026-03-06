@@ -472,8 +472,23 @@ function formatNow() {
 }
 
 function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
-  const directions = camera.properties.directions || null;
-  const [activeDir, setActiveDir] = useState(0);
+  const allCameras = useWebcamStore((s) => s.cameras);
+  // Find sibling cameras at same coordinates (bidirectional)
+  const [camLon, camLat] = camera.geometry.coordinates;
+  const siblings = useMemo(() => {
+    return allCameras.filter((c) => {
+      const [lon, lat] = c.geometry.coordinates;
+      return lon === camLon && lat === camLat;
+    });
+  }, [allCameras, camLon, camLat]);
+  const directions = siblings.length > 1 ? siblings.map((c) => ({
+    id: c.properties.id,
+    direction: c.properties.direction,
+    imageUrl: c.properties.imageUrl,
+  })) : null;
+  const [activeDir, setActiveDir] = useState(() =>
+    directions ? Math.max(0, directions.findIndex((d) => d.id === camera.properties.id)) : 0
+  );
   const activeId = directions ? directions[activeDir]?.id : camera.properties.id;
   const activeDirection = directions ? directions[activeDir]?.direction : camera.properties.direction;
   const id = activeId;
