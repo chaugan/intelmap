@@ -301,32 +301,50 @@ router.delete('/ai-config', (req, res) => {
 
 // --- Export Configuration (security markings) ---
 
-const VALID_MARKINGS = ['none', 'internt', 'tjenstlig'];
+const VALID_MARKINGS = ['none', 'internt', 'tjenstlig', 'custom'];
 const VALID_CORNERS = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-right'];
+
+function sanitizeMarkingText(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/[<>&"'/\\]/g, '').trim().slice(0, 50);
+}
 
 router.get('/export-config', (req, res) => {
   const db = getDb();
   res.json({
     marking: getOrgSetting(db, req.user.orgId, 'export_marking') || 'none',
     corner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-center',
+    customText: getOrgSetting(db, req.user.orgId, 'export_marking_text') || '',
   });
 });
 
 router.put('/export-config', (req, res) => {
-  const { marking, corner } = req.body;
+  const { marking, corner, customText } = req.body;
   if (marking && !VALID_MARKINGS.includes(marking)) {
     return res.status(400).json({ error: 'Invalid marking value' });
   }
   if (corner && !VALID_CORNERS.includes(corner)) {
     return res.status(400).json({ error: 'Invalid corner value' });
   }
+  if (marking === 'custom') {
+    const cleaned = sanitizeMarkingText(customText);
+    if (!cleaned) {
+      return res.status(400).json({ error: 'Custom text is required (max 50 chars)' });
+    }
+  }
   const db = getDb();
   if (marking === 'none') {
     deleteOrgSetting(db, req.user.orgId, 'export_marking');
     deleteOrgSetting(db, req.user.orgId, 'export_marking_corner');
+    deleteOrgSetting(db, req.user.orgId, 'export_marking_text');
   } else {
     if (marking) setOrgSetting(db, req.user.orgId, 'export_marking', marking);
     if (corner) setOrgSetting(db, req.user.orgId, 'export_marking_corner', corner);
+    if (marking === 'custom') {
+      setOrgSetting(db, req.user.orgId, 'export_marking_text', sanitizeMarkingText(customText));
+    } else {
+      deleteOrgSetting(db, req.user.orgId, 'export_marking_text');
+    }
   }
   res.json({ ok: true });
 });
@@ -335,6 +353,7 @@ router.delete('/export-config', (req, res) => {
   const db = getDb();
   deleteOrgSetting(db, req.user.orgId, 'export_marking');
   deleteOrgSetting(db, req.user.orgId, 'export_marking_corner');
+  deleteOrgSetting(db, req.user.orgId, 'export_marking_text');
   res.json({ ok: true });
 });
 

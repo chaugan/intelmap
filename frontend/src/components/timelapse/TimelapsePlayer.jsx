@@ -352,7 +352,7 @@ export default function TimelapsePlayer() {
 
     const user = useAuthStore.getState().user;
     if (user?.exportMarking && user.exportMarking !== 'none') {
-      drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+      drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner, user.exportMarkingText);
     }
 
     canvas.toBlob((blob) => {

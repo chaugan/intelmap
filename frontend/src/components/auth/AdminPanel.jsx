@@ -2035,6 +2035,7 @@ const MARKING_OPTIONS = [
   { value: 'none', label: { no: 'Ingen', en: 'None' }, color: null },
   { value: 'internt', label: { no: 'INTERNT', en: 'INTERNT' }, color: '#000000' },
   { value: 'tjenstlig', label: { no: 'TJENSTLIG', en: 'TJENSTLIG' }, color: '#16a34a' },
+  { value: 'custom', label: { no: 'Egendefinert', en: 'Custom' }, color: '#1d4ed8' },
 ];
 
 const CORNER_OPTIONS = [
@@ -2046,7 +2047,7 @@ const CORNER_OPTIONS = [
 ];
 
 function ExportConfigTab({ lang }) {
-  const [config, setConfig] = useState({ marking: 'none', corner: 'top-center' });
+  const [config, setConfig] = useState({ marking: 'none', corner: 'top-center', customText: '' });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
@@ -2078,7 +2079,7 @@ function ExportConfigTab({ lang }) {
     try {
       const res = await fetch(`${API}/export-config`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) { const data = await res.json(); setError(data.error); return; }
-      setConfig({ marking: 'none', corner: 'top-center' });
+      setConfig({ marking: 'none', corner: 'top-center', customText: '' });
       setStatus(lang === 'no' ? 'Innstillinger tilbakestilt' : 'Settings reset');
       useAuthStore.getState().checkSession();
     } catch (err) { setError(err.message); }
@@ -2121,6 +2122,22 @@ function ExportConfigTab({ lang }) {
           </div>
         </div>
 
+        {config.marking === 'custom' && (
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-400">
+              {lang === 'no' ? 'Egendefinert tekst (maks 50 tegn)' : 'Custom text (max 50 chars)'}
+            </label>
+            <input
+              type="text"
+              maxLength={50}
+              value={config.customText}
+              onChange={(e) => setConfig((c) => ({ ...c, customText: e.target.value.replace(/[<>&"'/\\]/g, '') }))}
+              placeholder={lang === 'no' ? 'Skriv inn merkingstekst...' : 'Enter marking text...'}
+              className="w-full max-w-xs px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+        )}
+
         {config.marking !== 'none' && (
           <div className="space-y-2">
             <label className="block text-xs text-slate-400">
@@ -2161,7 +2178,7 @@ function ExportConfigTab({ lang }) {
                      { bottom: 8, right: 8 }),
                 }}
               >
-                {config.marking.toUpperCase()}
+                {config.marking === 'custom' ? (config.customText || 'CUSTOM').toUpperCase() : config.marking.toUpperCase()}
               </div>
             </div>
           </div>

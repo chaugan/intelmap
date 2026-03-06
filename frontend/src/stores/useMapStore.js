@@ -3,15 +3,15 @@ import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
 import { useAuthStore } from './useAuthStore.js';
 
-export function drawSecurityMarking(ctx, width, height, marking, corner) {
+export function drawSecurityMarking(ctx, width, height, marking, corner, customText) {
   if (!marking || marking === 'none') return;
 
   // Reset any transform left by html2canvas (scale:2 etc.)
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const label = marking.toUpperCase();
-  const borderColor = marking === 'internt' ? '#000000' : '#16a34a';
+  const label = marking === 'custom' ? (customText || 'CUSTOM').toUpperCase() : marking.toUpperCase();
+  const borderColor = marking === 'internt' ? '#000000' : marking === 'tjenstlig' ? '#16a34a' : '#1d4ed8';
   const fontSize = Math.max(18, Math.round(height * 0.025));
   const margin = Math.round(height * 0.03);
   const padX = Math.round(fontSize * 0.8);
@@ -446,7 +446,7 @@ export const useMapStore = create((set) => ({
           const user = useAuthStore.getState().user;
           if (user?.exportMarking && user.exportMarking !== 'none') {
             const ctx = canvas.getContext('2d');
-            drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+            drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner, user.exportMarkingText);
           }
 
           canvas.toBlob((blob) => {

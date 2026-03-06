@@ -77,7 +77,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
       if (!canvas) return;
       if (user?.exportMarking && user.exportMarking !== 'none') {
         const ctx = canvas.getContext('2d');
-        drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+        drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner, user.exportMarkingText);
       }
       const link = document.createElement('a');
       const now = new Date();

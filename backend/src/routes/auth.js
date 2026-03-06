@@ -96,6 +96,7 @@ router.post('/login', (req, res) => {
     infraviewEnabled: !!user.infraview_enabled,
     exportMarking: getOrgSetting(db, user.org_id, 'export_marking') || 'none',
     exportMarkingCorner: getOrgSetting(db, user.org_id, 'export_marking_corner') || 'top-center',
+    exportMarkingText: getOrgSetting(db, user.org_id, 'export_marking_text') || '',
   });
 });
 
@@ -121,6 +122,7 @@ router.get('/me', optionalAuth, (req, res) => {
     infraviewEnabled: req.user.infraviewEnabled,
     exportMarking: getOrgSetting(db, req.user.orgId, 'export_marking') || 'none',
     exportMarkingCorner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-center',
+    exportMarkingText: getOrgSetting(db, req.user.orgId, 'export_marking_text') || '',
   });
 });
 
@@ -171,6 +173,7 @@ router.post('/change-password', requireAuth, (req, res) => {
     infraviewEnabled: !!user.infraview_enabled,
     exportMarking: getOrgSetting(db, user.org_id, 'export_marking') || 'none',
     exportMarkingCorner: getOrgSetting(db, user.org_id, 'export_marking_corner') || 'top-center',
+    exportMarkingText: getOrgSetting(db, user.org_id, 'export_marking_text') || '',
   });
 });
 
