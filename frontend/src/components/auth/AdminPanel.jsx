@@ -647,14 +647,25 @@ function StabilityConfigTab({ lang }) {
   const [newKey, setNewKey] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [images, setImages] = useState([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
-  useEffect(() => { fetchConfig(); }, []);
+  useEffect(() => { fetchConfig(); fetchImages(); }, []);
 
   async function fetchConfig() {
     try {
       const res = await fetch(`${API}/stability-config`, { credentials: 'include' });
       if (res.ok) setConfig(await res.json());
     } catch {}
+  }
+
+  async function fetchImages() {
+    setImagesLoading(true);
+    try {
+      const res = await fetch(`${API}/upscaled-images`, { credentials: 'include' });
+      if (res.ok) setImages(await res.json());
+    } catch {}
+    setImagesLoading(false);
   }
 
   async function saveKey(e) {
@@ -681,6 +692,21 @@ function StabilityConfigTab({ lang }) {
       setStatus(lang === 'no' ? 'API-n\u00f8kkel fjernet' : 'API key removed');
       fetchConfig();
     } catch (err) { setError(err.message); }
+  }
+
+  async function deleteImage(id) {
+    try {
+      const res = await fetch(`${API}/upscaled-images/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) setImages(prev => prev.filter(img => img.id !== id));
+    } catch {}
+  }
+
+  async function deleteAllImages() {
+    if (!confirm(lang === 'no' ? 'Slett alle oppskalerte bilder?' : 'Delete all upscaled images?')) return;
+    try {
+      const res = await fetch(`${API}/upscaled-images`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) setImages([]);
+    } catch {}
   }
 
   if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
@@ -742,6 +768,72 @@ function StabilityConfigTab({ lang }) {
             ? 'Brukes til \u00e5 oppskalere webkamerabilder (tidslapse og overv\u00e5king). Maks 1 megapiksel inndata.'
             : 'Used to upscale webcam images (timelapse and monitoring). Max 1 megapixel input.'}
         </p>
+      </div>
+
+      {/* Upscaled images management */}
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-orange-400">
+            {lang === 'no' ? 'Oppskalerte bilder' : 'Upscaled Images'}
+            {images.length > 0 && <span className="text-slate-500 font-normal ml-2">({images.length})</span>}
+          </h3>
+          {images.length > 0 && (
+            <button
+              onClick={deleteAllImages}
+              className="px-2 py-1 bg-red-800 hover:bg-red-700 rounded text-xs transition-colors"
+            >
+              {lang === 'no' ? 'Slett alle' : 'Delete all'}
+            </button>
+          )}
+        </div>
+
+        {imagesLoading ? (
+          <p className="text-slate-500 text-sm">{t('general.loading', lang)}</p>
+        ) : images.length === 0 ? (
+          <p className="text-slate-500 text-sm">
+            {lang === 'no' ? 'Ingen oppskalerte bilder' : 'No upscaled images'}
+          </p>
+        ) : (
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {images.map((img) => (
+              <div key={img.id} className="flex items-center justify-between py-1.5 px-2 bg-slate-800 rounded text-sm">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className={`px-1.5 py-0.5 rounded text-xs ${img.source_type === 'timelapse' ? 'bg-cyan-900 text-cyan-300' : 'bg-violet-900 text-violet-300'}`}>
+                    {img.source_type === 'timelapse' ? 'TL' : 'DET'}
+                  </span>
+                  <span className="text-slate-300 truncate" title={img.source_key}>{img.source_key}</span>
+                  <span className="text-slate-500 text-xs shrink-0">{img.username}</span>
+                  <span className="text-slate-600 text-xs shrink-0">
+                    {new Date(img.created_at).toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <a
+                    href={`/api/upscale/image/${img.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors"
+                    title={lang === 'no' ? 'Vis' : 'View'}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </a>
+                  <button
+                    onClick={() => deleteImage(img.id)}
+                    className="px-1.5 py-0.5 bg-red-800 hover:bg-red-700 rounded text-xs transition-colors"
+                    title={t('general.delete', lang)}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

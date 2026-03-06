@@ -339,6 +339,49 @@ router.delete('/stability-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// List upscaled images for this org
+router.get('/upscaled-images', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT ui.id, ui.source_type, ui.source_key, ui.created_at, u.username
+    FROM upscaled_images ui
+    JOIN users u ON ui.user_id = u.id
+    WHERE ui.org_id = ?
+    ORDER BY ui.created_at DESC
+  `).all(req.user.orgId);
+  res.json(rows);
+});
+
+// Delete a single upscaled image
+router.delete('/upscaled-images/:id', (req, res) => {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM upscaled_images WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+
+  // Delete file from disk
+  if (row.upscaled_path && fs.existsSync(row.upscaled_path)) {
+    try { fs.unlinkSync(row.upscaled_path); } catch {}
+  }
+
+  db.prepare('DELETE FROM upscaled_images WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Delete all upscaled images for this org
+router.delete('/upscaled-images', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare('SELECT upscaled_path FROM upscaled_images WHERE org_id = ?').all(req.user.orgId);
+
+  for (const row of rows) {
+    if (row.upscaled_path && fs.existsSync(row.upscaled_path)) {
+      try { fs.unlinkSync(row.upscaled_path); } catch {}
+    }
+  }
+
+  const result = db.prepare('DELETE FROM upscaled_images WHERE org_id = ?').run(req.user.orgId);
+  res.json({ ok: true, deleted: result.changes });
+});
+
 // --- Export Configuration (security markings) ---
 
 const VALID_MARKINGS = ['none', 'internt', 'tjenstlig', 'custom'];
