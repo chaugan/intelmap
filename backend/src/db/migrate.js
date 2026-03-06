@@ -53,6 +53,26 @@ export function runMigration() {
     console.log('Added is_paused column to monitor_subscriptions table');
   }
 
+  // MFA columns on users
+  if (!userCols.some(c => c.name === 'totp_secret')) {
+    db.prepare("ALTER TABLE users ADD COLUMN totp_secret TEXT").run();
+    db.prepare("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE users ADD COLUMN mfa_backup_codes TEXT").run();
+    console.log('Added MFA columns to users table');
+  }
+
+  // Feature gating columns on organizations
+  const orgCols = db.prepare("PRAGMA table_info(organizations)").all();
+  if (!orgCols.some(c => c.name === 'feature_ai_chat')) {
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_ai_chat INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_wasos INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_infraview INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_upscale INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_mfa INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN mfa_required INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added feature gating columns to organizations table');
+  }
+
   // Upscale column
   if (!userCols.some(c => c.name === 'upscale_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN upscale_enabled INTEGER NOT NULL DEFAULT 0").run();

@@ -8,6 +8,7 @@ import AiChatPanel from './components/chat/AiChatPanel.jsx';
 import UserMenu from './components/auth/UserMenu.jsx';
 import LoginDialog from './components/auth/LoginDialog.jsx';
 import PasswordChangeDialog from './components/auth/PasswordChangeDialog.jsx';
+import SecurityDialog from './components/auth/SecurityDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
 import WasosLoginDialog from './components/auth/WasosLoginDialog.jsx';
 import WasosUploadDialog from './components/auth/WasosUploadDialog.jsx';
@@ -37,6 +38,7 @@ export default function App() {
         <SuperAdminPanel />
         <LoginDialog />
         <PasswordChangeDialog />
+        <SecurityDialog />
       </>
     );
   }
@@ -338,6 +340,7 @@ function MapApp({ user }) {
       {/* Auth modals */}
       <LoginDialog />
       <PasswordChangeDialog />
+      <SecurityDialog />
       <AdminPanel />
       <WasosLoginDialog />
       <WasosUploadDialog />

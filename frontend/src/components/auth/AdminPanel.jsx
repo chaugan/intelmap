@@ -48,9 +48,11 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'groups'} onClick={() => setActiveTab('groups')}>
                 {t('groups.title', lang)}
               </TabButton>
-              <TabButton active={activeTab === 'ai'} onClick={() => setActiveTab('ai')}>
-                AI
-              </TabButton>
+              {currentUser?.orgFeatureAiChat && (
+                <TabButton active={activeTab === 'ai'} onClick={() => setActiveTab('ai')}>
+                  AI
+                </TabButton>
+              )}
               <TabButton active={activeTab === 'maps'} onClick={() => setActiveTab('maps')}>
                 {lang === 'no' ? 'Kart' : 'Maps'}
               </TabButton>
@@ -69,9 +71,11 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'events'} onClick={() => setActiveTab('events')}>
                 {lang === 'no' ? 'Hendelser' : 'Events'}
               </TabButton>
-              <TabButton active={activeTab === 'stability'} onClick={() => setActiveTab('stability')}>
-                {lang === 'no' ? 'Oppskaler' : 'Upscale'}
-              </TabButton>
+              {currentUser?.orgFeatureUpscale && (
+                <TabButton active={activeTab === 'stability'} onClick={() => setActiveTab('stability')}>
+                  {lang === 'no' ? 'Oppskaler' : 'Upscale'}
+                </TabButton>
+              )}
               <TabButton active={activeTab === 'export'} onClick={() => setActiveTab('export')}>
                 {lang === 'no' ? 'Eksport' : 'Export'}
               </TabButton>
@@ -199,8 +203,47 @@ function UsersTab({ lang, currentUser }) {
     else { const data = await res.json(); setError(data.error); }
   }
 
+  const [mfaRequired, setMfaRequired] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.orgFeatureMfa) {
+      setMfaRequired(!!currentUser.orgMfaRequired);
+    }
+  }, [currentUser?.orgFeatureMfa, currentUser?.orgMfaRequired]);
+
+  async function toggleMfaRequired() {
+    try {
+      const res = await fetch(`${API}/toggle-mfa-required`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setMfaRequired(data.required);
+      }
+    } catch {}
+  }
+
   return (
     <div className="space-y-4">
+      {currentUser?.orgFeatureMfa && (
+        <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded border border-slate-600">
+          <svg className="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <div className="flex-1">
+            <span className="text-sm text-slate-200">
+              {lang === 'no' ? 'Påkrev MFA for alle brukere' : 'Require MFA for all users'}
+            </span>
+          </div>
+          <button
+            onClick={toggleMfaRequired}
+            className={`px-3 py-1 rounded text-xs transition-colors ${
+              mfaRequired ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            {mfaRequired ? (lang === 'no' ? 'Påkrevd' : 'Required') : (lang === 'no' ? 'Av' : 'Off')}
+          </button>
+        </div>
+      )}
+
       <form onSubmit={createUser} className="flex gap-2 items-end">
         <div className="flex-1">
           <label className="block text-xs text-slate-400 mb-1">{t('auth.username', lang)}</label>
@@ -228,11 +271,11 @@ function UsersTab({ lang, currentUser }) {
               <th className="pb-2">{t('auth.username', lang)}</th>
               <th className="pb-2">{t('admin.role', lang)}</th>
               <th className="pb-2">{t('admin.status', lang)}</th>
-              <th className="pb-2">AI Chat</th>
+              {currentUser?.orgFeatureAiChat && <th className="pb-2">AI Chat</th>}
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
-              <th className="pb-2">WaSOS</th>
-              <th className="pb-2">InfraView</th>
-              <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>
+              {currentUser?.orgFeatureWasos && <th className="pb-2">WaSOS</th>}
+              {currentUser?.orgFeatureInfraview && <th className="pb-2">InfraView</th>}
+              {currentUser?.orgFeatureUpscale && <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>}
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
@@ -252,36 +295,44 @@ function UsersTab({ lang, currentUser }) {
                     : u.mustChangePassword ? <span className="text-amber-400">{t('admin.mustChange', lang)}</span>
                     : <span className="text-emerald-400">{t('admin.active', lang)}</span>}
                 </td>
-                <td className="py-2">
-                  <button onClick={() => toggleAiChat(u.id)}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.aiChatEnabled ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                    {u.aiChatEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
-                  </button>
-                </td>
+                {currentUser?.orgFeatureAiChat && (
+                  <td className="py-2">
+                    <button onClick={() => toggleAiChat(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.aiChatEnabled ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.aiChatEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
                 <td className="py-2">
                   <button onClick={() => toggleTimelapse(u.id)}
                     className={`px-2 py-0.5 rounded text-xs transition-colors ${u.timelapseEnabled ? 'bg-cyan-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                     {u.timelapseEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                   </button>
                 </td>
-                <td className="py-2">
-                  <button onClick={() => toggleWasos(u.id)}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.wasosEnabled ? 'bg-purple-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                    {u.wasosEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
-                  </button>
-                </td>
-                <td className="py-2">
-                  <button onClick={() => toggleInfraview(u.id)}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.infraviewEnabled ? 'bg-indigo-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                    {u.infraviewEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
-                  </button>
-                </td>
-                <td className="py-2">
-                  <button onClick={() => toggleUpscale(u.id)}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.upscaleEnabled ? 'bg-orange-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                    {u.upscaleEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
-                  </button>
-                </td>
+                {currentUser?.orgFeatureWasos && (
+                  <td className="py-2">
+                    <button onClick={() => toggleWasos(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.wasosEnabled ? 'bg-purple-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.wasosEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
+                {currentUser?.orgFeatureInfraview && (
+                  <td className="py-2">
+                    <button onClick={() => toggleInfraview(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.infraviewEnabled ? 'bg-indigo-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.infraviewEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
+                {currentUser?.orgFeatureUpscale && (
+                  <td className="py-2">
+                    <button onClick={() => toggleUpscale(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.upscaleEnabled ? 'bg-orange-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.upscaleEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
                 <td className="py-2">
                   <div className="text-xs text-slate-400 space-y-0.5">
                     <div title={lang === 'no' ? 'Tidslapse eksporter' : 'Timelapse exports'}>

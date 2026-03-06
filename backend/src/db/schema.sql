@@ -332,6 +332,33 @@ CREATE TABLE IF NOT EXISTS upscaled_images (
   UNIQUE(source_type, source_key)
 );
 
+-- WebAuthn credentials (passkeys / security keys)
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT,
+  name TEXT NOT NULL DEFAULT 'Security Key',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
+
+-- WebAuthn challenges (temporary, short-lived)
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+  user_id TEXT PRIMARY KEY,
+  challenge TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+-- MFA pending tokens (short-lived, for 2-step login)
+CREATE TABLE IF NOT EXISTS mfa_pending (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0
+);
+
 -- Organization indexes
 CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)
   WHERE delete_permanently_at IS NOT NULL;

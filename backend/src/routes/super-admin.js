@@ -34,6 +34,12 @@ router.get('/orgs', (req, res) => {
     deletePermanentlyAt: o.delete_permanently_at,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
+    featureAiChat: !!o.feature_ai_chat,
+    featureWasos: !!o.feature_wasos,
+    featureInfraview: !!o.feature_infraview,
+    featureUpscale: !!o.feature_upscale,
+    featureMfa: !!o.feature_mfa,
+    mfaRequired: !!o.mfa_required,
   })));
 });
 
@@ -253,6 +259,72 @@ router.get('/orgs/:id/settings', (req, res) => {
     }
   }
   res.json(result);
+});
+
+// --- Feature Gating ---
+
+const VALID_FEATURES = ['ai_chat', 'wasos', 'infraview', 'upscale', 'mfa'];
+
+router.post('/orgs/:id/toggle-feature', (req, res) => {
+  const { feature } = req.body;
+  if (!VALID_FEATURES.includes(feature)) {
+    return res.status(400).json({ error: `Invalid feature. Must be one of: ${VALID_FEATURES.join(', ')}` });
+  }
+
+  const db = getDb();
+  const org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(req.params.id);
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+
+  const col = `feature_${feature}`;
+  const current = org[col];
+  const newVal = current ? 0 : 1;
+
+  db.prepare(`UPDATE organizations SET ${col} = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(newVal, req.params.id);
+
+  // When disabling a feature, reset user-level flags
+  if (newVal === 0) {
+    const featureToUserCol = {
+      ai_chat: 'ai_chat_enabled',
+      wasos: 'wasos_enabled',
+      infraview: 'infraview_enabled',
+      upscale: 'upscale_enabled',
+    };
+    const userCol = featureToUserCol[feature];
+    if (userCol) {
+      db.prepare(`UPDATE users SET ${userCol} = 0 WHERE org_id = ?`).run(req.params.id);
+    }
+
+    // When disabling MFA, also clear all MFA data
+    if (feature === 'mfa') {
+      db.prepare("UPDATE organizations SET mfa_required = 0 WHERE id = ?").run(req.params.id);
+      db.prepare("UPDATE users SET totp_secret = NULL, totp_enabled = 0, mfa_backup_codes = NULL WHERE org_id = ?")
+        .run(req.params.id);
+      // Delete WebAuthn credentials for all users in this org
+      db.prepare(`
+        DELETE FROM webauthn_credentials WHERE user_id IN (
+          SELECT id FROM users WHERE org_id = ?
+        )
+      `).run(req.params.id);
+    }
+  }
+
+  eventLogger.config.info(`Feature ${feature} ${newVal ? 'enabled' : 'disabled'} for org ${org.name}`);
+  res.json({ ok: true, enabled: !!newVal });
+});
+
+router.post('/orgs/:id/toggle-mfa-required', (req, res) => {
+  const db = getDb();
+  const org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(req.params.id);
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  if (!org.feature_mfa) return res.status(400).json({ error: 'MFA feature is not enabled for this organization' });
+
+  const newVal = org.mfa_required ? 0 : 1;
+  db.prepare("UPDATE organizations SET mfa_required = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newVal, req.params.id);
+
+  eventLogger.config.info(`MFA required ${newVal ? 'enabled' : 'disabled'} for org ${org.name}`);
+  res.json({ ok: true, required: !!newVal });
 });
 
 export default router;

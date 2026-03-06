@@ -62,6 +62,21 @@ function TabButton({ active, onClick, children }) {
   );
 }
 
+function FeatureToggleCell({ on, onClick }) {
+  return (
+    <td className="px-2 py-2 text-center">
+      <button
+        onClick={onClick}
+        className={`px-1.5 py-0.5 rounded text-xs transition-colors ${
+          on ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+        }`}
+      >
+        {on ? 'On' : 'Off'}
+      </button>
+    </td>
+  );
+}
+
 // --- Organizations Tab ---
 
 function OrganizationsTab() {
@@ -190,13 +205,38 @@ function OrganizationsTab() {
     }
   };
 
+  const toggleFeature = async (orgId, feature) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/toggle-feature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ feature }),
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
+      fetchOrgs();
+    } catch (err) { setError(err.message); }
+  };
+
+  const toggleMfaRequired = async (orgId) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/toggle-mfa-required`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
+      fetchOrgs();
+    } catch (err) { setError(err.message); }
+  };
+
   const activeOrgs = orgs.filter(o => !o.deletedAt);
   const deletedOrgs = orgs.filter(o => o.deletedAt);
 
   if (loading) return <div className="text-slate-400">Loading...</div>;
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-6xl">
       {error && (
         <div className="bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-2 rounded text-sm">
           {error}
@@ -255,7 +295,12 @@ function OrganizationsTab() {
                 <th className="text-left px-4 py-2 font-medium">Name</th>
                 <th className="text-left px-4 py-2 font-medium">Slug</th>
                 <th className="text-right px-4 py-2 font-medium">Users</th>
-                <th className="text-left px-4 py-2 font-medium">Created</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">AI</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">WaSOS</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Infra</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Upscale</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">MFA</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">MFA Req</th>
                 <th className="text-right px-4 py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -286,7 +331,23 @@ function OrganizationsTab() {
                     ) : org.slug}
                   </td>
                   <td className="px-4 py-2 text-right text-slate-300">{org.userCount}</td>
-                  <td className="px-4 py-2 text-slate-400">{new Date(org.createdAt).toLocaleDateString()}</td>
+                  <FeatureToggleCell on={org.featureAiChat} onClick={() => toggleFeature(org.id, 'ai_chat')} />
+                  <FeatureToggleCell on={org.featureWasos} onClick={() => toggleFeature(org.id, 'wasos')} />
+                  <FeatureToggleCell on={org.featureInfraview} onClick={() => toggleFeature(org.id, 'infraview')} />
+                  <FeatureToggleCell on={org.featureUpscale} onClick={() => toggleFeature(org.id, 'upscale')} />
+                  <FeatureToggleCell on={org.featureMfa} onClick={() => toggleFeature(org.id, 'mfa')} />
+                  <td className="px-2 py-2 text-center">
+                    {org.featureMfa ? (
+                      <button
+                        onClick={() => toggleMfaRequired(org.id)}
+                        className={`px-1.5 py-0.5 rounded text-xs transition-colors ${
+                          org.mfaRequired ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                        }`}
+                      >
+                        {org.mfaRequired ? 'On' : 'Off'}
+                      </button>
+                    ) : <span className="text-slate-600 text-xs">-</span>}
+                  </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex gap-1 justify-end">
                       {editingOrg?.id === org.id ? (
@@ -319,7 +380,7 @@ function OrganizationsTab() {
                 </tr>
               ))}
               {activeOrgs.length === 0 && (
-                <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-500">No organizations</td></tr>
+                <tr><td colSpan="11" className="px-4 py-6 text-center text-slate-500">No organizations</td></tr>
               )}
             </tbody>
           </table>

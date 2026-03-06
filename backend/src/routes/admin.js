@@ -219,8 +219,21 @@ router.post('/users/:id/unlock', (req, res) => {
   res.json({ ok: true });
 });
 
+// Helper: check if org has a feature enabled
+function requireOrgFeature(req, res, feature) {
+  const db = getDb();
+  if (!req.user.orgId) return true; // super-admin context
+  const org = db.prepare(`SELECT ${feature} FROM organizations WHERE id = ?`).get(req.user.orgId);
+  if (!org || !org[feature]) {
+    res.status(403).json({ error: 'Feature not enabled for your organization' });
+    return false;
+  }
+  return true;
+}
+
 // Toggle AI chat access
 router.post('/users/:id/toggle-ai-chat', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_ai_chat')) return;
   const db = getDb();
   const user = db.prepare('SELECT id, ai_chat_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -243,6 +256,7 @@ router.post('/users/:id/toggle-timelapse', (req, res) => {
 
 // Toggle WaSOS access
 router.post('/users/:id/toggle-wasos', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_wasos')) return;
   const db = getDb();
   const user = db.prepare('SELECT id, wasos_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -260,6 +274,7 @@ router.post('/users/:id/toggle-wasos', (req, res) => {
 
 // Toggle Upscale access
 router.post('/users/:id/toggle-upscale', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_upscale')) return;
   const db = getDb();
   const user = db.prepare('SELECT id, upscale_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -271,6 +286,7 @@ router.post('/users/:id/toggle-upscale', (req, res) => {
 
 // Toggle InfraView access
 router.post('/users/:id/toggle-infraview', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_infraview')) return;
   const db = getDb();
   const user = db.prepare('SELECT id, infraview_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -284,6 +300,7 @@ router.post('/users/:id/toggle-infraview', (req, res) => {
 
 // Get AI config (model + whether key is set)
 router.get('/ai-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_ai_chat')) return;
   const db = getDb();
   const hasKey = !!getOrgSetting(db, req.user.orgId, 'anthropic_api_key');
   res.json({
@@ -294,6 +311,7 @@ router.get('/ai-config', (req, res) => {
 
 // Set AI API key
 router.put('/ai-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_ai_chat')) return;
   const { apiKey } = req.body;
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 10) {
     return res.status(400).json({ error: 'Invalid API key' });
@@ -306,6 +324,7 @@ router.put('/ai-config', (req, res) => {
 
 // Remove AI API key
 router.delete('/ai-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_ai_chat')) return;
   const db = getDb();
   deleteOrgSetting(db, req.user.orgId, 'anthropic_api_key');
   res.json({ ok: true });
@@ -315,6 +334,7 @@ router.delete('/ai-config', (req, res) => {
 
 // Get Stability config (whether key is set)
 router.get('/stability-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_upscale')) return;
   const db = getDb();
   const hasKey = !!getOrgSetting(db, req.user.orgId, 'stability_api_key');
   res.json({ hasKey });
@@ -322,6 +342,7 @@ router.get('/stability-config', (req, res) => {
 
 // Set Stability API key
 router.put('/stability-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_upscale')) return;
   const { apiKey } = req.body;
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 10) {
     return res.status(400).json({ error: 'Invalid API key' });
@@ -334,6 +355,7 @@ router.put('/stability-config', (req, res) => {
 
 // Remove Stability API key
 router.delete('/stability-config', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_upscale')) return;
   const db = getDb();
   deleteOrgSetting(db, req.user.orgId, 'stability_api_key');
   res.json({ ok: true });
@@ -917,6 +939,22 @@ router.post('/admin-ntfy-config/test', async (req, res) => {
   } catch (err) {
     return res.status(502).json({ error: err.message });
   }
+});
+
+// --- MFA Required Toggle (org admin) ---
+
+router.post('/toggle-mfa-required', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_mfa')) return;
+
+  const db = getDb();
+  const org = db.prepare('SELECT mfa_required FROM organizations WHERE id = ?').get(req.user.orgId);
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+
+  const newVal = org.mfa_required ? 0 : 1;
+  db.prepare("UPDATE organizations SET mfa_required = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newVal, req.user.orgId);
+
+  res.json({ ok: true, required: !!newVal });
 });
 
 export default router;

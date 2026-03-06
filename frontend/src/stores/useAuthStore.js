@@ -11,8 +11,13 @@ export const useAuthStore = create((set, get) => ({
   // Dialog states
   loginOpen: false,
   passwordChangeOpen: false,
+  securityDialogOpen: false,
   adminPanelOpen: false,
   wasosLoginOpen: false,
+
+  // MFA state
+  mfaPending: null,          // { mfaToken, methods }
+  mfaSetupRequired: false,
 
   // WaSOS state
   wasosLoggedIn: false,
@@ -23,6 +28,7 @@ export const useAuthStore = create((set, get) => ({
 
   setLoginOpen: (v) => set({ loginOpen: v }),
   setPasswordChangeOpen: (v) => set({ passwordChangeOpen: v }),
+  setSecurityDialogOpen: (v) => set({ securityDialogOpen: v }),
   setAdminPanelOpen: (v) => set({ adminPanelOpen: v }),
   setWasosLoginOpen: (v) => set({ wasosLoginOpen: v }),
   setWasosUploadOpen: (v) => set({ wasosUploadOpen: v, ...(v ? {} : { wasosUploadData: null }) }),
@@ -38,6 +44,9 @@ export const useAuthStore = create((set, get) => ({
         if (!socket.connected) socket.connect();
         if (user.mustChangePassword) {
           set({ passwordChangeOpen: true });
+        }
+        if (user.mfaSetupRequired) {
+          set({ securityDialogOpen: true, mfaSetupRequired: true });
         }
         // Check WaSOS status if enabled
         if (user.wasosEnabled) {
@@ -60,8 +69,16 @@ export const useAuthStore = create((set, get) => ({
       const data = await res.json();
       throw new Error(data.error || 'Login failed');
     }
-    const user = await res.json();
-    set({ user, loginOpen: false });
+    const data = await res.json();
+
+    // MFA required - don't create session yet
+    if (data.mfaRequired) {
+      set({ mfaPending: { mfaToken: data.mfaToken, methods: data.methods } });
+      return data;
+    }
+
+    const user = data;
+    set({ user, loginOpen: false, mfaPending: null });
     // Super-admins see a different UI tree; reload to avoid complex unmount issues
     if (user.role === 'super_admin') {
       window.location.reload();
@@ -70,6 +87,9 @@ export const useAuthStore = create((set, get) => ({
     if (!socket.connected) socket.connect();
     if (user.mustChangePassword) {
       set({ passwordChangeOpen: true });
+    }
+    if (user.mfaSetupRequired) {
+      set({ securityDialogOpen: true, mfaSetupRequired: true });
     }
     return user;
   },
@@ -95,6 +115,49 @@ export const useAuthStore = create((set, get) => ({
     }
     const user = await res.json();
     set({ user, passwordChangeOpen: false });
+    return user;
+  },
+
+  verifyMfa: async (method, code, credential) => {
+    const { mfaPending } = get();
+    if (!mfaPending) throw new Error('No MFA session');
+
+    // WebAuthn uses a different endpoint
+    if (method === 'webauthn') {
+      const res = await fetch(`${API}/mfa/webauthn/auth-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mfaToken: mfaPending.mfaToken, credential }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'MFA verification failed');
+      }
+      const user = await res.json();
+      set({ user, loginOpen: false, mfaPending: null });
+      if (!socket.connected) socket.connect();
+      if (user.mustChangePassword) set({ passwordChangeOpen: true });
+      if (user.mfaSetupRequired) set({ securityDialogOpen: true, mfaSetupRequired: true });
+      return user;
+    }
+
+    const res = await fetch(`${API}/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ mfaToken: mfaPending.mfaToken, method, code }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'MFA verification failed');
+    }
+    const user = await res.json();
+    set({ user, loginOpen: false, mfaPending: null });
+    if (user.role === 'super_admin') { window.location.reload(); return user; }
+    if (!socket.connected) socket.connect();
+    if (user.mustChangePassword) set({ passwordChangeOpen: true });
+    if (user.mfaSetupRequired) set({ securityDialogOpen: true, mfaSetupRequired: true });
     return user;
   },
 
