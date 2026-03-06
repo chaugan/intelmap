@@ -123,7 +123,12 @@ export function runMigration() {
         const colDefs = cols.map(c => {
           let def = `${c.name} ${c.type}`;
           if (c.notnull) def += ' NOT NULL';
-          if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+          if (c.dflt_value !== null) {
+            // Wrap expression defaults (e.g. datetime('now')) in parentheses if not already
+            const dv = c.dflt_value;
+            const needsWrap = dv.includes('(') && !dv.startsWith('(');
+            def += ` DEFAULT ${needsWrap ? `(${dv})` : dv}`;
+          }
           if (c.pk) def += ' PRIMARY KEY';
           return def;
         }).join(', ');
