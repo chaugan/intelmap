@@ -32,6 +32,8 @@ export default function App() {
   const chatDrawerWidth = useMapStore((s) => s.chatDrawerWidth);
   const setChatDrawerWidth = useMapStore((s) => s.setChatDrawerWidth);
   const projectDrawerOpen = useMapStore((s) => s.projectDrawerOpen);
+  const projectDrawerWidth = useMapStore((s) => s.projectDrawerWidth);
+  const setProjectDrawerWidth = useMapStore((s) => s.setProjectDrawerWidth);
   const dataLayersDrawerOpen = useMapStore((s) => s.dataLayersDrawerOpen);
 
   // Timelapse drawer state
@@ -41,9 +43,11 @@ export default function App() {
 
   const [isDraggingChat, setIsDraggingChat] = useState(false);
   const [isDraggingTimelapse, setIsDraggingTimelapse] = useState(false);
+  const [isDraggingProject, setIsDraggingProject] = useState(false);
   const [themeError, setThemeError] = useState(null); // 'notFound' | 'permissionDenied' | null
   const draggingChatRef = useRef(false);
   const draggingTimelapseRef = useRef(false);
+  const draggingProjectRef = useRef(false);
   const pendingThemeRef = useRef(null); // Store pending theme until map is ready
   const deniedThemeIdRef = useRef(null); // Store theme ID that was denied access
   const prevUserRef = useRef(undefined); // Track previous user state for login detection
@@ -95,6 +99,28 @@ export default function App() {
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
   }, [setTimelapseDrawerWidth]);
+
+  const handleProjectPointerDown = useCallback((e) => {
+    e.preventDefault();
+    setIsDraggingProject(true);
+    draggingProjectRef.current = true;
+
+    const onPointerMove = (e) => {
+      if (!draggingProjectRef.current) return;
+      const clamped = Math.max(260, Math.min(e.clientX, window.innerWidth * 0.4));
+      setProjectDrawerWidth(clamped);
+    };
+
+    const onPointerUp = () => {
+      draggingProjectRef.current = false;
+      setIsDraggingProject(false);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [setProjectDrawerWidth]);
 
   const user = useAuthStore((s) => s.user);
   const checkSession = useAuthStore((s) => s.checkSession);
@@ -206,7 +232,7 @@ export default function App() {
 
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
-  const isDragging = isDraggingChat || isDraggingTimelapse;
+  const isDragging = isDraggingChat || isDraggingTimelapse || isDraggingProject;
 
   // Super-admins see the management dashboard, not the map
   if (user?.role === 'super_admin') {
@@ -237,12 +263,20 @@ export default function App() {
       <div className="flex flex-1 min-h-0 relative">
         {/* Left Drawer (Project or Data Layers — mutually exclusive) */}
         <div
-          className={`bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 transition-all duration-300 overflow-hidden ${
-            (projectDrawerOpen && user) || dataLayersDrawerOpen ? 'w-80' : 'w-0'
+          className={`bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 overflow-hidden relative ${
+            isDraggingProject ? '' : 'transition-all duration-300'
           }`}
+          style={{ width: (projectDrawerOpen && user) || dataLayersDrawerOpen ? projectDrawerWidth : 0 }}
         >
           {projectDrawerOpen && user && <ProjectDrawer />}
           {dataLayersDrawerOpen && !projectDrawerOpen && <DataLayersDrawer />}
+          {((projectDrawerOpen && user) || dataLayersDrawerOpen) && (
+            <div
+              onPointerDown={handleProjectPointerDown}
+              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors"
+              style={{ touchAction: 'none' }}
+            />
+          )}
         </div>
 
         {/* Map */}

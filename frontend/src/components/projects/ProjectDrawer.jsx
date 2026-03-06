@@ -293,9 +293,16 @@ export default function ProjectDrawer() {
                       {p.name}
                     </div>
                   )}
-                  {(p.sharedGroups?.length > 0 || p.orgShared) && (
-                    <div className="text-xs text-slate-500 truncate">
-                      {p.ownerUsername} &middot; {p.sharedGroups?.length > 0 && <>{p.sharedGroups.map(g => g.name).join(', ')} &middot; </>}{p.orgShared && <span className="text-cyan-500">{t('projects.orgShared', lang)} ({t(`projects.org${p.orgShared === 'viewer' ? 'Viewer' : 'Editor'}`, lang)}) &middot; </span>}{p.role}
+                  {(p.sharedGroups?.length > 0 || p.orgShared || p.ownerId !== user?.id) && (
+                    <div className="text-xs text-slate-500 leading-snug">
+                      {p.ownerId !== user?.id && <span>{p.ownerUsername}</span>}
+                      {p.sharedGroups?.length > 0 && (
+                        <span>{p.ownerId !== user?.id ? ' \u00b7 ' : ''}{p.sharedGroups.map(g => g.name).join(', ')}</span>
+                      )}
+                      {p.orgShared && (
+                        <span className="text-cyan-500">{(p.ownerId !== user?.id || p.sharedGroups?.length > 0) ? ' \u00b7 ' : ''}{t('projects.orgShared', lang)} ({t(`projects.org${p.orgShared === 'viewer' ? 'Viewer' : 'Editor'}`, lang)})</span>
+                      )}
+                      {p.role !== 'admin' && <span className="text-slate-600"> \u00b7 {p.role}</span>}
                     </div>
                   )}
                 </div>

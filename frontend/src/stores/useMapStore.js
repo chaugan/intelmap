@@ -94,6 +94,7 @@ export const useMapStore = create((set) => ({
 
   // Project drawer
   projectDrawerOpen: false,
+  projectDrawerWidth: parseInt(localStorage.getItem('projectDrawerWidth') || '320', 10),
 
   // Data layers drawer
   dataLayersDrawerOpen: false,
@@ -329,6 +330,10 @@ export const useMapStore = create((set) => ({
   setChatDrawerWidth: (width) => {
     localStorage.setItem('chatDrawerWidth', String(width));
     return set({ chatDrawerWidth: width });
+  },
+  setProjectDrawerWidth: (width) => {
+    localStorage.setItem('projectDrawerWidth', String(width));
+    return set({ projectDrawerWidth: width });
   },
   toggleChatDrawer: () => set((s) => {
     const next = !s.chatDrawerOpen;
