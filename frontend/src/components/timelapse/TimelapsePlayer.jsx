@@ -236,17 +236,26 @@ export default function TimelapsePlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCamera, frames.length]);
+  }, [selectedCamera, frames.length, stepForward, stepBackward]);
 
   const stepForward = useCallback(() => {
+    // Clear interval immediately to prevent race with playback
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
     setIsPlaying(false);
-    setLiveMode(false); // Exit live mode when stepping
+    setLiveMode(false);
     setCurrentIndex((prev) => Math.min(prev + 1, frames.length - 1));
   }, [frames.length, setIsPlaying]);
 
   const stepBackward = useCallback(() => {
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
     setIsPlaying(false);
-    setLiveMode(false); // Exit live mode when stepping
+    setLiveMode(false);
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }, [setIsPlaying]);
 
