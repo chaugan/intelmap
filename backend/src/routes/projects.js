@@ -60,10 +60,9 @@ router.get('/', (req, res) => {
     WHERE p.org_id = ?
       AND (p.user_id = ?
            OR gm.user_id IS NOT NULL
-           OR p.org_shared IS NOT NULL
-           OR ? = 'admin')
+           OR p.org_shared IS NOT NULL)
     ORDER BY p.updated_at DESC
-  `).all(userId, req.user.orgId, userId, req.user.role);
+  `).all(userId, req.user.orgId, userId);
 
   // Fetch shared groups for each project
   const getShares = db.prepare(`

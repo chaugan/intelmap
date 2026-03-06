@@ -50,7 +50,6 @@ export default function ProjectDrawer() {
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
-  const [orgShareId, setOrgShareId] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -302,77 +301,6 @@ export default function ProjectDrawer() {
                   )}
                 </div>
 
-                {/* Copy project */}
-                <button
-                  onClick={() => handleCopy(p.id)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title={t('projects.copy', lang)}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <rect x="9" y="9" width="13" height="13" rx="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                </button>
-
-                {/* Org share */}
-                {p.role === 'admin' && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setOrgShareId(orgShareId === p.id ? null : p.id)}
-                      className={`w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${p.orgShared ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
-                      title={t('projects.shareOrg', lang)}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-                      </svg>
-                    </button>
-                    {orgShareId === p.id && (
-                      <div className="absolute right-0 top-8 z-50 bg-slate-800 border border-slate-600 rounded shadow-lg py-1 min-w-[130px]">
-                        <button
-                          onClick={() => handleOrgShare(p.id, 'viewer')}
-                          className={`w-full text-left px-3 py-1 text-xs hover:bg-slate-700 ${p.orgShared === 'viewer' ? 'text-cyan-400' : 'text-slate-300'}`}
-                        >
-                          {t('projects.orgViewer', lang)}
-                        </button>
-                        <button
-                          onClick={() => handleOrgShare(p.id, 'editor')}
-                          className={`w-full text-left px-3 py-1 text-xs hover:bg-slate-700 ${p.orgShared === 'editor' ? 'text-cyan-400' : 'text-slate-300'}`}
-                        >
-                          {t('projects.orgEditor', lang)}
-                        </button>
-                        {p.orgShared && (
-                          <button
-                            onClick={() => handleOrgShare(p.id, 'revoke')}
-                            className="w-full text-left px-3 py-1 text-xs text-red-400 hover:bg-slate-700"
-                          >
-                            {t('projects.revokeOrgShare', lang)}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* QR Code */}
-                {p.role === 'admin' && (
-                  <button
-                    onClick={() => setQrProject(p)}
-                    className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title={t('themes.generateQr', lang)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <rect x="3" y="3" width="7" height="7" rx="1" />
-                      <rect x="14" y="3" width="7" height="7" rx="1" />
-                      <rect x="3" y="14" width="7" height="7" rx="1" />
-                      <rect x="14" y="14" width="3" height="3" />
-                      <rect x="18" y="18" width="3" height="3" />
-                      <rect x="18" y="14" width="3" height="1" />
-                      <rect x="14" y="18" width="1" height="3" />
-                    </svg>
-                  </button>
-                )}
-
                 {/* Expand layers */}
                 <button
                   onClick={() => setExpandedProject(expanded ? null : p.id)}
@@ -380,17 +308,6 @@ export default function ProjectDrawer() {
                 >
                   {expanded ? '\u25B4' : '\u25BE'}
                 </button>
-
-                {/* Delete */}
-                {p.role === 'admin' && (
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="w-7 h-7 flex items-center justify-center text-red-500 hover:text-red-400 text-base opacity-0 group-hover:opacity-100 transition-opacity"
-                    title={t('general.delete', lang)}
-                  >
-                    {'\u2715'}
-                  </button>
-                )}
               </div>
 
               {/* Expanded: layer list */}
@@ -456,76 +373,155 @@ export default function ProjectDrawer() {
                     );
                   })()}
 
-                  {/* Share / Unshare controls (admin only) */}
-                  {p.role === 'admin' && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/50 space-y-1.5">
-                      {/* List currently shared groups */}
-                      {p.sharedGroups?.length > 0 && (
-                        <div className="space-y-1">
-                          {p.sharedGroups.map((sg) => (
-                            <div key={sg.id} className="flex items-center gap-1.5 text-xs">
-                              <span className="text-slate-400 flex-1 truncate">{sg.name}</span>
-                              {p.sharedGroups.length > 1 && (
-                                <button
-                                  onClick={() => handleUnshareGroup(p.id, sg.id)}
-                                  className="text-red-400 hover:text-red-300 text-xs shrink-0"
-                                  title={lang === 'no' ? 'Fjern deling' : 'Remove sharing'}
-                                >
-                                  {'\u2715'}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {/* Make private (unshare all) */}
-                      {p.sharedGroups?.length > 0 && (
+                  {/* Project actions */}
+                  <div className="mt-2 pt-2 border-t border-slate-700/50 space-y-1.5">
+                    {/* Action buttons row */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Copy */}
+                      <button
+                        onClick={() => handleCopy(p.id)}
+                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-700/50"
+                        title={t('projects.copy', lang)}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                        </svg>
+                        {t('projects.copy', lang)}
+                      </button>
+
+                      {/* QR Code */}
+                      {p.role === 'admin' && (
                         <button
-                          onClick={() => handleUnshare(p.id)}
-                          className="text-red-400 hover:text-red-300 text-xs"
+                          onClick={() => setQrProject(p)}
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-700/50"
+                          title={t('themes.generateQr', lang)}
                         >
-                          {t('groups.unshare', lang)}
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <rect x="3" y="3" width="7" height="7" rx="1" />
+                            <rect x="14" y="3" width="7" height="7" rx="1" />
+                            <rect x="3" y="14" width="7" height="7" rx="1" />
+                            <rect x="14" y="14" width="3" height="3" />
+                            <rect x="18" y="18" width="3" height="3" />
+                          </svg>
+                          QR
                         </button>
                       )}
-                      {/* Share with another group */}
-                      {sharingId === p.id ? (
-                        <div className="flex gap-1.5 items-center">
-                          <select
-                            value={selectedGroupId}
-                            onChange={(e) => setSelectedGroupId(e.target.value)}
-                            className="flex-1 bg-slate-800 border border-slate-600 rounded text-xs px-1.5 py-1"
-                          >
-                            <option value="">-- {t('groups.selectGroup', lang)} --</option>
-                            {groups
-                              .filter(g => !p.sharedGroups?.some(sg => sg.id === g.id))
-                              .map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                              ))}
-                          </select>
-                          <button
-                            onClick={() => handleShare(p.id)}
-                            disabled={!selectedGroupId}
-                            className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-xs transition-colors disabled:opacity-50"
-                          >
-                            OK
-                          </button>
-                          <button
-                            onClick={() => { setSharingId(null); setSelectedGroupId(''); }}
-                            className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors"
-                          >
-                            {t('general.cancel', lang)}
-                          </button>
-                        </div>
-                      ) : (
+
+                      {/* Delete */}
+                      {p.role === 'admin' && (
                         <button
-                          onClick={() => setSharingId(p.id)}
-                          className="text-emerald-400 hover:text-emerald-300 text-xs"
+                          onClick={() => handleDelete(p.id)}
+                          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-400 px-1.5 py-1 rounded hover:bg-slate-700/50 ml-auto"
+                          title={t('general.delete', lang)}
                         >
-                          + {t('groups.share', lang)}
+                          {'\u2715'} {t('general.delete', lang)}
                         </button>
                       )}
                     </div>
-                  )}
+
+                    {/* Org share (admin only) */}
+                    {p.role === 'admin' && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                        </svg>
+                        <span className="text-slate-500">{t('projects.shareOrg', lang)}:</span>
+                        <button
+                          onClick={() => handleOrgShare(p.id, 'viewer')}
+                          className={`px-1.5 py-0.5 rounded text-xs ${p.orgShared === 'viewer' ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                        >
+                          {t('projects.orgViewer', lang)}
+                        </button>
+                        <button
+                          onClick={() => handleOrgShare(p.id, 'editor')}
+                          className={`px-1.5 py-0.5 rounded text-xs ${p.orgShared === 'editor' ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                        >
+                          {t('projects.orgEditor', lang)}
+                        </button>
+                        {p.orgShared && (
+                          <button
+                            onClick={() => handleOrgShare(p.id, 'revoke')}
+                            className="text-red-400 hover:text-red-300 text-xs ml-auto"
+                          >
+                            {'\u2715'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Share / Unshare group controls (admin only) */}
+                    {p.role === 'admin' && (
+                      <>
+                        {/* List currently shared groups */}
+                        {p.sharedGroups?.length > 0 && (
+                          <div className="space-y-1">
+                            {p.sharedGroups.map((sg) => (
+                              <div key={sg.id} className="flex items-center gap-1.5 text-xs">
+                                <span className="text-slate-400 flex-1 truncate">{sg.name}</span>
+                                {p.sharedGroups.length > 1 && (
+                                  <button
+                                    onClick={() => handleUnshareGroup(p.id, sg.id)}
+                                    className="text-red-400 hover:text-red-300 text-xs shrink-0"
+                                    title={lang === 'no' ? 'Fjern deling' : 'Remove sharing'}
+                                  >
+                                    {'\u2715'}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Make private (unshare all) */}
+                        {p.sharedGroups?.length > 0 && (
+                          <button
+                            onClick={() => handleUnshare(p.id)}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            {t('groups.unshare', lang)}
+                          </button>
+                        )}
+                        {/* Share with another group */}
+                        {sharingId === p.id ? (
+                          <div className="flex gap-1.5 items-center">
+                            <select
+                              value={selectedGroupId}
+                              onChange={(e) => setSelectedGroupId(e.target.value)}
+                              className="flex-1 bg-slate-800 border border-slate-600 rounded text-xs px-1.5 py-1"
+                            >
+                              <option value="">-- {t('groups.selectGroup', lang)} --</option>
+                              {groups
+                                .filter(g => !p.sharedGroups?.some(sg => sg.id === g.id))
+                                .map(g => (
+                                  <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
+                            <button
+                              onClick={() => handleShare(p.id)}
+                              disabled={!selectedGroupId}
+                              className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-xs transition-colors disabled:opacity-50"
+                            >
+                              OK
+                            </button>
+                            <button
+                              onClick={() => { setSharingId(null); setSelectedGroupId(''); }}
+                              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors"
+                            >
+                              {t('general.cancel', lang)}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setSharingId(p.id)}
+                            className="text-emerald-400 hover:text-emerald-300 text-xs"
+                          >
+                            + {t('groups.share', lang)}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
 
