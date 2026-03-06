@@ -5,12 +5,17 @@ import { useAuthStore } from './useAuthStore.js';
 
 export function drawSecurityMarking(ctx, width, height, marking, corner) {
   if (!marking || marking === 'none') return;
+
+  // Reset any transform left by html2canvas (scale:2 etc.)
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
   const label = marking.toUpperCase();
   const borderColor = marking === 'internt' ? '#000000' : '#16a34a';
   const fontSize = Math.max(18, Math.round(height * 0.025));
-  const margin = 20;
-  const padX = 14;
-  const padY = 8;
+  const margin = Math.round(height * 0.03);
+  const padX = Math.round(fontSize * 0.8);
+  const padY = Math.round(fontSize * 0.45);
 
   ctx.font = `bold ${fontSize}px sans-serif`;
   const textWidth = ctx.measureText(label).width;
@@ -33,6 +38,8 @@ export function drawSecurityMarking(ctx, width, height, marking, corner) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   ctx.fillText(label, x + boxW / 2, y + boxH / 2);
+
+  ctx.restore();
 }
 
 export const useMapStore = create((set) => ({
