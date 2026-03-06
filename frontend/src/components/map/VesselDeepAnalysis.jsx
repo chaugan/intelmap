@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect, for
 import { createPortal } from 'react-dom';
 import maplibregl from 'maplibre-gl';
 import html2canvas from 'html2canvas-pro';
-import { useMapStore } from '../../stores/useMapStore.js';
+import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';
@@ -640,6 +640,11 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
             }
           }
         }
+      }
+
+      const user = useAuthStore.getState().user;
+      if (user?.exportMarking && user.exportMarking !== 'none') {
+        drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
       }
 
       const link = document.createElement('a');

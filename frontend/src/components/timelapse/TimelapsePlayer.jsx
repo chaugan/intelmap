@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
-import { useMapStore } from '../../stores/useMapStore.js';
+import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';
@@ -349,6 +349,11 @@ export default function TimelapsePlayer() {
     canvas.height = currentImageRef.current.height;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(currentImageRef.current, 0, 0);
+
+    const user = useAuthStore.getState().user;
+    if (user?.exportMarking && user.exportMarking !== 'none') {
+      drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+    }
 
     canvas.toBlob((blob) => {
       if (!blob) return;

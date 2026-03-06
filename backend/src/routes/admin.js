@@ -302,13 +302,13 @@ router.delete('/ai-config', (req, res) => {
 // --- Export Configuration (security markings) ---
 
 const VALID_MARKINGS = ['none', 'internt', 'tjenstlig'];
-const VALID_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+const VALID_CORNERS = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-right'];
 
 router.get('/export-config', (req, res) => {
   const db = getDb();
   res.json({
     marking: getOrgSetting(db, req.user.orgId, 'export_marking') || 'none',
-    corner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-right',
+    corner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-center',
   });
 });
 

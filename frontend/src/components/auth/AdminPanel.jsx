@@ -2039,13 +2039,14 @@ const MARKING_OPTIONS = [
 
 const CORNER_OPTIONS = [
   { value: 'top-left', label: { no: 'Oppe til venstre', en: 'Top left' } },
+  { value: 'top-center', label: { no: 'Oppe i midten', en: 'Top center' } },
   { value: 'top-right', label: { no: 'Oppe til h\u00f8yre', en: 'Top right' } },
   { value: 'bottom-left', label: { no: 'Nede til venstre', en: 'Bottom left' } },
   { value: 'bottom-right', label: { no: 'Nede til h\u00f8yre', en: 'Bottom right' } },
 ];
 
 function ExportConfigTab({ lang }) {
-  const [config, setConfig] = useState({ marking: 'none', corner: 'top-right' });
+  const [config, setConfig] = useState({ marking: 'none', corner: 'top-center' });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
@@ -2068,6 +2069,7 @@ function ExportConfigTab({ lang }) {
       if (!res.ok) { const data = await res.json(); setError(data.error); return; }
       setStatus(lang === 'no' ? 'Innstillinger lagret' : 'Settings saved');
       fetchConfig();
+      useAuthStore.getState().checkSession();
     } catch (err) { setError(err.message); }
   }
 
@@ -2076,8 +2078,9 @@ function ExportConfigTab({ lang }) {
     try {
       const res = await fetch(`${API}/export-config`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) { const data = await res.json(); setError(data.error); return; }
-      setConfig({ marking: 'none', corner: 'top-right' });
+      setConfig({ marking: 'none', corner: 'top-center' });
       setStatus(lang === 'no' ? 'Innstillinger tilbakestilt' : 'Settings reset');
+      useAuthStore.getState().checkSession();
     } catch (err) { setError(err.message); }
   }
 
@@ -2152,6 +2155,7 @@ function ExportConfigTab({ lang }) {
                   backgroundColor: '#fff',
                   color: '#000',
                   ...(config.corner === 'top-left' ? { top: 8, left: 8 } :
+                     config.corner === 'top-center' ? { top: 8, left: '50%', transform: 'translateX(-50%)' } :
                      config.corner === 'top-right' ? { top: 8, right: 8 } :
                      config.corner === 'bottom-left' ? { bottom: 8, left: 8 } :
                      { bottom: 8, right: 8 }),

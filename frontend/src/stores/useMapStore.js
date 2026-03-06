@@ -3,7 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
 import { useAuthStore } from './useAuthStore.js';
 
-function drawSecurityMarking(ctx, width, height, marking, corner) {
+export function drawSecurityMarking(ctx, width, height, marking, corner) {
   if (!marking || marking === 'none') return;
   const label = marking.toUpperCase();
   const borderColor = marking === 'internt' ? '#000000' : '#16a34a';
@@ -19,6 +19,7 @@ function drawSecurityMarking(ctx, width, height, marking, corner) {
 
   let x, y;
   if (corner === 'top-left') { x = margin; y = margin; }
+  else if (corner === 'top-center') { x = (width - boxW) / 2; y = margin; }
   else if (corner === 'bottom-left') { x = margin; y = height - margin - boxH; }
   else if (corner === 'bottom-right') { x = width - margin - boxW; y = height - margin - boxH; }
   else { x = width - margin - boxW; y = margin; } // top-right default

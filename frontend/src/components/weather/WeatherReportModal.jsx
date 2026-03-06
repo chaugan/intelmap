@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { useWeatherReport } from '../../hooks/useWeatherReport.js';
-import { useMapStore } from '../../stores/useMapStore.js';
+import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
@@ -75,6 +75,10 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
     try {
       const canvas = await captureAsDesktop();
       if (!canvas) return;
+      if (user?.exportMarking && user.exportMarking !== 'none') {
+        const ctx = canvas.getContext('2d');
+        drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+      }
       const link = document.createElement('a');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;

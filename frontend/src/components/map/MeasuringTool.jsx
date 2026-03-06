@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas-pro';
-import { useMapStore } from '../../stores/useMapStore.js';
+import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';
@@ -204,6 +204,11 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         useCORS: true,
         allowTaint: true,
       });
+      const user = useAuthStore.getState().user;
+      if (user?.exportMarking && user.exportMarking !== 'none') {
+        const ctx = canvas.getContext('2d');
+        drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
+      }
       const link = document.createElement('a');
       const now = new Date();
       const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
