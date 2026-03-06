@@ -45,7 +45,9 @@ router.post('/', async (req, res) => {
     }
     const cameraId = parts[0];
     const timestamp = parts.slice(1).join('/');
-    originalPath = path.join(config.dataDir, 'timelapse', cameraId, 'frames', `${timestamp}.jpg`);
+    // Convert ISO timestamp to filename format (colons/dots -> dashes)
+    const filename = timestamp.replace(/[:.]/g, '-');
+    originalPath = path.join(config.dataDir, 'timelapse', cameraId, 'frames', `${filename}.jpg`);
   } else {
     // detection: sourceKey = detection UUID
     const rawPath = path.join(config.dataDir, 'detections', `${sourceKey}_raw.jpg`);
