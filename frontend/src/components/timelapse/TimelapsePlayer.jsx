@@ -220,7 +220,6 @@ export default function TimelapsePlayer() {
   }, [selectedCamera, setIsPlaying]);
 
   const stepForward = useCallback(() => {
-    // Clear interval immediately to prevent race with playback
     if (playIntervalRef.current) {
       clearInterval(playIntervalRef.current);
       playIntervalRef.current = null;
@@ -240,25 +239,31 @@ export default function TimelapsePlayer() {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }, [setIsPlaying]);
 
-  // Arrow key stepping
+  // Keep refs in sync so the single keydown listener always uses latest functions
+  const stepForwardRef = useRef(stepForward);
+  const stepBackwardRef = useRef(stepBackward);
+  stepForwardRef.current = stepForward;
+  stepBackwardRef.current = stepBackward;
+
+  // Arrow key stepping — single stable listener via refs
   useEffect(() => {
-    if (!selectedCamera || frames.length === 0) return;
+    if (!selectedCamera) return;
 
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
       if (e.code === 'ArrowRight') {
         e.preventDefault();
-        stepForward();
+        stepForwardRef.current();
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        stepBackward();
+        stepBackwardRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCamera, frames.length, stepForward, stepBackward]);
+  }, [selectedCamera]);
 
   // Seek to specific time (from timeline slider)
   const handleSeek = useCallback((percent) => {
@@ -486,7 +491,7 @@ export default function TimelapsePlayer() {
           <div className="flex items-center gap-1">
             {/* Step backward */}
             <button
-              onClick={stepBackward}
+              onClick={(e) => { e.currentTarget.blur(); stepBackward(); }}
               disabled={currentIndex === 0}
               className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors disabled:opacity-50"
               title={lang === 'no' ? 'Forrige bilde (←)' : 'Previous frame (←)'}
@@ -515,7 +520,7 @@ export default function TimelapsePlayer() {
 
             {/* Step forward */}
             <button
-              onClick={stepForward}
+              onClick={(e) => { e.currentTarget.blur(); stepForward(); }}
               disabled={currentIndex >= frames.length - 1}
               className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors disabled:opacity-50"
               title={lang === 'no' ? 'Neste bilde (→)' : 'Next frame (→)'}
