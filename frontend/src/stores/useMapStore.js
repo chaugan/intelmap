@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
-import { useAuthStore } from './useAuthStore.js';
 import { drawSecurityMarking } from '../lib/export-marking.js';
 
 export const useMapStore = create((set) => ({
@@ -405,6 +404,7 @@ export const useMapStore = create((set) => ({
             canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
           }
 
+          const { useAuthStore } = await import('./useAuthStore.js');
           const user = useAuthStore.getState().user;
           if (user?.exportMarking && user.exportMarking !== 'none') {
             const ctx = canvas.getContext('2d');
