@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas-pro';
-import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
+import { useMapStore } from '../../stores/useMapStore.js';
+import { drawSecurityMarking } from '../../lib/export-marking.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';

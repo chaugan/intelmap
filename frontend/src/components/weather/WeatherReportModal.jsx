@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { useWeatherReport } from '../../hooks/useWeatherReport.js';
-import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
+import { useMapStore } from '../../stores/useMapStore.js';
+import { drawSecurityMarking } from '../../lib/export-marking.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTimelapseStore } from '../../stores/useTimelapseStore.js';
-import { useMapStore, drawSecurityMarking } from '../../stores/useMapStore.js';
+import { useMapStore } from '../../stores/useMapStore.js';
+import { drawSecurityMarking } from '../../lib/export-marking.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import ExportMenu from '../common/ExportMenu.jsx';
