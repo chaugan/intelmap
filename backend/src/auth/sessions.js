@@ -55,7 +55,7 @@ export function validateSession(sessionId) {
     orgFeatureWasos: !!row.feature_wasos,
     orgFeatureInfraview: !!row.feature_infraview,
     orgFeatureUpscale: !!row.feature_upscale,
-    orgFeatureMfa: !!row.feature_mfa,
+    orgFeatureMfa: row.role === 'super_admin' ? true : !!row.feature_mfa,
     orgMfaRequired: !!row.mfa_required,
     totpEnabled: !!row.totp_enabled,
     hasMfa,

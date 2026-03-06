@@ -79,7 +79,7 @@ function buildUserResponse(db, user, org) {
     orgFeatureWasos: !!org?.feature_wasos,
     orgFeatureInfraview: !!org?.feature_infraview,
     orgFeatureUpscale: !!org?.feature_upscale,
-    orgFeatureMfa: !!org?.feature_mfa,
+    orgFeatureMfa: user.role === 'super_admin' ? true : !!org?.feature_mfa,
     orgMfaRequired: !!org?.mfa_required,
     totpEnabled: !!user.totp_enabled,
     hasMfa,

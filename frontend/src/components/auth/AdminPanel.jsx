@@ -37,7 +37,7 @@ export default function AdminPanel() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setAdminPanelOpen(false)}>
-      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-[90vw] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-bold text-amber-400">{t('admin.title', lang)}</h2>
