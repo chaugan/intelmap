@@ -36,6 +36,14 @@ export default function MapControls() {
   const mapRef = useMapStore((s) => s.mapRef);
   const longitude = useMapStore((s) => s.longitude);
   const latitude = useMapStore((s) => s.latitude);
+  const wmsTransportVisible = useMapStore((s) => s.wmsTransportVisible);
+  const toggleWmsTransport = useMapStore((s) => s.toggleWmsTransport);
+  const wmsPlacenamesVisible = useMapStore((s) => s.wmsPlacenamesVisible);
+  const toggleWmsPlacenames = useMapStore((s) => s.toggleWmsPlacenames);
+  const wmsContoursVisible = useMapStore((s) => s.wmsContoursVisible);
+  const toggleWmsContours = useMapStore((s) => s.toggleWmsContours);
+  const wmsBordersVisible = useMapStore((s) => s.wmsBordersVisible);
+  const toggleWmsBorders = useMapStore((s) => s.toggleWmsBorders);
   const [showBaseDropdown, setShowBaseDropdown] = useState(false);
   const [locating, setLocating] = useState(false);
   const dropdownRef = useRef(null);
@@ -175,6 +183,27 @@ export default function MapControls() {
                 </button>
               );
             })}
+            <div className="border-t border-slate-600 my-1" />
+            <div className="px-3 py-1 text-[10px] text-slate-400 uppercase tracking-wide">
+              {lang === 'no' ? 'Kartdata (WMS)' : 'Map Data (WMS)'}
+            </div>
+            {[
+              { key: 'wmsTransport', visible: wmsTransportVisible, toggle: toggleWmsTransport, no: 'Samferdsel', en: 'Transport' },
+              { key: 'wmsPlacenames', visible: wmsPlacenamesVisible, toggle: toggleWmsPlacenames, no: 'Stedsnavn', en: 'Place Names' },
+              { key: 'wmsContours', visible: wmsContoursVisible, toggle: toggleWmsContours, no: 'Høydekurver', en: 'Contours' },
+              { key: 'wmsBorders', visible: wmsBordersVisible, toggle: toggleWmsBorders, no: 'Adm. grenser', en: 'Adm. Borders' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={(e) => { e.stopPropagation(); item.toggle(); }}
+                className={`flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-slate-600 transition-colors ${item.visible ? 'text-emerald-400' : 'text-slate-400'}`}
+              >
+                <span className={`w-3 h-3 rounded-sm border flex items-center justify-center text-[9px] ${item.visible ? 'bg-emerald-600 border-emerald-500' : 'border-slate-500'}`}>
+                  {item.visible && '✓'}
+                </span>
+                {lang === 'no' ? item.no : item.en}
+              </button>
+            ))}
           </div>
         )}
       </div>

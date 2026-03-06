@@ -20,10 +20,6 @@ const OVERLAYS = [
   { id: 'vessels', toggleKey: 'toggleVessels', visibleKey: 'vesselsVisible', opacityKey: 'vesselsOpacity', setOpacityKey: 'setVesselsOpacity', accent: 'accent-cyan-500', shortcut: 'B' },
   { id: 'roadRestrictions', toggleKey: 'toggleRoadRestrictions', visibleKey: 'roadRestrictionsVisible', opacityKey: 'roadRestrictionsOpacity', setOpacityKey: 'setRoadRestrictionsOpacity', accent: 'accent-orange-500', shortcut: 'X' },
   { id: 'infra', toggleKey: 'toggleInfra', visibleKey: 'infraVisible', opacityKey: 'infraOpacity', setOpacityKey: 'setInfraOpacity', accent: 'accent-indigo-500', shortcut: 'K', requiresInfraview: true },
-  { id: 'wmsTransport', toggleKey: 'toggleWmsTransport', visibleKey: 'wmsTransportVisible', opacityKey: 'wmsTransportOpacity', setOpacityKey: 'setWmsTransportOpacity', accent: 'accent-slate-500', shortcut: null },
-  { id: 'wmsPlacenames', toggleKey: 'toggleWmsPlacenames', visibleKey: 'wmsPlacenamesVisible', opacityKey: 'wmsPlacenamesOpacity', setOpacityKey: 'setWmsPlacenamesOpacity', accent: 'accent-slate-500', shortcut: null },
-  { id: 'wmsContours', toggleKey: 'toggleWmsContours', visibleKey: 'wmsContoursVisible', opacityKey: 'wmsContoursOpacity', setOpacityKey: 'setWmsContoursOpacity', accent: 'accent-stone-500', shortcut: null },
-  { id: 'wmsBorders', toggleKey: 'toggleWmsBorders', visibleKey: 'wmsBordersVisible', opacityKey: 'wmsBordersOpacity', setOpacityKey: 'setWmsBordersOpacity', accent: 'accent-rose-500', shortcut: null },
 ];
 
 const OVERLAY_LABELS = {
@@ -40,10 +36,6 @@ const OVERLAY_LABELS = {
   vessels: { no: 'Fartøy', en: 'Vessels' },
   roadRestrictions: { no: 'Vegrestriksjoner', en: 'Road Restrictions' },
   infra: { no: 'Infrastruktur', en: 'Infrastructure' },
-  wmsTransport: { no: 'Samferdsel', en: 'Transport' },
-  wmsPlacenames: { no: 'Stedsnavn', en: 'Place Names' },
-  wmsContours: { no: 'Høydekurver', en: 'Contours' },
-  wmsBorders: { no: 'Adm. grenser', en: 'Adm. Borders' },
 };
 
 function SunlightControls({ lang }) {
