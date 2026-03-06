@@ -83,10 +83,20 @@ export const useMapStore = create((set) => ({
   infraLayers: {},
   infraSearchFilter: null, // null = show all, { layerId: [name1, name2, ...] } = show only matching features
 
+  // Geonorge WMS overlays (kartdata)
+  wmsTransportVisible: false,
+  wmsTransportOpacity: 0.8,
+  wmsPlacenamesVisible: false,
+  wmsPlacenamesOpacity: 0.9,
+  wmsContoursVisible: false,
+  wmsContoursOpacity: 0.7,
+  wmsBordersVisible: false,
+  wmsBordersOpacity: 0.8,
+
   // Weather overlay z-order (bottom to top). Wind is a separate canvas overlay
   // so it's always rendered on top of MapLibre raster layers, but the order of
   // avalanche and snowDepth within the map is controlled here.
-  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'infra', 'aircraft', 'vessels', 'wind'],
+  overlayOrder: ['aurora', 'sunlight', 'avalancheWarnings', 'avalanche', 'snowDepth', 'trafficFlow', 'wmsTransport', 'wmsPlacenames', 'wmsContours', 'wmsBorders', 'infra', 'aircraft', 'vessels', 'wind'],
 
   // Chat drawer
   chatDrawerOpen: JSON.parse(localStorage.getItem('chatDrawerOpen') || 'false'),
@@ -193,6 +203,10 @@ export const useMapStore = create((set) => ({
     roadRestrictionsVisible: false,
     trafficFlowVisible: false,
     trafficInfoVisible: false,
+    wmsTransportVisible: false,
+    wmsPlacenamesVisible: false,
+    wmsContoursVisible: false,
+    wmsBordersVisible: false,
     sunlightVisible: false,
     auroraVisible: false,
     infraVisible: false,
@@ -214,6 +228,14 @@ export const useMapStore = create((set) => ({
   setHeightPulsating: (heightPulsating) => set({ heightPulsating }),
   toggleTrafficFlow: () => set((s) => ({ trafficFlowVisible: !s.trafficFlowVisible })),
   setTrafficFlowOpacity: (trafficFlowOpacity) => set({ trafficFlowOpacity }),
+  toggleWmsTransport: () => set((s) => ({ wmsTransportVisible: !s.wmsTransportVisible })),
+  setWmsTransportOpacity: (wmsTransportOpacity) => set({ wmsTransportOpacity }),
+  toggleWmsPlacenames: () => set((s) => ({ wmsPlacenamesVisible: !s.wmsPlacenamesVisible })),
+  setWmsPlacenamesOpacity: (wmsPlacenamesOpacity) => set({ wmsPlacenamesOpacity }),
+  toggleWmsContours: () => set((s) => ({ wmsContoursVisible: !s.wmsContoursVisible })),
+  setWmsContoursOpacity: (wmsContoursOpacity) => set({ wmsContoursOpacity }),
+  toggleWmsBorders: () => set((s) => ({ wmsBordersVisible: !s.wmsBordersVisible })),
+  setWmsBordersOpacity: (wmsBordersOpacity) => set({ wmsBordersOpacity }),
   toggleTrafficInfo: () => set((s) => ({
     trafficInfoVisible: !s.trafficInfoVisible,
     ...(s.trafficInfoVisible ? { hiddenTrafficCategories: [] } : {}),
@@ -313,6 +335,14 @@ export const useMapStore = create((set) => ({
       ...(parsed.trafficFlowOpacity !== undefined && { trafficFlowOpacity: parsed.trafficFlowOpacity }),
       ...(parsed.trafficInfoVisible !== undefined && { trafficInfoVisible: parsed.trafficInfoVisible }),
       ...(parsed.trafficInfoOpacity !== undefined && { trafficInfoOpacity: parsed.trafficInfoOpacity }),
+      ...(parsed.wmsTransportVisible !== undefined && { wmsTransportVisible: parsed.wmsTransportVisible }),
+      ...(parsed.wmsTransportOpacity !== undefined && { wmsTransportOpacity: parsed.wmsTransportOpacity }),
+      ...(parsed.wmsPlacenamesVisible !== undefined && { wmsPlacenamesVisible: parsed.wmsPlacenamesVisible }),
+      ...(parsed.wmsPlacenamesOpacity !== undefined && { wmsPlacenamesOpacity: parsed.wmsPlacenamesOpacity }),
+      ...(parsed.wmsContoursVisible !== undefined && { wmsContoursVisible: parsed.wmsContoursVisible }),
+      ...(parsed.wmsContoursOpacity !== undefined && { wmsContoursOpacity: parsed.wmsContoursOpacity }),
+      ...(parsed.wmsBordersVisible !== undefined && { wmsBordersVisible: parsed.wmsBordersVisible }),
+      ...(parsed.wmsBordersOpacity !== undefined && { wmsBordersOpacity: parsed.wmsBordersOpacity }),
       ...(parsed.sunlightVisible !== undefined && { sunlightVisible: parsed.sunlightVisible }),
       ...(parsed.sunlightOpacity !== undefined && { sunlightOpacity: parsed.sunlightOpacity }),
       ...(parsed.sunlightDate !== undefined && { sunlightDate: parsed.sunlightDate }),
@@ -417,6 +447,14 @@ export function getThemeState(includePosition = false) {
     trafficFlowOpacity: s.trafficFlowOpacity,
     trafficInfoVisible: s.trafficInfoVisible,
     trafficInfoOpacity: s.trafficInfoOpacity,
+    wmsTransportVisible: s.wmsTransportVisible,
+    wmsTransportOpacity: s.wmsTransportOpacity,
+    wmsPlacenamesVisible: s.wmsPlacenamesVisible,
+    wmsPlacenamesOpacity: s.wmsPlacenamesOpacity,
+    wmsContoursVisible: s.wmsContoursVisible,
+    wmsContoursOpacity: s.wmsContoursOpacity,
+    wmsBordersVisible: s.wmsBordersVisible,
+    wmsBordersOpacity: s.wmsBordersOpacity,
     sunlightVisible: s.sunlightVisible,
     sunlightOpacity: s.sunlightOpacity,
     sunlightDate: s.sunlightDate,

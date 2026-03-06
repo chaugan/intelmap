@@ -1,5 +1,7 @@
 import { BASE_LAYERS } from './constants.js';
 
+const GEONORGE_WMS = 'https://wms.geonorge.no/skwms1/wms.kartdata?SERVICE=WMS&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=TRUE&STYLES=&VERSION=1.3.0&WIDTH=256&HEIGHT=256&CRS=EPSG:3857';
+
 export function buildMapStyle(baseLayerId, {
   avalancheVisible = false,
   avalancheWarningsVisible = false,
@@ -9,6 +11,14 @@ export function buildMapStyle(baseLayerId, {
   snowDepthOpacity = 0.7,
   trafficFlowVisible = false,
   trafficFlowOpacity = 0.9,
+  wmsTransportVisible = false,
+  wmsTransportOpacity = 0.8,
+  wmsPlacenamesVisible = false,
+  wmsPlacenamesOpacity = 0.9,
+  wmsContoursVisible = false,
+  wmsContoursOpacity = 0.7,
+  wmsBordersVisible = false,
+  wmsBordersOpacity = 0.8,
   auroraVisible = false,
   overlayOrder = ['aurora', 'avalancheWarnings', 'avalanche', 'snowDepth', 'traffic', 'wind'],
 } = {}) {
@@ -137,6 +147,62 @@ export function buildMapStyle(baseLayerId, {
       source: 'traffic-flow',
       minzoom: 6,
       paint: { 'raster-opacity': trafficFlowOpacity },
+    };
+  }
+
+  if (wmsTransportVisible) {
+    sources['wms-transport'] = {
+      type: 'raster',
+      tiles: [`${GEONORGE_WMS}&LAYERS=kd_veger,kd_jernbane,kd_ferger&BBOX={bbox-epsg-3857}`],
+      tileSize: 256,
+    };
+    overlayDefs.wmsTransport = {
+      id: 'wms-transport-layer',
+      type: 'raster',
+      source: 'wms-transport',
+      paint: { 'raster-opacity': wmsTransportOpacity },
+    };
+  }
+
+  if (wmsPlacenamesVisible) {
+    sources['wms-placenames'] = {
+      type: 'raster',
+      tiles: [`${GEONORGE_WMS}&LAYERS=kd_stedsnavn&BBOX={bbox-epsg-3857}`],
+      tileSize: 256,
+    };
+    overlayDefs.wmsPlacenames = {
+      id: 'wms-placenames-layer',
+      type: 'raster',
+      source: 'wms-placenames',
+      paint: { 'raster-opacity': wmsPlacenamesOpacity },
+    };
+  }
+
+  if (wmsContoursVisible) {
+    sources['wms-contours'] = {
+      type: 'raster',
+      tiles: [`${GEONORGE_WMS}&LAYERS=kd_hoydekurver&BBOX={bbox-epsg-3857}`],
+      tileSize: 256,
+    };
+    overlayDefs.wmsContours = {
+      id: 'wms-contours-layer',
+      type: 'raster',
+      source: 'wms-contours',
+      paint: { 'raster-opacity': wmsContoursOpacity },
+    };
+  }
+
+  if (wmsBordersVisible) {
+    sources['wms-borders'] = {
+      type: 'raster',
+      tiles: [`${GEONORGE_WMS}&LAYERS=kd_administrative_grenser&BBOX={bbox-epsg-3857}`],
+      tileSize: 256,
+    };
+    overlayDefs.wmsBorders = {
+      id: 'wms-borders-layer',
+      type: 'raster',
+      source: 'wms-borders',
+      paint: { 'raster-opacity': wmsBordersOpacity },
     };
   }
 

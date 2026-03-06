@@ -136,6 +136,14 @@ export default function TacticalMap() {
   const suppressMapContextMenu = useRef(false);
 
   const trafficFlowOpacity = useMapStore((s) => s.trafficFlowOpacity);
+  const wmsTransportVisible = useMapStore((s) => s.wmsTransportVisible);
+  const wmsTransportOpacity = useMapStore((s) => s.wmsTransportOpacity);
+  const wmsPlacenamesVisible = useMapStore((s) => s.wmsPlacenamesVisible);
+  const wmsPlacenamesOpacity = useMapStore((s) => s.wmsPlacenamesOpacity);
+  const wmsContoursVisible = useMapStore((s) => s.wmsContoursVisible);
+  const wmsContoursOpacity = useMapStore((s) => s.wmsContoursOpacity);
+  const wmsBordersVisible = useMapStore((s) => s.wmsBordersVisible);
+  const wmsBordersOpacity = useMapStore((s) => s.wmsBordersOpacity);
   const mapStyle = useMemo(
     () => buildMapStyle(baseLayer, {
       avalancheVisible,
@@ -146,10 +154,18 @@ export default function TacticalMap() {
       snowDepthOpacity,
       trafficFlowVisible,
       trafficFlowOpacity,
+      wmsTransportVisible,
+      wmsTransportOpacity,
+      wmsPlacenamesVisible,
+      wmsPlacenamesOpacity,
+      wmsContoursVisible,
+      wmsContoursOpacity,
+      wmsBordersVisible,
+      wmsBordersOpacity,
       auroraVisible,
       overlayOrder,
     }),
-    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, trafficFlowVisible, trafficFlowOpacity, auroraVisible, overlayOrder]
+    [baseLayer, avalancheVisible, avalancheWarningsVisible, avalancheWarningsOpacity, avalancheWarningsData, snowDepthVisible, snowDepthOpacity, trafficFlowVisible, trafficFlowOpacity, wmsTransportVisible, wmsTransportOpacity, wmsPlacenamesVisible, wmsPlacenamesOpacity, wmsContoursVisible, wmsContoursOpacity, wmsBordersVisible, wmsBordersOpacity, auroraVisible, overlayOrder]
   );
 
   const updateBounds = useCallback(() => {
