@@ -141,10 +141,27 @@ function searchCitiesFromAddresses(db, query, limit = 5) {
   }
 }
 
+const SAMI_LANGUAGES = ['Nordsamisk', 'Lulesamisk', 'Sørsamisk', 'sme', 'smj', 'sma'];
+const NORWEGIAN_LANGUAGES = ['Norsk', 'nor', 'nob'];
+
+/**
+ * Check if a language string is Norwegian.
+ */
+function isNorwegian(lang) {
+  return NORWEGIAN_LANGUAGES.includes(lang);
+}
+
+/**
+ * Check if a language string is Sami.
+ */
+function isSami(lang) {
+  return SAMI_LANGUAGES.includes(lang);
+}
+
 /**
  * Pick the best (Norwegian-preferred) name from a Kartverket place entry.
- * Entries have a `stedsnavn` array with `skrivemåte` and `språk` fields.
- * Prefer Norwegian (nor/nob) over Sami (sme/smj/sma) or other languages.
+ * /stedsnavn/v1/punkt: entries have `stedsnavn` array with `skrivemåte` + `språk`
+ * /stedsnavn/v1/navn: entries have `skrivemåte` as string or array with `språk`
  */
 function pickNorwegianName(entry) {
   // From /stedsnavn/v1/punkt responses (have stedsnavn array)
@@ -153,18 +170,27 @@ function pickNorwegianName(entry) {
     // Fallback for /stedsnavn/v1/navn responses (have skrivemåte directly)
     if (typeof entry.skrivemåte === 'string') return entry.skrivemåte;
     if (Array.isArray(entry.skrivemåte)) {
-      const nor = entry.skrivemåte.find(s => s.språk === 'nor' || s.språk === 'nob');
+      const nor = entry.skrivemåte.find(s => isNorwegian(s.språk));
       return nor?.langnavn || nor?.skrivemåte || entry.skrivemåte[0]?.langnavn || entry.skrivemåte[0]?.skrivemåte || 'Unknown';
     }
     return 'Unknown';
   }
   // Prefer Norwegian
-  const norName = names.find(n => n.språk === 'nor' || n.språk === 'nob');
+  const norName = names.find(n => isNorwegian(n.språk));
   if (norName) return norName.skrivemåte;
   // Fallback to first non-Sami
-  const nonSami = names.find(n => n.språk !== 'sme' && n.språk !== 'smj' && n.språk !== 'sma');
+  const nonSami = names.find(n => !isSami(n.språk));
   if (nonSami) return nonSami.skrivemåte;
   return names[0]?.skrivemåte || 'Unknown';
+}
+
+/**
+ * Check if a Kartverket place entry has only Sami names (no Norwegian).
+ */
+function isOnlySami(entry) {
+  const names = entry.stedsnavn || [];
+  if (names.length === 0) return false;
+  return names.every(n => isSami(n.språk));
 }
 
 router.get('/', (req, res) => {
@@ -380,11 +406,37 @@ router.get('/reverse', async (req, res) => {
       const tierA = getTier(a.navneobjekttype);
       const tierB = getTier(b.navneobjekttype);
       if (tierB !== tierA) return tierB - tierA;
+      // Prefer Norwegian names over Sami at same tier
+      const aOnlySami = isOnlySami(a) ? 1 : 0;
+      const bOnlySami = isOnlySami(b) ? 1 : 0;
+      if (aOnlySami !== bOnlySami) return aOnlySami - bOnlySami;
       return (a.meterFraPunkt || 0) - (b.meterFraPunkt || 0);
     });
 
     let bestPlace = sorted[0];
     let bestTier = bestPlace ? getTier(bestPlace.navneobjekttype) : -1;
+
+    // If best result is only Sami, try Nominatim for Norwegian name
+    if (bestPlace && isOnlySami(bestPlace)) {
+      try {
+        const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&accept-language=no`;
+        const nomRes = await fetch(nomUrl, { headers: { 'User-Agent': 'IntelMap/1.0' } });
+        if (nomRes.ok) {
+          const nomData = await nomRes.json();
+          const addr = nomData.address || {};
+          // Use city/town/village/municipality from Nominatim
+          const placeName = addr.city || addr.town || addr.village || addr.hamlet || addr.municipality;
+          if (placeName) {
+            const municipality = addr.municipality || addr.county || '';
+            return res.json({
+              name: placeName,
+              type: addr.city ? 'By' : addr.town ? 'Tettsted' : 'Sted',
+              municipality,
+            });
+          }
+        }
+      } catch { /* fall through to Kartverket result */ }
+    }
 
     if (bestTier < 3) {
       const latNum = parseFloat(lat);

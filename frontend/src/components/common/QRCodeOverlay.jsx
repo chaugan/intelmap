@@ -229,7 +229,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
                 <p className="text-xs text-amber-400/80">
                   {t('share.directLinkNote', lang)}
                 </p>
-                <p className="text-xs text-red-400/80">
+                <p className="text-xs text-red-400/80 font-bold">
                   {t('share.securityWarning', lang)}
                 </p>
               </div>

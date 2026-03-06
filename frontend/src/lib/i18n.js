@@ -38,7 +38,7 @@ const translations = {
 
     // Base layers
     'base.topo': 'Kartverket Topo',
-    'base.grayscale': 'Gråtone',
+    'base.grayscale': 'Kartverket Gråtone',
     'base.toporaster': 'Raster',
     'base.toporaster_gray': 'Raster gr\u00e5tone',
     'base.osm': 'OpenStreetMap',
@@ -309,7 +309,7 @@ const translations = {
     'share.qrTitle': 'QR-kode',
     'share.projectQr': 'Prosjekt QR-kode',
     'share.qrLinkTo': 'Generert lenke til prosjektet:',
-    'share.securityWarning': 'Mottakere kan se informasjon de normalt ikke har tilgang til.',
+    'share.securityWarning': 'Mottakere kan se informasjon de normalt ikke har tilgang til!',
 
     // Timelapse
     'timelapse.title': 'Tidslapse',
@@ -744,7 +744,7 @@ const translations = {
     'share.qrTitle': 'QR Code',
     'share.projectQr': 'Project QR Code',
     'share.qrLinkTo': 'Generated link to the project:',
-    'share.securityWarning': 'Recipients may see information they are not authorized to view.',
+    'share.securityWarning': 'Recipients may see information they are not authorized to view!',
 
     // Timelapse
     'timelapse.title': 'Timelapse',
