@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import config from '../config.js';
 import { getDb } from '../db/index.js';
 import { eventLogger } from '../lib/event-logger.js';
@@ -16,6 +17,7 @@ class FrameManager {
     this.frameDir = path.join(config.dataDir, 'frames');
     this.activeCaptures = new Map(); // cameraId -> { intervalId, consumers: Set, lastFrame, lastError }
     this.frameCallbacks = new Map(); // cameraId -> Set of callback functions
+    this.lastFrameHash = new Map(); // cameraId -> md5 hash of last saved frame
   }
 
   /**
@@ -104,6 +106,7 @@ class FrameManager {
     const captureFrame = async () => {
       try {
         const framePath = await this.captureFrame(cameraId);
+        if (!framePath) return; // Duplicate frame, skip
         entry.lastFrame = framePath;
         entry.lastError = null;
 
@@ -165,6 +168,14 @@ class FrameManager {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+
+    // Skip duplicate frames (camera source hasn't updated yet)
+    const hash = crypto.createHash('md5').update(buffer).digest('hex');
+    if (this.lastFrameHash.get(cameraId) === hash) {
+      return null; // Identical to last frame, skip
+    }
+    this.lastFrameHash.set(cameraId, hash);
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const cameraDir = path.join(this.frameDir, cameraId);
     const framePath = path.join(cameraDir, `${timestamp}.jpg`);
