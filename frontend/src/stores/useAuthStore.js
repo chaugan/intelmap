@@ -62,6 +62,11 @@ export const useAuthStore = create((set, get) => ({
     }
     const user = await res.json();
     set({ user, loginOpen: false });
+    // Super-admins see a different UI tree; reload to avoid complex unmount issues
+    if (user.role === 'super_admin') {
+      window.location.reload();
+      return user;
+    }
     if (!socket.connected) socket.connect();
     if (user.mustChangePassword) {
       set({ passwordChangeOpen: true });

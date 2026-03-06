@@ -133,7 +133,18 @@ export const useMapStore = create((set) => ({
 
   setViewport: (viewport) => set(viewport),
   setBounds: (bounds) => set({ bounds }),
-  setBaseLayer: (baseLayer) => set({ baseLayer }),
+  setBaseLayer: (baseLayer) => set((s) => {
+    const wasSatellite = s.baseLayer?.startsWith('satellite');
+    const isSatellite = baseLayer?.startsWith('satellite');
+    // Reset satellite enrichment overlays when leaving satellite view
+    const resetWms = wasSatellite && !isSatellite ? {
+      wmsTransportVisible: false,
+      wmsPlacenamesVisible: false,
+      wmsContoursVisible: false,
+      wmsBordersVisible: false,
+    } : {};
+    return { baseLayer, ...resetWms };
+  }),
   toggleWind: () => set((s) => ({ windVisible: !s.windVisible })),
   setWindOpacity: (windOpacity) => set({ windOpacity }),
   toggleWebcams: () => set((s) => ({ webcamsVisible: !s.webcamsVisible })),
@@ -204,10 +215,6 @@ export const useMapStore = create((set) => ({
     roadRestrictionsVisible: false,
     trafficFlowVisible: false,
     trafficInfoVisible: false,
-    wmsTransportVisible: false,
-    wmsPlacenamesVisible: false,
-    wmsContoursVisible: false,
-    wmsBordersVisible: false,
     sunlightVisible: false,
     auroraVisible: false,
     infraVisible: false,
@@ -217,6 +224,8 @@ export const useMapStore = create((set) => ({
     focusedVesselMmsi: null,
     hiddenVesselCategories: [],
     hiddenTrafficCategories: [],
+    // Note: wmsTransport/Placenames/Contours/Borders are satellite enrichments,
+    // not data layers — they are reset when switching away from satellite base layer
   }),
   setRoadRestrictionsOpacity: (roadRestrictionsOpacity) => set({ roadRestrictionsOpacity }),
   setRoadRestrictionsFetchedAt: (roadRestrictionsFetchedAt) => set({ roadRestrictionsFetchedAt }),
