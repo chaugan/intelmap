@@ -23,6 +23,28 @@ import { t } from './lib/i18n.js';
 import { VERSION } from './version.js';
 
 export default function App() {
+  const user = useAuthStore((s) => s.user);
+  const checkSession = useAuthStore((s) => s.checkSession);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+
+  // Super-admins see the management dashboard, not the map
+  if (user?.role === 'super_admin') {
+    return (
+      <>
+        <SuperAdminPanel />
+        <LoginDialog />
+        <PasswordChangeDialog />
+      </>
+    );
+  }
+
+  return <MapApp user={user} />;
+}
+
+function MapApp({ user }) {
   useSocket();
   useKeyboardShortcuts();
   const lang = useMapStore((s) => s.lang);
@@ -121,13 +143,6 @@ export default function App() {
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
   }, [setProjectDrawerWidth]);
-
-  const user = useAuthStore((s) => s.user);
-  const checkSession = useAuthStore((s) => s.checkSession);
-
-  useEffect(() => {
-    checkSession();
-  }, [checkSession]);
 
   // Handle share token deep linking via URL parameter
   useEffect(() => {
@@ -233,16 +248,6 @@ export default function App() {
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
   const isDragging = isDraggingChat || isDraggingTimelapse || isDraggingProject;
-
-  // Super-admins see the management dashboard, not the map
-  if (user?.role === 'super_admin') {
-    return (
-      <>
-        <SuperAdminPanel />
-        <PasswordChangeDialog />
-      </>
-    );
-  }
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
