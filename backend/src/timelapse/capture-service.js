@@ -19,6 +19,7 @@ async function getHlsGenerator() {
 class CaptureService {
   constructor() {
     this.activeCameras = new Map(); // cameraId -> { intervalId, lastError }
+    this.lastFrameHash = new Map(); // cameraId -> md5 hash of last saved frame
     this.dataDir = path.join(config.dataDir, 'timelapse');
   }
 
@@ -168,6 +169,14 @@ class CaptureService {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+
+    // Skip duplicate frames (camera source hasn't updated yet)
+    const hash = crypto.createHash('md5').update(buffer).digest('hex');
+    if (this.lastFrameHash.get(cameraId) === hash) {
+      return null; // Identical to last frame, skip
+    }
+    this.lastFrameHash.set(cameraId, hash);
+
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const framesDir = path.join(this.dataDir, cameraId, 'frames');
