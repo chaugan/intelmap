@@ -219,26 +219,6 @@ export default function TimelapsePlayer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedCamera, setIsPlaying]);
 
-  // Arrow key stepping
-  useEffect(() => {
-    if (!selectedCamera || frames.length === 0) return;
-
-    const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-
-      if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        stepForward();
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        stepBackward();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCamera, frames.length, stepForward, stepBackward]);
-
   const stepForward = useCallback(() => {
     // Clear interval immediately to prevent race with playback
     if (playIntervalRef.current) {
@@ -259,6 +239,26 @@ export default function TimelapsePlayer() {
     setLiveMode(false);
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }, [setIsPlaying]);
+
+  // Arrow key stepping
+  useEffect(() => {
+    if (!selectedCamera || frames.length === 0) return;
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        stepForward();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        stepBackward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCamera, frames.length, stepForward, stepBackward]);
 
   // Seek to specific time (from timeline slider)
   const handleSeek = useCallback((percent) => {
