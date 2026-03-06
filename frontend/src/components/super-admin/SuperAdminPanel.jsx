@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { VERSION } from '../../version.js';
 
@@ -100,6 +100,7 @@ function OrganizationsTab() {
   const [editingOrg, setEditingOrg] = useState(null); // { id, name, slug }
   const [editName, setEditName] = useState('');
   const [editSlug, setEditSlug] = useState('');
+  const [expandedOrgId, setExpandedOrgId] = useState(null);
 
   const fetchOrgs = useCallback(async () => {
     try {
@@ -315,7 +316,8 @@ function OrganizationsTab() {
             </thead>
             <tbody>
               {activeOrgs.map((org) => (
-                <tr key={org.id} className="border-b border-slate-700/50 hover:bg-slate-750">
+                <React.Fragment key={org.id}>
+                <tr className="border-b border-slate-700/50 hover:bg-slate-750">
                   <td className="px-4 py-2 font-medium text-slate-200">
                     {editingOrg?.id === org.id ? (
                       <input
@@ -326,7 +328,17 @@ function OrganizationsTab() {
                         autoFocus
                         onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                       />
-                    ) : org.name}
+                    ) : (
+                      <button
+                        onClick={() => setExpandedOrgId(expandedOrgId === org.id ? null : org.id)}
+                        className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className={`w-3 h-3 transition-transform ${expandedOrgId === org.id ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        {org.name}
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-slate-400 font-mono">
                     {editingOrg?.id === org.id ? (
@@ -387,6 +399,14 @@ function OrganizationsTab() {
                     </div>
                   </td>
                 </tr>
+                {expandedOrgId === org.id && (
+                  <tr>
+                    <td colSpan="11" className="p-0">
+                      <OrgUsersPanel orgId={org.id} orgName={org.name} onUserChange={fetchOrgs} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
               {activeOrgs.length === 0 && (
                 <tr><td colSpan="11" className="px-4 py-6 text-center text-slate-500">No organizations</td></tr>
@@ -485,6 +505,150 @@ function OrganizationsTab() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// --- Org Users Panel (expandable under org row) ---
+
+function OrgUsersPanel({ orgId, orgName, onUserChange }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('user');
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/users`, { credentials: 'include' });
+      if (res.ok) setUsers(await res.json());
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }, [orgId]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!newUsername.trim() || !newPassword) { setError('Username and password required'); return; }
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username: newUsername.trim(), password: newPassword, role: newRole }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setNewUsername(''); setNewPassword(''); setNewRole('user');
+      fetchUsers();
+      onUserChange?.();
+    } catch (err) { setError(err.message); }
+  };
+
+  const promoteAdmin = async (userId) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/promote-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      fetchUsers();
+    } catch (err) { setError(err.message); }
+  };
+
+  return (
+    <div className="bg-slate-900/50 border-t border-slate-700 px-6 py-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-300">
+          Users in {orgName} ({users.length})
+        </h3>
+      </div>
+
+      {error && (
+        <div className="text-red-400 text-xs">
+          {error}
+          <button onClick={() => setError('')} className="ml-2 text-red-300">&times;</button>
+        </div>
+      )}
+
+      {/* Create user form */}
+      <form onSubmit={createUser} className="flex gap-2 items-end">
+        <input type="text" placeholder="Username" value={newUsername}
+          onChange={(e) => setNewUsername(e.target.value)}
+          className="px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm w-40" />
+        <input type="password" placeholder="Password" value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          className="px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm w-40" />
+        <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
+          className="px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+        <button type="submit"
+          className="px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 rounded transition-colors">
+          Create User
+        </button>
+      </form>
+
+      {/* Users list */}
+      {loading ? (
+        <div className="text-slate-500 text-xs">Loading...</div>
+      ) : users.length === 0 ? (
+        <div className="text-slate-500 text-xs">No users yet. Create the first admin user above.</div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-slate-500 border-b border-slate-700">
+              <th className="text-left py-1 pr-4">Username</th>
+              <th className="text-left py-1 pr-4">Role</th>
+              <th className="text-left py-1 pr-4">Status</th>
+              <th className="text-left py-1 pr-4">AI</th>
+              <th className="text-left py-1 pr-4">Timelapse</th>
+              <th className="text-left py-1 pr-4">WaSOS</th>
+              <th className="text-left py-1 pr-4">InfraView</th>
+              <th className="text-left py-1">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b border-slate-700/30">
+                <td className="py-1.5 pr-4 text-slate-200">{u.username}</td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.role === 'admin' ? 'text-amber-400' : 'text-slate-400'}>{u.role}</span>
+                </td>
+                <td className="py-1.5 pr-4">
+                  {u.locked ? <span className="text-red-400">Locked</span>
+                    : <span className="text-emerald-400">Active</span>}
+                </td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.aiChatEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.aiChatEnabled ? 'On' : '-'}</span>
+                </td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.timelapseEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.timelapseEnabled ? 'On' : '-'}</span>
+                </td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.wasosEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.wasosEnabled ? 'On' : '-'}</span>
+                </td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.infraviewEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.infraviewEnabled ? 'On' : '-'}</span>
+                </td>
+                <td className="py-1.5">
+                  {u.role !== 'admin' && (
+                    <button onClick={() => promoteAdmin(u.id)}
+                      className="px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded">
+                      Make Admin
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
