@@ -155,8 +155,15 @@ async function fetchKpForecast() {
       tomorrow: getDailyAverage(1),
       dayAfter: getDailyAverage(2),
     },
-    // 24-hour forecast for chart
-    hourly: rows.slice(0, 24).map((e) => ({
+    // 24-hour forecast for chart (starting from current time, not beginning of data)
+    hourly: (() => {
+      let startIdx = 0;
+      for (let i = 0; i < rows.length; i++) {
+        if (new Date(rows[i].time) <= now) startIdx = i;
+        else break;
+      }
+      return rows.slice(startIdx, startIdx + 24);
+    })().map((e) => ({
       time: e.time,
       kp: e.kp,
       activity: getKpActivity(e.kp),

@@ -73,6 +73,9 @@ function OrganizationsTab() {
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, name, permanent }
   const [deleteInput, setDeleteInput] = useState('');
+  const [editingOrg, setEditingOrg] = useState(null); // { id, name, slug }
+  const [editName, setEditName] = useState('');
+  const [editSlug, setEditSlug] = useState('');
 
   const fetchOrgs = useCallback(async () => {
     try {
@@ -160,6 +163,33 @@ function OrganizationsTab() {
     }
   };
 
+  const startEditing = (org) => {
+    setEditingOrg(org);
+    setEditName(org.name);
+    setEditSlug(org.slug);
+  };
+
+  const handleRename = async () => {
+    if (!editingOrg || !editName.trim()) return;
+    setError('');
+    try {
+      const res = await fetch(`${API}/orgs/${editingOrg.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: editName.trim(), slug: editSlug.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+      setEditingOrg(null);
+      fetchOrgs();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const activeOrgs = orgs.filter(o => !o.deletedAt);
   const deletedOrgs = orgs.filter(o => o.deletedAt);
 
@@ -232,18 +262,58 @@ function OrganizationsTab() {
             <tbody>
               {activeOrgs.map((org) => (
                 <tr key={org.id} className="border-b border-slate-700/50 hover:bg-slate-750">
-                  <td className="px-4 py-2 font-medium text-slate-200">{org.name}</td>
-                  <td className="px-4 py-2 text-slate-400 font-mono">{org.slug}</td>
+                  <td className="px-4 py-2 font-medium text-slate-200">
+                    {editingOrg?.id === org.id ? (
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm w-full"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                      />
+                    ) : org.name}
+                  </td>
+                  <td className="px-4 py-2 text-slate-400 font-mono">
+                    {editingOrg?.id === org.id ? (
+                      <input
+                        type="text"
+                        value={editSlug}
+                        onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm font-mono w-full"
+                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                      />
+                    ) : org.slug}
+                  </td>
                   <td className="px-4 py-2 text-right text-slate-300">{org.userCount}</td>
                   <td className="px-4 py-2 text-slate-400">{new Date(org.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex gap-1 justify-end">
-                      <button
-                        onClick={() => handleSoftDelete(org.id)}
-                        className="px-2 py-1 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded"
-                      >
-                        Delete
-                      </button>
+                      {editingOrg?.id === org.id ? (
+                        <>
+                          <button onClick={handleRename} className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded">
+                            Save
+                          </button>
+                          <button onClick={() => setEditingOrg(null)} className="px-2 py-1 text-xs bg-slate-700 text-slate-400 hover:bg-slate-600 rounded">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEditing(org)}
+                            className="px-2 py-1 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded"
+                          >
+                            Rename
+                          </button>
+                          <button
+                            onClick={() => handleSoftDelete(org.id)}
+                            className="px-2 py-1 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

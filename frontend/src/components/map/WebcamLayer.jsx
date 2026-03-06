@@ -472,7 +472,11 @@ function formatNow() {
 }
 
 function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
-  const id = camera.properties.id;
+  const directions = camera.properties.directions || null;
+  const [activeDir, setActiveDir] = useState(0);
+  const activeId = directions ? directions[activeDir]?.id : camera.properties.id;
+  const activeDirection = directions ? directions[activeDir]?.direction : camera.properties.direction;
+  const id = activeId;
   const [cacheBust, setCacheBust] = useState(Date.now());
   const [fullscreen, setFullscreen] = useState(false);
   const [displayTime, setDisplayTime] = useState(() => {
@@ -525,10 +529,10 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
     setDisplayTime(formatNow());
   };
 
-  // Initial timestamp fetch
+  // Timestamp fetch on mount and direction change
   useEffect(() => {
     fetchImageTimestamp(cacheBust);
-  }, []);
+  }, [id]);
 
   // Refresh image every 60 seconds and update the timestamp
   useEffect(() => {
@@ -584,11 +588,30 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
               </button>
             </div>
           </div>
-          {(camera.properties.direction || camera.properties.road) && (
+          {(activeDirection || camera.properties.road) && (
             <div className="text-[10px] text-slate-400 mb-1">
               {camera.properties.road && <span>{camera.properties.road}</span>}
-              {camera.properties.road && camera.properties.direction && <span> · </span>}
-              {camera.properties.direction && <span>{camera.properties.direction}</span>}
+              {camera.properties.road && activeDirection && <span> · </span>}
+              {activeDirection && <span>{activeDirection}</span>}
+            </div>
+          )}
+          {/* Direction tabs for bidirectional cameras */}
+          {directions && directions.length > 1 && (
+            <div className="flex gap-1 mb-1">
+              {directions.map((dir, idx) => (
+                <button
+                  key={dir.id}
+                  onClick={(e) => { e.stopPropagation(); setActiveDir(idx); setCacheBust(Date.now()); }}
+                  className={`flex-1 text-[10px] py-0.5 px-1 rounded transition-colors truncate ${
+                    idx === activeDir
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:text-white'
+                  }`}
+                  title={dir.direction || `Camera ${idx + 1}`}
+                >
+                  {dir.direction || `${idx + 1}`}
+                </button>
+              ))}
             </div>
           )}
           <img

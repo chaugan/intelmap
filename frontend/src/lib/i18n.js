@@ -308,6 +308,8 @@ const translations = {
     'share.invalid': 'Ugyldig delingslenke',
     'share.qrTitle': 'QR-kode',
     'share.projectQr': 'Prosjekt QR-kode',
+    'share.qrLinkTo': 'Generert lenke til prosjektet:',
+    'share.securityWarning': 'Mottakere kan se informasjon de normalt ikke har tilgang til.',
 
     // Timelapse
     'timelapse.title': 'Tidslapse',
@@ -478,7 +480,7 @@ const translations = {
     'measure.export': 'Export',
 
     'base.topo': 'Kartverket Topo',
-    'base.grayscale': 'Grayscale',
+    'base.grayscale': 'Kartverket Grayscale',
     'base.toporaster': 'Raster',
     'base.toporaster_gray': 'Raster Grayscale',
     'base.osm': 'OpenStreetMap',
@@ -741,6 +743,8 @@ const translations = {
     'share.invalid': 'Invalid share link',
     'share.qrTitle': 'QR Code',
     'share.projectQr': 'Project QR Code',
+    'share.qrLinkTo': 'Generated link to the project:',
+    'share.securityWarning': 'Recipients may see information they are not authorized to view.',
 
     // Timelapse
     'timelapse.title': 'Timelapse',

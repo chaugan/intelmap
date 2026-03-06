@@ -178,7 +178,8 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
 
         {/* Resource name */}
         <p className="text-sm text-slate-400 mb-4">
-          {t('themes.qrLinkTo', lang)} <span className="text-emerald-400 font-medium">{resourceName}</span>
+          {resourceType === 'theme' ? t('themes.qrLinkTo', lang) : t('share.qrLinkTo', lang)}{' '}
+          <span className="text-emerald-400 font-medium">{resourceName}</span>
         </p>
 
         {/* Access mode selector */}
@@ -227,6 +228,9 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
                 </div>
                 <p className="text-xs text-amber-400/80">
                   {t('share.directLinkNote', lang)}
+                </p>
+                <p className="text-xs text-red-400/80">
+                  {t('share.securityWarning', lang)}
                 </p>
               </div>
             )}

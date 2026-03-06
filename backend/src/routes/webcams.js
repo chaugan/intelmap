@@ -24,7 +24,7 @@ async function warmCache() {
     const geojson = await response.json();
 
     // Filter for Norway (lat 57.5-71.5, lon 4-32) and transform
-    const features = (geojson.features || [])
+    const rawFeatures = (geojson.features || [])
       .filter((f) => {
         const coords = f.geometry?.coordinates;
         if (!coords) return false;
@@ -47,6 +47,31 @@ async function warmCache() {
           },
         };
       });
+
+    // Group cameras at the same coordinates (bidirectional cameras)
+    const locationMap = new Map();
+    for (const f of rawFeatures) {
+      const key = f.geometry.coordinates.join(',');
+      if (!locationMap.has(key)) {
+        locationMap.set(key, f);
+      } else {
+        const existing = locationMap.get(key);
+        // Add directions array for multi-direction cameras
+        if (!existing.properties.directions) {
+          existing.properties.directions = [{
+            id: existing.properties.id,
+            direction: existing.properties.direction,
+            imageUrl: existing.properties.imageUrl,
+          }];
+        }
+        existing.properties.directions.push({
+          id: f.properties.id,
+          direction: f.properties.direction,
+          imageUrl: f.properties.imageUrl,
+        });
+      }
+    }
+    const features = Array.from(locationMap.values());
 
     webcamCache = {
       type: 'FeatureCollection',

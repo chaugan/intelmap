@@ -141,6 +141,32 @@ function searchCitiesFromAddresses(db, query, limit = 5) {
   }
 }
 
+/**
+ * Pick the best (Norwegian-preferred) name from a Kartverket place entry.
+ * Entries have a `stedsnavn` array with `skrivemåte` and `språk` fields.
+ * Prefer Norwegian (nor/nob) over Sami (sme/smj/sma) or other languages.
+ */
+function pickNorwegianName(entry) {
+  // From /stedsnavn/v1/punkt responses (have stedsnavn array)
+  const names = entry.stedsnavn || [];
+  if (names.length === 0) {
+    // Fallback for /stedsnavn/v1/navn responses (have skrivemåte directly)
+    if (typeof entry.skrivemåte === 'string') return entry.skrivemåte;
+    if (Array.isArray(entry.skrivemåte)) {
+      const nor = entry.skrivemåte.find(s => s.språk === 'nor' || s.språk === 'nob');
+      return nor?.langnavn || nor?.skrivemåte || entry.skrivemåte[0]?.langnavn || entry.skrivemåte[0]?.skrivemåte || 'Unknown';
+    }
+    return 'Unknown';
+  }
+  // Prefer Norwegian
+  const norName = names.find(n => n.språk === 'nor' || n.språk === 'nob');
+  if (norName) return norName.skrivemåte;
+  // Fallback to first non-Sami
+  const nonSami = names.find(n => n.språk !== 'sme' && n.språk !== 'smj' && n.språk !== 'sma');
+  if (nonSami) return nonSami.skrivemåte;
+  return names[0]?.skrivemåte || 'Unknown';
+}
+
 router.get('/', (req, res) => {
   try {
     const { q } = req.query;
@@ -297,7 +323,7 @@ async function fallbackToKartverket(q, res) {
     const results = (data.navn || []).map((n) => {
       const rep = n.representasjonspunkt || {};
       return {
-        name: typeof n.skrivemåte === 'string' ? n.skrivemåte : (n.skrivemåte?.[0]?.langnavn || n.skrivemåte?.[0]?.skrivemåte || 'Unknown'),
+        name: pickNorwegianName(n),
         type: n.navneobjekttype || '',
         municipality: n.kommuner?.[0]?.kommunenavn || '',
         county: n.fylker?.[0]?.fylkesnavn || '',
@@ -400,9 +426,7 @@ router.get('/reverse', async (req, res) => {
               }
 
               if (closestSettlement) {
-                const name = typeof closestSettlement.skrivemåte === 'string'
-                  ? closestSettlement.skrivemåte
-                  : closestSettlement.skrivemåte?.[0]?.langnavn || closestSettlement.skrivemåte?.[0]?.skrivemåte;
+                const name = pickNorwegianName(closestSettlement);
                 bestPlace = {
                   stedsnavn: [{ skrivemåte: name }],
                   navneobjekttype: closestSettlement.navneobjekttype,
@@ -420,8 +444,7 @@ router.get('/reverse', async (req, res) => {
     }
 
     if (bestPlace) {
-      const nameObj = bestPlace.stedsnavn?.[0];
-      const name = nameObj?.skrivemåte || null;
+      const name = pickNorwegianName(bestPlace);
       const municipality = bestPlace.kommuner?.[0]?.kommunenavn || '';
 
       const displayName = bestTier === 0 && municipality ? `${name}, ${municipality}` : name;
