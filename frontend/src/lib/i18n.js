@@ -425,6 +425,14 @@ const translations = {
     'vessel.viewOnVesselFinder': 'Vis p\u00e5 VesselFinder',
     'vessel.noTrackData': 'Ingen sporingsdata tilgjengelig',
 
+    // Upscale
+    'upscale.button': 'Oppskaler',
+    'upscale.upscaling': 'Oppskalerer...',
+    'upscale.done': 'Oppskalert',
+    'upscale.download': 'Last ned oppskalert',
+    'upscale.error': 'Oppskalering feilet',
+    'upscale.transfer': 'Overf\u00f8r oppskalert',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -849,6 +857,14 @@ const translations = {
     'vessel.clickToSeePosition': 'Click chart to see position',
     'vessel.viewOnVesselFinder': 'View on VesselFinder',
     'vessel.noTrackData': 'No track data available',
+
+    // Upscale
+    'upscale.button': 'Upscale',
+    'upscale.upscaling': 'Upscaling...',
+    'upscale.done': 'Upscaled',
+    'upscale.download': 'Download upscaled',
+    'upscale.error': 'Upscale failed',
+    'upscale.transfer': 'Transfer upscaled',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

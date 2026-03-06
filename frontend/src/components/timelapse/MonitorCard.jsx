@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMonitoringStore, SNOOZE_OPTIONS } from '../../stores/useMonitoringStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { t } from '../../lib/i18n.js';
 import TagInput from './TagInput.jsx';
 
@@ -21,6 +22,11 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
   const [imageType, setImageType] = useState('annotated'); // 'annotated' or 'raw'
   const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
+
+  // Upscale state
+  const user = useAuthStore((s) => s.user);
+  const [upscaling, setUpscaling] = useState(false);
+  const [upscaleResult, setUpscaleResult] = useState(null); // { upscaled, id }
 
   // Local detection state per card (allows multiple histories open simultaneously)
   const [detections, setDetections] = useState([]);
@@ -67,6 +73,42 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
     }
     fetchSummary();
   }, [subscription.cameraId]);
+
+  // Check upscale status when viewing a detection image
+  useEffect(() => {
+    if (!viewingImage || !user?.upscaleEnabled) {
+      setUpscaleResult(null);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`/api/upscale/status?sourceType=detection&sourceKey=${encodeURIComponent(viewingImage)}`, { credentials: 'include' });
+        if (res.ok) setUpscaleResult(await res.json());
+      } catch {}
+    })();
+  }, [viewingImage, user?.upscaleEnabled]);
+
+  async function handleUpscaleDetection() {
+    if (!viewingImage || upscaling) return;
+    setUpscaling(true);
+    try {
+      const res = await fetch('/api/upscale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sourceType: 'detection', sourceKey: viewingImage }),
+      });
+      const data = await res.json();
+      if (res.ok || res.status === 409) {
+        setUpscaleResult({ upscaled: true, id: data.id, upscaledAt: data.upscaledAt });
+      } else {
+        alert(data.error || (lang === 'no' ? 'Oppskalering feilet' : 'Upscale failed'));
+      }
+    } catch {
+      alert(lang === 'no' ? 'Oppskalering feilet' : 'Upscale failed');
+    }
+    setUpscaling(false);
+  }
 
   // Clear detection history
   async function handleClearHistory() {
@@ -452,12 +494,54 @@ export default function MonitorCard({ subscription, lang, isHighlighted = false 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <img
-            src={`/api/monitoring/detections/${viewingImage}/image${imageType === 'raw' ? '/raw' : ''}`}
-            alt="Detection"
-            className="max-w-[90vw] max-h-[90vh] object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={upscaleResult?.upscaled
+                ? `/api/upscale/image/${upscaleResult.id}`
+                : `/api/monitoring/detections/${viewingImage}/image${imageType === 'raw' ? '/raw' : ''}`}
+              alt="Detection"
+              className="max-w-[90vw] max-h-[85vh] object-contain"
+            />
+            {/* Upscale action bar */}
+            {user?.upscaleEnabled && (
+              <div className="flex items-center gap-2">
+                {upscaleResult?.upscaled ? (
+                  <>
+                    <span className="text-emerald-400 text-sm flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {lang === 'no' ? 'Oppskalert' : 'Upscaled'}
+                    </span>
+                    <a
+                      href={`/api/upscale/image/${upscaleResult.id}?download=1`}
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors"
+                    >
+                      {lang === 'no' ? 'Last ned' : 'Download'}
+                    </a>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleUpscaleDetection}
+                    disabled={upscaling}
+                    className="px-3 py-1.5 bg-orange-700 hover:bg-orange-600 rounded text-sm text-white transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {upscaling ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                      </svg>
+                    )}
+                    {upscaling ? (lang === 'no' ? 'Oppskalerer...' : 'Upscaling...') : (lang === 'no' ? 'Oppskaler' : 'Upscale')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -400,6 +400,59 @@ export default function TimelapsePlayer() {
     prepareWasosUpload(imageData, coords, filename);
   }, [selectedCamera, frames, getFrameFilename, prepareWasosUpload]);
 
+  // Upscale state
+  const [upscaling, setUpscaling] = useState(false);
+  const [upscaleStatus, setUpscaleStatus] = useState(null); // { upscaled, id, upscaledAt } or null
+  const upscaleCheckRef = useRef(null);
+
+  // Check upscale status when frame changes and not playing
+  useEffect(() => {
+    if (!user?.upscaleEnabled || isPlaying || !selectedCamera || frames.length === 0) {
+      setUpscaleStatus(null);
+      return;
+    }
+    const frame = frames[currentIndex];
+    if (!frame) return;
+
+    const sourceKey = `${selectedCamera.cameraId}/${frame.timestamp}`;
+    // Debounce check
+    clearTimeout(upscaleCheckRef.current);
+    upscaleCheckRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/upscale/status?sourceType=timelapse&sourceKey=${encodeURIComponent(sourceKey)}`, { credentials: 'include' });
+        if (res.ok) setUpscaleStatus(await res.json());
+      } catch {}
+    }, 200);
+
+    return () => clearTimeout(upscaleCheckRef.current);
+  }, [currentIndex, isPlaying, selectedCamera, frames, user?.upscaleEnabled]);
+
+  const handleUpscale = useCallback(async () => {
+    if (!selectedCamera || frames.length === 0 || upscaling) return;
+    const frame = frames[currentIndex];
+    if (!frame) return;
+
+    setUpscaling(true);
+    try {
+      const sourceKey = `${selectedCamera.cameraId}/${frame.timestamp}`;
+      const res = await fetch('/api/upscale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sourceType: 'timelapse', sourceKey }),
+      });
+      const data = await res.json();
+      if (res.ok || res.status === 409) {
+        setUpscaleStatus({ upscaled: true, id: data.id, upscaledAt: data.upscaledAt });
+      } else {
+        alert(data.error || (lang === 'no' ? 'Oppskalering feilet' : 'Upscale failed'));
+      }
+    } catch (err) {
+      alert(lang === 'no' ? 'Oppskalering feilet' : 'Upscale failed');
+    }
+    setUpscaling(false);
+  }, [selectedCamera, frames, currentIndex, upscaling, lang]);
+
   // Calculate current time info for timeline
   const currentFrame = frames[currentIndex];
   const currentTimestamp = currentFrame ? new Date(currentFrame.timestamp) : null;
@@ -577,6 +630,41 @@ export default function TimelapsePlayer() {
           >
             {liveMode ? '● LIVE' : 'LIVE'}
           </button>
+
+          {/* Upscale button */}
+          {user?.upscaleEnabled && !isPlaying && frames.length > 0 && (
+            upscaleStatus?.upscaled ? (
+              <a
+                href={`/api/upscale/image/${upscaleStatus.id}?download=1`}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors flex items-center gap-1"
+                title={lang === 'no' ? 'Last ned oppskalert' : 'Download upscaled'}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-xs">{lang === 'no' ? 'Oppskalert' : 'Upscaled'}</span>
+              </a>
+            ) : (
+              <button
+                onClick={handleUpscale}
+                disabled={upscaling}
+                className="px-3 py-1.5 bg-orange-700 hover:bg-orange-600 rounded text-sm text-white transition-colors disabled:opacity-50 flex items-center gap-1"
+                title={lang === 'no' ? 'Oppskaler' : 'Upscale'}
+              >
+                {upscaling ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                )}
+                <span className="text-xs">{upscaling ? (lang === 'no' ? 'Oppskalerer...' : 'Upscaling...') : (lang === 'no' ? 'Oppskaler' : 'Upscale')}</span>
+              </button>
+            )
+          )}
 
           {/* Save frame */}
           {user?.wasosEnabled ? (

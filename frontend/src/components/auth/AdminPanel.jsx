@@ -69,6 +69,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'events'} onClick={() => setActiveTab('events')}>
                 {lang === 'no' ? 'Hendelser' : 'Events'}
               </TabButton>
+              <TabButton active={activeTab === 'stability'} onClick={() => setActiveTab('stability')}>
+                {lang === 'no' ? 'Oppskaler' : 'Upscale'}
+              </TabButton>
               <TabButton active={activeTab === 'export'} onClick={() => setActiveTab('export')}>
                 {lang === 'no' ? 'Eksport' : 'Export'}
               </TabButton>
@@ -91,6 +94,7 @@ export default function AdminPanel() {
           {activeTab === 'vlm' && <VlmConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
           {activeTab === 'events' && <EventsTab lang={lang} />}
+          {activeTab === 'stability' && <StabilityConfigTab lang={lang} />}
           {activeTab === 'export' && <ExportConfigTab lang={lang} />}
         </div>
       </div>
@@ -175,6 +179,11 @@ function UsersTab({ lang, currentUser }) {
     fetchUsers();
   }
 
+  async function toggleUpscale(id) {
+    await fetch(`${API}/users/${id}/toggle-upscale`, { method: 'POST', credentials: 'include' });
+    fetchUsers();
+  }
+
   async function unlockUser(id) {
     await fetch(`${API}/users/${id}/unlock`, { method: 'POST', credentials: 'include' });
     fetchUsers();
@@ -223,6 +232,7 @@ function UsersTab({ lang, currentUser }) {
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
               <th className="pb-2">WaSOS</th>
               <th className="pb-2">InfraView</th>
+              <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
@@ -264,6 +274,12 @@ function UsersTab({ lang, currentUser }) {
                   <button onClick={() => toggleInfraview(u.id)}
                     className={`px-2 py-0.5 rounded text-xs transition-colors ${u.infraviewEnabled ? 'bg-indigo-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                     {u.infraviewEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                  </button>
+                </td>
+                <td className="py-2">
+                  <button onClick={() => toggleUpscale(u.id)}
+                    className={`px-2 py-0.5 rounded text-xs transition-colors ${u.upscaleEnabled ? 'bg-orange-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                    {u.upscaleEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                   </button>
                 </td>
                 <td className="py-2">
@@ -620,6 +636,112 @@ function AiConfigTab({ lang }) {
 
         {status && <p className="text-emerald-400 text-sm">{status}</p>}
         {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// --- Stability Config Tab ---
+function StabilityConfigTab({ lang }) {
+  const [config, setConfig] = useState(null);
+  const [newKey, setNewKey] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/stability-config`, { credentials: 'include' });
+      if (res.ok) setConfig(await res.json());
+    } catch {}
+  }
+
+  async function saveKey(e) {
+    e.preventDefault();
+    setError(''); setStatus('');
+    if (!newKey.trim()) return;
+    try {
+      const res = await fetch(`${API}/stability-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ apiKey: newKey.trim() }),
+      });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setNewKey('');
+      setStatus(lang === 'no' ? 'API-n\u00f8kkel lagret' : 'API key saved');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function removeKey() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/stability-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'API-n\u00f8kkel fjernet' : 'API key removed');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  if (!config) return <p className="text-slate-400 text-sm">{t('general.loading', lang)}</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-orange-400">
+          {lang === 'no' ? 'Stability AI Oppskalering' : 'Stability AI Upscale'}
+        </h3>
+
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400">{lang === 'no' ? 'API-n\u00f8kkel' : 'API Key'}:</span>
+          <span className={config.hasKey ? 'text-emerald-400' : 'text-red-400'}>
+            {config.hasKey
+              ? (lang === 'no' ? 'Konfigurert' : 'Configured')
+              : (lang === 'no' ? 'Ikke satt' : 'Not set')}
+          </span>
+        </div>
+
+        <form onSubmit={saveKey} className="space-y-2">
+          <label className="block text-xs text-slate-400">
+            {config.hasKey
+              ? (lang === 'no' ? 'Erstatt API-n\u00f8kkel' : 'Replace API key')
+              : (lang === 'no' ? 'Sett API-n\u00f8kkel' : 'Set API key')}
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              placeholder="sk-..."
+              className="flex-1 px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+            <button
+              type="submit"
+              disabled={!newKey.trim()}
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors disabled:opacity-50"
+            >
+              {t('general.save', lang)}
+            </button>
+          </div>
+        </form>
+
+        {config.hasKey && (
+          <button
+            onClick={removeKey}
+            className="px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
+          >
+            {lang === 'no' ? 'Fjern API-n\u00f8kkel' : 'Remove API key'}
+          </button>
+        )}
+
+        {status && <p className="text-emerald-400 text-sm">{status}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'Brukes til \u00e5 oppskalere webkamerabilder (tidslapse og overv\u00e5king). Maks 1 megapiksel inndata.'
+            : 'Used to upscale webcam images (timelapse and monitoring). Max 1 megapixel input.'}
+        </p>
       </div>
     </div>
   );

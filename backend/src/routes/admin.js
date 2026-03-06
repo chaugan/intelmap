@@ -57,7 +57,7 @@ router.get('/users', (req, res) => {
   const db = getDb();
   const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
   ).all(orgId);
 
   // Calculate storage for each user
@@ -119,6 +119,7 @@ router.get('/users', (req, res) => {
       timelapseEnabled: !!u.timelapse_enabled,
       wasosEnabled: !!u.wasos_enabled,
       infraviewEnabled: !!u.infraview_enabled,
+      upscaleEnabled: !!u.upscale_enabled,
       timelapseBytes,
       detectionBytes: detectionStats.detectionBytes,
       detectionCount: detectionStats.detectionCount,
@@ -257,6 +258,17 @@ router.post('/users/:id/toggle-wasos', (req, res) => {
   res.json({ ok: true, wasosEnabled: !!newVal });
 });
 
+// Toggle Upscale access
+router.post('/users/:id/toggle-upscale', (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, upscale_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.upscale_enabled ? 0 : 1;
+  db.prepare("UPDATE users SET upscale_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  res.json({ ok: true, upscaleEnabled: !!newVal });
+});
+
 // Toggle InfraView access
 router.post('/users/:id/toggle-infraview', (req, res) => {
   const db = getDb();
@@ -296,6 +308,34 @@ router.put('/ai-config', (req, res) => {
 router.delete('/ai-config', (req, res) => {
   const db = getDb();
   deleteOrgSetting(db, req.user.orgId, 'anthropic_api_key');
+  res.json({ ok: true });
+});
+
+// --- Stability AI Configuration ---
+
+// Get Stability config (whether key is set)
+router.get('/stability-config', (req, res) => {
+  const db = getDb();
+  const hasKey = !!getOrgSetting(db, req.user.orgId, 'stability_api_key');
+  res.json({ hasKey });
+});
+
+// Set Stability API key
+router.put('/stability-config', (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 10) {
+    return res.status(400).json({ error: 'Invalid API key' });
+  }
+
+  const db = getDb();
+  setOrgSetting(db, req.user.orgId, 'stability_api_key', apiKey.trim());
+  res.json({ ok: true });
+});
+
+// Remove Stability API key
+router.delete('/stability-config', (req, res) => {
+  const db = getDb();
+  deleteOrgSetting(db, req.user.orgId, 'stability_api_key');
   res.json({ ok: true });
 });
 

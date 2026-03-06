@@ -24,6 +24,7 @@ import nvdbRouter from './nvdb.js';
 import infrastructureRouter from './infrastructure.js';
 import superAdminRouter from './super-admin.js';
 import sharesRouter from './shares.js';
+import upscaleRouter from './upscale.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -51,4 +52,5 @@ router.use('/nvdb', nvdbRouter);
 router.use('/infrastructure', infrastructureRouter);
 router.use('/super-admin', superAdminRouter);
 router.use('/share', sharesRouter);
+router.use('/upscale', upscaleRouter);
 export default router;

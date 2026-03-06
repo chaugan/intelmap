@@ -70,6 +70,10 @@ export function getVlmUrl(orgId = null) {
   return getSettingWithOrgFallback('vlm_url', orgId, process.env.VLM_URL || 'https://vision.homeprem.no');
 }
 
+export function getStabilityApiKey(orgId = null) {
+  return getSettingWithOrgFallback('stability_api_key', orgId, process.env.STABILITY_API_KEY || '');
+}
+
 export function getPublicUrl() {
   return getSettingWithOrgFallback('public_url', null, process.env.PUBLIC_URL || 'https://intelmap.homeprem.no');
 }

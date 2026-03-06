@@ -320,6 +320,18 @@ CREATE TABLE IF NOT EXISTS share_tokens (
 CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_resource ON share_tokens(resource_type, resource_id);
 
+-- Upscaled images (Stability AI Fast Upscale)
+CREATE TABLE IF NOT EXISTS upscaled_images (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+  source_type TEXT NOT NULL,
+  source_key TEXT NOT NULL,
+  upscaled_path TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source_type, source_key)
+);
+
 -- Organization indexes
 CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)
   WHERE delete_permanently_at IS NOT NULL;

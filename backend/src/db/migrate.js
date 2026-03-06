@@ -53,6 +53,12 @@ export function runMigration() {
     console.log('Added is_paused column to monitor_subscriptions table');
   }
 
+  // Upscale column
+  if (!userCols.some(c => c.name === 'upscale_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN upscale_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added upscale_enabled column to users table');
+  }
+
   // InfraView column
   if (!userCols.some(c => c.name === 'infraview_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN infraview_enabled INTEGER NOT NULL DEFAULT 0").run();
