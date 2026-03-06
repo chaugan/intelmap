@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from '../auth/passwords.js';
 import { sanitizeUsername, validatePassword } from '../auth/sanitize.js';
 import { createSession, deleteSession, deleteUserSessions } from '../auth/sessions.js';
 import { requireAuth, optionalAuth } from '../auth/middleware.js';
+import { getOrgSetting } from '../lib/org-utils.js';
 
 const router = Router();
 
@@ -93,6 +94,8 @@ router.post('/login', (req, res) => {
     timelapseEnabled: !!user.timelapse_enabled,
     wasosEnabled: !!user.wasos_enabled,
     infraviewEnabled: !!user.infraview_enabled,
+    exportMarking: getOrgSetting(db, user.org_id, 'export_marking') || 'none',
+    exportMarkingCorner: getOrgSetting(db, user.org_id, 'export_marking_corner') || 'top-right',
   });
 });
 
@@ -104,6 +107,7 @@ router.post('/logout', requireAuth, (req, res) => {
 
 router.get('/me', optionalAuth, (req, res) => {
   if (!req.user) return res.json(null);
+  const db = getDb();
   res.json({
     id: req.user.id,
     username: req.user.username,
@@ -115,6 +119,8 @@ router.get('/me', optionalAuth, (req, res) => {
     timelapseEnabled: req.user.timelapseEnabled,
     wasosEnabled: req.user.wasosEnabled,
     infraviewEnabled: req.user.infraviewEnabled,
+    exportMarking: getOrgSetting(db, req.user.orgId, 'export_marking') || 'none',
+    exportMarkingCorner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-right',
   });
 });
 
@@ -163,6 +169,8 @@ router.post('/change-password', requireAuth, (req, res) => {
     timelapseEnabled: !!user.timelapse_enabled,
     wasosEnabled: !!user.wasos_enabled,
     infraviewEnabled: !!user.infraview_enabled,
+    exportMarking: getOrgSetting(db, user.org_id, 'export_marking') || 'none',
+    exportMarkingCorner: getOrgSetting(db, user.org_id, 'export_marking_corner') || 'top-right',
   });
 });
 

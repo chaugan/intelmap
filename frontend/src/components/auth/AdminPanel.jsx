@@ -69,6 +69,9 @@ export default function AdminPanel() {
               <TabButton active={activeTab === 'events'} onClick={() => setActiveTab('events')}>
                 {lang === 'no' ? 'Hendelser' : 'Events'}
               </TabButton>
+              <TabButton active={activeTab === 'export'} onClick={() => setActiveTab('export')}>
+                {lang === 'no' ? 'Eksport' : 'Export'}
+              </TabButton>
             </div>
           </div>
           <button onClick={() => setAdminPanelOpen(false)} className="text-slate-400 hover:text-white">
@@ -88,6 +91,7 @@ export default function AdminPanel() {
           {activeTab === 'vlm' && <VlmConfigTab lang={lang} />}
           {activeTab === 'timelapse' && <TimelapseAdminTab lang={lang} />}
           {activeTab === 'events' && <EventsTab lang={lang} />}
+          {activeTab === 'export' && <ExportConfigTab lang={lang} />}
         </div>
       </div>
     </div>
@@ -2022,6 +2026,160 @@ function EventsTab({ lang }) {
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+const MARKING_OPTIONS = [
+  { value: 'none', label: { no: 'Ingen', en: 'None' }, color: null },
+  { value: 'internt', label: { no: 'INTERNT', en: 'INTERNT' }, color: '#000000' },
+  { value: 'tjenstlig', label: { no: 'TJENSTLIG', en: 'TJENSTLIG' }, color: '#16a34a' },
+];
+
+const CORNER_OPTIONS = [
+  { value: 'top-left', label: { no: 'Oppe til venstre', en: 'Top left' } },
+  { value: 'top-right', label: { no: 'Oppe til h\u00f8yre', en: 'Top right' } },
+  { value: 'bottom-left', label: { no: 'Nede til venstre', en: 'Bottom left' } },
+  { value: 'bottom-right', label: { no: 'Nede til h\u00f8yre', en: 'Bottom right' } },
+];
+
+function ExportConfigTab({ lang }) {
+  const [config, setConfig] = useState({ marking: 'none', corner: 'top-right' });
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch(`${API}/export-config`, { credentials: 'include' });
+      if (res.ok) setConfig(await res.json());
+    } catch {}
+  }
+
+  async function save() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/export-config`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(config),
+      });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setStatus(lang === 'no' ? 'Innstillinger lagret' : 'Settings saved');
+      fetchConfig();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function reset() {
+    setError(''); setStatus('');
+    try {
+      const res = await fetch(`${API}/export-config`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error); return; }
+      setConfig({ marking: 'none', corner: 'top-right' });
+      setStatus(lang === 'no' ? 'Innstillinger tilbakestilt' : 'Settings reset');
+    } catch (err) { setError(err.message); }
+  }
+
+  const activeMarking = MARKING_OPTIONS.find((m) => m.value === config.marking);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 rounded p-4 space-y-4">
+        <h3 className="text-sm font-semibold text-amber-400">
+          {lang === 'no' ? 'Sikkerhetsmerking p\u00e5 eksport' : 'Security marking on exports'}
+        </h3>
+
+        <div className="space-y-2">
+          <label className="block text-xs text-slate-400">
+            {lang === 'no' ? 'Merking' : 'Marking'}
+          </label>
+          <div className="flex gap-3">
+            {MARKING_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio" name="marking" value={opt.value}
+                  checked={config.marking === opt.value}
+                  onChange={() => setConfig((c) => ({ ...c, marking: opt.value }))}
+                  className="accent-amber-400"
+                />
+                <span className="text-sm text-white">
+                  {opt.color ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block w-3 h-3 rounded-sm border-2" style={{ borderColor: opt.color, backgroundColor: '#fff' }} />
+                      {opt.label[lang] || opt.label.en}
+                    </span>
+                  ) : (
+                    opt.label[lang] || opt.label.en
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {config.marking !== 'none' && (
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-400">
+              {lang === 'no' ? 'Plassering' : 'Corner'}
+            </label>
+            <div className="flex gap-3 flex-wrap">
+              {CORNER_OPTIONS.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio" name="corner" value={opt.value}
+                    checked={config.corner === opt.value}
+                    onChange={() => setConfig((c) => ({ ...c, corner: opt.value }))}
+                    className="accent-amber-400"
+                  />
+                  <span className="text-sm text-white">{opt.label[lang] || opt.label.en}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {config.marking !== 'none' && (
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-400">
+              {lang === 'no' ? 'Forh\u00e5ndsvisning' : 'Preview'}
+            </label>
+            <div className="relative bg-slate-700 rounded w-full h-32 border border-slate-600">
+              <div
+                className="absolute px-3 py-1 text-xs font-bold rounded-sm border-2"
+                style={{
+                  borderColor: activeMarking?.color || '#000',
+                  backgroundColor: '#fff',
+                  color: '#000',
+                  ...(config.corner === 'top-left' ? { top: 8, left: 8 } :
+                     config.corner === 'top-right' ? { top: 8, right: 8 } :
+                     config.corner === 'bottom-left' ? { bottom: 8, left: 8 } :
+                     { bottom: 8, right: 8 }),
+                }}
+              >
+                {config.marking.toUpperCase()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {status && <p className="text-emerald-400 text-xs">{status}</p>}
+
+        <div className="flex gap-2">
+          <button onClick={save} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded">
+            {lang === 'no' ? 'Lagre' : 'Save'}
+          </button>
+          <button onClick={reset} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded">
+            {lang === 'no' ? 'Tilbakestill' : 'Reset'}
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {lang === 'no'
+            ? 'Merkingen legges automatisk p\u00e5 alle skjermbilder (unntatt WaSOS-overf\u00f8ringer).'
+            : 'Marking is automatically applied to all screenshots (except WaSOS transfers).'}
+        </p>
       </div>
     </div>
   );

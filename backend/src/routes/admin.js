@@ -299,6 +299,45 @@ router.delete('/ai-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Export Configuration (security markings) ---
+
+const VALID_MARKINGS = ['none', 'internt', 'tjenstlig'];
+const VALID_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+
+router.get('/export-config', (req, res) => {
+  const db = getDb();
+  res.json({
+    marking: getOrgSetting(db, req.user.orgId, 'export_marking') || 'none',
+    corner: getOrgSetting(db, req.user.orgId, 'export_marking_corner') || 'top-right',
+  });
+});
+
+router.put('/export-config', (req, res) => {
+  const { marking, corner } = req.body;
+  if (marking && !VALID_MARKINGS.includes(marking)) {
+    return res.status(400).json({ error: 'Invalid marking value' });
+  }
+  if (corner && !VALID_CORNERS.includes(corner)) {
+    return res.status(400).json({ error: 'Invalid corner value' });
+  }
+  const db = getDb();
+  if (marking === 'none') {
+    deleteOrgSetting(db, req.user.orgId, 'export_marking');
+    deleteOrgSetting(db, req.user.orgId, 'export_marking_corner');
+  } else {
+    if (marking) setOrgSetting(db, req.user.orgId, 'export_marking', marking);
+    if (corner) setOrgSetting(db, req.user.orgId, 'export_marking_corner', corner);
+  }
+  res.json({ ok: true });
+});
+
+router.delete('/export-config', (req, res) => {
+  const db = getDb();
+  deleteOrgSetting(db, req.user.orgId, 'export_marking');
+  deleteOrgSetting(db, req.user.orgId, 'export_marking_corner');
+  res.json({ ok: true });
+});
+
 // --- Maps Configuration ---
 
 // Get Maps config (whether Google Maps API key is set)

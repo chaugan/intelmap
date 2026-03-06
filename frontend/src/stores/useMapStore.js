@@ -1,6 +1,38 @@
 import { create } from 'zustand';
 import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
+import { useAuthStore } from './useAuthStore.js';
+
+function drawSecurityMarking(ctx, width, height, marking, corner) {
+  if (!marking || marking === 'none') return;
+  const label = marking.toUpperCase();
+  const borderColor = marking === 'internt' ? '#000000' : '#16a34a';
+  const fontSize = Math.max(18, Math.round(height * 0.025));
+  const margin = 20;
+  const padX = 14;
+  const padY = 8;
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const textWidth = ctx.measureText(label).width;
+  const boxW = textWidth + padX * 2;
+  const boxH = fontSize + padY * 2;
+
+  let x, y;
+  if (corner === 'top-left') { x = margin; y = margin; }
+  else if (corner === 'bottom-left') { x = margin; y = height - margin - boxH; }
+  else if (corner === 'bottom-right') { x = width - margin - boxW; y = height - margin - boxH; }
+  else { x = width - margin - boxW; y = margin; } // top-right default
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, boxW, boxH);
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, boxW, boxH);
+  ctx.fillStyle = '#000000';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + boxW / 2, y + boxH / 2);
+}
 
 export const useMapStore = create((set) => ({
   // Viewport
@@ -401,6 +433,12 @@ export const useMapStore = create((set) => ({
             canvas.width = mapCanvas.width;
             canvas.height = mapCanvas.height;
             canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
+          }
+
+          const user = useAuthStore.getState().user;
+          if (user?.exportMarking && user.exportMarking !== 'none') {
+            const ctx = canvas.getContext('2d');
+            drawSecurityMarking(ctx, canvas.width, canvas.height, user.exportMarking, user.exportMarkingCorner);
           }
 
           canvas.toBlob((blob) => {
