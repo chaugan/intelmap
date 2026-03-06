@@ -19,6 +19,9 @@ export default function ProjectDrawer() {
   const shareProject = useProjectStore((s) => s.shareProject);
   const unshareProject = useProjectStore((s) => s.unshareProject);
   const unshareFromGroup = useProjectStore((s) => s.unshareFromGroup);
+  const copyProject = useProjectStore((s) => s.copyProject);
+  const shareWithOrg = useProjectStore((s) => s.shareWithOrg);
+  const unshareFromOrg = useProjectStore((s) => s.unshareFromOrg);
   const groups = useProjectStore((s) => s.groups);
   const fetchGroups = useProjectStore((s) => s.fetchGroups);
   const loading = useProjectStore((s) => s.loading);
@@ -47,6 +50,7 @@ export default function ProjectDrawer() {
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
+  const [orgShareId, setOrgShareId] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -102,6 +106,28 @@ export default function ProjectDrawer() {
     if (!renameLayerVal.trim()) return;
     socket.emit('client:layer:update', { projectId, id: layerId, name: renameLayerVal.trim() });
     setRenamingLayerId(null);
+  };
+
+  const handleCopy = async (id) => {
+    try {
+      const project = await copyProject(id);
+      showProject(project.id);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleOrgShare = async (id, orgRole) => {
+    try {
+      if (orgRole === 'revoke') {
+        await unshareFromOrg(id);
+      } else {
+        await shareWithOrg(id, orgRole);
+      }
+      setOrgShareId(null);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleUnshare = async (projectId) => {
@@ -269,12 +295,64 @@ export default function ProjectDrawer() {
                       {p.name}
                     </div>
                   )}
-                  {p.sharedGroups?.length > 0 && (
+                  {(p.sharedGroups?.length > 0 || p.orgShared) && (
                     <div className="text-xs text-slate-500 truncate">
-                      {p.ownerUsername} &middot; {p.sharedGroups.map(g => g.name).join(', ')} &middot; {p.role}
+                      {p.ownerUsername} &middot; {p.sharedGroups?.length > 0 && <>{p.sharedGroups.map(g => g.name).join(', ')} &middot; </>}{p.orgShared && <span className="text-cyan-500">{t('projects.orgShared', lang)} ({t(`projects.org${p.orgShared === 'viewer' ? 'Viewer' : 'Editor'}`, lang)}) &middot; </span>}{p.role}
                     </div>
                   )}
                 </div>
+
+                {/* Copy project */}
+                <button
+                  onClick={() => handleCopy(p.id)}
+                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title={t('projects.copy', lang)}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+
+                {/* Org share */}
+                {p.role === 'admin' && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setOrgShareId(orgShareId === p.id ? null : p.id)}
+                      className={`w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${p.orgShared ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
+                      title={t('projects.shareOrg', lang)}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                      </svg>
+                    </button>
+                    {orgShareId === p.id && (
+                      <div className="absolute right-0 top-8 z-50 bg-slate-800 border border-slate-600 rounded shadow-lg py-1 min-w-[130px]">
+                        <button
+                          onClick={() => handleOrgShare(p.id, 'viewer')}
+                          className={`w-full text-left px-3 py-1 text-xs hover:bg-slate-700 ${p.orgShared === 'viewer' ? 'text-cyan-400' : 'text-slate-300'}`}
+                        >
+                          {t('projects.orgViewer', lang)}
+                        </button>
+                        <button
+                          onClick={() => handleOrgShare(p.id, 'editor')}
+                          className={`w-full text-left px-3 py-1 text-xs hover:bg-slate-700 ${p.orgShared === 'editor' ? 'text-cyan-400' : 'text-slate-300'}`}
+                        >
+                          {t('projects.orgEditor', lang)}
+                        </button>
+                        {p.orgShared && (
+                          <button
+                            onClick={() => handleOrgShare(p.id, 'revoke')}
+                            className="w-full text-left px-3 py-1 text-xs text-red-400 hover:bg-slate-700"
+                          >
+                            {t('projects.revokeOrgShare', lang)}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* QR Code */}
                 {p.role === 'admin' && (

@@ -104,6 +104,51 @@ export const useProjectStore = create((set, get) => ({
     get().fetchProjects();
   },
 
+  copyProject: async (id) => {
+    const res = await fetch(`${API}/${id}/copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to copy project');
+    }
+    const project = await res.json();
+    set((s) => ({ myProjects: [project, ...s.myProjects] }));
+    return project;
+  },
+
+  shareWithOrg: async (id, orgRole) => {
+    const res = await fetch(`${API}/${id}/org-share`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ orgRole }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to share with org');
+    }
+    set((s) => ({
+      myProjects: s.myProjects.map(p => p.id === id ? { ...p, orgShared: orgRole } : p),
+    }));
+  },
+
+  unshareFromOrg: async (id) => {
+    const res = await fetch(`${API}/${id}/org-share`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to revoke org sharing');
+    }
+    set((s) => ({
+      myProjects: s.myProjects.map(p => p.id === id ? { ...p, orgShared: null } : p),
+    }));
+  },
+
   fetchGroups: async () => {
     try {
       const res = await fetch('/api/groups', { credentials: 'include' });

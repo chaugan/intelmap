@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
@@ -85,6 +86,12 @@ export function initDb() {
     db.prepare("ALTER TABLE map_themes ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0").run();
   }
 
+  // Add org_shared column to projects_v2 if not exists
+  const projectCols = db.prepare("PRAGMA table_info(projects_v2)").all();
+  if (!projectCols.find(c => c.name === 'org_shared')) {
+    db.prepare("ALTER TABLE projects_v2 ADD COLUMN org_shared TEXT DEFAULT NULL").run();
+  }
+
   // Run organizations migration (one-time, idempotent)
   migrateOrgs();
 
@@ -95,6 +102,26 @@ export function initDb() {
   // Import places in background (don't block startup)
   const placesPath = process.env.PLACES_JSON || path.join(config.dataDir, 'places.json');
   importPlaces(placesPath).catch(err => console.error('Places import failed:', err.message));
+
+  // Backfill default "Standard" project for users with zero projects
+  const backfilled = db.prepare("SELECT value FROM app_settings WHERE key = 'default_projects_backfilled'").get();
+  if (!backfilled) {
+    const usersWithout = db.prepare(
+      'SELECT u.id, u.org_id FROM users u WHERE NOT EXISTS (SELECT 1 FROM projects_v2 WHERE user_id = u.id)'
+    ).all();
+    if (usersWithout.length > 0) {
+      const insertProject = db.prepare(
+        "INSERT INTO projects_v2 (id, user_id, name, settings, org_id) VALUES (?, ?, 'Standard', '{}', ?)"
+      );
+      for (const u of usersWithout) {
+        insertProject.run(crypto.randomUUID(), u.id, u.org_id);
+      }
+      console.log(`Backfilled default project for ${usersWithout.length} user(s)`);
+    }
+    db.prepare(
+      "INSERT INTO app_settings (key, value, updated_at) VALUES ('default_projects_backfilled', '1', datetime('now')) ON CONFLICT(key) DO NOTHING"
+    ).run();
+  }
 
   return db;
 }

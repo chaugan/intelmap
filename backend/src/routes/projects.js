@@ -48,7 +48,7 @@ router.get('/', (req, res) => {
 
   const projects = db.prepare(`
     SELECT DISTINCT
-      p.id, p.name, p.user_id, p.settings, p.created_at, p.updated_at,
+      p.id, p.name, p.user_id, p.settings, p.org_shared, p.created_at, p.updated_at,
       u.username as owner_username,
       (SELECT COUNT(*) FROM project_markers WHERE project_id = p.id) as marker_count,
       (SELECT COUNT(*) FROM project_drawings WHERE project_id = p.id) as drawing_count,
@@ -60,6 +60,7 @@ router.get('/', (req, res) => {
     WHERE p.org_id = ?
       AND (p.user_id = ?
            OR gm.user_id IS NOT NULL
+           OR p.org_shared IS NOT NULL
            OR ? = 'admin')
     ORDER BY p.updated_at DESC
   `).all(userId, req.user.orgId, userId, req.user.role);
@@ -79,6 +80,7 @@ router.get('/', (req, res) => {
       name: p.name,
       ownerId: p.user_id,
       ownerUsername: p.owner_username,
+      orgShared: p.org_shared || null,
       sharedGroups: shares.map(s => ({ id: s.group_id, name: s.group_name })),
       role: getProjectRole(userId, p.id),
       markerCount: p.marker_count,
@@ -225,6 +227,92 @@ router.delete('/:id/share', (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(req.params.id);
   db.prepare("UPDATE projects_v2 SET updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Copy project with all tactical data
+router.post('/:id/copy', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (!role) return res.status(404).json({ error: 'Project not found' });
+
+  const db = getDb();
+  const original = db.prepare('SELECT * FROM projects_v2 WHERE id = ?').get(req.params.id);
+  if (!original) return res.status(404).json({ error: 'Project not found' });
+
+  const newId = crypto.randomUUID();
+  const newName = `${original.name} (Kopi)`;
+
+  const copyTx = db.transaction(() => {
+    db.prepare('INSERT INTO projects_v2 (id, user_id, name, settings, org_id) VALUES (?, ?, ?, ?, ?)')
+      .run(newId, req.user.id, newName, original.settings, req.user.orgId);
+
+    // Copy layers, build old→new ID map
+    const layers = db.prepare('SELECT * FROM project_layers WHERE project_id = ?').all(req.params.id);
+    const layerMap = new Map();
+    for (const l of layers) {
+      const nlId = crypto.randomUUID();
+      layerMap.set(l.id, nlId);
+      db.prepare('INSERT INTO project_layers (id, project_id, name, visible, source, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(nlId, newId, l.name, l.visible, l.source, req.user.id);
+    }
+
+    // Copy markers
+    const markers = db.prepare('SELECT * FROM project_markers WHERE project_id = ?').all(req.params.id);
+    for (const m of markers) {
+      db.prepare('INSERT INTO project_markers (id, project_id, layer_id, sidc, lat, lon, designation, higher_formation, additional_info, custom_label, source, created_by, properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), newId, layerMap.get(m.layer_id) || null, m.sidc, m.lat, m.lon, m.designation, m.higher_formation, m.additional_info, m.custom_label, m.source, req.user.id, m.properties);
+    }
+
+    // Copy drawings
+    const drawings = db.prepare('SELECT * FROM project_drawings WHERE project_id = ?').all(req.params.id);
+    for (const d of drawings) {
+      db.prepare('INSERT INTO project_drawings (id, project_id, layer_id, drawing_type, geometry, properties, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), newId, layerMap.get(d.layer_id) || null, d.drawing_type, d.geometry, d.properties, d.source, req.user.id);
+    }
+
+    // Copy pins
+    const pins = db.prepare('SELECT * FROM project_pins WHERE project_id = ?').all(req.params.id);
+    for (const pin of pins) {
+      db.prepare('INSERT INTO project_pins (id, project_id, layer_id, pin_type, lat, lon, properties, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), newId, layerMap.get(pin.layer_id) || null, pin.pin_type, pin.lat, pin.lon, pin.properties, pin.source, req.user.id);
+    }
+  });
+
+  copyTx();
+
+  res.status(201).json({
+    id: newId, name: newName, ownerId: req.user.id, ownerUsername: req.user.username,
+    orgShared: null,
+    sharedGroups: [], role: 'admin',
+    markerCount: db.prepare('SELECT COUNT(*) as c FROM project_markers WHERE project_id = ?').get(newId).c,
+    drawingCount: db.prepare('SELECT COUNT(*) as c FROM project_drawings WHERE project_id = ?').get(newId).c,
+    layerCount: db.prepare('SELECT COUNT(*) as c FROM project_layers WHERE project_id = ?').get(newId).c,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  });
+});
+
+// Share project with entire organization
+router.put('/:id/org-share', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const { orgRole } = req.body;
+  if (!orgRole || !['viewer', 'editor'].includes(orgRole)) {
+    return res.status(400).json({ error: 'orgRole must be "viewer" or "editor"' });
+  }
+
+  const db = getDb();
+  db.prepare("UPDATE projects_v2 SET org_shared = ?, updated_at = datetime('now') WHERE id = ?").run(orgRole, req.params.id);
+  res.json({ ok: true });
+});
+
+// Revoke org-wide sharing
+router.delete('/:id/org-share', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const db = getDb();
+  db.prepare("UPDATE projects_v2 SET org_shared = NULL, updated_at = datetime('now') WHERE id = ?").run(req.params.id);
   res.json({ ok: true });
 });
 

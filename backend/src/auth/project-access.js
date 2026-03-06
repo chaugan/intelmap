@@ -13,14 +13,14 @@ export function getProjectRole(userId, projectId) {
   const db = getDb();
 
   // Get the project
-  const project = db.prepare('SELECT user_id FROM projects_v2 WHERE id = ?').get(projectId);
+  const project = db.prepare('SELECT user_id, org_shared, org_id FROM projects_v2 WHERE id = ?').get(projectId);
   if (!project) return null;
 
   // Owner always has admin
   if (project.user_id === userId) return 'admin';
 
   // Check if user is a site admin or super admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT role, org_id FROM users WHERE id = ?').get(userId);
   if (user?.role === 'admin' || user?.role === 'super_admin') return 'admin';
 
   // Check all groups this project is shared with
@@ -39,6 +39,13 @@ export function getProjectRole(userId, projectId) {
       if (!bestRole || rolePriority[membership.role] > rolePriority[bestRole]) {
         bestRole = membership.role;
       }
+    }
+  }
+
+  // Check org-wide sharing
+  if (project.org_shared && user?.org_id === project.org_id) {
+    if (!bestRole || rolePriority[project.org_shared] > rolePriority[bestRole]) {
+      bestRole = project.org_shared;
     }
   }
 

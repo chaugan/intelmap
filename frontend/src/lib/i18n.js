@@ -234,6 +234,12 @@ const translations = {
     'projects.confirmDelete': 'Er du sikker på at du vil slette dette prosjektet?',
     'projects.confirmLoad': 'Erstatte kartdata?',
     'projects.yes': 'Ja',
+    'projects.copy': 'Kopier prosjekt',
+    'projects.shareOrg': 'Del med organisasjonen',
+    'projects.orgViewer': 'Leser',
+    'projects.orgEditor': 'Redaktør',
+    'projects.revokeOrgShare': 'Fjern orgdeling',
+    'projects.orgShared': 'Delt med org',
 
     // Project Drawer
     'drawer.title': 'Prosjekter',
@@ -650,6 +656,12 @@ const translations = {
     'projects.confirmDelete': 'Are you sure you want to delete this project?',
     'projects.confirmLoad': 'Replace map data?',
     'projects.yes': 'Yes',
+    'projects.copy': 'Copy project',
+    'projects.shareOrg': 'Share with organization',
+    'projects.orgViewer': 'Viewer',
+    'projects.orgEditor': 'Editor',
+    'projects.revokeOrgShare': 'Revoke org sharing',
+    'projects.orgShared': 'Shared with org',
 
     // Project Drawer
     'drawer.title': 'Projects',

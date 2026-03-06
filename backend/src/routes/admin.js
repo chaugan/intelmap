@@ -157,6 +157,11 @@ router.post('/users', (req, res) => {
     insertMember.run(g.id, id);
   }
 
+  // Create default "Standard" project for new user
+  const projectId = crypto.randomUUID();
+  db.prepare('INSERT INTO projects_v2 (id, user_id, name, settings, org_id) VALUES (?, ?, ?, ?, ?)')
+    .run(projectId, id, 'Standard', '{}', orgId);
+
   res.status(201).json({ id, username, role: 'user', mustChangePassword: true, locked: false, aiChatEnabled: false });
 });
 
