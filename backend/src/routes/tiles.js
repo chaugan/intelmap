@@ -544,4 +544,24 @@ router.get('/carto-dark/:z/:x/:y.png', async (req, res) => {
   }
 });
 
+// Esri World Imagery metadata proxy (CORS blocked on arcgisonline.com)
+router.get('/satellite-info', async (req, res) => {
+  try {
+    const { lng, lat } = req.query;
+    if (!lng || !lat) return res.status(400).json({ error: 'lng and lat required' });
+    const url = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/0/query'
+      + `?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects`
+      + '&outFields=SRC_DATE,SRC_RES,SRC_DESC,NICE_NAME&returnGeometry=false&f=json&inSR=4326';
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).json({ error: 'Esri query failed' });
+    const data = await response.json();
+    const attrs = data.features?.[0]?.attributes;
+    if (!attrs) return res.json(null);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json(attrs);
+  } catch {
+    res.status(502).json({ error: 'Satellite info proxy error' });
+  }
+});
+
 export default router;

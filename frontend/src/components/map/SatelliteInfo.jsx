@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 
-const ESRI_QUERY_URL = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/0/query';
+const PROXY_URL = '/api/tiles/satellite-info';
 
 function formatDate(yyyymmdd) {
   const s = String(yyyymmdd);
@@ -30,13 +30,12 @@ export default function SatelliteInfo({ map }) {
       abortRef.current = ac;
 
       const center = map.getCenter();
-      const url = `${ESRI_QUERY_URL}?geometry=${center.lng},${center.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=SRC_DATE,SRC_RES,SRC_DESC,NICE_NAME&returnGeometry=false&f=json&inSR=4326`;
+      const url = `${PROXY_URL}?lng=${center.lng}&lat=${center.lat}`;
 
       fetch(url, { signal: ac.signal })
         .then((r) => r.json())
-        .then((data) => {
-          const attrs = data.features?.[0]?.attributes;
-          if (attrs) {
+        .then((attrs) => {
+          if (attrs?.SRC_DATE) {
             setInfo({
               date: formatDate(attrs.SRC_DATE),
               resolution: attrs.SRC_RES,
