@@ -522,6 +522,9 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('user');
+  const [resetPwUser, setResetPwUser] = useState(null); // { id, username }
+  const [resetPwValue, setResetPwValue] = useState('');
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState(null); // { id, username }
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -567,6 +570,48 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
   const impersonate = async (userId) => {
     try {
       await useAuthStore.getState().startImpersonation(userId);
+    } catch (err) { setError(err.message); }
+  };
+
+  const unlockUser = async (userId) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/unlock-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      fetchUsers();
+    } catch (err) { setError(err.message); }
+  };
+
+  const resetPassword = async () => {
+    if (!resetPwUser || !resetPwValue) return;
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: resetPwUser.id, password: resetPwValue }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setResetPwUser(null);
+      setResetPwValue('');
+      fetchUsers();
+    } catch (err) { setError(err.message); }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setConfirmDeleteUser(null);
+      fetchUsers();
+      onUserChange?.();
     } catch (err) { setError(err.message); }
   };
 
@@ -617,9 +662,9 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
               <th className="text-left py-1 pr-4">Role</th>
               <th className="text-left py-1 pr-4">Status</th>
               <th className="text-left py-1 pr-4">AI</th>
-              <th className="text-left py-1 pr-4">Timelapse</th>
+              <th className="text-left py-1 pr-4">TL</th>
               <th className="text-left py-1 pr-4">WaSOS</th>
-              <th className="text-left py-1 pr-4">InfraView</th>
+              <th className="text-left py-1 pr-4">Infra</th>
               <th className="text-left py-1">Actions</th>
             </tr>
           </thead>
@@ -646,22 +691,86 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
                 <td className="py-1.5 pr-4">
                   <span className={u.infraviewEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.infraviewEnabled ? 'On' : '-'}</span>
                 </td>
-                <td className="py-1.5 flex gap-1">
-                  {u.role !== 'admin' && (
-                    <button onClick={() => promoteAdmin(u.id)}
-                      className="px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded">
-                      Make Admin
+                <td className="py-1.5">
+                  <div className="flex gap-1 flex-wrap">
+                    {u.role !== 'admin' && (
+                      <button onClick={() => promoteAdmin(u.id)}
+                        className="px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded">
+                        Make Admin
+                      </button>
+                    )}
+                    {u.locked && (
+                      <button onClick={() => unlockUser(u.id)}
+                        className="px-2 py-0.5 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded">
+                        Unlock
+                      </button>
+                    )}
+                    <button onClick={() => { setResetPwUser({ id: u.id, username: u.username }); setResetPwValue(''); }}
+                      className="px-2 py-0.5 text-xs bg-slate-600 text-slate-300 hover:bg-slate-500 rounded">
+                      Reset PW
                     </button>
-                  )}
-                  <button onClick={() => impersonate(u.id)}
-                    className="px-2 py-0.5 text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded">
-                    Impersonate
-                  </button>
+                    <button onClick={() => impersonate(u.id)}
+                      className="px-2 py-0.5 text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded">
+                      Impersonate
+                    </button>
+                    <button onClick={() => setConfirmDeleteUser({ id: u.id, username: u.username })}
+                      className="px-2 py-0.5 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded">
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* Reset Password Dialog */}
+      {resetPwUser && (
+        <div className="mt-3 bg-slate-800 border border-slate-600 rounded p-3 space-y-2">
+          <div className="text-xs text-slate-300">
+            Reset password for <span className="font-semibold text-slate-100">{resetPwUser.username}</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              placeholder="New password"
+              value={resetPwValue}
+              onChange={(e) => setResetPwValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && resetPassword()}
+              className="px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm flex-1"
+              autoFocus
+            />
+            <button onClick={resetPassword}
+              disabled={!resetPwValue || resetPwValue.length < 6}
+              className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-500 rounded disabled:opacity-30 disabled:cursor-not-allowed">
+              Reset
+            </button>
+            <button onClick={() => setResetPwUser(null)}
+              className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation */}
+      {confirmDeleteUser && (
+        <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded p-3 space-y-2">
+          <div className="text-xs text-red-300">
+            Delete user <span className="font-semibold text-red-200">{confirmDeleteUser.username}</span>? This cannot be undone.
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => deleteUser(confirmDeleteUser.id)}
+              className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 rounded">
+              Delete
+            </button>
+            <button onClick={() => setConfirmDeleteUser(null)}
+              className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

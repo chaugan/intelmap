@@ -219,6 +219,54 @@ router.post('/orgs/:id/promote-admin', (req, res) => {
   res.json({ ok: true });
 });
 
+// Unlock user in org
+router.post('/orgs/:id/unlock-user', (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  const db = getDb();
+  const user = db.prepare('SELECT id, username, org_id FROM users WHERE id = ? AND org_id = ?').get(userId, req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found in this organization' });
+
+  db.prepare("UPDATE users SET locked = 0, must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(userId);
+  deleteUserSessions(userId);
+  disconnectUser(userId);
+  eventLogger.config.info(`Super-admin unlocked user ${user.username} in org ${req.params.id}`);
+  res.json({ ok: true });
+});
+
+// Reset password for user in org
+router.post('/orgs/:id/reset-password', (req, res) => {
+  const { userId, password } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  if (!validatePassword(password)) return res.status(400).json({ error: 'Password must be 6-128 characters' });
+
+  const db = getDb();
+  const user = db.prepare('SELECT id, username, org_id FROM users WHERE id = ? AND org_id = ?').get(userId, req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found in this organization' });
+
+  const { hash, salt } = hashPassword(password);
+  db.prepare("UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1, updated_at = datetime('now') WHERE id = ?")
+    .run(hash, salt, userId);
+  deleteUserSessions(userId);
+  disconnectUser(userId);
+  eventLogger.config.info(`Super-admin reset password for user ${user.username} in org ${req.params.id}`);
+  res.json({ ok: true });
+});
+
+// Delete user in org
+router.delete('/orgs/:id/users/:userId', (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, username FROM users WHERE id = ? AND org_id = ?').get(req.params.userId, req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found in this organization' });
+
+  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
+  deleteUserSessions(req.params.userId);
+  disconnectUser(req.params.userId);
+  eventLogger.config.info(`Super-admin deleted user ${user.username} from org ${req.params.id}`);
+  res.json({ ok: true });
+});
+
 // --- Super-admin management ---
 
 // List all super-admins
