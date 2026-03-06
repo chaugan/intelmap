@@ -353,7 +353,7 @@ router.post('/mfa/webauthn/auth-verify', async (req, res) => {
 
   try {
     const hostname = req.hostname;
-    const origin = `${req.protocol}://${req.get('host')}`;
+    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
 
     const verification = await verifyAuthenticationResponse({
       response: credential,
@@ -520,7 +520,7 @@ router.post('/mfa/webauthn/register', requireAuth, async (req, res) => {
 
   try {
     const hostname = req.hostname;
-    const origin = `${req.protocol}://${req.get('host')}`;
+    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
 
     const verification = await verifyRegistrationResponse({
       response: credential,
