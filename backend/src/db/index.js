@@ -103,11 +103,11 @@ export function initDb() {
   const placesPath = process.env.PLACES_JSON || path.join(config.dataDir, 'places.json');
   importPlaces(placesPath).catch(err => console.error('Places import failed:', err.message));
 
-  // Backfill default "Standard" project for users with zero projects
-  const backfilled = db.prepare("SELECT value FROM app_settings WHERE key = 'default_projects_backfilled'").get();
+  // Backfill default "Standard" project for users missing one
+  const backfilled = db.prepare("SELECT value FROM app_settings WHERE key = 'default_projects_backfilled_v2'").get();
   if (!backfilled) {
     const usersWithout = db.prepare(
-      'SELECT u.id, u.org_id FROM users u WHERE NOT EXISTS (SELECT 1 FROM projects_v2 WHERE user_id = u.id)'
+      "SELECT u.id, u.org_id FROM users u WHERE NOT EXISTS (SELECT 1 FROM projects_v2 WHERE user_id = u.id AND name = 'Standard')"
     ).all();
     if (usersWithout.length > 0) {
       const insertProject = db.prepare(
@@ -119,7 +119,7 @@ export function initDb() {
       console.log(`Backfilled default project for ${usersWithout.length} user(s)`);
     }
     db.prepare(
-      "INSERT INTO app_settings (key, value, updated_at) VALUES ('default_projects_backfilled', '1', datetime('now')) ON CONFLICT(key) DO NOTHING"
+      "INSERT INTO app_settings (key, value, updated_at) VALUES ('default_projects_backfilled_v2', '1', datetime('now')) ON CONFLICT(key) DO NOTHING"
     ).run();
   }
 
