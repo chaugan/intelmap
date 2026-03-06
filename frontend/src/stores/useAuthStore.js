@@ -7,6 +7,8 @@ const WASOS_API = '/api/wasos';
 export const useAuthStore = create((set, get) => ({
   user: null,
   loading: true,
+  isImpersonating: false,
+  realUser: null,
 
   // Dialog states
   loginOpen: false,
@@ -39,7 +41,12 @@ export const useAuthStore = create((set, get) => ({
       const data = await res.json();
       // Normalize: ensure orgId and orgName are available
       const user = data ? { ...data, orgId: data.orgId || null, orgName: data.orgName || null } : null;
-      set({ user, loading: false });
+      set({
+        user,
+        loading: false,
+        isImpersonating: !!data?.isImpersonating,
+        realUser: data?.realUser || null,
+      });
       if (user) {
         if (!socket.connected) socket.connect();
         if (user.mustChangePassword) {
@@ -170,6 +177,33 @@ export const useAuthStore = create((set, get) => ({
     } catch {}
     socket.disconnect();
     set({ user: null, passwordChangeOpen: false });
+  },
+
+  // Impersonation methods
+  startImpersonation: async (userId) => {
+    const res = await fetch(`${API}/impersonate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ userId }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Impersonation failed');
+    }
+    window.location.reload();
+  },
+
+  stopImpersonation: async () => {
+    const res = await fetch(`${API}/stop-impersonate`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to stop impersonation');
+    }
+    window.location.reload();
   },
 
   // WaSOS methods

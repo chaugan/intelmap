@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS org_settings (
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   salt TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'user',
@@ -358,6 +358,12 @@ CREATE TABLE IF NOT EXISTS mfa_pending (
   expires_at TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0
 );
+
+-- Per-org username uniqueness (same username allowed across different orgs)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_org ON users(username, org_id)
+  WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_super ON users(username)
+  WHERE org_id IS NULL;
 
 -- Organization indexes
 CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)

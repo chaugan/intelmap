@@ -26,13 +26,14 @@ import { VERSION } from './version.js';
 export default function App() {
   const user = useAuthStore((s) => s.user);
   const checkSession = useAuthStore((s) => s.checkSession);
+  const isImpersonating = useAuthStore((s) => s.isImpersonating);
 
   useEffect(() => {
     checkSession();
   }, [checkSession]);
 
-  // Super-admins see the management dashboard, not the map
-  if (user?.role === 'super_admin') {
+  // Super-admins see the management dashboard, not the map (unless impersonating)
+  if (user?.role === 'super_admin' && !isImpersonating) {
     return (
       <>
         <SuperAdminPanel />
@@ -44,6 +45,29 @@ export default function App() {
   }
 
   return <MapApp user={user} />;
+}
+
+function ImpersonationBanner() {
+  const user = useAuthStore((s) => s.user);
+  const realUser = useAuthStore((s) => s.realUser);
+  const stopImpersonation = useAuthStore((s) => s.stopImpersonation);
+
+  return (
+    <div className="flex items-center justify-center gap-3 px-4 py-1.5 bg-amber-600 text-black text-sm font-medium shrink-0 z-30">
+      <span>
+        {t('impersonate.viewing', useMapStore.getState().lang)
+          .replace('{username}', user?.username || '')
+          .replace('{orgName}', user?.orgName || '')
+          .replace('{realUser}', realUser?.username || '')}
+      </span>
+      <button
+        onClick={stopImpersonation}
+        className="px-3 py-0.5 bg-black/20 hover:bg-black/30 rounded text-sm font-semibold transition-colors"
+      >
+        {t('impersonate.exit', useMapStore.getState().lang)}
+      </button>
+    </div>
+  );
 }
 
 function MapApp({ user }) {
@@ -247,12 +271,15 @@ function MapApp({ user }) {
     }
   }, [mapRef, applyTheme]);
 
+  const isImpersonating = useAuthStore((s) => s.isImpersonating);
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
   const isDragging = isDraggingChat || isDraggingTimelapse || isDraggingProject;
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
+      {/* Impersonation Banner */}
+      {isImpersonating && <ImpersonationBanner />}
       {/* Top Bar */}
       <header className="flex items-center gap-4 px-4 py-2 bg-slate-800 border-b border-slate-700 z-20 shrink-0">
         <h1 className="text-lg font-bold text-emerald-400 tracking-wide shrink-0">

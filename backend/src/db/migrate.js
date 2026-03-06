@@ -99,6 +99,57 @@ export function runMigration() {
     console.log('Added wasos_session column to users table');
   }
 
+  // Per-org username uniqueness migration: remove global UNIQUE on username, add partial unique indexes
+  const perOrgFlag = db.prepare("SELECT value FROM app_settings WHERE key = 'per_org_username_v1'").get();
+  if (!perOrgFlag) {
+    // Check if the global UNIQUE index exists on username (SQLite auto-creates it)
+    const indexes = db.prepare("PRAGMA index_list(users)").all();
+    const hasGlobalUnique = indexes.some(idx => {
+      const cols = db.prepare(`PRAGMA index_info("${idx.name}")`).all();
+      return idx.unique && cols.length === 1 && cols[0].name === 'username';
+    });
+
+    if (hasGlobalUnique) {
+      console.log('Migrating users table: removing global UNIQUE on username, adding per-org uniqueness...');
+      // Get current columns dynamically
+      const cols = db.prepare("PRAGMA table_info(users)").all();
+      const colNames = cols.map(c => c.name).join(', ');
+
+      db.pragma('foreign_keys = OFF');
+      const migrate = db.transaction(() => {
+        db.exec(`CREATE TABLE users_new AS SELECT ${colNames} FROM users`);
+        db.exec('DROP TABLE users');
+        // Recreate table without UNIQUE on username
+        const colDefs = cols.map(c => {
+          let def = `${c.name} ${c.type}`;
+          if (c.notnull) def += ' NOT NULL';
+          if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+          if (c.pk) def += ' PRIMARY KEY';
+          return def;
+        }).join(', ');
+        db.exec(`CREATE TABLE users (${colDefs})`);
+        db.exec(`INSERT INTO users SELECT ${colNames} FROM users_new`);
+        db.exec('DROP TABLE users_new');
+        // Add partial unique indexes
+        db.exec('CREATE UNIQUE INDEX idx_users_username_org ON users(username, org_id) WHERE org_id IS NOT NULL');
+        db.exec('CREATE UNIQUE INDEX idx_users_username_super ON users(username) WHERE org_id IS NULL');
+      });
+      migrate();
+      db.pragma('foreign_keys = ON');
+      console.log('Users table migrated: per-org username uniqueness enabled');
+    }
+
+    // Mark migration as done
+    db.prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('per_org_username_v1', '1', datetime('now'))").run();
+  }
+
+  // Add impersonating_user_id column to sessions table (for super-admin impersonation)
+  const sessionCols = db.prepare("PRAGMA table_info(sessions)").all();
+  if (!sessionCols.some(c => c.name === 'impersonating_user_id')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN impersonating_user_id TEXT").run();
+    console.log('Added impersonating_user_id column to sessions table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

@@ -14,20 +14,28 @@ export function createSession(userId) {
 export function validateSession(sessionId) {
   if (!sessionId) return null;
   const db = getDb();
+  const session = db.prepare(
+    "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')"
+  ).get(sessionId);
+  if (!session) return null;
+
+  // Determine effective user: impersonated or session owner
+  const isImpersonating = !!session.impersonating_user_id;
+  const effectiveUserId = isImpersonating ? session.impersonating_user_id : session.user_id;
+
   const row = db.prepare(
-    `SELECT s.id, s.user_id, s.expires_at, u.username, u.role, u.org_id,
+    `SELECT u.id as user_id, u.username, u.role, u.org_id,
             u.must_change_password, u.locked, u.ai_chat_enabled,
             u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled, u.upscale_enabled,
             u.totp_enabled,
             o.name as org_name,
             o.feature_ai_chat, o.feature_wasos, o.feature_infraview,
             o.feature_upscale, o.feature_mfa, o.mfa_required
-     FROM sessions s
-     JOIN users u ON s.user_id = u.id
+     FROM users u
      LEFT JOIN organizations o ON u.org_id = o.id
-     WHERE s.id = ? AND s.expires_at > datetime('now')
+     WHERE u.id = ?
        AND (u.org_id IS NULL OR o.deleted_at IS NULL)`
-  ).get(sessionId);
+  ).get(effectiveUserId);
   if (!row) return null;
 
   // Check if user has any MFA method enabled
@@ -36,8 +44,8 @@ export function validateSession(sessionId) {
   ).get(row.user_id)?.c > 0 : false;
   const hasMfa = !!row.totp_enabled || hasWebauthn;
 
-  return {
-    sessionId: row.id,
+  const result = {
+    sessionId: session.id,
     id: row.user_id,
     username: row.username,
     role: row.role,
@@ -61,6 +69,14 @@ export function validateSession(sessionId) {
     hasMfa,
     mfaSetupRequired: !!row.mfa_required && !hasMfa,
   };
+
+  if (isImpersonating) {
+    const realUser = db.prepare('SELECT id, username FROM users WHERE id = ?').get(session.user_id);
+    result.isImpersonating = true;
+    result.realUser = realUser ? { id: realUser.id, username: realUser.username } : null;
+  }
+
+  return result;
 }
 
 export function deleteSession(sessionId) {

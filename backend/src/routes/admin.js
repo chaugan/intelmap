@@ -138,8 +138,8 @@ router.post('/users', (req, res) => {
   if (!validatePassword(password)) return res.status(400).json({ error: 'Password must be 6-128 characters' });
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-  if (existing) return res.status(409).json({ error: 'Username already exists' });
+  const existing = db.prepare('SELECT id FROM users WHERE username = ? AND org_id = ?').get(username, req.user.orgId);
+  if (existing) return res.status(409).json({ error: 'Username already exists in this organization' });
 
   const { hash, salt } = hashPassword(password);
   const id = crypto.randomUUID();

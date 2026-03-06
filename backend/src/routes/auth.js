@@ -93,14 +93,44 @@ router.post('/login', (req, res) => {
     return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
   }
 
-  const username = sanitizeUsername(req.body.username);
-  if (!username) return res.status(400).json({ error: 'Invalid username' });
-
+  const rawUsername = req.body.username?.trim() || '';
   const password = req.body.password;
   if (!password) return res.status(400).json({ error: 'Password required' });
 
+  // Parse user@slug format: split on '@' before sanitizing (@ is not valid in usernames)
+  const atIndex = rawUsername.indexOf('@');
+  let username, slug;
+  if (atIndex > 0 && atIndex < rawUsername.length - 1) {
+    username = sanitizeUsername(rawUsername.slice(0, atIndex));
+    slug = rawUsername.slice(atIndex + 1).toLowerCase().replace(/[^a-z]/g, '');
+  } else {
+    username = sanitizeUsername(rawUsername);
+    slug = null;
+  }
+
+  if (!username) return res.status(400).json({ error: 'Invalid username' });
+
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  let user;
+
+  if (slug) {
+    // Explicit org login: user@slug
+    const org = db.prepare('SELECT id FROM organizations WHERE slug = ? AND deleted_at IS NULL').get(slug);
+    if (!org) return res.status(401).json({ error: 'Invalid credentials' });
+    user = db.prepare('SELECT * FROM users WHERE username = ? AND org_id = ?').get(username, org.id);
+  } else {
+    // No @slug: backwards-compatible lookup
+    const matches = db.prepare('SELECT * FROM users WHERE username = ?').all(username);
+    if (matches.length === 0) {
+      user = null;
+    } else if (matches.length === 1) {
+      user = matches[0];
+    } else {
+      // Multiple matches — ambiguous
+      return res.status(401).json({ error: 'Multiple accounts found. Log in as user@org' });
+    }
+  }
+
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.locked) return res.status(403).json({ error: 'Account locked' });
 
@@ -160,7 +190,7 @@ router.post('/logout', requireAuth, (req, res) => {
 router.get('/me', optionalAuth, (req, res) => {
   if (!req.user) return res.json(null);
   const db = getDb();
-  res.json({
+  const response = {
     id: req.user.id,
     username: req.user.username,
     role: req.user.role,
@@ -184,10 +214,18 @@ router.get('/me', optionalAuth, (req, res) => {
     totpEnabled: req.user.totpEnabled,
     hasMfa: req.user.hasMfa,
     mfaSetupRequired: req.user.mfaSetupRequired,
-  });
+  };
+  if (req.user.isImpersonating) {
+    response.isImpersonating = true;
+    response.realUser = req.user.realUser;
+  }
+  res.json(response);
 });
 
 router.post('/change-password', requireAuth, (req, res) => {
+  if (req.user.isImpersonating) {
+    return res.status(403).json({ error: 'Cannot change password while impersonating' });
+  }
   const { currentPassword, newPassword } = req.body;
 
   if (!validatePassword(newPassword)) {
@@ -415,6 +453,7 @@ router.get('/mfa/status', requireAuth, (req, res) => {
 
 // TOTP setup - generate secret + QR
 router.post('/mfa/totp/setup', requireAuth, async (req, res) => {
+  if (req.user.isImpersonating) return res.status(403).json({ error: 'Cannot modify MFA while impersonating' });
   try {
     const result = await generateTotpSecret(req.user.username);
     // Store secret temporarily (not enabled yet) - overwrite any existing
@@ -429,6 +468,7 @@ router.post('/mfa/totp/setup', requireAuth, async (req, res) => {
 
 // TOTP confirm - verify code and enable
 router.post('/mfa/totp/confirm', requireAuth, (req, res) => {
+  if (req.user.isImpersonating) return res.status(403).json({ error: 'Cannot modify MFA while impersonating' });
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'Code required' });
 
@@ -611,6 +651,84 @@ router.post('/mfa/backup-codes/regenerate', requireAuth, (req, res) => {
     .run(JSON.stringify(hashedCodes), req.user.id);
 
   res.json({ backupCodes: codes });
+});
+
+// --- Super-admin impersonation ---
+
+router.post('/impersonate', requireAuth, (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  const db = getDb();
+
+  // Verify the session owner (not impersonated user) is a super_admin
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.user.sessionId);
+  if (!session) return res.status(401).json({ error: 'Invalid session' });
+  const realUser = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
+  if (!realUser || realUser.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only super-admins can impersonate' });
+  }
+
+  // Verify target user
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.role === 'super_admin') return res.status(403).json({ error: 'Cannot impersonate another super-admin' });
+
+  // Verify target's org is not deleted
+  if (target.org_id) {
+    const org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(target.org_id);
+    if (!org || org.deleted_at) return res.status(403).json({ error: 'User\'s organization is deleted' });
+  }
+
+  // Set impersonation on session
+  db.prepare('UPDATE sessions SET impersonating_user_id = ? WHERE id = ?').run(userId, req.user.sessionId);
+
+  // Log event
+  db.prepare(
+    "INSERT INTO admin_events (level, category, message, details, created_at) VALUES ('info', 'auth', ?, ?, datetime('now'))"
+  ).run(
+    `Super-admin ${realUser.username} started impersonating ${target.username}`,
+    JSON.stringify({ realUserId: realUser.id, targetUserId: target.id })
+  );
+
+  let org = null;
+  if (target.org_id) {
+    org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(target.org_id);
+  }
+
+  res.json({
+    ...buildUserResponse(db, target, org),
+    isImpersonating: true,
+    realUser: { id: realUser.id, username: realUser.username },
+  });
+});
+
+router.post('/stop-impersonate', requireAuth, (req, res) => {
+  const db = getDb();
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.user.sessionId);
+  if (!session || !session.impersonating_user_id) {
+    return res.status(400).json({ error: 'Not impersonating anyone' });
+  }
+
+  // Verify session owner is super_admin
+  const realUser = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
+  if (!realUser || realUser.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Invalid session state' });
+  }
+
+  // Clear impersonation
+  db.prepare('UPDATE sessions SET impersonating_user_id = NULL WHERE id = ?').run(req.user.sessionId);
+
+  // Log event
+  const target = db.prepare('SELECT username FROM users WHERE id = ?').get(session.impersonating_user_id);
+  db.prepare(
+    "INSERT INTO admin_events (level, category, message, details, created_at) VALUES ('info', 'auth', ?, ?, datetime('now'))"
+  ).run(
+    `Super-admin ${realUser.username} stopped impersonating ${target?.username || 'unknown'}`,
+    JSON.stringify({ realUserId: realUser.id, targetUserId: session.impersonating_user_id })
+  );
+
+  res.json(buildUserResponse(db, realUser, null));
 });
 
 router.post('/dismiss-password-change', requireAuth, (req, res) => {

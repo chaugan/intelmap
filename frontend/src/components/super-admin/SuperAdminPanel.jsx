@@ -275,17 +275,20 @@ function OrganizationsTab() {
                 value={createName}
                 onChange={(e) => {
                   setCreateName(e.target.value);
-                  setCreateSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+                  setCreateSlug(e.target.value.toLowerCase().replace(/[^a-z]/g, ''));
                 }}
                 className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm"
               />
-              <input
-                type="text"
-                placeholder="slug"
-                value={createSlug}
-                onChange={(e) => setCreateSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                className="w-48 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm font-mono"
-              />
+              <div className="flex flex-col">
+                <input
+                  type="text"
+                  placeholder="slug"
+                  value={createSlug}
+                  onChange={(e) => setCreateSlug(e.target.value.toLowerCase().replace(/[^a-z]/g, ''))}
+                  className="w-48 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm font-mono"
+                />
+                <span className="text-xs text-slate-500 mt-1">Login identifier (user@slug). Letters only.</span>
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={handleCreate} className="px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 rounded">
@@ -345,7 +348,7 @@ function OrganizationsTab() {
                       <input
                         type="text"
                         value={editSlug}
-                        onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z]/g, ''))}
                         className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm font-mono w-full"
                         onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                       />
@@ -561,6 +564,12 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
     } catch (err) { setError(err.message); }
   };
 
+  const impersonate = async (userId) => {
+    try {
+      await useAuthStore.getState().startImpersonation(userId);
+    } catch (err) { setError(err.message); }
+  };
+
   return (
     <div className="bg-slate-900/50 border-t border-slate-700 px-6 py-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -637,13 +646,17 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
                 <td className="py-1.5 pr-4">
                   <span className={u.infraviewEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.infraviewEnabled ? 'On' : '-'}</span>
                 </td>
-                <td className="py-1.5">
+                <td className="py-1.5 flex gap-1">
                   {u.role !== 'admin' && (
                     <button onClick={() => promoteAdmin(u.id)}
                       className="px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded">
                       Make Admin
                     </button>
                   )}
+                  <button onClick={() => impersonate(u.id)}
+                    className="px-2 py-0.5 text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 rounded">
+                    Impersonate
+                  </button>
                 </td>
               </tr>
             ))}

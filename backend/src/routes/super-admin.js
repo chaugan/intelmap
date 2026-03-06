@@ -46,10 +46,10 @@ router.get('/orgs', (req, res) => {
 // Create org
 router.post('/orgs', (req, res) => {
   const name = req.body.name?.trim();
-  const slug = req.body.slug?.trim()?.toLowerCase()?.replace(/[^a-z0-9-]/g, '');
+  const slug = req.body.slug?.trim()?.toLowerCase()?.replace(/[^a-z]/g, '');
 
   if (!name || name.length > 100) return res.status(400).json({ error: 'Organization name required (1-100 chars)' });
-  if (!slug || slug.length < 2 || slug.length > 50) return res.status(400).json({ error: 'Slug required (2-50 chars, lowercase alphanumeric and hyphens)' });
+  if (!slug || slug.length < 2 || slug.length > 50) return res.status(400).json({ error: 'Slug must be lowercase letters only (a-z), 2-50 chars' });
 
   const db = getDb();
   const existing = db.prepare('SELECT id FROM organizations WHERE slug = ?').get(slug);
@@ -72,7 +72,11 @@ router.put('/orgs/:id', (req, res) => {
   if (!org) return res.status(404).json({ error: 'Organization not found' });
 
   const name = req.body.name?.trim() || org.name;
-  const slug = req.body.slug?.trim()?.toLowerCase()?.replace(/[^a-z0-9-]/g, '') || org.slug;
+  const slug = req.body.slug?.trim()?.toLowerCase()?.replace(/[^a-z]/g, '') || org.slug;
+
+  if (slug.length < 2 || slug.length > 50) {
+    return res.status(400).json({ error: 'Slug must be lowercase letters only (a-z), 2-50 chars' });
+  }
 
   if (slug !== org.slug) {
     const existing = db.prepare('SELECT id FROM organizations WHERE slug = ? AND id != ?').get(slug, req.params.id);
@@ -174,9 +178,9 @@ router.post('/orgs/:id/users', (req, res) => {
   const org = db.prepare('SELECT id FROM organizations WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!org) return res.status(404).json({ error: 'Organization not found' });
 
-  // Check globally unique username
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-  if (existing) return res.status(409).json({ error: 'Username already in use' });
+  // Check per-org unique username
+  const existing = db.prepare('SELECT id FROM users WHERE username = ? AND org_id = ?').get(username, req.params.id);
+  if (existing) return res.status(409).json({ error: 'Username already in use in this organization' });
 
   const { hash, salt } = hashPassword(password);
   const id = crypto.randomUUID();
@@ -228,7 +232,7 @@ router.post('/admins', (req, res) => {
   if (!validatePassword(password)) return res.status(400).json({ error: 'Password must be 6-128 characters' });
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  const existing = db.prepare('SELECT id FROM users WHERE username = ? AND org_id IS NULL').get(username);
   if (existing) return res.status(409).json({ error: 'Username already in use' });
 
   const { hash, salt } = hashPassword(password);

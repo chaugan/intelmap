@@ -463,6 +463,11 @@ const translations = {
     'mfa.required': 'MFA er påkrevd for din organisasjon. Konfigurer minst én MFA-metode for å fortsette.',
     'mfa.forceToggle': 'Påkrev MFA',
 
+    // Impersonation
+    'impersonate.viewing': 'Viser som {username} ({orgName}) — innlogget som {realUser} (super-admin)',
+    'impersonate.exit': 'Avslutt',
+    'impersonate.button': 'Vis som bruker',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -925,6 +930,11 @@ const translations = {
     'mfa.backup.enter': 'Enter backup code',
     'mfa.required': 'MFA is required for your organization. Set up at least one MFA method to continue.',
     'mfa.forceToggle': 'Require MFA',
+
+    // Impersonation
+    'impersonate.viewing': 'Viewing as {username} ({orgName}) — logged in as {realUser} (super-admin)',
+    'impersonate.exit': 'Exit',
+    'impersonate.button': 'Impersonate',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',
