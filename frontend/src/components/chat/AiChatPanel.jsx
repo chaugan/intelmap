@@ -143,6 +143,7 @@ export default function AiChatPanel() {
   const addMessage = useChatStore((s) => s.addMessage);
   const appendToLastAssistant = useChatStore((s) => s.appendToLastAssistant);
   const setStreaming = useChatStore((s) => s.setStreaming);
+  const clearMessages = useChatStore((s) => s.clearMessages);
   const user = useAuthStore((s) => s.user);
 
   const [input, setInput] = useState('');
@@ -179,6 +180,15 @@ export default function AiChatPanel() {
       .then(data => { if (data) setAiStatus(data); })
       .catch(() => {});
   }, [chatDrawerOpen]);
+
+  const handleNewChat = () => {
+    if (streaming) handleAbort();
+    clearMessages();
+    setActivePrompt(aiStatus?.prompts?.[0]?.id || 'general');
+    setSendScreenshot(false);
+    setInput('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   const handleAbort = () => {
     if (abortRef.current) {
@@ -347,10 +357,22 @@ export default function AiChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-slate-700 shrink-0">
+      <div className="px-3 py-2 border-b border-slate-700 shrink-0 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-emerald-400">
           {t('chat.title', lang)}
         </h2>
+        {messages.length > 0 && (
+          <button
+            onClick={handleNewChat}
+            title={lang === 'no' ? 'Ny chat' : 'New chat'}
+            className="text-slate-400 hover:text-emerald-400 transition-colors p-1 rounded hover:bg-slate-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+              <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* No API key warning */}

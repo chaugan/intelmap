@@ -54,6 +54,10 @@ function runAnthropicStream(apiKey, body, onEvent) {
 
         if (event.type === 'content_block_start') {
           content.push({ ...event.content_block, _text: '' });
+          // Notify frontend when a server-side web search starts
+          if (event.content_block?.type === 'server_tool_use') {
+            onEvent({ type: 'tool', name: event.content_block.name, result: { message: 'searching...' } });
+          }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
             onEvent({ type: 'text', content: event.delta.text });
@@ -144,6 +148,11 @@ router.post('/chat', requireAuth, async (req, res) => {
       return { role: m.role, content: m.content };
     });
 
+    const allTools = [
+      ...tools,
+      { type: 'web_search_20250305', name: 'web_search', max_uses: 5 },
+    ];
+
     let conversationMessages = [...claudeMessages];
     let continueLoop = true;
 
@@ -154,7 +163,7 @@ router.post('/chat', requireAuth, async (req, res) => {
           model: config.claudeModel,
           max_tokens: 16384,
           system: systemPrompt,
-          tools,
+          tools: allTools,
           messages: conversationMessages,
           stream: true,
         },
