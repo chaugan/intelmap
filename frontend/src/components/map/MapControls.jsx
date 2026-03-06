@@ -74,6 +74,8 @@ export default function MapControls() {
     toporaster_gray: t('base.toporaster_gray', lang),
     osm: t('base.osm', lang),
     osm_gray: t('base.osm_gray', lang),
+    satellite: t('base.satellite', lang),
+    satellite_gray: t('base.satellite_gray', lang),
   };
 
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };

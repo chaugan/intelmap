@@ -35,6 +35,17 @@ export const BASE_LAYERS = {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     grayscale: true,
   },
+  satellite: {
+    id: 'satellite',
+    name: 'Esri Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  },
+  satellite_gray: {
+    id: 'satellite_gray',
+    name: 'Satellite Gråtone',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    grayscale: true,
+  },
 };
 
 export const COMMON_SIDCS = {

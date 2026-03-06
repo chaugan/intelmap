@@ -43,6 +43,8 @@ const translations = {
     'base.toporaster_gray': 'Raster gr\u00e5tone',
     'base.osm': 'OpenStreetMap',
     'base.osm_gray': 'OSM gr\u00e5tone',
+    'base.satellite': 'Satellitt',
+    'base.satellite_gray': 'Satellitt gr\u00e5tone',
 
     // Panels
     'panel.layers': 'Lag',
@@ -473,6 +475,8 @@ const translations = {
     'base.toporaster_gray': 'Raster Grayscale',
     'base.osm': 'OpenStreetMap',
     'base.osm_gray': 'OSM Grayscale',
+    'base.satellite': 'Satellite',
+    'base.satellite_gray': 'Satellite Grayscale',
 
     'panel.layers': 'Layers',
     'panel.symbols': 'Symbols',

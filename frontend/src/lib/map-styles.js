@@ -21,7 +21,9 @@ export function buildMapStyle(baseLayerId, {
       tileSize: 256,
       attribution: baseLayerId.startsWith('osm')
         ? '&copy; OpenStreetMap contributors'
-        : '&copy; Kartverket',
+        : baseLayerId.startsWith('satellite')
+          ? '&copy; Esri, Maxar, Earthstar Geographics'
+          : '&copy; Kartverket',
     },
     dem: {
       type: 'raster-dem',
