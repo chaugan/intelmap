@@ -252,14 +252,7 @@ router.get('/frames/:cameraId', requireAuth, requireTimelapseAccess, (req, res) 
     const { cameraId } = req.params;
     const { start, end, limit = 100 } = req.query;
 
-    let frames = captureService.getFrames(cameraId, start, end);
-
-    // Limit response size
-    if (frames.length > limit) {
-      // Sample frames evenly
-      const step = Math.ceil(frames.length / limit);
-      frames = frames.filter((_, i) => i % step === 0);
-    }
+    const frames = captureService.getFrames(cameraId, start, end);
 
     res.json(frames.map(f => ({
       timestamp: f.timestamp,
