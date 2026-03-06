@@ -9,7 +9,10 @@ const WMS_LAYERS = [
 
 export default function WmsOverlayToggles() {
   const lang = useMapStore((s) => s.lang);
+  const baseLayer = useMapStore((s) => s.baseLayer);
   const store = useMapStore();
+
+  if (!baseLayer?.startsWith('satellite')) return null;
 
   return (
     <div className="flex flex-wrap gap-1">
