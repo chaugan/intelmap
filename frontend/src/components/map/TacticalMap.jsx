@@ -38,6 +38,7 @@ import RoadRestrictionsLayer, { RoadRestrictionsLegend } from './RoadRestriction
 import InfrastructureLayer from './InfrastructureLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
+import SatelliteInfo from './SatelliteInfo.jsx';
 
 let nextMenuId = 1;
 
@@ -872,6 +873,7 @@ export default function TacticalMap() {
         />
       )}
       <MeasuringTool />
+      <SatelliteInfo map={mapInstance} />
       {/* Vessel Activity Box Drawing */}
       {vesselsVisible && <VesselActivityBox mapRef={mapInstance} />}
       {/* Vessel Activity Panel */}
