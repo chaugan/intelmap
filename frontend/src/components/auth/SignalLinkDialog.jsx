@@ -48,10 +48,15 @@ export default function SignalLinkDialog() {
         credentials: 'include',
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || t('signal.linkFailed', lang));
+        let msg = t('signal.linkFailed', lang);
+        try { const data = await res.json(); msg = data.error || msg; } catch {}
+        throw new Error(msg);
       }
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch {
+        throw new Error(t('signal.serviceBusy', lang));
+      }
       setQrCode(data.qrCode || null);
       setStep('qr');
     } catch (err) {
