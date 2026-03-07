@@ -121,20 +121,18 @@ function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
     const hInner = Math.sqrt(1 - rInnerNorm * rInnerNorm);
     const hOuter = Math.sqrt(1 - rOuterNorm * rOuterNorm);
 
+    // Uniform dome height — same for all directions at this ring
+    const top = Math.max(3, maxHeight * hInner);
+    const base = ring === numRings - 1 ? 0 : Math.max(0, maxHeight * hOuter);
+
     for (let g = 0; g < numGroups; g++) {
       const angle = groupAngles[g];
-      const norm = angle / maxAngle;
-      // Minimum 0.15 so exposed directions still show dome structure
-      const scaledNorm = 0.15 + norm * 0.85;
 
       const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
       const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
 
+      // Color shows exposure data; shape is uniform hemisphere
       const color = horizonColor(angle, maxAngle);
-      // This ring's top = hemisphere height at inner edge (taller toward center)
-      // This ring's base = hemisphere height at outer edge
-      const top = Math.max(3, scaledNorm * maxHeight * hInner);
-      const base = ring === numRings - 1 ? 0 : Math.max(0, scaledNorm * maxHeight * hOuter);
 
       // Build arc segment
       const steps = 2;
