@@ -375,7 +375,7 @@ export default function ViewshedTool() {
       if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
       if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
       // Saved boundary circles
-      if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 1.5, 'line-opacity': 0.5, 'line-dasharray': [4, 2] } });
+      if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
       // Saved horizon domes
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
