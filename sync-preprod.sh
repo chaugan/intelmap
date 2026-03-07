@@ -118,6 +118,10 @@ if [[ "$SYNC_DB" =~ ^[Yy]$ ]]; then
 
     chown intelmap:intelmap "$PREPROD_DIR/backend/data/"intelmap.db*
 
+    # Write sync timestamp for the preprod UI banner
+    date -Iseconds > "$PREPROD_DIR/backend/data/.last-db-sync"
+    chown intelmap:intelmap "$PREPROD_DIR/backend/data/.last-db-sync"
+
     echo "  Starting preprod service..."
     systemctl start intelmap-preprod
 

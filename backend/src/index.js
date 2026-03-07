@@ -3,6 +3,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import config from './config.js';
 import apiRouter from './routes/api.js';
 import { setupSocket } from './socket/index.js';
@@ -35,7 +37,16 @@ registerPublicRoutes(app);
 app.use('/api', apiRouter);
 
 // Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_req, res) => {
+  const result = { status: 'ok' };
+  try {
+    const syncFile = join(config.dataDir, '.last-db-sync');
+    if (existsSync(syncFile)) {
+      result.lastDbSync = readFileSync(syncFile, 'utf-8').trim();
+    }
+  } catch {}
+  res.json(result);
+});
 
 // Initialize database (creates tables, seeds admin)
 initDb();

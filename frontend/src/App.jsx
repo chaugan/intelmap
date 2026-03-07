@@ -36,6 +36,7 @@ export default function App() {
   if (user?.role === 'super_admin' && !isImpersonating) {
     return (
       <>
+        <PreprodBanner />
         <SuperAdminPanel />
         <LoginDialog />
         <PasswordChangeDialog />
@@ -45,6 +46,41 @@ export default function App() {
   }
 
   return <MapApp user={user} />;
+}
+
+const IS_PREPROD = window.location.hostname.startsWith('preprod.');
+
+function PreprodBanner() {
+  const [lastSync, setLastSync] = useState(null);
+
+  useEffect(() => {
+    if (!IS_PREPROD) return;
+    fetch('/health')
+      .then((r) => r.json())
+      .then((d) => { if (d.lastDbSync) setLastSync(d.lastDbSync); })
+      .catch(() => {});
+  }, []);
+
+  if (!IS_PREPROD) return null;
+
+  const lang = useMapStore.getState().lang;
+  const syncText = lastSync
+    ? new Date(lastSync).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+  return (
+    <div className="flex items-center justify-center gap-3 px-4 py-1 bg-orange-600 text-white text-xs font-medium shrink-0 z-30">
+      <span className="font-bold tracking-wider uppercase">Preprod</span>
+      {syncText && (
+        <span className="opacity-80">
+          {lang === 'no' ? 'Siste DB-sync fra prod' : 'Last DB sync from prod'}: {syncText}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function ImpersonationBanner() {
@@ -278,6 +314,8 @@ function MapApp({ user }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
+      {/* Preprod Banner */}
+      <PreprodBanner />
       {/* Impersonation Banner */}
       {isImpersonating && <ImpersonationBanner />}
       {/* Top Bar */}
