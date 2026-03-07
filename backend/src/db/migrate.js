@@ -195,6 +195,7 @@ export function runMigration() {
     CREATE TABLE IF NOT EXISTS project_viewsheds (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      layer_id TEXT,
       longitude REAL,
       latitude REAL,
       observer_height REAL,
@@ -205,6 +206,13 @@ export function runMigration() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Add layer_id column to project_viewsheds if missing (migration for existing installs)
+  const viewshedCols = db.prepare("PRAGMA table_info(project_viewsheds)").all();
+  if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'layer_id')) {
+    db.prepare("ALTER TABLE project_viewsheds ADD COLUMN layer_id TEXT").run();
+    console.log('Added layer_id column to project_viewsheds table');
+  }
 
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
