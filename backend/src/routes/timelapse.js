@@ -24,10 +24,10 @@ function requireTimelapseAccess(req, res, next) {
 router.get('/recording', requireAuth, requireTimelapseAccess, (req, res) => {
   try {
     const db = getDb();
-    // Get all cameras that are currently capturing
+    // Get all cameras that are currently capturing (cameras are shared public resources, not org-scoped)
     const cameras = db.prepare(`
-      SELECT camera_id FROM timelapse_cameras WHERE is_capturing = 1 AND org_id = ?
-    `).all(req.user.orgId);
+      SELECT camera_id FROM timelapse_cameras WHERE is_capturing = 1
+    `).all();
     res.json(cameras.map(c => c.camera_id));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,9 +40,9 @@ router.get('/recording/all', requireAuth, requireTimelapseAccess, (req, res) => 
     const db = getDb();
     const cameras = db.prepare(`
       SELECT camera_id, name, lat, lon, is_capturing, is_protected, subscriber_count, last_frame_at, available_from, available_to
-      FROM timelapse_cameras WHERE is_capturing = 1 AND org_id = ?
+      FROM timelapse_cameras WHERE is_capturing = 1
       ORDER BY name ASC
-    `).all(req.user.orgId);
+    `).all();
 
     res.json(cameras.map(c => ({
       cameraId: c.camera_id,
