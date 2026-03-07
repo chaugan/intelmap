@@ -5,9 +5,10 @@ export function addViewshed(projectId, data) {
   const db = getDb();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  const type = data.type || 'viewshed';
   db.prepare(
-    `INSERT INTO project_viewsheds (id, project_id, layer_id, longitude, latitude, observer_height, radius_km, geojson, stats, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO project_viewsheds (id, project_id, layer_id, longitude, latitude, observer_height, radius_km, geojson, stats, created_by, created_at, type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, projectId, data.layerId || null,
     data.longitude, data.latitude,
@@ -15,11 +16,12 @@ export function addViewshed(projectId, data) {
     JSON.stringify(data.geojson),
     JSON.stringify(data.stats),
     data.createdBy || '',
-    now
+    now, type
   );
   return {
     id, projectId,
     layerId: data.layerId || null,
+    type,
     longitude: data.longitude,
     latitude: data.latitude,
     observerHeight: data.observerHeight,
@@ -55,6 +57,7 @@ function rowToViewshed(row) {
     id: row.id,
     projectId: row.project_id,
     layerId: row.layer_id || null,
+    type: row.type || 'viewshed',
     longitude: row.longitude,
     latitude: row.latitude,
     observerHeight: row.observer_height,

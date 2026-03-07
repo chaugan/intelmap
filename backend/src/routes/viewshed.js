@@ -106,6 +106,110 @@ function destination(lat, lon, bearingRad, distMeters) {
   };
 }
 
+router.post('/calculate-horizon', async (req, res) => {
+  try {
+    const { longitude, latitude, radiusKm: rawRadius } = req.body;
+
+    if (!isFinite(longitude) || !isFinite(latitude)) {
+      return res.status(400).json({ error: 'Invalid coordinates' });
+    }
+    const radius = Math.max(1, Math.min(30, Number(rawRadius) || 15));
+    const radiusMeters = radius * 1000;
+
+    // Choose zoom level based on radius
+    let zoom;
+    if (radius > 10) zoom = 12;
+    else if (radius > 3) zoom = 13;
+    else zoom = 14;
+
+    // Calculate bounding box
+    const north = destination(latitude, longitude, 0, radiusMeters);
+    const south = destination(latitude, longitude, Math.PI, radiusMeters);
+    const east = destination(latitude, longitude, Math.PI / 2, radiusMeters);
+    const west = destination(latitude, longitude, 3 * Math.PI / 2, radiusMeters);
+
+    const tileNW = lngLatToTile(west.lon, north.lat, zoom);
+    const tileSE = lngLatToTile(east.lon, south.lat, zoom);
+
+    // Fetch and decode all tiles
+    const tileMap = new Map();
+    const tilePromises = [];
+    for (let tx = tileNW.x; tx <= tileSE.x; tx++) {
+      for (let ty = tileNW.y; ty <= tileSE.y; ty++) {
+        tilePromises.push(
+          fetchDemTile(zoom, tx, ty).then(async (buf) => {
+            if (buf) {
+              const elevations = await decodeTerrariumTile(buf);
+              tileMap.set(`${tx},${ty}`, { x: tx, y: ty, elevations });
+            }
+          })
+        );
+      }
+    }
+    await Promise.all(tilePromises);
+
+    if (tileMap.size === 0) {
+      return res.status(502).json({ error: 'Failed to fetch elevation data' });
+    }
+
+    function getElevation(lon, lat) {
+      const n = Math.pow(2, zoom);
+      const xf = (lon + 180) / 360 * n;
+      const latRad = lat * Math.PI / 180;
+      const yf = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+      const tileX = Math.floor(xf);
+      const tileY = Math.floor(yf);
+      const tile = tileMap.get(`${tileX},${tileY}`);
+      if (!tile) return 0;
+      const px = Math.max(0, Math.min(255, Math.floor((xf - tileX) * 256)));
+      const py = Math.max(0, Math.min(255, Math.floor((yf - tileY) * 256)));
+      return tile.elevations[py * 256 + px];
+    }
+
+    const groundElevation = getElevation(longitude, latitude);
+    const sampleStep = radius > 10 ? 100 : radius > 3 ? 50 : 30;
+    const numSamples = Math.ceil(radiusMeters / sampleStep);
+    const numRays = 720;
+    const horizonProfile = new Float64Array(numRays);
+
+    for (let r = 0; r < numRays; r++) {
+      const bearingRad = (r * 0.5) * Math.PI / 180;
+      let maxAngle = 0;
+
+      for (let s = 1; s <= numSamples; s++) {
+        const dist = s * sampleStep;
+        const pt = destination(latitude, longitude, bearingRad, dist);
+        const terrainElev = getElevation(pt.lon, pt.lat);
+        const elevAngle = Math.atan2(terrainElev - groundElevation, dist) * 180 / Math.PI;
+        if (elevAngle > maxAngle) maxAngle = elevAngle;
+      }
+      horizonProfile[r] = Math.round(maxAngle * 100) / 100;
+    }
+
+    // Stats
+    let sum = 0, max = 0, exposedCount = 0;
+    const exposureThreshold = 5; // degrees — below this, considered exposed
+    for (let i = 0; i < numRays; i++) {
+      sum += horizonProfile[i];
+      if (horizonProfile[i] > max) max = horizonProfile[i];
+      if (horizonProfile[i] < exposureThreshold) exposedCount++;
+    }
+
+    res.json({
+      horizonProfile: Array.from(horizonProfile),
+      stats: {
+        exposurePercent: Math.round(exposedCount / numRays * 100),
+        meanHorizonAngleDeg: Math.round(sum / numRays * 100) / 100,
+        maxHorizonAngleDeg: max,
+      },
+      groundElevation: Math.round(groundElevation),
+    });
+  } catch (err) {
+    console.error('Horizon calculation error:', err);
+    res.status(500).json({ error: 'Horizon calculation failed' });
+  }
+});
+
 router.post('/calculate', async (req, res) => {
   try {
     const { longitude, latitude, observerHeight, radiusKm } = req.body;

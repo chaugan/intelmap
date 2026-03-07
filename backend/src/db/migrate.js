@@ -214,6 +214,12 @@ export function runMigration() {
     console.log('Added layer_id column to project_viewsheds table');
   }
 
+  // Add type column to project_viewsheds (viewshed | horizon)
+  if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'type')) {
+    db.prepare("ALTER TABLE project_viewsheds ADD COLUMN type TEXT DEFAULT 'viewshed'").run();
+    console.log('Added type column to project_viewsheds table');
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

@@ -526,6 +526,13 @@ const translations = {
     'viewshed.newAnalysis': 'Ny analyse',
     'viewshed.clear': 'Fjern',
     'viewshed.deleteAll': 'Slett alle',
+    'viewshed.exposureDome': 'Eksponeringsdom',
+    'viewshed.exposurePercent': 'Eksponering',
+    'viewshed.meanHorizon': 'Gj.snitt horisontvinkel',
+    'viewshed.maxHorizon': 'Maks horisontvinkel',
+    'viewshed.protected': 'Beskyttet',
+    'viewshed.exposed': 'Eksponert',
+    'viewshed.scanRadius': 'Skanneradius',
 
     // General
     'lang.switch': 'English',
@@ -1053,6 +1060,13 @@ const translations = {
     'viewshed.newAnalysis': 'New analysis',
     'viewshed.clear': 'Clear',
     'viewshed.deleteAll': 'Delete all',
+    'viewshed.exposureDome': 'Exposure Dome',
+    'viewshed.exposurePercent': 'Exposure',
+    'viewshed.meanHorizon': 'Mean horizon angle',
+    'viewshed.maxHorizon': 'Max horizon angle',
+    'viewshed.protected': 'Protected',
+    'viewshed.exposed': 'Exposed',
+    'viewshed.scanRadius': 'Scan radius',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',
