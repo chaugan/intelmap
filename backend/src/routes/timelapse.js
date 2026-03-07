@@ -99,7 +99,7 @@ router.post('/subscribe/:cameraId', requireAuth, requireTimelapseAccess, async (
   try {
     const { cameraId } = req.params;
     const { name, lat, lon } = req.body;
-    const result = await captureService.subscribe(req.user.id, cameraId, name || '', lat, lon);
+    const result = await captureService.subscribe(req.user.id, cameraId, name || '', lat, lon, req.user.orgId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

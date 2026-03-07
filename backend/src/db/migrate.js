@@ -169,6 +169,27 @@ export function runMigration() {
     console.log('Added impersonating_user_id column to sessions table');
   }
 
+  // Backfill org_id on timelapse_cameras and timelapse_subscriptions (fix for multi-tenancy migration)
+  const nullOrgCameras = db.prepare("SELECT COUNT(*) as c FROM timelapse_cameras WHERE org_id IS NULL").get()?.c || 0;
+  if (nullOrgCameras > 0) {
+    // Set org_id from the subscribing user's org
+    db.prepare(`
+      UPDATE timelapse_cameras SET org_id = (
+        SELECT u.org_id FROM timelapse_subscriptions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.camera_id = timelapse_cameras.camera_id AND u.org_id IS NOT NULL
+        LIMIT 1
+      ) WHERE org_id IS NULL
+    `).run();
+    db.prepare(`
+      UPDATE timelapse_subscriptions SET org_id = (
+        SELECT u.org_id FROM users u WHERE u.id = timelapse_subscriptions.user_id
+      ) WHERE org_id IS NULL
+    `).run();
+    const fixed = nullOrgCameras - (db.prepare("SELECT COUNT(*) as c FROM timelapse_cameras WHERE org_id IS NULL").get()?.c || 0);
+    console.log(`Backfilled org_id on ${fixed} timelapse cameras`);
+  }
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

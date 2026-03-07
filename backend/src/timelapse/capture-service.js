@@ -27,26 +27,27 @@ class CaptureService {
    * Subscribe a user to a camera's timelapse
    * Starts capture if this is the first subscriber
    */
-  async subscribe(userId, cameraId, cameraName = '', lat = null, lon = null) {
+  async subscribe(userId, cameraId, cameraName = '', lat = null, lon = null, orgId = null) {
     const db = getDb();
     const subId = crypto.randomUUID();
 
     // Upsert subscription (reactivate if exists)
     db.prepare(`
-      INSERT INTO timelapse_subscriptions (id, user_id, camera_id, is_active, created_at)
-      VALUES (?, ?, ?, 1, datetime('now'))
-      ON CONFLICT(user_id, camera_id) DO UPDATE SET is_active = 1
-    `).run(subId, userId, cameraId);
+      INSERT INTO timelapse_subscriptions (id, user_id, camera_id, org_id, is_active, created_at)
+      VALUES (?, ?, ?, ?, 1, datetime('now'))
+      ON CONFLICT(user_id, camera_id) DO UPDATE SET is_active = 1, org_id = COALESCE(org_id, ?)
+    `).run(subId, userId, cameraId, orgId, orgId);
 
     // Ensure camera record exists with coordinates
     db.prepare(`
-      INSERT INTO timelapse_cameras (camera_id, name, lat, lon, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
+      INSERT INTO timelapse_cameras (camera_id, name, lat, lon, org_id, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(camera_id) DO UPDATE SET
         name = COALESCE(NULLIF(name, ''), ?),
         lat = COALESCE(lat, ?),
-        lon = COALESCE(lon, ?)
-    `).run(cameraId, cameraName, lat, lon, cameraName, lat, lon);
+        lon = COALESCE(lon, ?),
+        org_id = COALESCE(org_id, ?)
+    `).run(cameraId, cameraName, lat, lon, orgId, cameraName, lat, lon, orgId);
 
     // Update subscriber count
     const count = db.prepare(`
