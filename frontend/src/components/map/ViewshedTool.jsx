@@ -84,35 +84,51 @@ function horizonColor(angleDeg, maxAngle) {
 }
 
 // Build polar rose GeoJSON from horizon profile
+// Each wedge is an annular segment (inner/outer radius) so extrusions form a 360 crown
 function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
   const numRays = horizonProfile.length;
   const angleStep = 360 / numRays; // 0.5 degrees
   const maxAngle = Math.max(...horizonProfile, 1);
+  const innerRadius = displayRadiusKm * 0.15; // small hole in center
   const features = [];
 
-  for (let i = 0; i < numRays; i++) {
-    const angle = horizonProfile[i];
-    const bearing1 = (i * angleStep - angleStep / 2) * Math.PI / 180;
-    const bearing2 = (i * angleStep + angleStep / 2) * Math.PI / 180;
-    // Radius proportional to horizon angle
-    const wedgeRadius = (angle / maxAngle) * displayRadiusKm;
-    if (wedgeRadius < 0.001) continue;
+  // Group adjacent rays into wider wedges (every 4 = 2 degrees) for cleaner rendering
+  const groupSize = 4;
+  const numGroups = Math.floor(numRays / groupSize);
 
-    const p1 = center;
-    const p2 = destinationPoint(center[1], center[0], bearing1, wedgeRadius);
-    const p3 = destinationPoint(center[1], center[0], bearing2, wedgeRadius);
+  for (let g = 0; g < numGroups; g++) {
+    // Average the angles in this group
+    let sum = 0;
+    for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
+    const angle = sum / groupSize;
+
+    const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
+    const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
+    // Outer radius proportional to horizon angle (minimum so all wedges show)
+    const outerRadius = innerRadius + (angle / maxAngle) * (displayRadiusKm - innerRadius);
 
     const color = horizonColor(angle, maxAngle);
-    // Extrusion height proportional to angle
-    const height = Math.max(5, angle * 15);
+    const height = Math.max(10, angle * 20);
+
+    // Build arc segment: inner arc -> outer arc -> close
+    const steps = 3; // arc interpolation points
+    const coords = [];
+    // Inner arc (bearing1 -> bearing2)
+    for (let s = 0; s <= steps; s++) {
+      const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+      coords.push(destinationPoint(center[1], center[0], b, innerRadius));
+    }
+    // Outer arc (bearing2 -> bearing1, reversed)
+    for (let s = steps; s >= 0; s--) {
+      const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+      coords.push(destinationPoint(center[1], center[0], b, outerRadius));
+    }
+    coords.push(coords[0]); // close
 
     features.push({
       type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[p1, p2, p3, p1]],
-      },
-      properties: { color, height, angle },
+      geometry: { type: 'Polygon', coordinates: [coords] },
+      properties: { color, height, angle: Math.round(angle * 100) / 100 },
     });
   }
 
