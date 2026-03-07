@@ -86,63 +86,60 @@ function horizonColor(angleDeg, maxAngle) {
   }
 }
 
-// Build dome GeoJSON from horizon profile.
-// Approximates a hemisphere using concentric rings stepping up in height.
-// Each ring uses fill-extrusion-base (previous ring top) + fill-extrusion-height
-// to stack on top of each other, forming a smooth dome surface.
-function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
-  const numRays = horizonProfile.length;
-  const angleStep = 360 / numRays;
+// Interpolate horizon profile at any azimuth angle (degrees) using cubic-like smoothing
+function interpolateProfile(horizonProfile, azimuthDeg) {
+  const n = horizonProfile.length;
+  const step = 360 / n;
+  const idx = ((azimuthDeg % 360) + 360) % 360 / step;
+  const i0 = Math.floor(idx) % n;
+  const i1 = (i0 + 1) % n;
+  const frac = idx - Math.floor(idx);
+  return horizonProfile[i0] * (1 - frac) + horizonProfile[i1] * frac;
+}
+
+// Build full-scale dome GeoJSON.
+// Extends to the actual scan radius with hemisphere height scaled by heightScale.
+// Uses interpolation for smooth azimuth transitions.
+function buildHorizonGeoJSON(horizonProfile, center, radiusKm, heightScale) {
   const maxAngle = Math.max(...horizonProfile, 1);
   const features = [];
 
-  const numRings = 10;
-  const maxHeight = displayRadiusKm * 1000; // hemisphere: height = radius (250m)
-  // Group rays into 4-degree azimuth wedges
-  const groupSize = 8;
-  const numGroups = Math.floor(numRays / groupSize);
+  // Adaptive density: more rings/wedges for larger radii
+  const numRings = Math.min(25, Math.max(12, Math.round(radiusKm * 1.5)));
+  const numWedges = 120; // 3-degree wedges
+  const wedgeAngle = 360 / numWedges;
+  const maxHeight = radiusKm * 1000 * heightScale;
 
-  // Pre-compute grouped angles
-  const groupAngles = [];
-  for (let g = 0; g < numGroups; g++) {
-    let sum = 0;
-    for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
-    groupAngles.push(sum / groupSize);
-  }
-
-  // Build rings from outside in (outer ring = base, inner ring = apex)
   for (let ring = 0; ring < numRings; ring++) {
-    const rInner = (ring / numRings) * displayRadiusKm;
-    const rOuter = ((ring + 1) / numRings) * displayRadiusKm;
+    const rInner = (ring / numRings) * radiusKm;
+    const rOuter = ((ring + 1) / numRings) * radiusKm;
 
-    // Hemisphere height at inner and outer edge of this ring
     const rInnerNorm = ring / numRings;
     const rOuterNorm = (ring + 1) / numRings;
-    const hInner = Math.sqrt(1 - rInnerNorm * rInnerNorm);
-    const hOuter = Math.sqrt(1 - rOuterNorm * rOuterNorm);
+    const hInner = Math.sqrt(Math.max(0, 1 - rInnerNorm * rInnerNorm));
+    const hOuter = Math.sqrt(Math.max(0, 1 - rOuterNorm * rOuterNorm));
 
-    // Uniform dome height — same for all directions at this ring
     const top = Math.max(3, maxHeight * hInner);
     const base = ring === numRings - 1 ? 0 : Math.max(0, maxHeight * hOuter);
 
-    for (let g = 0; g < numGroups; g++) {
-      const angle = groupAngles[g];
-
-      const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
-      const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
-
-      // Color shows exposure data; shape is uniform hemisphere
+    for (let w = 0; w < numWedges; w++) {
+      const azCenter = w * wedgeAngle + wedgeAngle / 2;
+      const angle = interpolateProfile(horizonProfile, azCenter);
       const color = horizonColor(angle, maxAngle);
 
-      // Build arc segment
-      const steps = 2;
+      const b1 = (w * wedgeAngle) * Math.PI / 180;
+      const b2 = ((w + 1) * wedgeAngle) * Math.PI / 180;
+
       const coords = [];
-      for (let s = 0; s <= steps; s++) {
-        const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+      // Inner arc
+      const arcSteps = 3;
+      for (let s = 0; s <= arcSteps; s++) {
+        const b = b1 + (b2 - b1) * (s / arcSteps);
         coords.push(destinationPoint(center[1], center[0], b, rInner));
       }
-      for (let s = steps; s >= 0; s--) {
-        const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+      // Outer arc (reversed)
+      for (let s = arcSteps; s >= 0; s--) {
+        const b = b1 + (b2 - b1) * (s / arcSteps);
         coords.push(destinationPoint(center[1], center[0], b, rOuter));
       }
       coords.push(coords[0]);
@@ -161,7 +158,7 @@ function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 // Build saved viewsheds FeatureCollection from store, respecting layer visibility
-function buildSavedData(visibleProjectIds, projects, layerVisibility) {
+function buildSavedData(visibleProjectIds, projects, layerVisibility, heightScale = 0.05) {
   const polygons = [];
   const observers = [];
   const horizonFeatures = [];
@@ -178,8 +175,8 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
       if (v.type === 'horizon') {
         const profile = v.geojson?.properties?.horizonProfile;
         if (profile) {
-          const displayRadius = 0.25;
-          const fc = buildHorizonGeoJSON(profile, [v.longitude, v.latitude], displayRadius);
+          const savedRadius = Number(v.radiusKm) || 15;
+          const fc = buildHorizonGeoJSON(profile, [v.longitude, v.latitude], savedRadius, heightScale);
           for (const f of fc.features) {
             f.properties.id = v.id;
             f.properties.projectId = pid;
@@ -253,6 +250,7 @@ export default function ViewshedTool() {
   const [radiusKm, setRadiusKm] = useState(0);
   const [horizonRadiusKm, setHorizonRadiusKm] = useState(15);
   const [domeOpacity, setDomeOpacity] = useState(0.6);
+  const [domeHeightScale, setDomeHeightScale] = useState(0.05);
   const [result, setResult] = useState(null);
   const [horizonResult, setHorizonResult] = useState(null);
   const [error, setError] = useState(null);
@@ -268,12 +266,14 @@ export default function ViewshedTool() {
   const radiusRef = useRef(radiusKm);
   const toolModeRef = useRef(toolMode);
   const horizonResultRef = useRef(horizonResult);
+  const domeHeightScaleRef = useRef(domeHeightScale);
   modeRef.current = mode;
   observerRef.current = observer;
   resultRef.current = result;
   radiusRef.current = radiusKm;
   toolModeRef.current = toolMode;
   horizonResultRef.current = horizonResult;
+  domeHeightScaleRef.current = domeHeightScale;
 
   const savedCount = activeProjectId ? (projects[activeProjectId]?.viewsheds?.length || 0) : 0;
 
@@ -356,7 +356,7 @@ export default function ViewshedTool() {
       const horizonData = hRes?.domeGeoJSON || EMPTY_FC;
       const horizonCenterData = obs && toolModeRef.current === 'horizon' ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [obs.lng, obs.lat] }, properties: {} }] } : EMPTY_FC;
       const { visibleProjectIds: vIds, projects: projs, layerVisibility: lv } = useTacticalStore.getState();
-      const saved = buildSavedData(vIds, projs, lv);
+      const saved = buildSavedData(vIds, projs, lv, domeHeightScaleRef.current);
 
       if (!mapRef.getSource(SOURCE_CIRCLE)) mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: circleData });
       if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: resultData });
@@ -397,7 +397,7 @@ export default function ViewshedTool() {
   // Update saved viewsheds when projects/layers change
   useEffect(() => {
     if (!visible || !mapRef) return;
-    const saved = buildSavedData(visibleProjectIds, projects, layerVisibility);
+    const saved = buildSavedData(visibleProjectIds, projects, layerVisibility, domeHeightScale);
     const src = mapRef.getSource(SOURCE_SAVED);
     if (src) src.setData(saved.polygons);
     const obsSrc = mapRef.getSource(SOURCE_SAVED_OBSERVERS);
@@ -406,7 +406,19 @@ export default function ViewshedTool() {
     if (hSrc) hSrc.setData(saved.horizons);
     const bSrc = mapRef.getSource(SOURCE_SAVED_BOUNDARIES);
     if (bSrc) bSrc.setData(saved.boundaries);
-  }, [visible, mapRef, visibleProjectIds, projects, layerVisibility]);
+  }, [visible, mapRef, visibleProjectIds, projects, layerVisibility, domeHeightScale]);
+
+  // Rebuild active dome when height scale changes (no backend re-fetch needed)
+  useEffect(() => {
+    if (!visible || !mapRef || !horizonResult) return;
+    const obs = observerRef.current;
+    if (!obs) return;
+    const domeGeoJSON = buildHorizonGeoJSON(horizonResult.horizonProfile, [obs.lng, obs.lat], horizonRadiusKm, domeHeightScale);
+    const domeSrc = mapRef.getSource(SOURCE_HORIZON_DOME);
+    if (domeSrc) domeSrc.setData(domeGeoJSON);
+    // Update stored result so save uses latest
+    setHorizonResult(prev => prev ? { ...prev, domeGeoJSON } : prev);
+  }, [visible, mapRef, domeHeightScale, horizonRadiusKm]);
 
   // Update dome opacity when slider changes
   useEffect(() => {
@@ -524,9 +536,8 @@ export default function ViewshedTool() {
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Calculation failed'); }
       const data = await res.json();
-      // Build dome GeoJSON
-      const displayRadius = 0.25; // 300m display radius
-      const domeGeoJSON = buildHorizonGeoJSON(data.horizonProfile, [observer.lng, observer.lat], displayRadius);
+      // Build dome GeoJSON at full scan radius
+      const domeGeoJSON = buildHorizonGeoJSON(data.horizonProfile, [observer.lng, observer.lat], horizonRadiusKm, domeHeightScale);
       const hResult = { ...data, domeGeoJSON };
       setHorizonResult(hResult);
       setMode('result');
@@ -734,6 +745,19 @@ export default function ViewshedTool() {
                   className="flex-1 accent-purple-500" disabled={mode === 'calculating'}
                 />
                 <span className="text-sm font-mono w-12 text-right">{horizonRadiusKm} km</span>
+              </div>
+            </div>
+
+            {/* Dome height scale */}
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">{isNo ? 'Domhøyde' : 'Dome height'}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={0.01} max={0.5} step={0.01} value={domeHeightScale}
+                  onChange={(e) => setDomeHeightScale(Number(e.target.value))}
+                  className="flex-1 accent-purple-500"
+                />
+                <span className="text-sm font-mono w-12 text-right">{Math.round(domeHeightScale * 100)}%</span>
               </div>
             </div>
 
