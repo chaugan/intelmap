@@ -189,10 +189,12 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
   const svgRef = useRef(null);
   const containerRef = useRef(null);
 
-  // WaSOS integration
+  // WaSOS / Signal integration
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
 
   // Export to disk
   const handleSaveReport = async () => {
@@ -246,6 +248,35 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
       // Close expanded view first, then open upload dialog
       setExpanded(false);
       prepareWasosUpload(imageData, coords, filename);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Transfer to Signal
+  const handleSignalUpload = async () => {
+    if (!containerRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(containerRef.current, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true,
+        allowTaint: true,
+      });
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `elevation_profile_${localTime}.png`;
+
+      // Get approximate center coordinates from profile
+      const midPoint = profilePoints[Math.floor(profilePoints.length / 2)];
+      const coords = midPoint ? [midPoint.lng, midPoint.lat] : null;
+
+      setExpanded(false);
+      prepareSignalUpload(imageData, coords, filename);
     } catch (err) {
       console.error('Export error:', err);
     } finally {
@@ -377,11 +408,13 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
         </span>
         <div className="flex items-center gap-2">
           {/* Export button - only show in expanded mode */}
-          {expanded && user?.wasosEnabled ? (
+          {expanded && (user?.wasosEnabled || user?.signalEnabled) ? (
             <ExportMenu
               onSaveToDisk={handleSaveReport}
               onTransferToWasos={handleWasosUpload}
               wasosLoggedIn={wasosLoggedIn}
+              onSendToSignal={user?.signalEnabled ? handleSignalUpload : undefined}
+              signalLinked={signalLinked}
               buttonIcon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

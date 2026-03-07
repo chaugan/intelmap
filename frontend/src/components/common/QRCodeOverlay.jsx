@@ -22,6 +22,8 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
   const lang = useMapStore((s) => s.lang);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
   const user = useAuthStore((s) => s.user);
   const displayCanvasRef = useRef(null);
   const qrCanvasRef = useRef(null);
@@ -153,6 +155,12 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
     onClose();
   };
 
+  const handleSignalTransfer = () => {
+    if (!qrDataUrl) return;
+    prepareSignalUpload(qrDataUrl, null, `${resourceType}-${resourceName.replace(/[^a-zA-Z0-9]/g, '_')}-qr.png`);
+    onClose();
+  };
+
   const title = resourceType === 'theme'
     ? t('themes.qrTitle', lang)
     : t('share.projectQr', lang);
@@ -261,6 +269,8 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
             onSaveToDisk={handleSaveToDisk}
             onTransferToWasos={handleWasosTransfer}
             wasosLoggedIn={wasosLoggedIn}
+            onSendToSignal={user?.signalEnabled ? handleSignalTransfer : undefined}
+            signalLinked={signalLinked}
             buttonLabel={t('themes.exportQr', lang)}
             buttonClassName="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors flex items-center gap-2"
             buttonIcon={

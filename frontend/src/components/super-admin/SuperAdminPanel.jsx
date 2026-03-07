@@ -310,6 +310,7 @@ function OrganizationsTab() {
                 <th className="text-right px-4 py-2 font-medium">Users</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">AI</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">WaSOS</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Signal</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">Infra</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">Upscale</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">MFA</th>
@@ -357,6 +358,7 @@ function OrganizationsTab() {
                   <td className="px-4 py-2 text-right text-slate-300">{org.userCount}</td>
                   <FeatureToggleCell on={org.featureAiChat} onClick={() => toggleFeature(org.id, 'ai_chat')} />
                   <FeatureToggleCell on={org.featureWasos} onClick={() => toggleFeature(org.id, 'wasos')} />
+                  <FeatureToggleCell on={org.featureSignal} onClick={() => toggleFeature(org.id, 'signal')} />
                   <FeatureToggleCell on={org.featureInfraview} onClick={() => toggleFeature(org.id, 'infraview')} />
                   <FeatureToggleCell on={org.featureUpscale} onClick={() => toggleFeature(org.id, 'upscale')} />
                   <FeatureToggleCell on={org.featureMfa} onClick={() => toggleFeature(org.id, 'mfa')} />
@@ -404,7 +406,7 @@ function OrganizationsTab() {
                 </tr>
                 {expandedOrgId === org.id && (
                   <tr>
-                    <td colSpan="11" className="p-0">
+                    <td colSpan="12" className="p-0">
                       <OrgUsersPanel orgId={org.id} orgName={org.name} onUserChange={fetchOrgs} />
                     </td>
                   </tr>
@@ -412,7 +414,7 @@ function OrganizationsTab() {
                 </React.Fragment>
               ))}
               {activeOrgs.length === 0 && (
-                <tr><td colSpan="11" className="px-4 py-6 text-center text-slate-500">No organizations</td></tr>
+                <tr><td colSpan="12" className="px-4 py-6 text-center text-slate-500">No organizations</td></tr>
               )}
             </tbody>
           </table>
@@ -664,6 +666,7 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
               <th className="text-left py-1 pr-4">AI</th>
               <th className="text-left py-1 pr-4">TL</th>
               <th className="text-left py-1 pr-4">WaSOS</th>
+              <th className="text-left py-1 pr-4">Signal</th>
               <th className="text-left py-1 pr-4">Infra</th>
               <th className="text-left py-1">Actions</th>
             </tr>
@@ -687,6 +690,9 @@ function OrgUsersPanel({ orgId, orgName, onUserChange }) {
                 </td>
                 <td className="py-1.5 pr-4">
                   <span className={u.wasosEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.wasosEnabled ? 'On' : '-'}</span>
+                </td>
+                <td className="py-1.5 pr-4">
+                  <span className={u.signalEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.signalEnabled ? 'On' : '-'}</span>
                 </td>
                 <td className="py-1.5 pr-4">
                   <span className={u.infraviewEnabled ? 'text-emerald-400' : 'text-slate-600'}>{u.infraviewEnabled ? 'On' : '-'}</span>

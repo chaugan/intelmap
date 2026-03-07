@@ -57,7 +57,7 @@ router.get('/users', (req, res) => {
   const db = getDb();
   const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
   ).all(orgId);
 
   // Calculate storage for each user
@@ -118,6 +118,7 @@ router.get('/users', (req, res) => {
       aiChatEnabled: !!u.ai_chat_enabled,
       timelapseEnabled: !!u.timelapse_enabled,
       wasosEnabled: !!u.wasos_enabled,
+      signalEnabled: !!u.signal_enabled,
       infraviewEnabled: !!u.infraview_enabled,
       upscaleEnabled: !!u.upscale_enabled,
       timelapseBytes,
@@ -270,6 +271,23 @@ router.post('/users/:id/toggle-wasos', (req, res) => {
     db.prepare("UPDATE users SET wasos_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
   }
   res.json({ ok: true, wasosEnabled: !!newVal });
+});
+
+// Toggle Signal access
+router.post('/users/:id/toggle-signal', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_signal')) return;
+  const db = getDb();
+  const user = db.prepare('SELECT id, signal_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.signal_enabled ? 0 : 1;
+  if (newVal === 0) {
+    db.prepare("UPDATE users SET signal_enabled = 0, signal_phone = NULL, signal_linked_at = NULL, updated_at = datetime('now') WHERE id = ?")
+      .run(req.params.id);
+  } else {
+    db.prepare("UPDATE users SET signal_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  }
+  res.json({ ok: true, signalEnabled: !!newVal });
 });
 
 // Toggle Upscale access

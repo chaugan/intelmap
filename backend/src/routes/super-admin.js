@@ -36,6 +36,7 @@ router.get('/orgs', (req, res) => {
     updatedAt: o.updated_at,
     featureAiChat: !!o.feature_ai_chat,
     featureWasos: !!o.feature_wasos,
+    featureSignal: !!o.feature_signal,
     featureInfraview: !!o.feature_infraview,
     featureUpscale: !!o.feature_upscale,
     featureMfa: !!o.feature_mfa,
@@ -146,7 +147,7 @@ router.post('/orgs/:id/restore', (req, res) => {
 router.get('/orgs/:id/users', (req, res) => {
   const db = getDb();
   const users = db.prepare(`
-    SELECT id, username, role, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, infraview_enabled, created_at
+    SELECT id, username, role, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, created_at
     FROM users WHERE org_id = ?
     ORDER BY created_at
   `).all(req.params.id);
@@ -159,6 +160,7 @@ router.get('/orgs/:id/users', (req, res) => {
     aiChatEnabled: !!u.ai_chat_enabled,
     timelapseEnabled: !!u.timelapse_enabled,
     wasosEnabled: !!u.wasos_enabled,
+    signalEnabled: !!u.signal_enabled,
     infraviewEnabled: !!u.infraview_enabled,
     createdAt: u.created_at,
   })));
@@ -320,7 +322,7 @@ router.get('/orgs/:id/settings', (req, res) => {
 
 // --- Feature Gating ---
 
-const VALID_FEATURES = ['ai_chat', 'wasos', 'infraview', 'upscale', 'mfa'];
+const VALID_FEATURES = ['ai_chat', 'wasos', 'signal', 'infraview', 'upscale', 'mfa'];
 
 router.post('/orgs/:id/toggle-feature', (req, res) => {
   const { feature } = req.body;
@@ -344,6 +346,7 @@ router.post('/orgs/:id/toggle-feature', (req, res) => {
     const featureToUserCol = {
       ai_chat: 'ai_chat_enabled',
       wasos: 'wasos_enabled',
+      signal: 'signal_enabled',
       infraview: 'infraview_enabled',
       upscale: 'upscale_enabled',
     };

@@ -410,6 +410,8 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
 
   const trackPoints = useMemo(() => {
     if (!traceData?.properties?.trackPoints) return [];
@@ -743,6 +745,85 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
     }
   };
 
+  const handleSignalUpload = async () => {
+    if (!containerRef.current) return;
+    setExporting(true);
+    try {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const mapContainer = containerRef.current.querySelector('.maplibregl-map');
+      const mapRect = mapContainer?.getBoundingClientRect();
+
+      // Hide the map marker during capture
+      const markers = containerRef.current.querySelectorAll('.maplibregl-marker');
+      markers.forEach(m => m.style.visibility = 'hidden');
+
+      const h2cCanvas = await html2canvas(containerRef.current, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true,
+        allowTaint: true,
+      });
+
+      // Restore marker visibility
+      markers.forEach(m => m.style.visibility = '');
+
+      const canvas = document.createElement('canvas');
+      canvas.width = h2cCanvas.width;
+      canvas.height = h2cCanvas.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(h2cCanvas, 0, 0);
+
+      // Generate and composite SVG track visualization over the map area
+      if (mapRect && selectedIndex != null) {
+        const scale = 2;
+        const offsetX = (mapRect.left - containerRect.left) * scale;
+        const offsetY = (mapRect.top - containerRect.top) * scale;
+        const svgWidth = Math.round(mapRect.width);
+        const svgHeight = Math.round(mapRect.height);
+
+        let mapViewState = null;
+        if (miniMapRef.current?.getMapViewState) {
+          mapViewState = miniMapRef.current.getMapViewState();
+        }
+
+        let svgBounds = mapViewState?.bounds;
+        if (mapViewState && !svgBounds) {
+          svgBounds = calculateStaticMapBounds(
+            mapViewState.center[0],
+            mapViewState.center[1],
+            Math.round(mapViewState.zoom),
+            svgWidth,
+            svgHeight
+          );
+        }
+
+        const svgString = generateTrackSVG(svgWidth, svgHeight, svgBounds);
+        if (svgString) {
+          const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+          const svgImage = new Image();
+          await new Promise((resolve, reject) => {
+            svgImage.onload = resolve;
+            svgImage.onerror = reject;
+            svgImage.src = svgDataUrl;
+          });
+          ctx.drawImage(svgImage, offsetX, offsetY, svgWidth * scale, svgHeight * scale);
+        }
+      }
+
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `vessel_analysis_${vessel?.mmsi || 'unknown'}_${localTime}.png`;
+      const coords = trackPoints.length > 0 ? trackPoints[trackPoints.length - 1].coordinates : null;
+      setExpanded(false);
+      prepareSignalUpload(imageData, coords, filename);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Open in main map: focus vessel, enable time travel mode
   const handleOpenInMainMap = useCallback(() => {
     if (!selectedPoint || selectedIndex == null) return;
@@ -941,11 +1022,13 @@ export default function VesselDeepAnalysis({ vessel, traceData, onClose }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {expanded && user?.wasosEnabled ? (
+          {expanded && (user?.wasosEnabled || user?.signalEnabled) ? (
             <ExportMenu
               onSaveToDisk={handleSaveReport}
               onTransferToWasos={handleWasosUpload}
               wasosLoggedIn={wasosLoggedIn}
+              onSendToSignal={user?.signalEnabled ? handleSignalUpload : undefined}
+              signalLinked={signalLinked}
               buttonIcon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
               buttonClassName="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
               disabled={exporting}

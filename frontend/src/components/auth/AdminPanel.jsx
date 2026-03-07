@@ -178,6 +178,11 @@ function UsersTab({ lang, currentUser }) {
     fetchUsers();
   }
 
+  async function toggleSignal(id) {
+    await fetch(`${API}/users/${id}/toggle-signal`, { method: 'POST', credentials: 'include' });
+    fetchUsers();
+  }
+
   async function toggleInfraview(id) {
     await fetch(`${API}/users/${id}/toggle-infraview`, { method: 'POST', credentials: 'include' });
     fetchUsers();
@@ -274,6 +279,7 @@ function UsersTab({ lang, currentUser }) {
               {currentUser?.orgFeatureAiChat && <th className="pb-2">AI Chat</th>}
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
               {currentUser?.orgFeatureWasos && <th className="pb-2">WaSOS</th>}
+              {currentUser?.orgFeatureSignal && <th className="pb-2">Signal</th>}
               {currentUser?.orgFeatureInfraview && <th className="pb-2">InfraView</th>}
               {currentUser?.orgFeatureUpscale && <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>}
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
@@ -314,6 +320,14 @@ function UsersTab({ lang, currentUser }) {
                     <button onClick={() => toggleWasos(u.id)}
                       className={`px-2 py-0.5 rounded text-xs transition-colors ${u.wasosEnabled ? 'bg-purple-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {u.wasosEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
+                {currentUser?.orgFeatureSignal && (
+                  <td className="py-2">
+                    <button onClick={() => toggleSignal(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.signalEnabled ? 'bg-blue-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.signalEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                     </button>
                   </td>
                 )}

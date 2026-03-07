@@ -3,6 +3,7 @@ import { socket } from '../lib/socket.js';
 
 const API = '/api/auth';
 const WASOS_API = '/api/wasos';
+const SIGNAL_API = '/api/signal';
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -16,6 +17,7 @@ export const useAuthStore = create((set, get) => ({
   securityDialogOpen: false,
   adminPanelOpen: false,
   wasosLoginOpen: false,
+  signalLinkOpen: false,
 
   // MFA state
   mfaPending: null,          // { mfaToken, methods }
@@ -28,12 +30,21 @@ export const useAuthStore = create((set, get) => ({
   wasosUploadData: null, // { image, coordinates, filename, preview }
   wasosUploading: false,
 
+  // Signal state
+  signalLinked: false,
+  signalPhone: null,
+  signalUploadOpen: false,
+  signalUploadData: null, // { image, coordinates, filename, preview }
+  signalUploading: false,
+
   setLoginOpen: (v) => set({ loginOpen: v }),
   setPasswordChangeOpen: (v) => set({ passwordChangeOpen: v }),
   setSecurityDialogOpen: (v) => set({ securityDialogOpen: v }),
   setAdminPanelOpen: (v) => set({ adminPanelOpen: v }),
   setWasosLoginOpen: (v) => set({ wasosLoginOpen: v }),
   setWasosUploadOpen: (v) => set({ wasosUploadOpen: v, ...(v ? {} : { wasosUploadData: null }) }),
+  setSignalLinkOpen: (v) => set({ signalLinkOpen: v }),
+  setSignalUploadOpen: (v) => set({ signalUploadOpen: v, ...(v ? {} : { signalUploadData: null }) }),
 
   checkSession: async () => {
     try {
@@ -58,6 +69,10 @@ export const useAuthStore = create((set, get) => ({
         // Check WaSOS status if enabled
         if (user.wasosEnabled) {
           get().checkWasosStatus();
+        }
+        // Check Signal status if enabled
+        if (user.signalEnabled) {
+          get().checkSignalStatus();
         }
       }
     } catch {
@@ -261,6 +276,74 @@ export const useAuthStore = create((set, get) => ({
         preview: imageData, // base64 can be used directly as src
       },
     });
+  },
+
+  // Signal methods
+  checkSignalStatus: async () => {
+    try {
+      const res = await fetch(`${SIGNAL_API}/status`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        set({ signalLinked: data.linked, signalPhone: data.phone });
+      }
+    } catch {
+      set({ signalLinked: false, signalPhone: null });
+    }
+  },
+
+  prepareSignalUpload: (imageData, coordinates, filename) => {
+    set({
+      signalUploadOpen: true,
+      signalUploadData: {
+        image: imageData,
+        coordinates,
+        filename,
+        preview: imageData,
+      },
+    });
+  },
+
+  uploadToSignal: async (groupId, caption) => {
+    const { signalUploadData } = get();
+    if (!signalUploadData?.image) {
+      throw new Error('No image to upload');
+    }
+
+    set({ signalUploading: true });
+    try {
+      const res = await fetch(`${SIGNAL_API}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          groupId,
+          image: signalUploadData.image,
+          caption: caption || '',
+          filename: signalUploadData.filename,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Send failed');
+      }
+
+      set({ signalUploading: false });
+      return true;
+    } catch (err) {
+      set({ signalUploading: false });
+      throw err;
+    }
+  },
+
+  unlinkSignal: async () => {
+    try {
+      await fetch(`${SIGNAL_API}/unlink`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    } catch {}
+    set({ signalLinked: false, signalPhone: null });
   },
 
   // Perform WaSOS upload with description

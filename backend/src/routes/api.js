@@ -25,6 +25,7 @@ import infrastructureRouter from './infrastructure.js';
 import superAdminRouter from './super-admin.js';
 import sharesRouter from './shares.js';
 import upscaleRouter from './upscale.js';
+import signalRouter from './signal.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -53,4 +54,5 @@ router.use('/infrastructure', infrastructureRouter);
 router.use('/super-admin', superAdminRouter);
 router.use('/share', sharesRouter);
 router.use('/upscale', upscaleRouter);
+router.use('/signal', signalRouter);
 export default router;

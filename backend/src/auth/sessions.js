@@ -26,10 +26,10 @@ export function validateSession(sessionId) {
   const row = db.prepare(
     `SELECT u.id as user_id, u.username, u.role, u.org_id,
             u.must_change_password, u.locked, u.ai_chat_enabled,
-            u.timelapse_enabled, u.wasos_enabled, u.infraview_enabled, u.upscale_enabled,
+            u.timelapse_enabled, u.wasos_enabled, u.signal_enabled, u.infraview_enabled, u.upscale_enabled,
             u.totp_enabled,
             o.name as org_name,
-            o.feature_ai_chat, o.feature_wasos, o.feature_infraview,
+            o.feature_ai_chat, o.feature_wasos, o.feature_signal, o.feature_infraview,
             o.feature_upscale, o.feature_mfa, o.mfa_required
      FROM users u
      LEFT JOIN organizations o ON u.org_id = o.id
@@ -56,11 +56,13 @@ export function validateSession(sessionId) {
     timelapse_enabled: !!row.timelapse_enabled,
     timelapseEnabled: !!row.timelapse_enabled,
     wasosEnabled: !!row.wasos_enabled,
+    signalEnabled: !!row.signal_enabled,
     infraviewEnabled: !!row.infraview_enabled,
     upscaleEnabled: !!row.upscale_enabled,
     orgName: row.org_name || null,
     orgFeatureAiChat: !!row.feature_ai_chat,
     orgFeatureWasos: !!row.feature_wasos,
+    orgFeatureSignal: !!row.feature_signal,
     orgFeatureInfraview: !!row.feature_infraview,
     orgFeatureUpscale: !!row.feature_upscale,
     orgFeatureMfa: row.role === 'super_admin' ? true : !!row.feature_mfa,

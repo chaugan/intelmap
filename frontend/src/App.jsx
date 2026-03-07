@@ -12,6 +12,8 @@ import SecurityDialog from './components/auth/SecurityDialog.jsx';
 import AdminPanel from './components/auth/AdminPanel.jsx';
 import WasosLoginDialog from './components/auth/WasosLoginDialog.jsx';
 import WasosUploadDialog from './components/auth/WasosUploadDialog.jsx';
+import SignalLinkDialog from './components/auth/SignalLinkDialog.jsx';
+import SignalUploadDialog from './components/auth/SignalUploadDialog.jsx';
 import ProjectDrawer from './components/projects/ProjectDrawer.jsx';
 import DataLayersDrawer from './components/map/DataLayersDrawer.jsx';
 import TimelapsePanel from './components/timelapse/TimelapsePanel.jsx';
@@ -417,6 +419,8 @@ function MapApp({ user }) {
       <AdminPanel />
       <WasosLoginDialog />
       <WasosUploadDialog />
+      <SignalLinkDialog />
+      <SignalUploadDialog />
 
       {/* Theme error dialog */}
       {themeError && (

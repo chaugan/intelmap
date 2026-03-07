@@ -19,6 +19,8 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
   const reportRef = useRef(null);
   const [theme, setTheme] = useState('dark');
   const [exporting, setExporting] = useState(false);
@@ -113,6 +115,26 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
     }
   };
 
+  const handleSignalUpload = async () => {
+    if (!reportRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await captureAsDesktop();
+      if (!canvas) return;
+      const imageData = canvas.toDataURL('image/png');
+      const now = new Date();
+      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `weather_report_${localTime}.png`;
+
+      onClose();
+      prepareSignalUpload(imageData, [lon, lat], filename);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Theme classes
   const bg = isDark ? 'bg-slate-800' : 'bg-slate-50';
   const bgCard = isDark ? 'bg-slate-700/60' : 'bg-white';
@@ -132,11 +154,13 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
           >
             {isDark ? (lang === 'no' ? 'Lys' : 'Light') : (lang === 'no' ? 'Mørk' : 'Dark')}
           </button>
-          {user?.wasosEnabled ? (
+          {(user?.wasosEnabled || user?.signalEnabled) ? (
             <ExportMenu
               onSaveToDisk={handleSaveReport}
               onTransferToWasos={handleWasosUpload}
               wasosLoggedIn={wasosLoggedIn}
+              onSendToSignal={user?.signalEnabled ? handleSignalUpload : undefined}
+              signalLinked={signalLinked}
               buttonLabel={exporting ? '...' : t('weather.exportReport', lang)}
               buttonClassName="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 flex items-center gap-1"
               disabled={exporting || loading}

@@ -21,6 +21,8 @@ export default function TimelapsePlayer() {
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
 
   // Frame data
   const [frames, setFrames] = useState([]);
@@ -400,6 +402,26 @@ export default function TimelapsePlayer() {
     prepareWasosUpload(imageData, coords, filename);
   }, [selectedCamera, frames, getFrameFilename, prepareWasosUpload]);
 
+  // Transfer current frame to Signal
+  const transferFrameToSignal = useCallback(() => {
+    if (!selectedCamera || !currentImageRef.current || frames.length === 0) return;
+
+    const filename = getFrameFilename();
+    if (!filename) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = currentImageRef.current.width;
+    canvas.height = currentImageRef.current.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(currentImageRef.current, 0, 0);
+
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    const coords = selectedCamera.lat && selectedCamera.lon
+      ? [selectedCamera.lon, selectedCamera.lat]
+      : null;
+    prepareSignalUpload(imageData, coords, filename);
+  }, [selectedCamera, frames, getFrameFilename, prepareSignalUpload]);
+
   // Upscale state
   const [upscaling, setUpscaling] = useState(false);
   const [upscaleStatus, setUpscaleStatus] = useState(null); // { upscaled, id, upscaledAt } or null
@@ -667,11 +689,13 @@ export default function TimelapsePlayer() {
           )}
 
           {/* Save frame */}
-          {user?.wasosEnabled ? (
+          {(user?.wasosEnabled || user?.signalEnabled) ? (
             <ExportMenu
               onSaveToDisk={saveFrame}
               onTransferToWasos={transferFrameToWasos}
               wasosLoggedIn={wasosLoggedIn}
+              onSendToSignal={user?.signalEnabled ? transferFrameToSignal : undefined}
+              signalLinked={signalLinked}
               buttonIcon={
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

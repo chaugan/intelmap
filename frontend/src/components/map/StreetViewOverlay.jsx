@@ -41,8 +41,11 @@ function loadGoogleMapsApi(apiKey) {
 
 export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClose }) {
   const lang = useMapStore((s) => s.lang);
+  const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
   const [exporting, setExporting] = useState(false);
   const [apiLoaded, setApiLoaded] = useState(false);
   const [error, setError] = useState(null);
@@ -181,6 +184,27 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
     }
   }, [fetchStaticImage, wasosLoggedIn, prepareWasosUpload, lat, lng]);
 
+  // Send to Signal
+  const handleSendToSignal = useCallback(async () => {
+    if (!signalLinked) return;
+    setExporting(true);
+    try {
+      const blob = await fetchStaticImage();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const now = new Date();
+        const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+        const filename = `streetview_${lat.toFixed(5)}_${lng.toFixed(5)}_${localTime}.jpg`;
+        prepareSignalUpload(reader.result, [lng, lat], filename);
+        setExporting(false);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Street view Signal transfer failed:', err);
+      setExporting(false);
+    }
+  }, [fetchStaticImage, signalLinked, prepareSignalUpload, lat, lng]);
+
   const containerWidth = Math.min(window.innerWidth * 0.9, 1200);
   const containerHeight = Math.min(window.innerHeight * 0.8, 800);
 
@@ -222,6 +246,8 @@ export default function StreetViewOverlay({ lat, lng, apiKey, heading = 0, onClo
               onSaveToDisk={handleSaveToDisk}
               onTransferToWasos={handleTransferToWasos}
               wasosLoggedIn={wasosLoggedIn}
+              onSendToSignal={user?.signalEnabled ? handleSendToSignal : undefined}
+              signalLinked={signalLinked}
               disabled={exporting || !apiLoaded}
               buttonIcon={
                 exporting ? (

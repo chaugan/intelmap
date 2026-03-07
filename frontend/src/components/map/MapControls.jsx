@@ -27,6 +27,8 @@ export default function MapControls() {
   const user = useAuthStore((s) => s.user);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
+  const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
   const timelapseDrawerOpen = useTimelapseStore((s) => s.drawerOpen);
   const toggleTimelapseDrawer = useTimelapseStore((s) => s.toggleDrawer);
   const canTimelapse = user?.timelapseEnabled || user?.role === 'admin';
@@ -82,46 +84,59 @@ export default function MapControls() {
 
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
 
-  // Capture screenshot and prepare WaSOS upload
-  const handleWasosScreenshot = useCallback(async () => {
-    if (!mapRef) return;
+  // Capture screenshot for upload dialogs
+  const captureScreenshot = useCallback(async () => {
+    if (!mapRef) return null;
 
     mapRef.triggerRepaint();
     await new Promise(resolve => requestAnimationFrame(resolve));
 
+    let canvas = null;
+    const mapContainer = document.querySelector('[data-map-container]');
+    if (mapContainer) {
+      try {
+        canvas = await html2canvas(mapContainer, {
+          useCORS: true,
+          backgroundColor: null,
+          scale: 1,
+        });
+      } catch (e) {
+        console.warn('html2canvas failed:', e);
+      }
+    }
+
+    if (!canvas) {
+      const mapCanvas = mapRef.getCanvas();
+      canvas = document.createElement('canvas');
+      canvas.width = mapCanvas.width;
+      canvas.height = mapCanvas.height;
+      canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
+    }
+
+    const imageData = canvas.toDataURL('image/png');
+    const now = new Date();
+    const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+    const filename = `intelmap-${localTime}.png`;
+    return { imageData, filename };
+  }, [mapRef]);
+
+  const handleWasosScreenshot = useCallback(async () => {
     try {
-      let canvas = null;
-      const mapContainer = document.querySelector('[data-map-container]');
-      if (mapContainer) {
-        try {
-          canvas = await html2canvas(mapContainer, {
-            useCORS: true,
-            backgroundColor: null,
-            scale: 1,
-          });
-        } catch (e) {
-          console.warn('html2canvas failed:', e);
-        }
-      }
-
-      if (!canvas) {
-        const mapCanvas = mapRef.getCanvas();
-        canvas = document.createElement('canvas');
-        canvas.width = mapCanvas.width;
-        canvas.height = mapCanvas.height;
-        canvas.getContext('2d').drawImage(mapCanvas, 0, 0);
-      }
-
-      const imageData = canvas.toDataURL('image/png');
-      const now = new Date();
-      const localTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
-      const filename = `intelmap-${localTime}.png`;
-
-      prepareWasosUpload(imageData, [longitude, latitude], filename);
+      const result = await captureScreenshot();
+      if (result) prepareWasosUpload(result.imageData, [longitude, latitude], result.filename);
     } catch (e) {
       console.error('Screenshot capture failed:', e);
     }
-  }, [mapRef, longitude, latitude, prepareWasosUpload]);
+  }, [captureScreenshot, longitude, latitude, prepareWasosUpload]);
+
+  const handleSignalScreenshot = useCallback(async () => {
+    try {
+      const result = await captureScreenshot();
+      if (result) prepareSignalUpload(result.imageData, [longitude, latitude], result.filename);
+    } catch (e) {
+      console.error('Screenshot capture failed:', e);
+    }
+  }, [captureScreenshot, longitude, latitude, prepareSignalUpload]);
 
   return (
     <OverflowToolbar lang={lang} className="text-sm flex-1 min-w-0">
@@ -237,12 +252,14 @@ export default function MapControls() {
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
       {/* Screenshot / Export */}
-      {user?.wasosEnabled ? (
+      {(user?.wasosEnabled || user?.signalEnabled) ? (
         <div data-has-submenu="true">
           <ExportMenu
             onSaveToDisk={takeScreenshot}
-            onTransferToWasos={handleWasosScreenshot}
+            onTransferToWasos={user?.wasosEnabled ? handleWasosScreenshot : undefined}
             wasosLoggedIn={wasosLoggedIn}
+            onSendToSignal={user?.signalEnabled ? handleSignalScreenshot : undefined}
+            signalLinked={signalLinked}
             buttonIcon={
               <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />

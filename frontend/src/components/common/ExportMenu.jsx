@@ -12,6 +12,8 @@ export default function ExportMenu({
   onSaveToDisk,
   onTransferToWasos,
   wasosLoggedIn,
+  onSendToSignal,
+  signalLinked,
   buttonIcon,
   buttonLabel,
   buttonClassName,
@@ -79,6 +81,12 @@ export default function ExportMenu({
     onTransferToWasos?.();
   };
 
+  const handleSendToSignal = () => {
+    if (!signalLinked) return;
+    setShowDropdown(false);
+    onSendToSignal?.();
+  };
+
   return (
     <div className="relative">
       <button
@@ -112,28 +120,56 @@ export default function ExportMenu({
           </button>
 
           {/* Transfer to WaSOS option */}
-          <button
-            onClick={handleTransferToWasos}
-            disabled={!wasosLoggedIn}
-            className={`block w-full text-left px-3 py-2 transition-colors text-sm ${
-              wasosLoggedIn
-                ? 'hover:bg-slate-600'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            title={!wasosLoggedIn ? t('wasos.notLoggedIn', lang) : undefined}
-          >
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <span>{t('wasos.transfer', lang)}</span>
-            </div>
-            {!wasosLoggedIn && (
-              <div className="text-xs text-slate-400 mt-0.5 ml-6">
-                {t('wasos.notLoggedIn', lang)}
+          {onTransferToWasos && (
+            <button
+              onClick={handleTransferToWasos}
+              disabled={!wasosLoggedIn}
+              className={`block w-full text-left px-3 py-2 transition-colors text-sm ${
+                wasosLoggedIn
+                  ? 'hover:bg-slate-600'
+                  : 'opacity-50 cursor-not-allowed'
+              }`}
+              title={!wasosLoggedIn ? t('wasos.notLoggedIn', lang) : undefined}
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span>{t('wasos.transfer', lang)}</span>
               </div>
-            )}
-          </button>
+              {!wasosLoggedIn && (
+                <div className="text-xs text-slate-400 mt-0.5 ml-6">
+                  {t('wasos.notLoggedIn', lang)}
+                </div>
+              )}
+            </button>
+          )}
+
+          {/* Send to Signal option */}
+          {onSendToSignal && (
+            <button
+              onClick={handleSendToSignal}
+              disabled={!signalLinked}
+              className={`block w-full text-left px-3 py-2 transition-colors text-sm ${
+                signalLinked
+                  ? 'hover:bg-slate-600'
+                  : 'opacity-50 cursor-not-allowed'
+              }`}
+              title={!signalLinked ? t('signal.notLinked', lang) : undefined}
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span>{t('signal.transfer', lang)}</span>
+              </div>
+              {!signalLinked && (
+                <div className="text-xs text-slate-400 mt-0.5 ml-6">
+                  {t('signal.notLinked', lang)}
+                </div>
+              )}
+            </button>
+          )}
         </div>,
         document.body
       )}

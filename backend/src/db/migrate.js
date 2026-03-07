@@ -73,6 +73,12 @@ export function runMigration() {
     console.log('Added feature gating columns to organizations table');
   }
 
+  // Signal feature flag on organizations
+  if (!orgCols.some(c => c.name === 'feature_signal')) {
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_signal INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added feature_signal column to organizations table');
+  }
+
   // Upscale column
   if (!userCols.some(c => c.name === 'upscale_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN upscale_enabled INTEGER NOT NULL DEFAULT 0").run();
@@ -83,6 +89,14 @@ export function runMigration() {
   if (!userCols.some(c => c.name === 'infraview_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN infraview_enabled INTEGER NOT NULL DEFAULT 0").run();
     console.log('Added infraview_enabled column to users table');
+  }
+
+  // Signal integration columns
+  if (!userCols.some(c => c.name === 'signal_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN signal_enabled INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE users ADD COLUMN signal_phone TEXT").run();
+    db.prepare("ALTER TABLE users ADD COLUMN signal_linked_at TEXT").run();
+    console.log('Added Signal columns to users table');
   }
 
   // WaSOS integration columns

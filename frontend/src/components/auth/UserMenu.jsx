@@ -12,6 +12,8 @@ export default function UserMenu() {
   const setWasosLoginOpen = useAuthStore((s) => s.setWasosLoginOpen);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const wasosLogout = useAuthStore((s) => s.wasosLogout);
+  const setSignalLinkOpen = useAuthStore((s) => s.setSignalLinkOpen);
+  const signalLinked = useAuthStore((s) => s.signalLinked);
   const toggleProjectDrawer = useMapStore((s) => s.toggleProjectDrawer);
   const lang = useMapStore((s) => s.lang);
 
@@ -102,6 +104,17 @@ export default function UserMenu() {
                   {t('wasos.login', lang)}
                 </button>
               )}
+            </>
+          )}
+          {user.signalEnabled && (
+            <>
+              <hr className="border-slate-600 my-1" />
+              <button
+                onClick={() => { setSignalLinkOpen(true); setOpen(false); }}
+                className={`block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors ${signalLinked ? 'text-blue-400' : ''}`}
+              >
+                {signalLinked ? t('signal.linked', lang) : t('signal.linkTitle', lang)}
+              </button>
             </>
           )}
           <hr className="border-slate-600 my-1" />
