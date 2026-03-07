@@ -86,54 +86,62 @@ function horizonColor(angleDeg, maxAngle) {
   }
 }
 
-// Build polar rose GeoJSON from horizon profile
-// Each wedge is an annular segment (inner/outer radius) so extrusions form a 360 crown
+// Build dome GeoJSON from horizon profile
+// Multiple concentric rings at different heights approximate a hemisphere:
+// inner rings are tall (top of dome), outer rings are short (base of dome).
+// Height per wedge also scales with horizon angle — protected directions bulge higher.
 function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
   const numRays = horizonProfile.length;
-  const angleStep = 360 / numRays; // 0.5 degrees
+  const angleStep = 360 / numRays;
   const maxAngle = Math.max(...horizonProfile, 1);
-  const innerRadius = displayRadiusKm * 0.3; // hole in center
   const features = [];
 
-  // Group adjacent rays into wider wedges (every 6 = 3 degrees) for cleaner rendering
-  const groupSize = 6;
+  const numRings = 6;
+  const maxHeight = 80; // meters at dome apex
+  // Group rays into 5-degree azimuth wedges
+  const groupSize = 10;
   const numGroups = Math.floor(numRays / groupSize);
 
-  for (let g = 0; g < numGroups; g++) {
-    // Average the angles in this group
-    let sum = 0;
-    for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
-    const angle = sum / groupSize;
+  for (let ring = 0; ring < numRings; ring++) {
+    // Normalized position: 0 = center, 1 = outer edge
+    const rNorm = (ring + 0.5) / numRings;
+    const rInner = (ring / numRings) * displayRadiusKm;
+    const rOuter = ((ring + 1) / numRings) * displayRadiusKm;
+    // Hemisphere curve: height = sqrt(1 - r^2)
+    const domeCurve = Math.sqrt(1 - rNorm * rNorm);
 
-    const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
-    const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
-    // Outer radius proportional to horizon angle
-    const outerRadius = innerRadius + (angle / maxAngle) * (displayRadiusKm - innerRadius);
+    for (let g = 0; g < numGroups; g++) {
+      let sum = 0;
+      for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
+      const angle = sum / groupSize;
+      const norm = angle / maxAngle;
 
-    const color = horizonColor(angle, maxAngle);
-    // Height: gentle dome, max ~60m so it forms a cap shape not a skyscraper
-    const height = Math.max(3, (angle / maxAngle) * 60);
+      const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
+      const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
 
-    // Build arc segment: inner arc -> outer arc -> close
-    const steps = 3; // arc interpolation points
-    const coords = [];
-    // Inner arc (bearing1 -> bearing2)
-    for (let s = 0; s <= steps; s++) {
-      const b = bearing1 + (bearing2 - bearing1) * (s / steps);
-      coords.push(destinationPoint(center[1], center[0], b, innerRadius));
+      const color = horizonColor(angle, maxAngle);
+      // Dome-shaped height: hemisphere curve * horizon angle scaling
+      const height = Math.max(2, norm * maxHeight * domeCurve);
+
+      // Build arc segment
+      const steps = 2;
+      const coords = [];
+      for (let s = 0; s <= steps; s++) {
+        const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+        coords.push(destinationPoint(center[1], center[0], b, rInner));
+      }
+      for (let s = steps; s >= 0; s--) {
+        const b = bearing1 + (bearing2 - bearing1) * (s / steps);
+        coords.push(destinationPoint(center[1], center[0], b, rOuter));
+      }
+      coords.push(coords[0]);
+
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { color, height, angle: Math.round(angle * 100) / 100 },
+      });
     }
-    // Outer arc (bearing2 -> bearing1, reversed)
-    for (let s = steps; s >= 0; s--) {
-      const b = bearing1 + (bearing2 - bearing1) * (s / steps);
-      coords.push(destinationPoint(center[1], center[0], b, outerRadius));
-    }
-    coords.push(coords[0]); // close
-
-    features.push({
-      type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: [coords] },
-      properties: { color, height, angle: Math.round(angle * 100) / 100 },
-    });
   }
 
   return { type: 'FeatureCollection', features };
