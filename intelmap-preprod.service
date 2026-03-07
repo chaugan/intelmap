@@ -1,0 +1,18 @@
+[Unit]
+Description=IntelMap Preprod Backend
+After=network.target
+
+[Service]
+Type=simple
+User=intelmap
+Group=intelmap
+WorkingDirectory=/opt/intelmap-preprod/backend
+EnvironmentFile=/opt/intelmap-preprod/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
