@@ -86,42 +86,55 @@ function horizonColor(angleDeg, maxAngle) {
   }
 }
 
-// Build dome GeoJSON from horizon profile
-// Multiple concentric rings at different heights approximate a hemisphere:
-// inner rings are tall (top of dome), outer rings are short (base of dome).
-// Height per wedge also scales with horizon angle — protected directions bulge higher.
+// Build dome GeoJSON from horizon profile.
+// Approximates a hemisphere using concentric rings stepping up in height.
+// Each ring uses fill-extrusion-base (previous ring top) + fill-extrusion-height
+// to stack on top of each other, forming a smooth dome surface.
 function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
   const numRays = horizonProfile.length;
   const angleStep = 360 / numRays;
   const maxAngle = Math.max(...horizonProfile, 1);
   const features = [];
 
-  const numRings = 6;
-  const maxHeight = 80; // meters at dome apex
-  // Group rays into 5-degree azimuth wedges
-  const groupSize = 10;
+  const numRings = 10;
+  const maxHeight = displayRadiusKm * 1000; // hemisphere: height = radius (250m)
+  // Group rays into 4-degree azimuth wedges
+  const groupSize = 8;
   const numGroups = Math.floor(numRays / groupSize);
 
+  // Pre-compute grouped angles
+  const groupAngles = [];
+  for (let g = 0; g < numGroups; g++) {
+    let sum = 0;
+    for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
+    groupAngles.push(sum / groupSize);
+  }
+
+  // Build rings from outside in (outer ring = base, inner ring = apex)
   for (let ring = 0; ring < numRings; ring++) {
-    // Normalized position: 0 = center, 1 = outer edge
-    const rNorm = (ring + 0.5) / numRings;
     const rInner = (ring / numRings) * displayRadiusKm;
     const rOuter = ((ring + 1) / numRings) * displayRadiusKm;
-    // Hemisphere curve: height = sqrt(1 - r^2)
-    const domeCurve = Math.sqrt(1 - rNorm * rNorm);
+
+    // Hemisphere height at inner and outer edge of this ring
+    const rInnerNorm = ring / numRings;
+    const rOuterNorm = (ring + 1) / numRings;
+    const hInner = Math.sqrt(1 - rInnerNorm * rInnerNorm);
+    const hOuter = Math.sqrt(1 - rOuterNorm * rOuterNorm);
 
     for (let g = 0; g < numGroups; g++) {
-      let sum = 0;
-      for (let j = 0; j < groupSize; j++) sum += horizonProfile[g * groupSize + j];
-      const angle = sum / groupSize;
+      const angle = groupAngles[g];
       const norm = angle / maxAngle;
+      // Minimum 0.15 so exposed directions still show dome structure
+      const scaledNorm = 0.15 + norm * 0.85;
 
       const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
       const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
 
       const color = horizonColor(angle, maxAngle);
-      // Dome-shaped height: hemisphere curve * horizon angle scaling
-      const height = Math.max(2, norm * maxHeight * domeCurve);
+      // This ring's top = hemisphere height at inner edge (taller toward center)
+      // This ring's base = hemisphere height at outer edge
+      const top = Math.max(3, scaledNorm * maxHeight * hInner);
+      const base = ring === numRings - 1 ? 0 : Math.max(0, scaledNorm * maxHeight * hOuter);
 
       // Build arc segment
       const steps = 2;
@@ -139,7 +152,7 @@ function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
       features.push({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [coords] },
-        properties: { color, height, angle: Math.round(angle * 100) / 100 },
+        properties: { color, height: top, base, angle: Math.round(angle * 100) / 100 },
       });
     }
   }
@@ -167,7 +180,7 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
       if (v.type === 'horizon') {
         const profile = v.geojson?.properties?.horizonProfile;
         if (profile) {
-          const displayRadius = 0.5;
+          const displayRadius = 0.25;
           const fc = buildHorizonGeoJSON(profile, [v.longitude, v.latitude], displayRadius);
           for (const f of fc.features) {
             f.properties.id = v.id;
@@ -350,14 +363,14 @@ export default function ViewshedTool() {
       if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 1.5, 'line-opacity': 0.5, 'line-dasharray': [4, 2] } });
       // Saved horizon domes
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
-      if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.5 } });
+      if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
       // Active result layers
       if (!mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.addLayer({ id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT, paint: { 'fill-color': '#ef4444', 'fill-opacity': 0.3 } });
       if (!mapRef.getLayer(LAYER_RESULT_LINE)) mapRef.addLayer({ id: LAYER_RESULT_LINE, type: 'line', source: SOURCE_RESULT, paint: { 'line-color': '#ef4444', 'line-opacity': 0.6, 'line-width': 1 } });
       if (!mapRef.getLayer(LAYER_OBSERVER)) mapRef.addLayer({ id: LAYER_OBSERVER, type: 'circle', source: SOURCE_OBSERVER, paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#ef4444', 'circle-stroke-width': 3 } });
       // Horizon dome layers
       if (!mapRef.getLayer(LAYER_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_HORIZON_FILL, type: 'fill', source: SOURCE_HORIZON_DOME, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.5 } });
-      if (!mapRef.getLayer(LAYER_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_HORIZON_DOME, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.6 } });
+      if (!mapRef.getLayer(LAYER_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_HORIZON_DOME, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.6 } });
       if (!mapRef.getLayer(LAYER_HORIZON_CENTER)) mapRef.addLayer({ id: LAYER_HORIZON_CENTER, type: 'circle', source: SOURCE_HORIZON_CENTER, paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#a855f7', 'circle-stroke-width': 3 } });
     };
 
@@ -488,7 +501,7 @@ export default function ViewshedTool() {
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Calculation failed'); }
       const data = await res.json();
       // Build dome GeoJSON
-      const displayRadius = 0.5; // 300m display radius
+      const displayRadius = 0.25; // 300m display radius
       const domeGeoJSON = buildHorizonGeoJSON(data.horizonProfile, [observer.lng, observer.lat], displayRadius);
       const hResult = { ...data, domeGeoJSON };
       setHorizonResult(hResult);
