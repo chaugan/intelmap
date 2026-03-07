@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { socket } from '../lib/socket.js';
+import { useMapStore } from './useMapStore.js';
+import { useTacticalStore } from './useTacticalStore.js';
+import { useProjectStore } from './useProjectStore.js';
+import { useTimelapseStore } from './useTimelapseStore.js';
+import { useChatStore } from './useChatStore.js';
+import { useMonitoringStore } from './useMonitoringStore.js';
+import { useWeatherStore } from './useWeatherStore.js';
+import { useWebcamStore } from './useWebcamStore.js';
 
 const API = '/api/auth';
 const WASOS_API = '/api/wasos';
@@ -120,8 +128,156 @@ export const useAuthStore = create((set, get) => ({
     try {
       await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' });
     } catch {}
+
+    // Leave all project socket rooms before disconnecting
+    const { visibleProjectIds } = useTacticalStore.getState();
+    for (const pid of visibleProjectIds) {
+      socket.emit('client:project:leave', { projectId: pid });
+    }
     socket.disconnect();
-    set({ user: null });
+
+    // Reset all stores to initial state
+    useTacticalStore.setState({
+      projects: {},
+      activeProjectId: null,
+      activeLayerId: null,
+      visibleProjectIds: [],
+      layerVisibility: {},
+    });
+
+    useProjectStore.setState({
+      myProjects: [],
+      groups: [],
+      loading: false,
+    });
+
+    useMapStore.setState({
+      // Turn off all data layers
+      windVisible: false,
+      webcamsVisible: false,
+      avalancheVisible: false,
+      avalancheWarningsVisible: false,
+      snowDepthVisible: false,
+      aircraftVisible: false,
+      vesselsVisible: false,
+      roadRestrictionsVisible: false,
+      trafficFlowVisible: false,
+      trafficInfoVisible: false,
+      sunlightVisible: false,
+      auroraVisible: false,
+      infraVisible: false,
+      infraLayers: {},
+      infraSearchFilter: null,
+      drawingToolsVisible: false,
+      measuringToolVisible: false,
+      // Clear focused/selected items
+      focusedAircraftHex: null,
+      focusedVesselMmsi: null,
+      focusedVesselMmsis: [],
+      hiddenVesselCategories: [],
+      hiddenTrafficCategories: [],
+      vesselDeepAnalysis: null,
+      vesselTimeTravel: null,
+      vesselActivityBox: null,
+      vesselActivityDrawing: false,
+      vesselActivityAnalysis: null,
+      vesselActivityLoading: false,
+      // Close drawers and panels
+      activePanel: null,
+      placementMode: null,
+      projectDrawerOpen: false,
+      dataLayersDrawerOpen: false,
+      flyAroundActive: false,
+      sunlightAnimating: false,
+      weightPulsating: false,
+      heightPulsating: false,
+      // Reset WMS overlays
+      wmsTransportVisible: false,
+      wmsPlacenamesVisible: false,
+      wmsContoursVisible: false,
+      wmsBordersVisible: false,
+    });
+
+    useTimelapseStore.setState({
+      cameras: [],
+      recordingCameraIds: [],
+      allRecordingCameras: [],
+      selectedCamera: null,
+      exports: [],
+      drawerOpen: false,
+      activeTab: 'cameras',
+      isPlaying: false,
+      playerTime: null,
+      isLive: true,
+      loading: false,
+      error: null,
+      exportsLoading: false,
+    });
+    localStorage.setItem('timelapseDrawerOpen', 'false');
+
+    useChatStore.setState({
+      messages: [],
+      streaming: false,
+      error: null,
+    });
+
+    useMonitoringStore.setState({
+      enabled: false,
+      ntfyChannel: null,
+      configLoaded: false,
+      subscriptions: [],
+      monitoredCameraIds: [],
+      loading: false,
+      error: null,
+      preselectCamera: null,
+      selectedCameraId: null,
+      detections: [],
+      detectionsPage: 1,
+      detectionsTotalCount: 0,
+      detectionsLoading: false,
+      highlightCameraId: null,
+    });
+
+    useWeatherStore.setState({
+      forecast: null,
+      sun: null,
+      moon: null,
+      windGrid: null,
+      loading: false,
+      error: null,
+      location: null,
+      windFetchedAt: null,
+      windLoading: false,
+    });
+
+    useWebcamStore.setState({
+      openCameras: [],
+    });
+
+    // Reset auth store last
+    set({
+      user: null,
+      isImpersonating: false,
+      realUser: null,
+      loginOpen: false,
+      passwordChangeOpen: false,
+      securityDialogOpen: false,
+      adminPanelOpen: false,
+      wasosLoginOpen: false,
+      signalLinkOpen: false,
+      mfaPending: null,
+      mfaSetupRequired: false,
+      wasosLoggedIn: false,
+      wasosLoading: false,
+      wasosUploadOpen: false,
+      wasosUploadData: null,
+      wasosUploading: false,
+      signalLinked: false,
+      signalPhone: null,
+      signalUploadOpen: false,
+      signalUploadData: null,
+      signalUploading: false,
+    });
   },
 
   changePassword: async (currentPassword, newPassword) => {

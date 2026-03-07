@@ -50,6 +50,9 @@ export default function ProjectDrawer() {
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
+  const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
+  const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
+  const mapRef = useMapStore((s) => s.mapRef);
 
   useEffect(() => {
     if (user) {
@@ -105,6 +108,45 @@ export default function ProjectDrawer() {
     if (!renameLayerVal.trim()) return;
     socket.emit('client:layer:update', { projectId, id: layerId, name: renameLayerVal.trim() });
     setRenamingLayerId(null);
+  };
+
+  const handleSaveView = async (project) => {
+    if (!mapRef) return;
+    const savedView = {
+      longitude: mapRef.getCenter().lng,
+      latitude: mapRef.getCenter().lat,
+      zoom: mapRef.getZoom(),
+      pitch: mapRef.getPitch(),
+      bearing: mapRef.getBearing(),
+    };
+    try {
+      await updateProjectSettings(project.id, { ...project.settings, savedView });
+      setViewSavedId(project.id);
+      setTimeout(() => setViewSavedId(null), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleFlyTo = (project) => {
+    const view = project.settings?.savedView;
+    if (!view || !mapRef) return;
+    mapRef.flyTo({
+      center: [view.longitude, view.latitude],
+      zoom: view.zoom,
+      pitch: view.pitch || 0,
+      bearing: view.bearing || 0,
+      duration: 2000,
+    });
+  };
+
+  const handleClearView = async (project) => {
+    try {
+      const { savedView, ...rest } = project.settings || {};
+      await updateProjectSettings(project.id, rest);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleCopy = async (id) => {
@@ -387,6 +429,53 @@ export default function ProjectDrawer() {
 
                   {/* Project actions */}
                   <div className="mt-2 pt-2 border-t border-slate-700/50 space-y-1.5">
+                    {/* View save/fly row */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Save current view */}
+                      {p.role === 'admin' && (
+                        <button
+                          onClick={() => handleSaveView(p)}
+                          className={`flex items-center gap-1 text-xs px-1.5 py-1 rounded hover:bg-slate-700/50 ${
+                            viewSavedId === p.id ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title={t('projects.saveView', lang)}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path d="M15 10l-4 4-2-2" />
+                            <circle cx="12" cy="12" r="9" />
+                          </svg>
+                          {viewSavedId === p.id ? t('projects.viewSaved', lang) : t('projects.saveView', lang)}
+                        </button>
+                      )}
+
+                      {/* Fly to saved view */}
+                      {p.settings?.savedView ? (
+                        <button
+                          onClick={() => handleFlyTo(p)}
+                          className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 px-1.5 py-1 rounded hover:bg-slate-700/50"
+                          title={t('projects.flyTo', lang)}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          </svg>
+                          {t('projects.flyTo', lang)}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-600 px-1.5 py-1">{t('projects.noSavedView', lang)}</span>
+                      )}
+
+                      {/* Clear saved view */}
+                      {p.role === 'admin' && p.settings?.savedView && (
+                        <button
+                          onClick={() => handleClearView(p)}
+                          className="text-xs text-slate-600 hover:text-red-400 px-1 py-1 rounded hover:bg-slate-700/50 ml-auto"
+                          title={t('projects.clearView', lang)}
+                        >
+                          {'\u2715'}
+                        </button>
+                      )}
+                    </div>
+
                     {/* Action buttons row */}
                     <div className="flex items-center gap-1.5">
                       {/* Copy */}

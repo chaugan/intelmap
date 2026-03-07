@@ -159,6 +159,22 @@ export const useProjectStore = create((set, get) => ({
     } catch {}
   },
 
+  updateProjectSettings: async (id, settings) => {
+    const res = await fetch(`${API}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ settings }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to update settings');
+    }
+    set((s) => ({
+      myProjects: s.myProjects.map(p => p.id === id ? { ...p, settings } : p),
+    }));
+  },
+
   reorderMyProjects: (orderedIds) => set((s) => {
     const idOrder = new Map(orderedIds.map((id, i) => [id, i]));
     const sorted = [...s.myProjects].sort((a, b) => {

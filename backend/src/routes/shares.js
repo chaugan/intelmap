@@ -40,16 +40,18 @@ router.get('/:token', (req, res) => {
   }
 
   if (row.resource_type === 'project') {
-    const project = db.prepare('SELECT id, name FROM projects_v2 WHERE id = ?').get(row.resource_id);
+    const project = db.prepare('SELECT id, name, settings FROM projects_v2 WHERE id = ?').get(row.resource_id);
     if (!project) {
       return res.json({ valid: false, error: 'notFound' });
     }
+    let settings = {};
+    try { settings = JSON.parse(project.settings); } catch {}
     return res.json({
       valid: true,
       resourceType: 'project',
       resourceId: row.resource_id,
       readOnly: true,
-      project: { id: project.id, name: project.name },
+      project: { id: project.id, name: project.name, settings },
     });
   }
 

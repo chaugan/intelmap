@@ -242,6 +242,11 @@ const translations = {
     'projects.orgEditor': 'Redaktør',
     'projects.revokeOrgShare': 'Fjern orgdeling',
     'projects.orgShared': 'Delt med org',
+    'projects.saveView': 'Lagre visning',
+    'projects.viewSaved': 'Visning lagret',
+    'projects.flyTo': 'Gå til visning',
+    'projects.noSavedView': 'Ingen lagret visning',
+    'projects.clearView': 'Fjern visning',
 
     // Project Drawer
     'drawer.title': 'Prosjekter',
@@ -748,6 +753,11 @@ const translations = {
     'projects.orgEditor': 'Editor',
     'projects.revokeOrgShare': 'Revoke org sharing',
     'projects.orgShared': 'Shared with org',
+    'projects.saveView': 'Save view',
+    'projects.viewSaved': 'View saved',
+    'projects.flyTo': 'Fly to view',
+    'projects.noSavedView': 'No saved view',
+    'projects.clearView': 'Clear view',
 
     // Project Drawer
     'drawer.title': 'Projects',

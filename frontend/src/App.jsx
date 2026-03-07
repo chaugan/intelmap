@@ -22,6 +22,8 @@ import SuperAdminPanel from './components/super-admin/SuperAdminPanel.jsx';
 import { useMapStore } from './stores/useMapStore.js';
 import { useAuthStore } from './stores/useAuthStore.js';
 import { useTimelapseStore } from './stores/useTimelapseStore.js';
+import { useProjectStore } from './stores/useProjectStore.js';
+import { useTacticalStore } from './stores/useTacticalStore.js';
 import { t } from './lib/i18n.js';
 import { VERSION } from './version.js';
 
@@ -216,6 +218,44 @@ function MapApp({ user }) {
     document.addEventListener('pointerup', onPointerUp);
   }, [setProjectDrawerWidth]);
 
+  // Helper: open a project and fly to its saved view
+  const openProjectWithView = useCallback((projectId, savedView) => {
+    const { showProject } = useTacticalStore.getState();
+    const { toggleProjectDrawer, projectDrawerOpen } = useMapStore.getState();
+    showProject(projectId);
+    if (!projectDrawerOpen) toggleProjectDrawer();
+    if (savedView) {
+      const flyToSavedView = () => {
+        const map = useMapStore.getState().mapRef;
+        if (map) {
+          map.flyTo({
+            center: [savedView.longitude, savedView.latitude],
+            zoom: savedView.zoom,
+            pitch: savedView.pitch || 0,
+            bearing: savedView.bearing || 0,
+            duration: 2000,
+          });
+        }
+      };
+      // Fly when map is ready
+      if (useMapStore.getState().mapRef) {
+        flyToSavedView();
+      } else {
+        pendingFlyRef.current = flyToSavedView;
+      }
+    }
+  }, []);
+
+  const pendingFlyRef = useRef(null);
+
+  // Apply pending fly-to when map becomes ready
+  useEffect(() => {
+    if (mapRef && pendingFlyRef.current) {
+      pendingFlyRef.current();
+      pendingFlyRef.current = null;
+    }
+  }, [mapRef]);
+
   // Handle share token deep linking via URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -234,6 +274,8 @@ function MapApp({ user }) {
             applyTheme(data.theme.state);
             pendingThemeRef.current = null;
           }
+        } else if (data.valid && data.resourceType === 'project' && data.project) {
+          openProjectWithView(data.project.id, data.project.settings?.savedView);
         } else if (!data.valid) {
           setThemeError(data.error === 'expired' ? 'expired' : 'notFound');
         }
@@ -242,7 +284,41 @@ function MapApp({ user }) {
         window.history.replaceState({}, '', window.location.pathname);
         setThemeError('notFound');
       });
-  }, [applyTheme]);
+  }, [applyTheme, openProjectWithView]);
+
+  // Handle project deep linking via URL parameter (requires auth)
+  const pendingProjectIdRef = useRef(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('project');
+    if (!projectId) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    // If logged in, open immediately; otherwise store for later
+    if (user) {
+      fetch(`/api/projects/${projectId}`, { credentials: 'include' })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data) openProjectWithView(data.id, data.settings?.savedView);
+        })
+        .catch(() => {});
+    } else {
+      pendingProjectIdRef.current = projectId;
+    }
+  }, []); // Run once on mount
+
+  // Open pending project after login
+  useEffect(() => {
+    if (user && pendingProjectIdRef.current) {
+      const projectId = pendingProjectIdRef.current;
+      pendingProjectIdRef.current = null;
+      fetch(`/api/projects/${projectId}`, { credentials: 'include' })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data) openProjectWithView(data.id, data.settings?.savedView);
+        })
+        .catch(() => {});
+    }
+  }, [user, openProjectWithView]);
 
   // Handle theme deep linking via URL parameter
   useEffect(() => {
