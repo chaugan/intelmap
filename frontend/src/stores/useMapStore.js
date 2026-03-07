@@ -126,6 +126,9 @@ export const useMapStore = create((set) => ({
   // Measuring tool
   measuringToolVisible: false,
 
+  // Viewshed tool
+  viewshedToolVisible: false,
+
   // User geolocation
   userLocation: null, // { longitude, latitude }
 
@@ -301,6 +304,10 @@ export const useMapStore = create((set) => ({
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
   toggleMeasuringTool: () => set((s) => ({ measuringToolVisible: !s.measuringToolVisible })),
+  toggleViewshedTool: () => set((s) => ({
+    viewshedToolVisible: !s.viewshedToolVisible,
+    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false } : {}),
+  })),
   setUserLocation: (userLocation) => set({ userLocation }),
   clearUserLocation: () => set({ userLocation: null }),
   setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),

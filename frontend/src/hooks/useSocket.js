@@ -23,8 +23,8 @@ export function useSocket() {
     };
 
     // --- Project-scoped events ---
-    const onProjectState = ({ projectId, markers, drawings, layers, pins }) => {
-      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins });
+    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds }) => {
+      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds });
     };
 
     const onMarkerAdded = (data) => {
@@ -67,6 +67,13 @@ export function useSocket() {
       useTacticalStore.getState().deletePin(projectId, id);
     };
 
+    const onViewshedAdded = (data) => {
+      useTacticalStore.getState().addViewshed(data.projectId, data);
+    };
+    const onViewshedDeleted = ({ projectId, id }) => {
+      useTacticalStore.getState().deleteViewshed(projectId, id);
+    };
+
     socket.on('connect', onConnect);
     socket.on('server:force-disconnect', onForceDisconnect);
     socket.on('server:project:state', onProjectState);
@@ -82,6 +89,8 @@ export function useSocket() {
     socket.on('server:pin:added', onPinAdded);
     socket.on('server:pin:updated', onPinUpdated);
     socket.on('server:pin:deleted', onPinDeleted);
+    socket.on('server:viewshed:added', onViewshedAdded);
+    socket.on('server:viewshed:deleted', onViewshedDeleted);
 
     return () => {
       socket.off('connect', onConnect);
@@ -99,6 +108,8 @@ export function useSocket() {
       socket.off('server:pin:added', onPinAdded);
       socket.off('server:pin:updated', onPinUpdated);
       socket.off('server:pin:deleted', onPinDeleted);
+      socket.off('server:viewshed:added', onViewshedAdded);
+      socket.off('server:viewshed:deleted', onViewshedDeleted);
     };
   }, []);
 }

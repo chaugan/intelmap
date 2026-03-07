@@ -1,6 +1,7 @@
 import { EVENTS } from './events.js';
 import { projectStore } from '../store/project-store.js';
 import { getProjectRole, canMutateProject } from '../auth/project-access.js';
+import { addViewshed, deleteViewshed } from '../store/viewshed-store.js';
 
 export function registerHandlers(socket, io) {
   const userId = socket.user.id;
@@ -120,6 +121,21 @@ export function registerHandlers(socket, io) {
     if (!projectId || !canMutateProject(userId, projectId)) return;
     if (projectStore.deletePin(projectId, id)) {
       io.to(`project:${projectId}`).emit(EVENTS.SERVER_PIN_DELETED, { projectId, id });
+    }
+  });
+
+  // --- Viewsheds ---
+  socket.on(EVENTS.CLIENT_VIEWSHED_SAVE, (data) => {
+    const { projectId } = data;
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const viewshed = addViewshed(projectId, { ...data, createdBy: userId });
+    io.to(`project:${projectId}`).emit(EVENTS.SERVER_VIEWSHED_ADDED, viewshed);
+  });
+
+  socket.on(EVENTS.CLIENT_VIEWSHED_DELETE, ({ projectId, id }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    if (deleteViewshed(id, projectId)) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_VIEWSHED_DELETED, { projectId, id });
     }
   });
 }

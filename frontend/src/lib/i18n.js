@@ -511,6 +511,21 @@ const translations = {
     'impersonate.exit': 'Avslutt',
     'impersonate.button': 'Vis som bruker',
 
+    // Viewshed
+    'viewshed.title': 'Synsfelt',
+    'viewshed.observerHeight': 'Observatørhøyde',
+    'viewshed.placeObserver': 'Plasser observatør',
+    'viewshed.clickToPlace': 'Klikk på kartet for å plassere observatør',
+    'viewshed.clickToSetRadius': 'Klikk for å sette radius (maks 50 km)',
+    'viewshed.calculate': 'Beregn synsfelt',
+    'viewshed.calculating': 'Beregner...',
+    'viewshed.reset': 'Nullstill',
+    'viewshed.visibleArea': 'Synlig areal',
+    'viewshed.totalArea': 'Totalt areal',
+    'viewshed.saveToProject': 'Lagre i prosjekt',
+    'viewshed.newAnalysis': 'Ny analyse',
+    'viewshed.clear': 'Fjern',
+
     // General
     'lang.switch': 'English',
     'general.close': 'Lukk',
@@ -1021,6 +1036,21 @@ const translations = {
     'impersonate.viewing': 'Viewing as {username} ({orgName}) — logged in as {realUser} (super-admin)',
     'impersonate.exit': 'Exit',
     'impersonate.button': 'Impersonate',
+
+    // Viewshed
+    'viewshed.title': 'Viewshed',
+    'viewshed.observerHeight': 'Observer height',
+    'viewshed.placeObserver': 'Place observer',
+    'viewshed.clickToPlace': 'Click on map to place observer',
+    'viewshed.clickToSetRadius': 'Click to set radius (max 50 km)',
+    'viewshed.calculate': 'Calculate viewshed',
+    'viewshed.calculating': 'Calculating...',
+    'viewshed.reset': 'Reset',
+    'viewshed.visibleArea': 'Visible area',
+    'viewshed.totalArea': 'Total area',
+    'viewshed.saveToProject': 'Save to project',
+    'viewshed.newAnalysis': 'New analysis',
+    'viewshed.clear': 'Clear',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

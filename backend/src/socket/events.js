@@ -17,6 +17,8 @@ export const EVENTS = {
   CLIENT_PIN_ADD: 'client:pin:add',
   CLIENT_PIN_UPDATE: 'client:pin:update',
   CLIENT_PIN_DELETE: 'client:pin:delete',
+  CLIENT_VIEWSHED_SAVE: 'client:viewshed:save',
+  CLIENT_VIEWSHED_DELETE: 'client:viewshed:delete',
 
   // Server → Client
   SERVER_PROJECT_STATE: 'server:project:state',
@@ -32,4 +34,6 @@ export const EVENTS = {
   SERVER_PIN_ADDED: 'server:pin:added',
   SERVER_PIN_UPDATED: 'server:pin:updated',
   SERVER_PIN_DELETED: 'server:pin:deleted',
+  SERVER_VIEWSHED_ADDED: 'server:viewshed:added',
+  SERVER_VIEWSHED_DELETED: 'server:viewshed:deleted',
 };

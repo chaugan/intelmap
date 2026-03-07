@@ -49,10 +49,10 @@ export const useTacticalStore = create((set, get) => ({
 
   // --- Project state (from server) ---
 
-  setProjectState: (projectId, { markers, drawings, layers, pins }) => set((s) => ({
+  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds }) => set((s) => ({
     projects: {
       ...s.projects,
-      [projectId]: { markers: markers || [], drawings: drawings || [], layers: layers || [], pins: pins || [] },
+      [projectId]: { markers: markers || [], drawings: drawings || [], layers: layers || [], pins: pins || [], viewsheds: viewsheds || [] },
     },
   })),
 
@@ -214,6 +214,28 @@ export const useTacticalStore = create((set, get) => ({
       projects: {
         ...s.projects,
         [projectId]: { ...proj, pins: (proj.pins || []).filter(p => p.id !== id) },
+      },
+    };
+  }),
+
+  addViewshed: (projectId, viewshed) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, viewsheds: [...(proj.viewsheds || []), viewshed] },
+      },
+    };
+  }),
+
+  deleteViewshed: (projectId, id) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, viewsheds: (proj.viewsheds || []).filter(v => v.id !== id) },
       },
     };
   }),

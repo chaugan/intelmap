@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDb } from '../db/index.js';
+import { getViewsheds } from './viewshed-store.js';
 
 /**
  * Per-project SQLite-backed store for tactical data.
@@ -14,7 +15,8 @@ export class ProjectStoreManager {
     const drawings = db.prepare('SELECT * FROM project_drawings WHERE project_id = ?').all(projectId).map(rowToDrawing);
     const layers = db.prepare('SELECT * FROM project_layers WHERE project_id = ?').all(projectId).map(rowToLayer);
     const pins = db.prepare('SELECT * FROM project_pins WHERE project_id = ?').all(projectId).map(rowToPin);
-    return { markers, drawings, layers, pins };
+    const viewsheds = getViewsheds(projectId);
+    return { markers, drawings, layers, pins, viewsheds };
   }
 
   // --- Markers ---

@@ -231,6 +231,7 @@ function MapApp({ user }) {
         drawings: projectData.drawings || [],
         layers: projectData.layers || [],
         pins: projectData.pins || [],
+        viewsheds: projectData.viewsheds || [],
       });
       // Add to visible projects without socket join (read-only)
       if (!tacticalState.visibleProjectIds.includes(projectId)) {

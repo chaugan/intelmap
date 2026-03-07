@@ -190,6 +190,22 @@ export function runMigration() {
     console.log(`Backfilled org_id on ${fixed} timelapse cameras`);
   }
 
+  // Create project_viewsheds table (if not exists)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_viewsheds (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      longitude REAL,
+      latitude REAL,
+      observer_height REAL,
+      radius_km REAL,
+      geojson TEXT,
+      stats TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

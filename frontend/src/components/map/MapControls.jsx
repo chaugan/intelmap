@@ -198,6 +198,7 @@ export default function MapControls() {
 
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
+      {user && <ViewshedButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
@@ -333,6 +334,24 @@ function ToggleButton({ active, onClick, label, shortcut }) {
       title={`${label} (${shortcut})`}
     >
       {label}
+    </button>
+  );
+}
+
+function ViewshedButton({ lang }) {
+  const active = useMapStore((s) => s.viewshedToolVisible);
+  const toggle = useMapStore((s) => s.toggleViewshedTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('viewshed.title', lang)} (J)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+      {t('viewshed.title', lang)}
     </button>
   );
 }
