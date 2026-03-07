@@ -525,6 +525,7 @@ const translations = {
     'viewshed.saveToProject': 'Lagre i prosjekt',
     'viewshed.newAnalysis': 'Ny analyse',
     'viewshed.clear': 'Fjern',
+    'viewshed.deleteAll': 'Slett alle',
 
     // General
     'lang.switch': 'English',
@@ -1051,6 +1052,7 @@ const translations = {
     'viewshed.saveToProject': 'Save to project',
     'viewshed.newAnalysis': 'New analysis',
     'viewshed.clear': 'Clear',
+    'viewshed.deleteAll': 'Delete all',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',

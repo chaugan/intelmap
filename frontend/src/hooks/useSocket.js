@@ -73,6 +73,9 @@ export function useSocket() {
     const onViewshedDeleted = ({ projectId, id }) => {
       useTacticalStore.getState().deleteViewshed(projectId, id);
     };
+    const onViewshedAllDeleted = ({ projectId }) => {
+      useTacticalStore.getState().clearViewsheds(projectId);
+    };
 
     socket.on('connect', onConnect);
     socket.on('server:force-disconnect', onForceDisconnect);
@@ -91,6 +94,7 @@ export function useSocket() {
     socket.on('server:pin:deleted', onPinDeleted);
     socket.on('server:viewshed:added', onViewshedAdded);
     socket.on('server:viewshed:deleted', onViewshedDeleted);
+    socket.on('server:viewshed:all-deleted', onViewshedAllDeleted);
 
     return () => {
       socket.off('connect', onConnect);
@@ -110,6 +114,7 @@ export function useSocket() {
       socket.off('server:pin:deleted', onPinDeleted);
       socket.off('server:viewshed:added', onViewshedAdded);
       socket.off('server:viewshed:deleted', onViewshedDeleted);
+      socket.off('server:viewshed:all-deleted', onViewshedAllDeleted);
     };
   }, []);
 }

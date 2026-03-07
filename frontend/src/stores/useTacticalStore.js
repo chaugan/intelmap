@@ -240,6 +240,17 @@ export const useTacticalStore = create((set, get) => ({
     };
   }),
 
+  clearViewsheds: (projectId) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, viewsheds: [] },
+      },
+    };
+  }),
+
   toggleLayerVisibility: (layerId) => set((s) => ({
     layerVisibility: {
       ...s.layerVisibility,

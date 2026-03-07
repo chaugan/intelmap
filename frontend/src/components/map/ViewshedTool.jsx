@@ -52,6 +52,25 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
+// Build saved viewsheds FeatureCollection from store
+function buildSavedFC(visibleProjectIds, projects) {
+  const features = [];
+  for (const pid of visibleProjectIds) {
+    const proj = projects[pid];
+    if (!proj?.viewsheds) continue;
+    for (const v of proj.viewsheds) {
+      if (v.geojson?.geometry) {
+        features.push({
+          type: 'Feature',
+          geometry: v.geojson.geometry,
+          properties: { id: v.id, projectId: pid },
+        });
+      }
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 export default function ViewshedTool() {
   const visible = useMapStore((s) => s.viewshedToolVisible);
   const mapRef = useMapStore((s) => s.mapRef);
@@ -60,7 +79,7 @@ export default function ViewshedTool() {
   const projects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
 
-  const [mode, setMode] = useState('idle'); // idle | placing | sizing | calculating | result
+  const [mode, setMode] = useState('idle'); // idle | placing | sizing | ready | calculating | result
   const [observerHeight, setObserverHeight] = useState(5);
   const [observer, setObserver] = useState(null); // { lng, lat }
   const [radiusKm, setRadiusKm] = useState(0);
@@ -69,8 +88,17 @@ export default function ViewshedTool() {
 
   const modeRef = useRef(mode);
   const observerRef = useRef(observer);
+  const resultRef = useRef(result);
+  const radiusRef = useRef(radiusKm);
   modeRef.current = mode;
   observerRef.current = observer;
+  resultRef.current = result;
+  radiusRef.current = radiusKm;
+
+  // Count saved viewsheds for active project
+  const savedCount = activeProjectId
+    ? (projects[activeProjectId]?.viewsheds?.length || 0)
+    : 0;
 
   // Cleanup map layers/sources on unmount or toggle off
   const cleanup = useCallback(() => {
@@ -94,7 +122,6 @@ export default function ViewshedTool() {
     setError(null);
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
-      // Clear preview layers
       const src = mapRef.getSource(SOURCE_CIRCLE);
       if (src) src.setData(EMPTY_FC);
       const resSrc = mapRef.getSource(SOURCE_RESULT);
@@ -104,22 +131,37 @@ export default function ViewshedTool() {
     }
   }, [mapRef]);
 
-  // Initialize layers when tool becomes visible
+  // Initialize layers when tool becomes visible — re-apply data on style changes
   useEffect(() => {
     if (!visible || !mapRef) return;
 
     const initLayers = () => {
+      // Re-create sources with current data (not empty) so style changes preserve state
+      const obs = observerRef.current;
+      const res = resultRef.current;
+      const rad = radiusRef.current;
+
+      const circleData = (obs && rad > 0)
+        ? circlePolygon([obs.lng, obs.lat], rad)
+        : EMPTY_FC;
+      const resultData = res?.geojson || EMPTY_FC;
+      const observerData = obs
+        ? { type: 'Feature', geometry: { type: 'Point', coordinates: [obs.lng, obs.lat] } }
+        : EMPTY_FC;
+      const { visibleProjectIds: vIds, projects: projs } = useTacticalStore.getState();
+      const savedData = buildSavedFC(vIds, projs);
+
       if (!mapRef.getSource(SOURCE_CIRCLE)) {
-        mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
+        mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: circleData });
       }
       if (!mapRef.getSource(SOURCE_RESULT)) {
-        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: EMPTY_FC });
+        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: resultData });
       }
       if (!mapRef.getSource(SOURCE_OBSERVER)) {
-        mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: EMPTY_FC });
+        mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: observerData });
       }
       if (!mapRef.getSource(SOURCE_SAVED)) {
-        mapRef.addSource(SOURCE_SAVED, { type: 'geojson', data: EMPTY_FC });
+        mapRef.addSource(SOURCE_SAVED, { type: 'geojson', data: savedData });
       }
 
       if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) {
@@ -199,22 +241,7 @@ export default function ViewshedTool() {
     if (!visible || !mapRef) return;
     const src = mapRef.getSource(SOURCE_SAVED);
     if (!src) return;
-
-    const features = [];
-    for (const pid of visibleProjectIds) {
-      const proj = projects[pid];
-      if (!proj?.viewsheds) continue;
-      for (const v of proj.viewsheds) {
-        if (v.geojson?.geometry) {
-          features.push({
-            type: 'Feature',
-            geometry: v.geojson.geometry,
-            properties: { id: v.id, projectId: pid },
-          });
-        }
-      }
-    }
-    src.setData({ type: 'FeatureCollection', features });
+    src.setData(buildSavedFC(visibleProjectIds, projects));
   }, [visible, mapRef, visibleProjectIds, projects]);
 
   // Map click handler for placing observer
@@ -243,7 +270,6 @@ export default function ViewshedTool() {
         const r = haversineKm(obs.lat, obs.lng, e.lngLat.lat, e.lngLat.lng);
         const capped = Math.min(50, Math.max(0.5, r));
         setRadiusKm(capped);
-        setMode('idle'); // ready to calculate
         mapRef.getCanvas().style.cursor = '';
         // Finalize the circle
         const circleSrc = mapRef.getSource(SOURCE_CIRCLE);
@@ -353,6 +379,11 @@ export default function ViewshedTool() {
       geojson: result.geojson,
       stats: result.stats,
     });
+  };
+
+  const deleteAllSaved = () => {
+    if (!activeProjectId) return;
+    socket.emit('client:viewshed:delete-all', { projectId: activeProjectId });
   };
 
   const close = () => {
@@ -511,6 +542,23 @@ export default function ViewshedTool() {
                 className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 transition-colors text-xs"
               >
                 {t('viewshed.clear', lang)}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Saved viewsheds management */}
+        {savedCount > 0 && activeProjectId && (
+          <div className="border-t border-slate-600/50 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                {savedCount} {isNo ? 'lagret' : 'saved'}
+              </span>
+              <button
+                onClick={deleteAllSaved}
+                className="text-xs text-red-400 hover:text-red-300 transition-colors"
+              >
+                {t('viewshed.deleteAll', lang)}
               </button>
             </div>
           </div>

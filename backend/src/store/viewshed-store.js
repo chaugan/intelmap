@@ -43,6 +43,12 @@ export function deleteViewshed(id, projectId) {
   return result.changes > 0;
 }
 
+export function deleteAllViewsheds(projectId) {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM project_viewsheds WHERE project_id = ?').run(projectId);
+  return result.changes;
+}
+
 function rowToViewshed(row) {
   return {
     id: row.id,
