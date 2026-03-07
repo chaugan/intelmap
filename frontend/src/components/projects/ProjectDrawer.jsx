@@ -112,12 +112,36 @@ export default function ProjectDrawer() {
 
   const handleSaveView = async (project) => {
     if (!mapRef) return;
+    const ms = useMapStore.getState();
     const savedView = {
+      // Camera
       longitude: mapRef.getCenter().lng,
       latitude: mapRef.getCenter().lat,
       zoom: mapRef.getZoom(),
       pitch: mapRef.getPitch(),
       bearing: mapRef.getBearing(),
+      // Base map
+      baseLayer: ms.baseLayer,
+      // Data layer visibility
+      windVisible: ms.windVisible,
+      webcamsVisible: ms.webcamsVisible,
+      avalancheVisible: ms.avalancheVisible,
+      avalancheWarningsVisible: ms.avalancheWarningsVisible,
+      snowDepthVisible: ms.snowDepthVisible,
+      aircraftVisible: ms.aircraftVisible,
+      vesselsVisible: ms.vesselsVisible,
+      roadRestrictionsVisible: ms.roadRestrictionsVisible,
+      trafficFlowVisible: ms.trafficFlowVisible,
+      trafficInfoVisible: ms.trafficInfoVisible,
+      sunlightVisible: ms.sunlightVisible,
+      auroraVisible: ms.auroraVisible,
+      infraVisible: ms.infraVisible,
+      hillshadeVisible: ms.hillshadeVisible,
+      terrainVisible: ms.terrainVisible,
+      wmsTransportVisible: ms.wmsTransportVisible,
+      wmsPlacenamesVisible: ms.wmsPlacenamesVisible,
+      wmsContoursVisible: ms.wmsContoursVisible,
+      wmsBordersVisible: ms.wmsBordersVisible,
     };
     try {
       await updateProjectSettings(project.id, { ...project.settings, savedView });
@@ -131,6 +155,23 @@ export default function ProjectDrawer() {
   const handleFlyTo = (project) => {
     const view = project.settings?.savedView;
     if (!view || !mapRef) return;
+    // Apply map state
+    const mapState = {};
+    if (view.baseLayer) mapState.baseLayer = view.baseLayer;
+    const visKeys = [
+      'windVisible', 'webcamsVisible', 'avalancheVisible', 'avalancheWarningsVisible',
+      'snowDepthVisible', 'aircraftVisible', 'vesselsVisible', 'roadRestrictionsVisible',
+      'trafficFlowVisible', 'trafficInfoVisible', 'sunlightVisible', 'auroraVisible',
+      'infraVisible', 'hillshadeVisible', 'terrainVisible',
+      'wmsTransportVisible', 'wmsPlacenamesVisible', 'wmsContoursVisible', 'wmsBordersVisible',
+    ];
+    for (const key of visKeys) {
+      if (key in view) mapState[key] = view[key];
+    }
+    if (Object.keys(mapState).length > 0) {
+      useMapStore.setState(mapState);
+    }
+    // Fly to camera position
     mapRef.flyTo({
       center: [view.longitude, view.latitude],
       zoom: view.zoom,

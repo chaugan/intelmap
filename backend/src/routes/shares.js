@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db/index.js';
+import { projectStore } from '../store/index.js';
 
 const router = Router();
 
@@ -46,12 +47,13 @@ router.get('/:token', (req, res) => {
     }
     let settings = {};
     try { settings = JSON.parse(project.settings); } catch {}
+    const state = projectStore.getProjectState(row.resource_id);
     return res.json({
       valid: true,
       resourceType: 'project',
       resourceId: row.resource_id,
       readOnly: true,
-      project: { id: project.id, name: project.name, settings },
+      project: { id: project.id, name: project.name, settings, ...state },
     });
   }
 

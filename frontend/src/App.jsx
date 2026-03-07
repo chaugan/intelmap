@@ -219,29 +219,68 @@ function MapApp({ user }) {
   }, [setProjectDrawerWidth]);
 
   // Helper: open a project and fly to its saved view
-  const openProjectWithView = useCallback((projectId, savedView) => {
-    const { showProject } = useTacticalStore.getState();
+  // projectData: optional { markers, drawings, layers, pins } for unauthenticated loading
+  const openProjectWithView = useCallback((projectId, savedView, projectData) => {
+    const tacticalState = useTacticalStore.getState();
     const { toggleProjectDrawer, projectDrawerOpen } = useMapStore.getState();
-    showProject(projectId);
+
+    // Load tactical data directly if provided (e.g. from share token, no socket auth needed)
+    if (projectData) {
+      tacticalState.setProjectState(projectId, {
+        markers: projectData.markers || [],
+        drawings: projectData.drawings || [],
+        layers: projectData.layers || [],
+        pins: projectData.pins || [],
+      });
+      // Add to visible projects without socket join (read-only)
+      if (!tacticalState.visibleProjectIds.includes(projectId)) {
+        useTacticalStore.setState((s) => ({
+          visibleProjectIds: [...s.visibleProjectIds, projectId],
+          activeProjectId: projectId,
+        }));
+      }
+    } else {
+      tacticalState.showProject(projectId);
+    }
+
     if (!projectDrawerOpen) toggleProjectDrawer();
+
     if (savedView) {
-      const flyToSavedView = () => {
+      const applyView = () => {
         const map = useMapStore.getState().mapRef;
-        if (map) {
-          map.flyTo({
-            center: [savedView.longitude, savedView.latitude],
-            zoom: savedView.zoom,
-            pitch: savedView.pitch || 0,
-            bearing: savedView.bearing || 0,
-            duration: 2000,
-          });
+        if (!map) return;
+
+        // Apply map state (base layer + data layers)
+        const mapState = {};
+        if (savedView.baseLayer) mapState.baseLayer = savedView.baseLayer;
+        const visKeys = [
+          'windVisible', 'webcamsVisible', 'avalancheVisible', 'avalancheWarningsVisible',
+          'snowDepthVisible', 'aircraftVisible', 'vesselsVisible', 'roadRestrictionsVisible',
+          'trafficFlowVisible', 'trafficInfoVisible', 'sunlightVisible', 'auroraVisible',
+          'infraVisible', 'hillshadeVisible', 'terrainVisible',
+          'wmsTransportVisible', 'wmsPlacenamesVisible', 'wmsContoursVisible', 'wmsBordersVisible',
+        ];
+        for (const key of visKeys) {
+          if (key in savedView) mapState[key] = savedView[key];
         }
+        if (Object.keys(mapState).length > 0) {
+          useMapStore.setState(mapState);
+        }
+
+        // Fly to camera position
+        map.flyTo({
+          center: [savedView.longitude, savedView.latitude],
+          zoom: savedView.zoom,
+          pitch: savedView.pitch || 0,
+          bearing: savedView.bearing || 0,
+          duration: 2000,
+        });
       };
-      // Fly when map is ready
+
       if (useMapStore.getState().mapRef) {
-        flyToSavedView();
+        applyView();
       } else {
-        pendingFlyRef.current = flyToSavedView;
+        pendingFlyRef.current = applyView;
       }
     }
   }, []);
@@ -275,7 +314,8 @@ function MapApp({ user }) {
             pendingThemeRef.current = null;
           }
         } else if (data.valid && data.resourceType === 'project' && data.project) {
-          openProjectWithView(data.project.id, data.project.settings?.savedView);
+          const proj = data.project;
+          openProjectWithView(proj.id, proj.settings?.savedView, proj);
         } else if (!data.valid) {
           setThemeError(data.error === 'expired' ? 'expired' : 'notFound');
         }
@@ -298,7 +338,7 @@ function MapApp({ user }) {
       fetch(`/api/projects/${projectId}`, { credentials: 'include' })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
-          if (data) openProjectWithView(data.id, data.settings?.savedView);
+          if (data) openProjectWithView(data.id, data.settings?.savedView, data);
         })
         .catch(() => {});
     } else {
@@ -314,7 +354,7 @@ function MapApp({ user }) {
       fetch(`/api/projects/${projectId}`, { credentials: 'include' })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
-          if (data) openProjectWithView(data.id, data.settings?.savedView);
+          if (data) openProjectWithView(data.id, data.settings?.savedView, data);
         })
         .catch(() => {});
     }
