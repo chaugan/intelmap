@@ -197,10 +197,26 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
       }
 
       // Boundary circle for all saved viewsheds
-      if (v.longitude != null && v.latitude != null && v.radiusKm > 0) {
-        const circle = circlePolygon([v.longitude, v.latitude], v.radiusKm);
-        circle.properties = { id: v.id, projectId: pid, type: v.type || 'viewshed' };
-        boundaries.push(circle);
+      const rKm = Number(v.radiusKm);
+      if (v.longitude != null && v.latitude != null && rKm > 0) {
+        boundaries.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: (() => {
+            const coords = [];
+            const R = 6371;
+            const lat1 = v.latitude * Math.PI / 180;
+            const lon1 = v.longitude * Math.PI / 180;
+            const d = rKm / R;
+            for (let i = 0; i <= 64; i++) {
+              const bearing = (2 * Math.PI * i) / 64;
+              const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(bearing));
+              const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+              coords.push([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
+            }
+            return coords;
+          })() },
+          properties: { id: v.id, projectId: pid, type: v.type || 'viewshed' },
+        });
       }
 
       if (v.longitude != null && v.latitude != null) {
