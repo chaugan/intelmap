@@ -43,6 +43,7 @@ export default function DrawingLayer() {
   const [drawColor, setDrawColor] = useState('#3b82f6');
   const [drawPoints, setDrawPoints] = useState([]);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [cursorPoint, setCursorPoint] = useState(null); // [lng, lat] for circle preview
   const [, forceUpdate] = useState(0);
   const activeModeRef = useRef(activeMode);
   const drawColorRef = useRef(drawColor);
@@ -184,12 +185,34 @@ export default function DrawingLayer() {
         return;
       }
 
+      if (activeModeRef.current === 'circle' && drawPointsRef.current.length === 1) {
+        // Second click: set edge point and auto-finish
+        setDrawPoints(prev => [...prev, [lng, lat]]);
+        setCursorPoint(null);
+        // Use setTimeout so drawPoints state updates before finishDrawing reads it
+        setTimeout(() => finishDrawing(), 0);
+        return;
+      }
+
       setDrawPoints(prev => [...prev, [lng, lat]]);
     };
 
     mapRefValue.on('click', handler);
     return () => mapRefValue.off('click', handler);
-  }, [mapRefValue, lang, placementMode, selectMode]);
+  }, [mapRefValue, lang, placementMode, selectMode, finishDrawing]);
+
+  // Circle preview: follow cursor after center is placed
+  useEffect(() => {
+    if (!mapRefValue) return;
+    const handler = (e) => {
+      if (activeModeRef.current !== 'circle') return;
+      if (drawPointsRef.current.length !== 1) return;
+      const { lng, lat } = e.lngLat;
+      setCursorPoint([lng, lat]);
+    };
+    mapRefValue.on('mousemove', handler);
+    return () => mapRefValue.off('mousemove', handler);
+  }, [mapRefValue]);
 
   // Rectangle selection drag handlers
   useEffect(() => {
@@ -323,6 +346,7 @@ export default function DrawingLayer() {
     if (!drawingToolsVisible) {
       setActiveMode(null);
       setDrawPoints([]);
+      setCursorPoint(null);
       if (selectMode) exitSelectMode();
     }
   }, [drawingToolsVisible]);
@@ -348,6 +372,7 @@ export default function DrawingLayer() {
                 finishDrawing();
               } else {
                 setDrawPoints([]);
+                setCursorPoint(null);
                 setActiveMode(tool.id);
               }
             }}
@@ -535,20 +560,23 @@ export default function DrawingLayer() {
       </div>}
 
       {/* Drawing preview — SVG overlay on top of the map */}
-      {screenPoints.length > 0 && (
+      {(screenPoints.length > 0 || (activeMode === 'circle' && drawPoints.length === 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
-          {/* Circle preview */}
-          {activeMode === 'circle' && screenPoints.length >= 2 && (() => {
+          {/* Circle preview — follows cursor after center is placed */}
+          {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
             const cx = screenPoints[0].x;
             const cy = screenPoints[0].y;
-            const ex = screenPoints[screenPoints.length - 1].x;
-            const ey = screenPoints[screenPoints.length - 1].y;
-            const r = Math.sqrt((ex - cx) ** 2 + (ey - cy) ** 2);
+            // Use cursor position for live preview, or second clicked point
+            let ep = screenPoints.length >= 2 ? screenPoints[screenPoints.length - 1] : null;
+            if (!ep && cursorPoint && mapRefValue) {
+              try { const p = mapRefValue.project(cursorPoint); ep = { x: p.x, y: p.y }; } catch {}
+            }
+            if (!ep) return null;
+            const r = Math.sqrt((ep.x - cx) ** 2 + (ep.y - cy) ** 2);
             return (
               <>
                 <circle cx={cx} cy={cy} r={r} fill={drawColor} fillOpacity="0.12" stroke={drawColor} strokeWidth="3" strokeDasharray="8 4" opacity="0.8" />
-                {/* Radius line */}
-                <line x1={cx} y1={cy} x2={ex} y2={ey} stroke={drawColor} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
+                <line x1={cx} y1={cy} x2={ep.x} y2={ep.y} stroke={drawColor} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
               </>
             );
           })()}

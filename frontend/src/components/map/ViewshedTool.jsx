@@ -29,6 +29,9 @@ const SOURCE_HORIZON_CENTER = 'horizon-dome-center-src';
 const SOURCE_SAVED_HORIZONS = 'viewshed-saved-horizons';
 const LAYER_SAVED_HORIZON_FILL = 'viewshed-saved-horizon-fill';
 const LAYER_SAVED_HORIZON_EXTRUSION = 'viewshed-saved-horizon-extrusion';
+// Saved viewshed boundary circles
+const SOURCE_SAVED_BOUNDARIES = 'viewshed-saved-boundaries';
+const LAYER_SAVED_BOUNDARIES = 'viewshed-saved-boundaries-line';
 
 function circlePolygon(center, radiusKm, numPoints = 64) {
   const coords = [];
@@ -89,11 +92,11 @@ function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
   const numRays = horizonProfile.length;
   const angleStep = 360 / numRays; // 0.5 degrees
   const maxAngle = Math.max(...horizonProfile, 1);
-  const innerRadius = displayRadiusKm * 0.15; // small hole in center
+  const innerRadius = displayRadiusKm * 0.3; // hole in center
   const features = [];
 
-  // Group adjacent rays into wider wedges (every 4 = 2 degrees) for cleaner rendering
-  const groupSize = 4;
+  // Group adjacent rays into wider wedges (every 6 = 3 degrees) for cleaner rendering
+  const groupSize = 6;
   const numGroups = Math.floor(numRays / groupSize);
 
   for (let g = 0; g < numGroups; g++) {
@@ -104,11 +107,12 @@ function buildHorizonGeoJSON(horizonProfile, center, displayRadiusKm) {
 
     const bearing1 = (g * groupSize * angleStep) * Math.PI / 180;
     const bearing2 = ((g + 1) * groupSize * angleStep) * Math.PI / 180;
-    // Outer radius proportional to horizon angle (minimum so all wedges show)
+    // Outer radius proportional to horizon angle
     const outerRadius = innerRadius + (angle / maxAngle) * (displayRadiusKm - innerRadius);
 
     const color = horizonColor(angle, maxAngle);
-    const height = Math.max(10, angle * 20);
+    // Height: gentle dome, max ~60m so it forms a cap shape not a skyscraper
+    const height = Math.max(3, (angle / maxAngle) * 60);
 
     // Build arc segment: inner arc -> outer arc -> close
     const steps = 3; // arc interpolation points
@@ -142,6 +146,7 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
   const polygons = [];
   const observers = [];
   const horizonFeatures = [];
+  const boundaries = [];
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
     if (!proj?.viewsheds) continue;
@@ -152,10 +157,9 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
       if (v.layerId && !visLayerIds.has(v.layerId)) continue;
 
       if (v.type === 'horizon') {
-        // Rebuild polar rose from stored horizonProfile
         const profile = v.geojson?.properties?.horizonProfile;
         if (profile) {
-          const displayRadius = 0.3;
+          const displayRadius = 0.5;
           const fc = buildHorizonGeoJSON(profile, [v.longitude, v.latitude], displayRadius);
           for (const f of fc.features) {
             f.properties.id = v.id;
@@ -173,6 +177,13 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
         }
       }
 
+      // Boundary circle for all saved viewsheds
+      if (v.longitude != null && v.latitude != null && v.radiusKm > 0) {
+        const circle = circlePolygon([v.longitude, v.latitude], v.radiusKm);
+        circle.properties = { id: v.id, projectId: pid, type: v.type || 'viewshed' };
+        boundaries.push(circle);
+      }
+
       if (v.longitude != null && v.latitude != null) {
         observers.push({
           type: 'Feature',
@@ -186,6 +197,7 @@ function buildSavedData(visibleProjectIds, projects, layerVisibility) {
     polygons: { type: 'FeatureCollection', features: polygons },
     observers: { type: 'FeatureCollection', features: observers },
     horizons: { type: 'FeatureCollection', features: horizonFeatures },
+    boundaries: { type: 'FeatureCollection', features: boundaries },
   };
 }
 
@@ -261,8 +273,8 @@ export default function ViewshedTool() {
   }, []);
 
   // All layers & sources
-  const ALL_LAYERS = [LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_RESULT_LINE, LAYER_OBSERVER, LAYER_SAVED_FILL, LAYER_SAVED_LINE, LAYER_SAVED_OBSERVERS, LAYER_HORIZON_FILL, LAYER_HORIZON_EXTRUSION, LAYER_HORIZON_CENTER, LAYER_SAVED_HORIZON_FILL, LAYER_SAVED_HORIZON_EXTRUSION];
-  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER, SOURCE_SAVED, SOURCE_SAVED_OBSERVERS, SOURCE_HORIZON_DOME, SOURCE_HORIZON_CENTER, SOURCE_SAVED_HORIZONS];
+  const ALL_LAYERS = [LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_RESULT_LINE, LAYER_OBSERVER, LAYER_SAVED_FILL, LAYER_SAVED_LINE, LAYER_SAVED_OBSERVERS, LAYER_SAVED_BOUNDARIES, LAYER_HORIZON_FILL, LAYER_HORIZON_EXTRUSION, LAYER_HORIZON_CENTER, LAYER_SAVED_HORIZON_FILL, LAYER_SAVED_HORIZON_EXTRUSION];
+  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER, SOURCE_SAVED, SOURCE_SAVED_OBSERVERS, SOURCE_SAVED_BOUNDARIES, SOURCE_HORIZON_DOME, SOURCE_HORIZON_CENTER, SOURCE_SAVED_HORIZONS];
 
   const cleanup = useCallback(() => {
     if (!mapRef) return;
@@ -318,6 +330,7 @@ export default function ViewshedTool() {
       if (!mapRef.getSource(SOURCE_HORIZON_DOME)) mapRef.addSource(SOURCE_HORIZON_DOME, { type: 'geojson', data: horizonData });
       if (!mapRef.getSource(SOURCE_HORIZON_CENTER)) mapRef.addSource(SOURCE_HORIZON_CENTER, { type: 'geojson', data: horizonCenterData });
       if (!mapRef.getSource(SOURCE_SAVED_HORIZONS)) mapRef.addSource(SOURCE_SAVED_HORIZONS, { type: 'geojson', data: saved.horizons });
+      if (!mapRef.getSource(SOURCE_SAVED_BOUNDARIES)) mapRef.addSource(SOURCE_SAVED_BOUNDARIES, { type: 'geojson', data: saved.boundaries });
 
       // Viewshed layers
       if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) mapRef.addLayer({ id: LAYER_CIRCLE_FILL, type: 'fill', source: SOURCE_CIRCLE, paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.1 } });
@@ -325,6 +338,8 @@ export default function ViewshedTool() {
       if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.25 } });
       if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
       if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+      // Saved boundary circles
+      if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 1.5, 'line-opacity': 0.5, 'line-dasharray': [4, 2] } });
       // Saved horizon domes
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.5 } });
@@ -353,6 +368,8 @@ export default function ViewshedTool() {
     if (obsSrc) obsSrc.setData(saved.observers);
     const hSrc = mapRef.getSource(SOURCE_SAVED_HORIZONS);
     if (hSrc) hSrc.setData(saved.horizons);
+    const bSrc = mapRef.getSource(SOURCE_SAVED_BOUNDARIES);
+    if (bSrc) bSrc.setData(saved.boundaries);
   }, [visible, mapRef, visibleProjectIds, projects, layerVisibility]);
 
   // Map click handler
@@ -463,7 +480,7 @@ export default function ViewshedTool() {
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Calculation failed'); }
       const data = await res.json();
       // Build dome GeoJSON
-      const displayRadius = 0.3; // 300m display radius
+      const displayRadius = 0.5; // 300m display radius
       const domeGeoJSON = buildHorizonGeoJSON(data.horizonProfile, [observer.lng, observer.lat], displayRadius);
       const hResult = { ...data, domeGeoJSON };
       setHorizonResult(hResult);
