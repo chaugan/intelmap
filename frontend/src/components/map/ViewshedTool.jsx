@@ -236,6 +236,7 @@ export default function ViewshedTool() {
   const [observer, setObserver] = useState(null);
   const [radiusKm, setRadiusKm] = useState(0);
   const [horizonRadiusKm, setHorizonRadiusKm] = useState(15);
+  const [domeOpacity, setDomeOpacity] = useState(0.6);
   const [result, setResult] = useState(null);
   const [horizonResult, setHorizonResult] = useState(null);
   const [error, setError] = useState(null);
@@ -390,6 +391,15 @@ export default function ViewshedTool() {
     const bSrc = mapRef.getSource(SOURCE_SAVED_BOUNDARIES);
     if (bSrc) bSrc.setData(saved.boundaries);
   }, [visible, mapRef, visibleProjectIds, projects, layerVisibility]);
+
+  // Update dome opacity when slider changes
+  useEffect(() => {
+    if (!visible || !mapRef) return;
+    if (mapRef.getLayer(LAYER_HORIZON_EXTRUSION)) mapRef.setPaintProperty(LAYER_HORIZON_EXTRUSION, 'fill-extrusion-opacity', domeOpacity);
+    if (mapRef.getLayer(LAYER_HORIZON_FILL)) mapRef.setPaintProperty(LAYER_HORIZON_FILL, 'fill-opacity', domeOpacity);
+    if (mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.setPaintProperty(LAYER_SAVED_HORIZON_EXTRUSION, 'fill-extrusion-opacity', domeOpacity);
+    if (mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.setPaintProperty(LAYER_SAVED_HORIZON_FILL, 'fill-opacity', domeOpacity);
+  }, [visible, mapRef, domeOpacity]);
 
   // Map click handler
   useEffect(() => {
@@ -708,6 +718,19 @@ export default function ViewshedTool() {
                   className="flex-1 accent-purple-500" disabled={mode === 'calculating'}
                 />
                 <span className="text-sm font-mono w-12 text-right">{horizonRadiusKm} km</span>
+              </div>
+            </div>
+
+            {/* Dome opacity */}
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">{isNo ? 'Gjennomsiktighet' : 'Opacity'}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={0.1} max={1} step={0.05} value={domeOpacity}
+                  onChange={(e) => setDomeOpacity(Number(e.target.value))}
+                  className="flex-1 accent-purple-500"
+                />
+                <span className="text-sm font-mono w-12 text-right">{Math.round(domeOpacity * 100)}%</span>
               </div>
             </div>
 
