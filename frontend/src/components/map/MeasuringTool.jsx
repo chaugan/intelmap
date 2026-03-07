@@ -591,6 +591,7 @@ function HeightProfile({ profilePoints, waypointIndices, routeIndex, lang, onClo
 export default function MeasuringTool() {
   const mapRef = useMapStore((s) => s.mapRef);
   const measuringToolVisible = useMapStore((s) => s.measuringToolVisible);
+  const drawingActiveMode = useMapStore((s) => s.drawingActiveMode);
   const lang = useMapStore((s) => s.lang);
 
   const [routes, setRoutes] = useState([]); // Completed routes with detailed profiles
@@ -687,7 +688,7 @@ export default function MeasuringTool() {
   // Handle map click to add waypoint
   const handleClick = useCallback(
     async (e) => {
-      if (!measuringToolVisible) return;
+      if (!measuringToolVisible || drawingActiveMode) return;
 
       const now = Date.now();
       const isDoubleClick = now - lastClickRef.current < 300;
@@ -713,20 +714,20 @@ export default function MeasuringTool() {
         setCurrentRoute((prev) => [...prev, { lng, lat, elevation }]);
       }, 150);
     },
-    [measuringToolVisible, currentRoute, finalizeRoute]
+    [measuringToolVisible, drawingActiveMode, currentRoute, finalizeRoute]
   );
 
   // Handle mouse move for preview line
   const handleMouseMove = useCallback(
     (e) => {
-      if (!measuringToolVisible || currentRoute.length === 0) {
+      if (!measuringToolVisible || drawingActiveMode || currentRoute.length === 0) {
         setMousePos(null);
         return;
       }
       const { lng, lat } = e.lngLat;
       setMousePos({ lng, lat });
     },
-    [measuringToolVisible, currentRoute.length]
+    [measuringToolVisible, drawingActiveMode, currentRoute.length]
   );
 
   // Handle Escape key to finish route

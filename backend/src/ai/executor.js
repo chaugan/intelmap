@@ -5,8 +5,13 @@ const COLOR_MAP = {
   blue: '#3b82f6',
   red: '#ef4444',
   green: '#22c55e',
-  black: '#1e293b',
+  yellow: '#eab308',
+  orange: '#f97316',
+  purple: '#a855f7',
+  cyan: '#06b6d4',
+  pink: '#ec4899',
   white: '#ffffff',
+  black: '#1e293b',
 };
 
 function circleToPolygon(center, radiusKm, points = 64) {

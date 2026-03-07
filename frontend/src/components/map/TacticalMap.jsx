@@ -633,6 +633,7 @@ export default function TacticalMap() {
             if (d.geometry.type === 'LineString') {
               const pts = projectCoords(d.geometry.coordinates);
               if (pts.length < 2) return null;
+              const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
                 <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onContextMenu={handleContextMenu}>
                   {/* Invisible wider stroke for easier clicking */}
@@ -649,6 +650,28 @@ export default function TacticalMap() {
                     strokeWidth="3"
                     strokeDasharray={d.properties?.lineType === 'dashed' ? '8 4' : 'none'}
                   />
+                  {isArrow && (() => {
+                    const p1 = pts[pts.length - 2];
+                    const p2 = pts[pts.length - 1];
+                    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                    const size = 18;
+                    const halfW = 10;
+                    // Arrow tip at p2, two barbs swept back
+                    const tip = p2;
+                    const leftX = tip.x - size * Math.cos(angle) + halfW * Math.sin(angle);
+                    const leftY = tip.y - size * Math.sin(angle) - halfW * Math.cos(angle);
+                    const rightX = tip.x - size * Math.cos(angle) - halfW * Math.sin(angle);
+                    const rightY = tip.y - size * Math.sin(angle) + halfW * Math.cos(angle);
+                    return (
+                      <polygon
+                        points={`${tip.x},${tip.y} ${leftX},${leftY} ${rightX},${rightY}`}
+                        fill={color}
+                        stroke={color}
+                        strokeWidth="1"
+                        strokeLinejoin="round"
+                      />
+                    );
+                  })()}
                   {d.properties?.label && (() => {
                     const mid = pts[Math.floor(pts.length / 2)];
                     return (

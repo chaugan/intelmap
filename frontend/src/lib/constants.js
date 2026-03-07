@@ -349,8 +349,14 @@ export const SYMBOL_CATEGORIES = {
 };
 
 export const DRAW_COLORS = [
-  { id: 'blue', color: '#3b82f6', label: 'Vennlig', labelEn: 'Friendly' },
-  { id: 'red', color: '#ef4444', label: 'Fiendtlig', labelEn: 'Hostile' },
-  { id: 'green', color: '#22c55e', label: 'Nøytral', labelEn: 'Neutral' },
+  { id: 'blue', color: '#3b82f6', label: 'Blå', labelEn: 'Blue' },
+  { id: 'red', color: '#ef4444', label: 'Rød', labelEn: 'Red' },
+  { id: 'green', color: '#22c55e', label: 'Grønn', labelEn: 'Green' },
+  { id: 'yellow', color: '#eab308', label: 'Gul', labelEn: 'Yellow' },
+  { id: 'orange', color: '#f97316', label: 'Oransje', labelEn: 'Orange' },
+  { id: 'purple', color: '#a855f7', label: 'Lilla', labelEn: 'Purple' },
+  { id: 'cyan', color: '#06b6d4', label: 'Cyan', labelEn: 'Cyan' },
+  { id: 'pink', color: '#ec4899', label: 'Rosa', labelEn: 'Pink' },
+  { id: 'white', color: '#ffffff', label: 'Hvit', labelEn: 'White' },
   { id: 'black', color: '#1e293b', label: 'Svart', labelEn: 'Black' },
 ];

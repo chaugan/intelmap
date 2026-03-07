@@ -59,6 +59,12 @@ export default function DrawingLayer() {
   drawColorRef.current = drawColor;
   drawPointsRef.current = drawPoints;
 
+  // Share active drawing mode with store so MeasuringTool can yield
+  useEffect(() => {
+    useMapStore.setState({ drawingActiveMode: activeMode });
+    return () => useMapStore.setState({ drawingActiveMode: null });
+  }, [activeMode]);
+
   const finishDrawing = useCallback(() => {
     const pts = drawPointsRef.current;
     const mode = activeModeRef.current;
@@ -460,16 +466,27 @@ export default function DrawingLayer() {
               <div className="w-6 h-6 rounded" style={{ backgroundColor: drawColor }} />
             </button>
             {showColorPicker && (
-              <div className="absolute left-12 top-0 flex gap-1 bg-slate-800 p-2 rounded shadow-xl border border-slate-600">
-                {DRAW_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => { setDrawColor(c.color); setShowColorPicker(false); }}
-                    className={`w-8 h-8 rounded border-2 ${drawColor === c.color ? 'border-white' : 'border-transparent'}`}
-                    style={{ backgroundColor: c.color }}
-                    title={lang === 'no' ? c.label : c.labelEn}
+              <div className="absolute left-12 top-0 bg-slate-800 p-2 rounded shadow-xl border border-slate-600">
+                <div className="grid grid-cols-5 gap-1 mb-2">
+                  {DRAW_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setDrawColor(c.color); setShowColorPicker(false); }}
+                      className={`w-8 h-8 rounded border-2 ${drawColor === c.color ? 'border-white' : 'border-transparent'}`}
+                      style={{ backgroundColor: c.color }}
+                      title={lang === 'no' ? c.label : c.labelEn}
+                    />
+                  ))}
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="color"
+                    value={drawColor}
+                    onChange={(e) => { setDrawColor(e.target.value); }}
+                    className="w-8 h-8 rounded border-0 cursor-pointer bg-transparent p-0"
                   />
-                ))}
+                  <span className="text-[10px] text-slate-400">{lang === 'no' ? 'Egendefinert' : 'Custom'}</span>
+                </label>
               </div>
             )}
           </div>
@@ -549,14 +566,35 @@ export default function DrawingLayer() {
           )}
           {/* Line / arrow preview */}
           {(activeMode === 'line' || activeMode === 'arrow') && screenPoints.length >= 2 && (
-            <polyline
-              points={screenPoints.map(p => `${p.x},${p.y}`).join(' ')}
-              fill="none"
-              stroke={drawColor}
-              strokeWidth="3"
-              strokeDasharray="8 4"
-              opacity="0.8"
-            />
+            <>
+              <polyline
+                points={screenPoints.map(p => `${p.x},${p.y}`).join(' ')}
+                fill="none"
+                stroke={drawColor}
+                strokeWidth="3"
+                strokeDasharray="8 4"
+                opacity="0.8"
+              />
+              {activeMode === 'arrow' && (() => {
+                const p1 = screenPoints[screenPoints.length - 2];
+                const p2 = screenPoints[screenPoints.length - 1];
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                const size = 18;
+                const halfW = 10;
+                const tip = p2;
+                const leftX = tip.x - size * Math.cos(angle) + halfW * Math.sin(angle);
+                const leftY = tip.y - size * Math.sin(angle) - halfW * Math.cos(angle);
+                const rightX = tip.x - size * Math.cos(angle) - halfW * Math.sin(angle);
+                const rightY = tip.y - size * Math.sin(angle) + halfW * Math.cos(angle);
+                return (
+                  <polygon
+                    points={`${tip.x},${tip.y} ${leftX},${leftY} ${rightX},${rightY}`}
+                    fill={drawColor}
+                    opacity="0.8"
+                  />
+                );
+              })()}
+            </>
           )}
           {/* Preview points */}
           {screenPoints.map((p, i) => (
@@ -632,6 +670,18 @@ export default function DrawingLayer() {
                     strokeWidth="3"
                     strokeDasharray={d.properties?.lineType === 'dashed' ? '8 4' : 'none'}
                   />
+                  {(d.properties?.lineType === 'arrow' || d.drawingType === 'arrow') && (() => {
+                    const p1 = pts[pts.length - 2];
+                    const p2 = pts[pts.length - 1];
+                    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                    const size = 18, halfW = 10;
+                    return (
+                      <polygon
+                        points={`${p2.x},${p2.y} ${p2.x - size * Math.cos(angle) + halfW * Math.sin(angle)},${p2.y - size * Math.sin(angle) - halfW * Math.cos(angle)} ${p2.x - size * Math.cos(angle) - halfW * Math.sin(angle)},${p2.y - size * Math.sin(angle) + halfW * Math.cos(angle)}`}
+                        fill={color}
+                      />
+                    );
+                  })()}
                   {d.properties?.label && (
                     <text x={midPt.x} y={midPt.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
                       stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>

@@ -59,6 +59,7 @@ export const useMapStore = create((set) => ({
   trafficInfoFetchedAt: null,
   hiddenTrafficCategories: [],
   drawingToolsVisible: false,
+  drawingActiveMode: null, // shared so MeasuringTool can yield to active drawing
   sunlightVisible: false,
   sunlightOpacity: 0.5,
   buildingOpacity: 0.7,
