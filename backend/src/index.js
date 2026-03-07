@@ -44,6 +44,10 @@ app.get('/health', (_req, res) => {
     if (existsSync(syncFile)) {
       result.lastDbSync = readFileSync(syncFile, 'utf-8').trim();
     }
+    const deployFile = join(config.dataDir, '.last-deploy');
+    if (existsSync(deployFile)) {
+      result.lastDeploy = readFileSync(deployFile, 'utf-8').trim();
+    }
   } catch {}
   res.json(result);
 });

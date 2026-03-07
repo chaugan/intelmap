@@ -51,32 +51,40 @@ export default function App() {
 const IS_PREPROD = window.location.hostname.startsWith('preprod.');
 
 function PreprodBanner() {
-  const [lastSync, setLastSync] = useState(null);
+  const [lastDbSync, setLastDbSync] = useState(null);
+  const [lastDeploy, setLastDeploy] = useState(null);
 
   useEffect(() => {
     if (!IS_PREPROD) return;
     fetch('/health')
       .then((r) => r.json())
-      .then((d) => { if (d.lastDbSync) setLastSync(d.lastDbSync); })
+      .then((d) => {
+        if (d.lastDbSync) setLastDbSync(d.lastDbSync);
+        if (d.lastDeploy) setLastDeploy(d.lastDeploy);
+      })
       .catch(() => {});
   }, []);
 
   if (!IS_PREPROD) return null;
 
   const lang = useMapStore.getState().lang;
-  const syncText = lastSync
-    ? new Date(lastSync).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : null;
+  const fmt = (iso) =>
+    new Date(iso).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
 
   return (
     <div className="flex items-center justify-center gap-3 px-4 py-1 bg-orange-600 text-white text-xs font-medium shrink-0 z-30">
       <span className="font-bold tracking-wider uppercase">Preprod</span>
-      {syncText && (
+      {lastDeploy && (
         <span className="opacity-80">
-          {lang === 'no' ? 'Siste DB-sync fra prod' : 'Last DB sync from prod'}: {syncText}
+          {lang === 'no' ? 'Siste sync' : 'Last sync'}: {fmt(lastDeploy)}
+        </span>
+      )}
+      {lastDbSync && (
+        <span className="opacity-80">
+          | {lang === 'no' ? 'DB-sync' : 'DB sync'}: {fmt(lastDbSync)}
         </span>
       )}
     </div>

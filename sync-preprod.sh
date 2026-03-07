@@ -77,6 +77,9 @@ chown -R intelmap:intelmap "$PREPROD_DIR"
 
 echo ""
 echo "[7/7] Restarting preprod backend..."
+# Write deploy timestamp for the preprod UI banner
+date -Iseconds > "$PREPROD_DIR/backend/data/.last-deploy"
+chown intelmap:intelmap "$PREPROD_DIR/backend/data/.last-deploy"
 systemctl restart intelmap-preprod
 
 echo ""
