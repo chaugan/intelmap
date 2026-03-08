@@ -47,10 +47,10 @@ export function buildMapStyle(baseLayerId, {
   const isNightMode = layer.nightMode;
   const basePaint = isNightMode
     ? {
-        'raster-brightness-max': 0.35,
-        'raster-saturation': -0.6,
-        'raster-hue-rotate': 340,
-        'raster-contrast': 0.2,
+        'raster-brightness-max': 0.3,
+        'raster-saturation': 0.3,
+        'raster-hue-rotate': 330,
+        'raster-contrast': 0.3,
       }
     : isGrayscale
       ? { 'raster-saturation': -1 }
