@@ -44,6 +44,17 @@ export function buildMapStyle(baseLayerId, {
   };
 
   const isGrayscale = layer.grayscale;
+  const isNightMode = layer.nightMode;
+  const basePaint = isNightMode
+    ? {
+        'raster-brightness-max': 0.35,
+        'raster-saturation': -0.6,
+        'raster-hue-rotate': 340,
+        'raster-contrast': 0.2,
+      }
+    : isGrayscale
+      ? { 'raster-saturation': -1 }
+      : {};
   const layers = [
     {
       id: 'base-tiles',
@@ -51,7 +62,7 @@ export function buildMapStyle(baseLayerId, {
       source: 'base',
       minzoom: 0,
       maxzoom: 20,
-      ...(isGrayscale ? { paint: { 'raster-saturation': -1 } } : {}),
+      ...(Object.keys(basePaint).length > 0 ? { paint: basePaint } : {}),
     },
   ];
 

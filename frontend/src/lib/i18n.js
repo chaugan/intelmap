@@ -39,12 +39,16 @@ const translations = {
     // Base layers
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Kartverket Gråtone',
+    'base.topo_night': 'Topo nattmodus',
     'base.toporaster': 'Raster',
-    'base.toporaster_gray': 'Raster gr\u00e5tone',
+    'base.toporaster_gray': 'Raster gråtone',
+    'base.toporaster_night': 'Raster nattmodus',
     'base.osm': 'OpenStreetMap',
-    'base.osm_gray': 'OSM gr\u00e5tone',
+    'base.osm_gray': 'OSM gråtone',
+    'base.osm_night': 'OSM nattmodus',
     'base.satellite': 'Satellitt',
-    'base.satellite_gray': 'Satellitt gr\u00e5tone',
+    'base.satellite_gray': 'Satellitt gråtone',
+    'base.satellite_night': 'Satellitt nattmodus',
 
     // Panels
     'panel.layers': 'Lag',
@@ -580,12 +584,16 @@ const translations = {
 
     'base.topo': 'Kartverket Topo',
     'base.grayscale': 'Kartverket Grayscale',
+    'base.topo_night': 'Topo Night Mode',
     'base.toporaster': 'Raster',
     'base.toporaster_gray': 'Raster Grayscale',
+    'base.toporaster_night': 'Raster Night Mode',
     'base.osm': 'OpenStreetMap',
     'base.osm_gray': 'OSM Grayscale',
+    'base.osm_night': 'OSM Night Mode',
     'base.satellite': 'Satellite',
     'base.satellite_gray': 'Satellite Grayscale',
+    'base.satellite_night': 'Satellite Night Mode',
 
     'panel.layers': 'Layers',
     'panel.symbols': 'Symbols',

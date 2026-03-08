@@ -74,12 +74,16 @@ export default function MapControls() {
   const baseLabels = {
     topo: t('base.topo', lang),
     grayscale: t('base.grayscale', lang),
+    topo_night: t('base.topo_night', lang),
     toporaster: t('base.toporaster', lang),
     toporaster_gray: t('base.toporaster_gray', lang),
+    toporaster_night: t('base.toporaster_night', lang),
     osm: t('base.osm', lang),
     osm_gray: t('base.osm_gray', lang),
+    osm_night: t('base.osm_night', lang),
     satellite: t('base.satellite', lang),
     satellite_gray: t('base.satellite_gray', lang),
+    satellite_night: t('base.satellite_night', lang),
   };
 
   const panelShortcuts = { layers: '1', symbols: '2', weather: '3', search: '4' };
@@ -181,12 +185,12 @@ export default function MapControls() {
         {showBaseDropdown && (
           <div className="absolute top-full mt-1 left-0 bg-slate-700 rounded shadow-xl border border-slate-600 z-50 min-w-[160px]">
             {Object.entries(BASE_LAYERS).map(([id, layer]) => {
-              const isVariant = layer.grayscale || layer.variant;
+              const isVariant = layer.grayscale || layer.variant || layer.nightMode;
               return (
                 <button
                   key={id}
                   onClick={() => { setBaseLayer(id); setShowBaseDropdown(false); }}
-                  className={`block w-full text-left py-2 hover:bg-slate-600 transition-colors ${isVariant ? 'pl-6 pr-3 text-slate-300' : 'px-3'} ${baseLayer === id ? 'text-emerald-400' : ''}`}
+                  className={`block w-full text-left py-2 hover:bg-slate-600 transition-colors ${isVariant ? 'pl-6 pr-3 text-slate-300' : 'px-3'} ${layer.nightMode ? 'text-red-400/70' : ''} ${baseLayer === id ? '!text-emerald-400' : ''}`}
                 >
                   {baseLabels[id]}
                 </button>

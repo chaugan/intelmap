@@ -13,6 +13,13 @@ export const BASE_LAYERS = {
     url: 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png',
     variant: true,
   },
+  topo_night: {
+    id: 'topo_night',
+    name: 'Topo Nattmodus',
+    url: 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',
+    nightMode: true,
+    variant: true,
+  },
   toporaster: {
     id: 'toporaster',
     name: 'Kartverket Raster',
@@ -23,6 +30,13 @@ export const BASE_LAYERS = {
     name: 'Raster Gråtone',
     url: 'https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png',
     grayscale: true,
+  },
+  toporaster_night: {
+    id: 'toporaster_night',
+    name: 'Raster Nattmodus',
+    url: 'https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png',
+    nightMode: true,
+    variant: true,
   },
   osm: {
     id: 'osm',
@@ -35,6 +49,13 @@ export const BASE_LAYERS = {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     grayscale: true,
   },
+  osm_night: {
+    id: 'osm_night',
+    name: 'OSM Nattmodus',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    nightMode: true,
+    variant: true,
+  },
   satellite: {
     id: 'satellite',
     name: 'Esri Satellite',
@@ -45,6 +66,13 @@ export const BASE_LAYERS = {
     name: 'Satellite Gråtone',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     grayscale: true,
+  },
+  satellite_night: {
+    id: 'satellite_night',
+    name: 'Satellite Nattmodus',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    nightMode: true,
+    variant: true,
   },
 };
 
