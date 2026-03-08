@@ -195,8 +195,11 @@ export default function TacticalMap() {
 
 
   const onMove = useCallback((evt) => {
-    const { longitude, latitude, zoom } = evt.viewState;
+    const { longitude, latitude, zoom, bearing, pitch } = evt.viewState;
     setViewport({ longitude, latitude, zoom });
+    try {
+      sessionStorage.setItem('mapViewState', JSON.stringify({ longitude, latitude, zoom, bearing, pitch }));
+    } catch {}
   }, [setViewport]);
 
   const onMoveEnd = useCallback(() => {
@@ -509,11 +512,13 @@ export default function TacticalMap() {
     <div className="absolute inset-0" data-map-container>
       <Map
         ref={mapRef}
-        initialViewState={{
-          longitude: DEFAULT_CENTER.longitude,
-          latitude: DEFAULT_CENTER.latitude,
-          zoom: DEFAULT_ZOOM,
-        }}
+        initialViewState={(() => {
+          try {
+            const saved = JSON.parse(sessionStorage.getItem('mapViewState'));
+            if (saved?.longitude && saved?.latitude && saved?.zoom) return saved;
+          } catch {}
+          return { longitude: DEFAULT_CENTER.longitude, latitude: DEFAULT_CENTER.latitude, zoom: DEFAULT_ZOOM };
+        })()}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
         maxPitch={85}
