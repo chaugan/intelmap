@@ -87,6 +87,15 @@ router.delete('/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Toggle auto-add new users (site admin only)
+router.put('/:id/auto-add', requireAdmin, (req, res) => {
+  const { enabled } = req.body;
+  const db = getDb();
+  const result = db.prepare("UPDATE groups SET auto_add_users = ?, updated_at = datetime('now') WHERE id = ?").run(enabled ? 1 : 0, req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Group not found' });
+  res.json({ ok: true });
+});
+
 // Add member to group (site admin only)
 router.post('/:id/members', requireAdmin, (req, res) => {
   const { userId, role } = req.body;

@@ -189,13 +189,16 @@ export default function MonitoringTab() {
             {lang === 'no' ? 'ntfy-dokumentasjon' : 'ntfy docs'}
           </a>
         </div>
-        <button
-          onClick={() => navigator.clipboard.writeText(ntfyChannel)}
-          className="w-full text-sm text-cyan-400 hover:text-cyan-300 font-mono bg-slate-800 rounded px-3 py-2 text-left break-all"
-          title={lang === 'no' ? 'Kopier til utklippstavle' : 'Copy to clipboard'}
-        >
-          {ntfyChannel}
-        </button>
+        <div className="flex items-center gap-2 bg-slate-800 rounded px-3 py-2">
+          <span className="flex-1 text-sm text-cyan-400 font-mono break-all select-all cursor-text">{ntfyChannel}</span>
+          <button
+            onClick={() => navigator.clipboard.writeText(ntfyChannel)}
+            className="shrink-0 text-slate-400 hover:text-white transition-colors"
+            title={lang === 'no' ? 'Kopier til utklippstavle' : 'Copy to clipboard'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
         <TestNotificationButton lang={lang} />
       </div>
 

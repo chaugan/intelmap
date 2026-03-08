@@ -124,6 +124,7 @@ function UsersTab({ lang, currentUser }) {
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState('');
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [resetPasswordVal, setResetPasswordVal] = useState('');
@@ -258,9 +259,20 @@ function UsersTab({ lang, currentUser }) {
         </div>
         <div className="flex-1">
           <label className="block text-xs text-slate-400 mb-1">{t('auth.password', lang)}</label>
-          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
-            placeholder={t('admin.tempPassword', lang)} />
+          <div className="relative">
+            <input type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-2 py-1 pr-8 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
+              placeholder={t('admin.tempPassword', lang)} />
+            <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+              tabIndex={-1}>
+              {showNewPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              )}
+            </button>
+          </div>
         </div>
         <button type="submit" className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition-colors">
           {t('admin.createUser', lang)}
@@ -449,6 +461,14 @@ function GroupsTab({ lang }) {
     fetchGroups();
   }
 
+  async function toggleAutoAdd(groupId, currentValue) {
+    await fetch(`${GROUPS_API}/${groupId}/auto-add`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ enabled: !currentValue }),
+    });
+    fetchGroups();
+  }
+
   async function addMember(groupId) {
     if (!selectedUserId) return;
     setError('');
@@ -529,7 +549,14 @@ function GroupsTab({ lang }) {
                     {g.member_count} {t('groups.members', lang).toLowerCase()}
                   </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-2 items-center">
+                  <label className="flex items-center gap-1 text-xs text-slate-400" onClick={(e) => e.stopPropagation()}
+                    title={lang === 'no' ? 'Legg automatisk til nye brukere i denne gruppen' : 'Automatically add new users to this group'}>
+                    <input type="checkbox" checked={!!g.auto_add_users}
+                      onChange={() => toggleAutoAdd(g.id, g.auto_add_users)}
+                      className="accent-emerald-500" />
+                    {lang === 'no' ? 'Auto' : 'Auto'}
+                  </label>
                   <button onClick={(e) => { e.stopPropagation(); deleteGroup(g.id); }}
                     className="px-2 py-1 bg-red-800 hover:bg-red-700 rounded text-xs transition-colors">
                     {t('general.delete', lang)}

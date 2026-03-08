@@ -57,7 +57,7 @@ router.get('/users', (req, res) => {
   const db = getDb();
   const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY created_at'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY username COLLATE NOCASE'
   ).all(orgId);
 
   // Calculate storage for each user
@@ -150,12 +150,12 @@ router.post('/users', (req, res) => {
      VALUES (?, ?, ?, ?, 'user', ?, 1, 0)`
   ).run(id, username, hash, salt, orgId);
 
-  // Auto-add new user to all existing groups in the org as viewer
-  const groups = db.prepare('SELECT id FROM groups WHERE org_id = ?').all(orgId);
+  // Auto-add new user to groups marked with auto_add_users
+  const autoGroups = db.prepare('SELECT id FROM groups WHERE org_id = ? AND auto_add_users = 1').all(orgId);
   const insertMember = db.prepare(
     `INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, 'viewer', datetime('now'))`
   );
-  for (const g of groups) {
+  for (const g of autoGroups) {
     insertMember.run(g.id, id);
   }
 

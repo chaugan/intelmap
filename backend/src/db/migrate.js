@@ -13,6 +13,12 @@ import { getDb } from './index.js';
 export function runMigration() {
   const db = getDb();
 
+  // Add auto_add_users column to groups table (if not exists)
+  const groupCols = db.prepare("PRAGMA table_info(groups)").all();
+  if (!groupCols.some(c => c.name === 'auto_add_users')) {
+    db.prepare("ALTER TABLE groups ADD COLUMN auto_add_users INTEGER NOT NULL DEFAULT 0").run();
+  }
+
   // Get admin user for migrations
   const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   const adminId = admin?.id || 'system';
