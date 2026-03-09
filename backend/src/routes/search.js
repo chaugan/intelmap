@@ -300,15 +300,23 @@ router.get('/', (req, res) => {
       // Search places when there's no house number (pure name search)
       if (!hasHouseNumber(parsed)) {
         placeResults = searchPlaces(db, parsed.street, 5);
-        // Fallback: detect city/municipality from addresses table
-        if (placeResults.length === 0) {
-          placeResults = searchCitiesFromAddresses(db, parsed.street, 5);
+        const cityResults = searchCitiesFromAddresses(db, parsed.street, 5);
+
+        // Merge: city/settlement types first, then other places, deduplicated
+        const cityTypes = ['By', 'Tettsted'];
+        const priorityPlaces = placeResults.filter(r => cityTypes.includes(r.type));
+        const priorityCities = cityResults.filter(r => cityTypes.includes(r.type));
+        const otherPlaces = placeResults.filter(r => !cityTypes.includes(r.type));
+
+        const seen = new Set();
+        const merged = [];
+        for (const r of [...priorityPlaces, ...priorityCities, ...otherPlaces]) {
+          const key = r.name.toLowerCase();
+          if (!seen.has(key)) { seen.add(key); merged.push(r); }
         }
-        // If place results found, skip address results to avoid
-        // "Trondheimsvegen" cluttering results when searching "Trondheim"
-        if (placeResults.length > 0) {
-          addressResults = [];
-        }
+        placeResults = merged.slice(0, 5);
+
+        if (placeResults.length > 0) addressResults = [];
       }
     } else {
       addressResults = [];

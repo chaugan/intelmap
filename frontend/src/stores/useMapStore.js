@@ -134,6 +134,9 @@ export const useMapStore = create((set) => ({
   // User geolocation
   userLocation: null, // { longitude, latitude }
 
+  // MGRS marker
+  mgrsMarker: null, // { lng, lat, mgrs } or null
+
   // Fly-around rotation
   flyAroundActive: false,
 
@@ -313,6 +316,7 @@ export const useMapStore = create((set) => ({
   })),
   setUserLocation: (userLocation) => set({ userLocation }),
   clearUserLocation: () => set({ userLocation: null }),
+  setMgrsMarker: (marker) => set({ mgrsMarker: marker }),
   setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,

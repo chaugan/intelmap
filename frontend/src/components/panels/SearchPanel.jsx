@@ -2,12 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearch } from '../../hooks/useSearch.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
+import { resolveMgrs, parseMgrsInput } from '../../lib/mgrs-utils.js';
 
 export default function SearchPanel() {
   const lang = useMapStore((s) => s.lang);
   const flyTo = useMapStore((s) => s.flyTo);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
+  const mapRef = useMapStore((s) => s.mapRef);
+  const setMgrsMarker = useMapStore((s) => s.setMgrsMarker);
   const [query, setQuery] = useState('');
+  const [mgrsResults, setMgrsResults] = useState([]);
   const { results, loading, search, setResults } = useSearch();
   const inputRef = useRef(null);
 
@@ -19,9 +23,30 @@ export default function SearchPanel() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Clear MGRS marker when panel unmounts
+  useEffect(() => {
+    return () => setMgrsMarker(null);
+  }, [setMgrsMarker]);
+
   const handleChange = (e) => {
-    setQuery(e.target.value);
-    search(e.target.value);
+    const val = e.target.value;
+    setQuery(val);
+
+    // Check if input matches MGRS easting/northing pattern
+    if (parseMgrsInput(val)) {
+      const center = mapRef?.getCenter();
+      if (center) {
+        const candidates = resolveMgrs(val, center);
+        setMgrsResults(candidates);
+        if (candidates.length > 0) {
+          setResults([]);
+          return;
+        }
+      }
+    }
+
+    setMgrsResults([]);
+    search(val);
   };
 
   const handleKeyDown = (e) => {
@@ -29,16 +54,27 @@ export default function SearchPanel() {
       if (query.length > 0) {
         setQuery('');
         setResults([]);
+        setMgrsResults([]);
         e.stopPropagation();
       } else {
         setActivePanel(null);
       }
       return;
     }
-    if (e.key === 'Enter' && results.length > 0) {
-      e.preventDefault();
-      handleSelect(results[0]);
+    if (e.key === 'Enter') {
+      if (mgrsResults.length > 0) {
+        e.preventDefault();
+        handleMgrsSelect(mgrsResults[0]);
+      } else if (results.length > 0) {
+        e.preventDefault();
+        handleSelect(results[0]);
+      }
     }
+  };
+
+  const handleMgrsSelect = (candidate) => {
+    flyTo(candidate.lon, candidate.lat, 15);
+    setMgrsMarker({ lng: candidate.lon, lat: candidate.lat, mgrs: candidate.mgrsFormatted });
   };
 
   const handleSelect = (result) => {
@@ -54,6 +90,15 @@ export default function SearchPanel() {
     flyTo(result.lon, result.lat, zoom);
   };
 
+  const handleBlur = () => {
+    // Delay to allow click on result buttons
+    setTimeout(() => {
+      setQuery('');
+      setResults([]);
+      setMgrsResults([]);
+    }, 200);
+  };
+
   return (
     <div className="flex flex-col h-full p-3">
       <h2 className="text-sm font-semibold text-emerald-400 mb-3">
@@ -66,13 +111,35 @@ export default function SearchPanel() {
         value={query}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
         placeholder={t('search.placeholder', lang)}
         className="bg-slate-700 text-sm px-3 py-2 rounded border border-slate-600 focus:border-emerald-500 focus:outline-none mb-3"
       />
 
       <div className="flex-1 overflow-y-auto space-y-1">
+        {/* MGRS candidates */}
+        {mgrsResults.length > 0 && (
+          <>
+            {mgrsResults.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => handleMgrsSelect(c)}
+                className="w-full text-left bg-slate-700/50 hover:bg-slate-600 rounded px-3 py-2 transition-colors"
+              >
+                <div className="text-sm font-mono font-medium text-emerald-300">{c.mgrsFormatted}</div>
+                <div className="text-[10px] text-slate-400">
+                  {c.lat.toFixed(5)}, {c.lon.toFixed(5)}
+                  {i === 0 && <span className="ml-2 text-emerald-400">({t('search.mgrsNearest', lang)})</span>}
+                  {i > 0 && <span className="ml-2">{Math.round(c.distance)} km</span>}
+                </div>
+              </button>
+            ))}
+          </>
+        )}
+
+        {/* Address/place results */}
         {loading && <p className="text-sm text-slate-400">{t('general.loading', lang)}</p>}
-        {!loading && results.length === 0 && query.length >= 2 && (
+        {!loading && results.length === 0 && mgrsResults.length === 0 && query.length >= 2 && (
           <p className="text-sm text-slate-500">{t('search.noResults', lang)}</p>
         )}
         {results.map((r, i) => (

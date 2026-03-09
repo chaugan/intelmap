@@ -122,8 +122,9 @@ const translations = {
 
     // Search
     'search.title': 'Adressesøk',
-    'search.placeholder': 'Søk adresse...',
+    'search.placeholder': 'Søk adresse eller MGRS...',
     'search.noResults': 'Ingen resultater',
+    'search.mgrsNearest': 'Nærmeste',
 
     // Infrastructure
     'layer.infra': 'Infrastruktur',
@@ -675,8 +676,9 @@ const translations = {
     'weather.exportReport': 'Export Report',
 
     'search.title': 'Address Search',
-    'search.placeholder': 'Search address...',
+    'search.placeholder': 'Search address or MGRS...',
     'search.noResults': 'No results',
+    'search.mgrsNearest': 'Nearest',
 
     // Infrastructure
     'layer.infra': 'Infrastructure',

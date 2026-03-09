@@ -73,6 +73,8 @@ export default function TacticalMap() {
   const setRoadRestrictionsFetchedAt = useMapStore((s) => s.setRoadRestrictionsFetchedAt);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
+  const mgrsMarker = useMapStore((s) => s.mgrsMarker);
+  const setMgrsMarker = useMapStore((s) => s.setMgrsMarker);
   const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
   const dragPreview = useMapStore((s) => s.dragPreview);
   const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
@@ -965,6 +967,32 @@ export default function TacticalMap() {
           </div>
         </DraggablePopup>
       ))}
+      {/* MGRS search marker */}
+      {mgrsMarker && (
+        <DraggablePopup
+          originLng={mgrsMarker.lng}
+          originLat={mgrsMarker.lat}
+          showConnectionLine={true}
+        >
+          <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 overflow-hidden min-w-[180px]">
+            <div className="bg-emerald-700 px-3 py-1.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-white">MGRS</span>
+              <button
+                onClick={() => setMgrsMarker(null)}
+                className="text-white/70 hover:text-white text-sm leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-3 py-2 space-y-1">
+              <div className="font-mono text-sm text-emerald-300 font-medium">{mgrsMarker.mgrs}</div>
+              <div className="text-[10px] text-slate-400">
+                {mgrsMarker.lat.toFixed(5)}, {mgrsMarker.lng.toFixed(5)}
+              </div>
+            </div>
+          </div>
+        </DraggablePopup>
+      )}
       {/* Centered project/layer context banner — visible when a project-saving tool is active */}
       {activeProjectId && !placementMode && (drawingToolsVisible || activePanel === 'symbols' || activePanel === 'layers') && (() => {
         const projName = myProjects.find(p => p.id === activeProjectId)?.name;
