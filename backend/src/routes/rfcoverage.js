@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { buildTileMap, destination } from './dem-utils.js';
+import { addRFCoverage, deleteRFCoverage } from '../store/rfcoverage-store.js';
+import { canMutateProject } from '../auth/project-access.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -198,6 +200,42 @@ router.post('/calculate', async (req, res) => {
   } catch (err) {
     console.error('RF coverage calculation error:', err);
     res.status(500).json({ error: 'RF coverage calculation failed' });
+  }
+});
+
+// Save RF coverage via HTTP (avoids Socket.IO size limits for large geojson)
+router.post('/save', (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { projectId, layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, geojson, stats } = req.body;
+    if (!projectId || !canMutateProject(userId, projectId)) {
+      return res.status(403).json({ error: 'No access' });
+    }
+    const coverage = addRFCoverage(projectId, {
+      layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm,
+      geojson, stats, createdBy: userId,
+    });
+    res.json(coverage);
+  } catch (err) {
+    console.error('RF coverage save error:', err);
+    res.status(500).json({ error: 'Save failed' });
+  }
+});
+
+// Delete RF coverage via HTTP
+router.delete('/:id', (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { projectId } = req.body;
+    if (!projectId || !canMutateProject(userId, projectId)) {
+      return res.status(403).json({ error: 'No access' });
+    }
+    const ok = deleteRFCoverage(req.params.id, projectId);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('RF coverage delete error:', err);
+    res.status(500).json({ error: 'Delete failed' });
   }
 });
 

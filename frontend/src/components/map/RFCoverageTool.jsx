@@ -308,19 +308,30 @@ export default function RFCoverageTool() {
     }
   }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!activeProjectId || !result) return;
-    socket.emit('client:rfcoverage:save', {
-      projectId: activeProjectId,
-      layerId: activeLayerId,
-      longitude: antenna.lng,
-      latitude: antenna.lat,
-      antennaHeight, txPowerWatts, frequencyMHz, radiusKm,
-      geojson: resultGeojson,
-      stats: result.stats,
-    });
-    // Reset for next antenna placement
-    reset();
+    try {
+      const res = await fetch('/api/rfcoverage/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          projectId: activeProjectId,
+          layerId: activeLayerId,
+          longitude: antenna.lng,
+          latitude: antenna.lat,
+          antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm,
+          geojson: resultGeojson,
+          stats: result.stats,
+        }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      const saved = await res.json();
+      useTacticalStore.getState().addRFCoverage(activeProjectId, saved);
+      reset();
+    } catch (err) {
+      console.error('RF save error:', err);
+    }
   }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, result, resultGeojson, reset]);
 
   const flyTo = useCallback((lng, lat) => {
