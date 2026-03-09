@@ -135,10 +135,12 @@ export default function RFCoverageTool() {
 
   const modeRef = useRef(mode);
   const antennaRef = useRef(antenna);
-  const resultRef = useRef(result);
+  const resultGeojsonRef = useRef(resultGeojson);
+  const invertColorsRef = useRef(invertColors);
   modeRef.current = mode;
   antennaRef.current = antenna;
-  resultRef.current = result;
+  resultGeojsonRef.current = resultGeojson;
+  invertColorsRef.current = invertColors;
 
   const savedCount = activeProjectId ? (projects[activeProjectId]?.rfCoverages?.length || 0) : 0;
 
@@ -205,14 +207,15 @@ export default function RFCoverageTool() {
 
     const initLayers = () => {
       const ant = antennaRef.current;
-      const res = resultRef.current;
+      const gj = resultGeojsonRef.current;
+      const inv = invertColorsRef.current;
 
       // Sources
       if (!mapRef.getSource(SOURCE_CIRCLE)) {
         mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
       }
       if (!mapRef.getSource(SOURCE_RESULT)) {
-        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: res?.geojson ? (invertColors ? invertGeojson(res.geojson) : res.geojson) : EMPTY_FC });
+        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? (inv ? invertGeojson(gj) : gj) : EMPTY_FC });
       }
       if (!mapRef.getSource(SOURCE_OBSERVER)) {
         mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
@@ -264,13 +267,8 @@ export default function RFCoverageTool() {
     };
 
     initLayers();
-    const onStyle = () => { cleanup(); initLayers(); };
-    mapRef.on('styledata', onStyle);
-
-    return () => {
-      mapRef.off('styledata', onStyle);
-      cleanup();
-    };
+    mapRef.on('styledata', initLayers);
+    return () => { mapRef.off('styledata', initLayers); cleanup(); };
   }, [visible, mapRef, cleanup]);
 
   // Update opacity
@@ -381,6 +379,10 @@ export default function RFCoverageTool() {
 
       if (!res.ok) throw new Error('Calculation failed');
       const data = await res.json();
+
+      // Update refs immediately so styledata handler sees new data
+      resultGeojsonRef.current = data.geojson;
+
       setResult(data);
       setResultGeojson(data.geojson);
       setMode('result');
