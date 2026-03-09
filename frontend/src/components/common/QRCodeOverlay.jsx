@@ -270,12 +270,19 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
           )}
         </div>
 
-        {/* URL display */}
-        <div className="mb-4 p-2 bg-slate-900 rounded text-xs text-slate-400 break-all font-mono">
-          {activeUrl}
+        {/* URL display + copy */}
+        <div className="mb-4 flex items-center gap-2 p-2 bg-slate-900 rounded">
+          <span className="flex-1 text-xs text-slate-400 break-all font-mono select-all cursor-text">{activeUrl}</span>
+          <button
+            onClick={() => { navigator.clipboard.writeText(activeUrl); }}
+            className="shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors"
+            title={lang === 'no' ? 'Kopier lenke' : 'Copy link'}
+          >
+            {lang === 'no' ? 'Kopier' : 'Copy'}
+          </button>
         </div>
 
-        {/* Export button */}
+        {/* Export buttons */}
         <div className="flex justify-center gap-2">
           {user?.signalEnabled && signalLinked && (
             <button
