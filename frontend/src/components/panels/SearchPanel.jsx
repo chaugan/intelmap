@@ -32,8 +32,8 @@ export default function SearchPanel() {
     const val = e.target.value;
     setQuery(val);
 
-    // Check if input matches MGRS grid digits or full UTM coordinates
-    if (/^\s*\d{2,}\s+\d{2,}\s*$/.test(val)) {
+    // Check if input matches MGRS patterns: "32V NN 78787 76938", "32V 78787 76938", "78787 76938", "537327 6613704"
+    if (/^\s*(\d{1,2}\s*[A-Za-z]\s+([A-Za-z]{2}\s+)?)?\d{2,}\s+\d{2,}\s*$/.test(val)) {
       const center = mapRef?.getCenter();
       if (center) {
         const candidates = resolveMgrs(val, center);
@@ -90,15 +90,6 @@ export default function SearchPanel() {
     flyTo(result.lon, result.lat, zoom);
   };
 
-  const handleBlur = () => {
-    // Delay to allow click on result buttons
-    setTimeout(() => {
-      setQuery('');
-      setResults([]);
-      setMgrsResults([]);
-    }, 200);
-  };
-
   return (
     <div className="flex flex-col h-full p-3">
       <h2 className="text-sm font-semibold text-emerald-400 mb-3">
@@ -111,7 +102,6 @@ export default function SearchPanel() {
         value={query}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
         placeholder={t('search.placeholder', lang)}
         className="bg-slate-700 text-sm px-3 py-2 rounded border border-slate-600 focus:border-emerald-500 focus:outline-none mb-3"
       />

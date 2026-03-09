@@ -97,21 +97,126 @@ function getZoneBand(lon, lat) {
 }
 
 /**
+ * Parse full MGRS string (e.g. "32V NN 78787 76938" or "32VNN7878776938").
+ * Returns { zone, band, sq, easting, northing } or null.
+ */
+function parseFullMgrs(input) {
+  const m = input.match(/^\s*(\d{1,2})\s*([A-Za-z])\s*([A-Za-z]{2})\s*(\d{2,5})\s+(\d{2,5})\s*$/);
+  if (!m) return null;
+  const [, zone, band, sq, e, n] = m;
+  if (e.length !== n.length) return null;
+  const easting = e.padEnd(5, '0');
+  const northing = n.padEnd(5, '0');
+  return { zone: parseInt(zone), band: band.toUpperCase(), sq: sq.toUpperCase(), easting, northing };
+}
+
+/**
+ * Parse zone+band + easting/northing (e.g. "32V 78787 76938").
+ * No grid square — resolve against nearby 100k squares.
+ * Returns { zone, band, easting, northing } or null.
+ */
+function parseZoneBandDigits(input) {
+  const m = input.match(/^\s*(\d{1,2})\s*([A-Za-z])\s+(\d{2,5})\s+(\d{2,5})\s*$/);
+  if (!m) return null;
+  const [, zone, band, e, n] = m;
+  if (e.length !== n.length) return null;
+  const easting = e.padEnd(5, '0');
+  const northing = n.padEnd(5, '0');
+  return { zone: parseInt(zone), band: band.toUpperCase(), easting, northing };
+}
+
+/**
  * Main entry: resolve coordinate input to candidates.
- * Supports both MGRS digit pairs (e.g. "123 456") and full UTM (e.g. "537327 6613704").
+ * Supports:
+ *   - Full MGRS: "32V NN 78787 76938"
+ *   - Zone+band + digits: "32V 78787 76938"
+ *   - Bare digits: "78787 76938"
+ *   - Full UTM: "537327 6613704"
  * @param {string} input - Raw user input
  * @param {{ lng: number, lat: number }} center - Current map center
  * @returns {Array<{ mgrs: string, mgrsFormatted: string, lon: number, lat: number, distance: number }>}
  */
 export function resolveMgrs(input, center) {
-  // Try full UTM first (more specific pattern)
+  // Try full MGRS with grid square (e.g. "32V NN 78787 76938")
+  const full = parseFullMgrs(input);
+  if (full) return resolveFullMgrs(full, center);
+
+  // Try zone+band + digits (e.g. "32V 78787 76938")
+  const zbd = parseZoneBandDigits(input);
+  if (zbd) return resolveZoneBandDigits(zbd, center);
+
+  // Try full UTM (e.g. "537327 6613704")
   const utm = parseUtmInput(input);
   if (utm) return resolveUtm(utm, center);
 
-  // Then try MGRS grid digits
+  // Try bare MGRS grid digits (e.g. "78787 76938")
   const parsed = parseMgrsInput(input);
   if (!parsed) return [];
   return resolveMgrsDigits(parsed, center);
+}
+
+/**
+ * Resolve a full MGRS string (zone + band + grid square + digits) to a single candidate.
+ */
+function resolveFullMgrs(parsed, center) {
+  const { zone, band, sq, easting, northing } = parsed;
+  const mgrsStr = `${zone}${band}${sq}${easting}${northing}`;
+  try {
+    const pt = toPoint(mgrsStr);
+    const lon = pt.length === 4 ? (pt[0] + pt[2]) / 2 : pt[0];
+    const lat = pt.length === 4 ? (pt[1] + pt[3]) / 2 : pt[1];
+    if (!isFinite(lat) || !isFinite(lon)) return [];
+
+    const dLat = (lat - center.lat) * 111.32;
+    const dLon = (lon - center.lng) * 111.32 * Math.cos(center.lat * Math.PI / 180);
+    const distance = Math.sqrt(dLat * dLat + dLon * dLon);
+
+    return [{
+      mgrs: mgrsStr,
+      mgrsFormatted: formatMgrs(mgrsStr),
+      lon,
+      lat,
+      distance,
+    }];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve zone+band + digits (no grid square) by enumerating 100k squares in that zone.
+ */
+function resolveZoneBandDigits(parsed, center) {
+  const { zone, band, easting, northing } = parsed;
+  const setIdx = (zone - 1) % 3;
+  const colLetters = COL_SETS[setIdx];
+  const candidates = [];
+
+  for (const col of colLetters) {
+    for (const row of ROW_LETTERS) {
+      const mgrsStr = `${zone}${band}${col}${row}${easting}${northing}`;
+      try {
+        const pt = toPoint(mgrsStr);
+        const lon = pt.length === 4 ? (pt[0] + pt[2]) / 2 : pt[0];
+        const lat = pt.length === 4 ? (pt[1] + pt[3]) / 2 : pt[1];
+        if (!isFinite(lat) || !isFinite(lon)) continue;
+
+        const dLat = (lat - center.lat) * 111.32;
+        const dLon = (lon - center.lng) * 111.32 * Math.cos(center.lat * Math.PI / 180);
+        const distance = Math.sqrt(dLat * dLat + dLon * dLon);
+
+        candidates.push({ mgrs: mgrsStr, lon, lat, distance });
+      } catch {
+        // Invalid MGRS combination — skip
+      }
+    }
+  }
+
+  candidates.sort((a, b) => a.distance - b.distance);
+  return candidates.slice(0, 5).map((c) => ({
+    ...c,
+    mgrsFormatted: formatMgrs(c.mgrs),
+  }));
 }
 
 /**
