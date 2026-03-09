@@ -67,8 +67,6 @@ export default function GridSettingsPanel({ visibleDrawings }) {
     emitUpdate({ opacity: val });
   };
 
-  const gridColor = drawing.properties?.color || '#3b82f6';
-
   return (
     <div className="absolute top-4 right-4 z-20 w-72 bg-slate-900/95 rounded-lg shadow-xl border border-slate-700">
       {/* Header */}
@@ -85,12 +83,6 @@ export default function GridSettingsPanel({ visibleDrawings }) {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Color indicator */}
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: gridColor }} />
-          <span className="text-xs text-slate-400">{gridColor}</span>
-        </div>
-
         {/* Columns input */}
         <div>
           <label className="block text-xs text-slate-400 mb-1">{t('grid.size', lang)}</label>
