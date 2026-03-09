@@ -5,7 +5,136 @@ import { useMapStore } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
+import { getSymbolName } from '../../lib/symbol-lookup.js';
+import { generateSymbolSvg } from '../../lib/milsymbol-utils.js';
 import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
+
+// Drawing type icons for the item list
+const DRAWING_ICONS = {
+  line: '/',
+  arrow: '\u2192',
+  polygon: '\u2B21',
+  circle: '\u25EF',
+  text: 'T',
+};
+
+function getDrawingLabel(d, lang) {
+  if (d.drawingType === 'text' && d.properties?.text) return d.properties.text;
+  if (d.properties?.label) return d.properties.label;
+  const typeLabels = {
+    line: { en: 'Line', no: 'Linje' },
+    arrow: { en: 'Arrow', no: 'Pil' },
+    polygon: { en: 'Polygon', no: 'Polygon' },
+    circle: { en: 'Circle', no: 'Sirkel' },
+    text: { en: 'Text', no: 'Tekst' },
+  };
+  return typeLabels[d.drawingType]?.[lang] || d.drawingType || 'Drawing';
+}
+
+function getDrawingCenter(d) {
+  if (d.geometry.type === 'Point') return d.geometry.coordinates;
+  if (d.geometry.type === 'LineString') {
+    const mid = d.geometry.coordinates[Math.floor(d.geometry.coordinates.length / 2)];
+    return mid;
+  }
+  if (d.geometry.type === 'Polygon') {
+    const ring = d.geometry.coordinates[0];
+    const lng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    return [lng, lat];
+  }
+  return null;
+}
+
+function ItemList({ markers, drawings, lang, mapRef, projectId }) {
+  if (markers.length === 0 && drawings.length === 0) {
+    return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
+  }
+
+  const flyTo = (coords) => {
+    if (!mapRef || !coords) return;
+    mapRef.flyTo({ center: coords, zoom: Math.max(mapRef.getZoom(), 14), duration: 1200 });
+  };
+
+  return (
+    <div className="space-y-px pl-1.5 max-h-48 overflow-y-auto">
+      {markers.map((m) => {
+        const name = m.designation || m.customLabel || getSymbolName(m.sidc, lang);
+        const sym = generateSymbolSvg(m.sidc, { size: 16 });
+        return (
+          <div key={m.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo([m.lon, m.lat])}
+              title={name}
+            >
+              {name}
+            </span>
+            <button
+              onClick={() => flyTo([m.lon, m.lat])}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                socket.emit('client:marker:delete', { projectId, id: m.id });
+              }}
+              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+              title={lang === 'no' ? 'Slett' : 'Delete'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        );
+      })}
+      {drawings.map((d) => {
+        const label = getDrawingLabel(d, lang);
+        const icon = DRAWING_ICONS[d.drawingType] || '?';
+        const center = getDrawingCenter(d);
+        const color = d.properties?.color || '#3b82f6';
+        return (
+          <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>{icon}</span>
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo(center)}
+              title={label}
+            >
+              {label}
+            </span>
+            <button
+              onClick={() => flyTo(center)}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] });
+              }}
+              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+              title={lang === 'no' ? 'Slett' : 'Delete'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ProjectDrawer() {
   const lang = useMapStore((s) => s.lang);
@@ -54,6 +183,8 @@ export default function ProjectDrawer() {
   const [shareTokensProject, setShareTokensProject] = useState(null);
   const [shareTokens, setShareTokens] = useState([]);
   const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
+  const [expandedLayerId, setExpandedLayerId] = useState(null); // show items in layer
+  const [expandedUnassigned, setExpandedUnassigned] = useState(null); // projectId for unassigned items
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
 
@@ -437,71 +568,117 @@ export default function ProjectDrawer() {
                   {projData && projData.layers.map((layer) => {
                     const vis = layerVisibility[layer.id] !== false;
                     const isActiveLayer = active && activeLayerId === layer.id;
-                    const mCount = projData.markers.filter(m => m.layerId === layer.id).length;
-                    const dCount = projData.drawings.filter(d => d.layerId === layer.id).length;
+                    const layerMarkers = projData.markers.filter(m => m.layerId === layer.id);
+                    const layerDrawings = projData.drawings.filter(d => d.layerId === layer.id);
+                    const mCount = layerMarkers.length;
+                    const dCount = layerDrawings.length;
+                    const isLayerExpanded = expandedLayerId === layer.id;
+                    const hasItems = mCount + dCount > 0;
                     return (
-                      <div key={layer.id} className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={vis}
-                          onChange={() => toggleLayerVisibility(layer.id)}
-                          className="accent-emerald-500 w-3.5 h-3.5"
-                        />
-                        {renamingLayerId === layer.id ? (
+                      <div key={layer.id}>
+                        <div className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
                           <input
-                            value={renameLayerVal}
-                            onChange={(e) => setRenameLayerVal(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleRenameLayer(p.id, layer.id);
-                              if (e.key === 'Escape') setRenamingLayerId(null);
-                            }}
-                            onBlur={() => setRenamingLayerId(null)}
-                            autoFocus
-                            className="flex-1 px-1 py-0 bg-slate-900 border border-emerald-500 rounded text-xs text-white focus:outline-none"
+                            type="checkbox"
+                            checked={vis}
+                            onChange={() => toggleLayerVisibility(layer.id)}
+                            className="accent-emerald-500 w-3.5 h-3.5"
                           />
-                        ) : (
+                          {/* Expand/collapse chevron for items */}
+                          {hasItems ? (
+                            <button
+                              onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                              className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+                            >
+                              <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M6 4l8 6-8 6V4z" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <span className="w-3 h-3 flex-shrink-0" />
+                          )}
+                          {renamingLayerId === layer.id ? (
+                            <input
+                              value={renameLayerVal}
+                              onChange={(e) => setRenameLayerVal(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRenameLayer(p.id, layer.id);
+                                if (e.key === 'Escape') setRenamingLayerId(null);
+                              }}
+                              onBlur={() => setRenamingLayerId(null)}
+                              autoFocus
+                              className="flex-1 px-1 py-0 bg-slate-900 border border-emerald-500 rounded text-xs text-white focus:outline-none"
+                            />
+                          ) : (
+                            <span
+                              className={`flex-1 truncate cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
+                              onClick={() => {
+                                if (active) setActiveLayer(isActiveLayer ? null : layer.id);
+                              }}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingLayerId(layer.id);
+                                setRenameLayerVal(layer.name);
+                              }}
+                              title={t('drawer.setActiveLayer', lang)}
+                            >
+                              {isActiveLayer && '\u25B8 '}{layer.name}
+                            </span>
+                          )}
                           <span
-                            className={`flex-1 truncate cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
-                            onClick={() => {
-                              if (active) setActiveLayer(isActiveLayer ? null : layer.id);
-                            }}
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              setRenamingLayerId(layer.id);
-                              setRenameLayerVal(layer.name);
-                            }}
-                            title={t('drawer.setActiveLayer', lang)}
+                            className={`text-slate-500 mr-0.5 cursor-pointer hover:text-slate-300 ${hasItems ? '' : 'opacity-50'}`}
+                            onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                            title={hasItems ? (lang === 'no' ? 'Vis innhold' : 'Show contents') : ''}
                           >
-                            {isActiveLayer && '\u25B8 '}{layer.name}
+                            {mCount}m {dCount}d
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const msg = t('layers.confirmDelete', lang).replace('{name}', layer.name);
+                              if (!confirm(msg)) return;
+                              socket.emit('client:layer:delete', { projectId: p.id, id: layer.id });
+                              if (activeLayerId === layer.id) setActiveLayer(null);
+                              if (expandedLayerId === layer.id) setExpandedLayerId(null);
+                            }}
+                            className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                            title={t('layers.delete', lang)}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        {/* Expanded item list */}
+                        {isLayerExpanded && (
+                          <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} lang={lang} mapRef={mapRef} projectId={p.id} />
+                          </div>
                         )}
-                        <span className="text-slate-500 mr-0.5">{mCount}m {dCount}d</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const msg = t('layers.confirmDelete', lang).replace('{name}', layer.name);
-                            if (!confirm(msg)) return;
-                            socket.emit('client:layer:delete', { projectId: p.id, id: layer.id });
-                            if (activeLayerId === layer.id) setActiveLayer(null);
-                          }}
-                          className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-                          title={t('layers.delete', lang)}
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
                     );
                   })}
-                  {/* Counts for unassigned items */}
+                  {/* Unassigned items */}
                   {projData && (() => {
-                    const mNoLayer = projData.markers.filter(m => !m.layerId).length;
-                    const dNoLayer = projData.drawings.filter(d => !d.layerId).length;
-                    if (mNoLayer + dNoLayer === 0) return null;
+                    const unMarkers = projData.markers.filter(m => !m.layerId);
+                    const unDrawings = projData.drawings.filter(d => !d.layerId);
+                    if (unMarkers.length + unDrawings.length === 0) return null;
+                    const isUnExpanded = expandedUnassigned === p.id;
                     return (
-                      <div className="text-xs text-slate-500 italic px-1.5">
-                        {t('drawer.unassigned', lang)}: {mNoLayer}m {dNoLayer}d
+                      <div>
+                        <div
+                          className="flex items-center gap-1.5 text-xs text-slate-500 italic px-1.5 cursor-pointer hover:text-slate-400"
+                          onClick={() => setExpandedUnassigned(isUnExpanded ? null : p.id)}
+                        >
+                          <svg className={`w-2.5 h-2.5 transition-transform flex-shrink-0 ${isUnExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M6 4l8 6-8 6V4z" />
+                          </svg>
+                          {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d
+                        </div>
+                        {isUnExpanded && (
+                          <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
+                            <ItemList markers={unMarkers} drawings={unDrawings} lang={lang} mapRef={mapRef} projectId={p.id} />
+                          </div>
+                        )}
                       </div>
                     );
                   })()}

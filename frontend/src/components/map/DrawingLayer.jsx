@@ -386,7 +386,7 @@ export default function DrawingLayer() {
             e.stopPropagation();
             moved = false;
             const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
-            setDragState({
+            const ds = {
               type: 'vertex',
               vertexIndex: i,
               drawingId: drawing.id,
@@ -395,7 +395,9 @@ export default function DrawingLayer() {
               isLocal: !!drawing._local,
               projectId: drawing._projectId,
               drawingType: drawing.drawingType,
-            });
+            };
+            dragStateRef.current = ds;
+            setDragState(ds);
             mapRefValue.dragPan.disable();
             return;
           }
@@ -408,7 +410,7 @@ export default function DrawingLayer() {
         e.stopPropagation();
         moved = false;
         const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
-        setDragState({
+        const ds = {
           type: 'move',
           drawingId: drawing.id,
           startLngLat: [startLngLat.lng, startLngLat.lat],
@@ -416,7 +418,9 @@ export default function DrawingLayer() {
           isLocal: !!drawing._local,
           projectId: drawing._projectId,
           drawingType: drawing.drawingType,
-        });
+        };
+        dragStateRef.current = ds;
+        setDragState(ds);
         mapRefValue.dragPan.disable();
       }
     };
@@ -781,23 +785,7 @@ export default function DrawingLayer() {
           </div>
         )}
 
-        {/* Active project/layer context banner */}
-        {activeProjectId && !noProjectWarning && (
-          <div className="bg-slate-800/90 rounded px-2 py-1.5 mb-1 text-[10px] text-slate-300 max-w-[160px] leading-tight border border-slate-600/50">
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-              <span className="truncate font-medium text-emerald-300">{activeProjectName || '...'}</span>
-            </div>
-            {activeLayerName ? (
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
-                <span className="truncate text-cyan-300">{activeLayerName}</span>
-              </div>
-            ) : (
-              <div className="text-slate-500 mt-0.5 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</div>
-            )}
-          </div>
-        )}
+        {/* Context banner moved to centered position below */}
 
         {tools.map((tool) => (
           <button
@@ -1051,6 +1039,33 @@ export default function DrawingLayer() {
         )}
       </div>}
 
+      {/* Centered no-project warning — below toolbar */}
+      {noProjectWarning && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 bg-amber-600/95 backdrop-blur-sm rounded-lg px-5 py-2.5 text-sm text-white leading-snug border border-amber-400/50 shadow-xl text-center pointer-events-none">
+          <div className="font-bold">{t('draw.noProject', lang)}</div>
+          <div className="mt-0.5 opacity-80 text-xs">{t('draw.noProjectHint', lang)}</div>
+        </div>
+      )}
+
+      {/* Centered project/layer context banner — below toolbar */}
+      {drawingToolsVisible && activeProjectId && !noProjectWarning && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 bg-slate-800/95 backdrop-blur-sm rounded-lg px-4 py-2 text-sm text-slate-200 leading-snug border border-slate-500/60 shadow-xl flex items-center gap-3 pointer-events-none">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
+            <span className="font-semibold text-emerald-300">{activeProjectName || '...'}</span>
+          </div>
+          <span className="text-slate-500">|</span>
+          {activeLayerName ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 flex-shrink-0" />
+              <span className="font-medium text-cyan-300">{activeLayerName}</span>
+            </div>
+          ) : (
+            <span className="text-slate-500 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</span>
+          )}
+        </div>
+      )}
+
       {/* Drawing preview — SVG overlay on top of the map */}
       {(screenPoints.length > 0 || (activeMode === 'circle' && drawPoints.length === 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
@@ -1158,11 +1173,29 @@ export default function DrawingLayer() {
                   key={i}
                   cx={pt.x}
                   cy={pt.y}
-                  r="6"
+                  r="8"
                   fill="white"
                   stroke="#06b6d4"
                   strokeWidth="2.5"
                   style={{ cursor: 'grab', pointerEvents: 'auto' }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const startLngLat = mapRefValue.unproject([pt.x, pt.y]);
+                    const ds = {
+                      type: 'vertex',
+                      vertexIndex: i,
+                      drawingId: selectedDrawing.id,
+                      startLngLat: [startLngLat.lng, startLngLat.lat],
+                      originalGeometry: JSON.parse(JSON.stringify(selectedDrawing.geometry)),
+                      isLocal: !!selectedDrawing._local,
+                      projectId: selectedDrawing._projectId,
+                      drawingType: selectedDrawing.drawingType,
+                    };
+                    dragStateRef.current = ds;
+                    setDragState(ds);
+                    mapRefValue.dragPan.disable();
+                  }}
                 />
               );
             } catch { return null; }

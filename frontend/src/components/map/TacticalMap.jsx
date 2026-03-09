@@ -710,7 +710,7 @@ export default function TacticalMap() {
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -773,7 +773,7 @@ export default function TacticalMap() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -801,7 +801,7 @@ export default function TacticalMap() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {isSelected && renderSelectionBBox([{ x: pt.x - 30, y: pt.y - 12 }, { x: pt.x + 30, y: pt.y + 12 }], 8)}
                   <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
