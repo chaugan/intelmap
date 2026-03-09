@@ -310,6 +310,8 @@ export default function RFCoverageTool() {
 
   const handleSave = useCallback(async () => {
     if (!activeProjectId || !result) return;
+    setMode('saving');
+    setError(null);
     try {
       const res = await fetch('/api/rfcoverage/save', {
         method: 'POST',
@@ -320,20 +322,23 @@ export default function RFCoverageTool() {
           layerId: activeLayerId,
           longitude: antenna.lng,
           latitude: antenna.lat,
-          antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm,
-          geojson: resultGeojson,
-          stats: result.stats,
+          antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
         }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body || `Save failed (${res.status})`);
+      }
       const meta = await res.json();
-      // Server returns metadata only; attach local geojson + stats
+      // Server re-calculates and stores geojson; attach local copy for immediate display
       useTacticalStore.getState().addRFCoverage(activeProjectId, { ...meta, geojson: resultGeojson, stats: result.stats });
       reset();
     } catch (err) {
       console.error('RF save error:', err);
+      setError(err.message || 'Save failed');
+      setMode('result');
     }
-  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, result, resultGeojson, reset]);
+  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, reset]);
 
   const flyTo = useCallback((lng, lat) => {
     if (!mapRef) return;
@@ -514,9 +519,9 @@ export default function RFCoverageTool() {
             </div>
           )}
 
-          {mode === 'result' && (
+          {(mode === 'result' || mode === 'saving') && (
             <div className="flex gap-2">
-              <button onClick={handleCalculate} disabled={!canCalculate} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
+              <button onClick={handleCalculate} disabled={!canCalculate || mode === 'saving'} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
                 {t('rfcoverage.recalculate', lang)}
               </button>
               <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
@@ -528,8 +533,13 @@ export default function RFCoverageTool() {
           {error && <div className="text-red-400 text-xs">{error}</div>}
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div className="px-3 py-1.5 bg-red-900/50 border border-red-700 rounded text-xs text-red-300">{error}</div>
+        )}
+
         {/* Result stats */}
-        {mode === 'result' && result && (
+        {(mode === 'result' || mode === 'saving') && result && (
           <div className="space-y-2">
             <div className="space-y-0.5 text-xs">
               {BUCKETS.map((b, i) => {
@@ -566,11 +576,11 @@ export default function RFCoverageTool() {
             {/* Save to project */}
             <div className="flex gap-2">
               {activeProjectId && (
-                <button onClick={handleSave} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium">
-                  {t('rfcoverage.saveToProject', lang)}
+                <button onClick={handleSave} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-wait rounded text-xs font-medium">
+                  {mode === 'saving' ? t('rfcoverage.saving', lang) : t('rfcoverage.saveToProject', lang)}
                 </button>
               )}
-              <button onClick={() => { reset(); handlePlaceAntenna(); }} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
+              <button onClick={() => { reset(); handlePlaceAntenna(); }} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
                 {t('rfcoverage.newAnalysis', lang)}
               </button>
             </div>

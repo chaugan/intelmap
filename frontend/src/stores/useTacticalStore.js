@@ -255,10 +255,12 @@ export const useTacticalStore = create((set, get) => ({
   addRFCoverage: (projectId, coverage) => set((s) => {
     const proj = s.projects[projectId];
     if (!proj) return {};
+    const existing = proj.rfCoverages || [];
+    if (existing.some(c => c.id === coverage.id)) return {};
     return {
       projects: {
         ...s.projects,
-        [projectId]: { ...proj, rfCoverages: [...(proj.rfCoverages || []), coverage] },
+        [projectId]: { ...proj, rfCoverages: [...existing, coverage] },
       },
     };
   }),
