@@ -137,12 +137,21 @@ export default function DrawingLayer() {
   // Drag state for move/resize
   const [dragState, setDragState] = useState(null);
   const dragStateRef = useRef(null);
+  const movedRef = useRef(false);
+
+  // Stable refs for values used inside drag handlers (avoids stale closure on re-render)
+  const drawingsRef = useRef(drawings);
+  const localDrawingsRef = useRef(localDrawings);
+  const selectedDrawingIdRef = useRef(selectedDrawingId);
 
   // Keep refs in sync
   activeModeRef.current = activeMode;
   drawColorRef.current = drawColor;
   drawPointsRef.current = drawPoints;
   dragStateRef.current = dragState;
+  drawingsRef.current = drawings;
+  localDrawingsRef.current = localDrawings;
+  selectedDrawingIdRef.current = selectedDrawingId;
 
   // The selected drawing object
   const selectedDrawing = selectedDrawingId
@@ -364,13 +373,13 @@ export default function DrawingLayer() {
     if (activeMode || selectMode) return;
 
     const canvas = mapRefValue.getCanvas();
-    let moved = false;
 
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
-      if (!selectedDrawingId) return;
+      const selId = selectedDrawingIdRef.current;
+      if (!selId) return;
 
-      const drawing = drawings.find(d => d.id === selectedDrawingId) || localDrawings.find(d => d.id === selectedDrawingId);
+      const drawing = drawingsRef.current.find(d => d.id === selId) || localDrawingsRef.current.find(d => d.id === selId);
       if (!drawing) return;
 
       const rect = canvas.getBoundingClientRect();
@@ -384,7 +393,7 @@ export default function DrawingLayer() {
           if (screenDist(clickScreen, vScreen) <= 10) {
             e.preventDefault();
             e.stopPropagation();
-            moved = false;
+            movedRef.current = false;
             const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
             const ds = {
               type: 'vertex',
@@ -408,7 +417,7 @@ export default function DrawingLayer() {
       if (hitTestDrawing(drawing, clickScreen, mapRefValue, 12)) {
         e.preventDefault();
         e.stopPropagation();
-        moved = false;
+        movedRef.current = false;
         const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
         const ds = {
           type: 'move',
@@ -428,7 +437,7 @@ export default function DrawingLayer() {
     const onPointerMove = (e) => {
       const ds = dragStateRef.current;
       if (!ds) return;
-      moved = true;
+      movedRef.current = true;
 
       const rect = canvas.getBoundingClientRect();
       const cursorScreen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -485,7 +494,7 @@ export default function DrawingLayer() {
       if (!ds) return;
       mapRefValue.dragPan.enable();
 
-      if (moved && !ds.isLocal && lastDragGeomRef.current) {
+      if (movedRef.current && !ds.isLocal && lastDragGeomRef.current) {
         // Persist final geometry to server
         socket.emit('client:drawing:update', {
           projectId: ds.projectId,
@@ -497,7 +506,7 @@ export default function DrawingLayer() {
 
       setDragState(null);
       // Brief timeout so the click handler doesn't fire
-      setTimeout(() => { moved = false; }, 50);
+      setTimeout(() => { movedRef.current = false; }, 50);
     };
 
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -509,7 +518,7 @@ export default function DrawingLayer() {
       window.removeEventListener('pointerup', onPointerUp);
       if (dragStateRef.current) mapRefValue.dragPan.enable();
     };
-  }, [mapRefValue, drawingToolsVisible, activeMode, selectMode, selectedDrawingId, drawings, localDrawings]);
+  }, [mapRefValue, drawingToolsVisible, activeMode, selectMode]);
 
   // Track the latest geometry during drag for use in onPointerUp
   const lastDragGeomRef = useRef(null);
@@ -520,7 +529,7 @@ export default function DrawingLayer() {
       setLocalDrawings(prev => prev.map(d => d.id === ds.drawingId ? { ...d, geometry: newGeom } : d));
     } else {
       // Directly mutate the drawing object for immediate visual feedback
-      const drawing = drawings.find(d => d.id === ds.drawingId);
+      const drawing = drawingsRef.current.find(d => d.id === ds.drawingId);
       if (drawing) {
         drawing.geometry = newGeom;
         forceUpdate(n => n + 1);
@@ -549,18 +558,32 @@ export default function DrawingLayer() {
     return [];
   }
 
-  // Circle preview: follow cursor after center is placed
+  // Preview: follow cursor for circle (after center), line/arrow/polygon (after first point)
   useEffect(() => {
     if (!mapRefValue) return;
     const handler = (e) => {
-      if (activeModeRef.current !== 'circle') return;
-      if (drawPointsRef.current.length !== 1) return;
+      const mode = activeModeRef.current;
+      if (!mode) return;
+      const pts = drawPointsRef.current;
       const { lng, lat } = e.lngLat;
-      setCursorPoint([lng, lat]);
+      if (mode === 'circle' && pts.length === 1) {
+        setCursorPoint([lng, lat]);
+      } else if ((mode === 'line' || mode === 'arrow' || mode === 'polygon') && pts.length > 0) {
+        setCursorPoint([lng, lat]);
+      }
     };
     mapRefValue.on('mousemove', handler);
     return () => mapRefValue.off('mousemove', handler);
   }, [mapRefValue]);
+
+  // Set crosshair cursor when in drawing mode
+  useEffect(() => {
+    if (!mapRefValue) return;
+    if (activeMode) {
+      mapRefValue.getCanvas().style.cursor = 'crosshair';
+      return () => { mapRefValue.getCanvas().style.cursor = ''; };
+    }
+  }, [mapRefValue, activeMode]);
 
   // Rectangle selection drag handlers
   useEffect(() => {
@@ -776,7 +799,7 @@ export default function DrawingLayer() {
   return (
     <>
       {/* Drawing tools panel */}
-      {drawingToolsVisible && <div className="absolute top-16 left-4 z-10 flex flex-col gap-1">
+      {drawingToolsVisible && <div className="absolute top-[120px] left-2 z-10 flex flex-col gap-1">
         {/* No project warning banner */}
         {noProjectWarning && (
           <div className="bg-amber-600/90 rounded px-2 py-1.5 mb-1 text-[11px] text-white max-w-[140px] text-center leading-tight">
@@ -1047,27 +1070,9 @@ export default function DrawingLayer() {
         </div>
       )}
 
-      {/* Centered project/layer context banner — below toolbar */}
-      {drawingToolsVisible && activeProjectId && !noProjectWarning && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 bg-slate-800/95 backdrop-blur-sm rounded-lg px-4 py-2 text-sm text-slate-200 leading-snug border border-slate-500/60 shadow-xl flex items-center gap-3 pointer-events-none">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
-            <span className="font-semibold text-emerald-300">{activeProjectName || '...'}</span>
-          </div>
-          <span className="text-slate-500">|</span>
-          {activeLayerName ? (
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 flex-shrink-0" />
-              <span className="font-medium text-cyan-300">{activeLayerName}</span>
-            </div>
-          ) : (
-            <span className="text-slate-500 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</span>
-          )}
-        </div>
-      )}
 
       {/* Drawing preview — SVG overlay on top of the map */}
-      {(screenPoints.length > 0 || (activeMode === 'circle' && drawPoints.length === 1 && cursorPoint)) && (
+      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon') && drawPoints.length >= 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
           {/* Circle preview — follows cursor after center is placed */}
           {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
@@ -1130,6 +1135,24 @@ export default function DrawingLayer() {
               })()}
             </>
           )}
+          {/* Cursor preview line: dashed line from last point to cursor */}
+          {cursorPoint && mapRefValue && screenPoints.length >= 1 && (activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon') && (() => {
+            try {
+              const cp = mapRefValue.project(cursorPoint);
+              const lastPt = screenPoints[screenPoints.length - 1];
+              const firstPt = screenPoints[0];
+              return (
+                <>
+                  <line x1={lastPt.x} y1={lastPt.y} x2={cp.x} y2={cp.y}
+                    stroke={drawColor} strokeWidth="2" strokeDasharray="6 4" opacity="0.6" />
+                  {activeMode === 'polygon' && screenPoints.length >= 2 && (
+                    <line x1={cp.x} y1={cp.y} x2={firstPt.x} y2={firstPt.y}
+                      stroke={drawColor} strokeWidth="1.5" strokeDasharray="4 4" opacity="0.4" />
+                  )}
+                </>
+              );
+            } catch { return null; }
+          })()}
           {/* Preview points */}
           {screenPoints.map((p, i) => (
             <circle

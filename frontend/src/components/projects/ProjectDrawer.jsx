@@ -185,6 +185,7 @@ export default function ProjectDrawer() {
   const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
   const [expandedLayerId, setExpandedLayerId] = useState(null); // show items in layer
   const [expandedUnassigned, setExpandedUnassigned] = useState(null); // projectId for unassigned items
+  const [copyingLayerId, setCopyingLayerId] = useState(null); // which layer's copy dropdown is open
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
 
@@ -242,6 +243,26 @@ export default function ProjectDrawer() {
     if (!renameLayerVal.trim()) return;
     socket.emit('client:layer:update', { projectId, id: layerId, name: renameLayerVal.trim() });
     setRenamingLayerId(null);
+  };
+
+  const handleCopyLayer = async (sourceProjectId, layerId, targetProjectId) => {
+    try {
+      const res = await fetch(`/api/projects/${sourceProjectId}/layers/${layerId}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetProjectId }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Copy failed');
+      const data = await res.json();
+      // Refresh target project data
+      if (targetProjectId && targetProjectId !== sourceProjectId) {
+        socket.emit('client:project:join', { projectId: targetProjectId });
+      }
+      setCopyingLayerId(null);
+    } catch (err) {
+      console.error('Layer copy error:', err);
+    }
   };
 
   const handleSaveView = async (project) => {
@@ -631,6 +652,51 @@ export default function ProjectDrawer() {
                           >
                             {mCount}m {dCount}d
                           </span>
+                          {/* Copy layer — only show if there's at least one writable target */}
+                          {(() => {
+                            const canWriteSame = p.role === 'admin' || p.role === 'editor';
+                            const writableOthers = myProjects.filter(tp => tp.id !== p.id && (tp.role === 'admin' || tp.role === 'editor'));
+                            if (!canWriteSame && writableOthers.length === 0) return null;
+                            return (
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCopyingLayerId(copyingLayerId === layer.id ? null : layer.id);
+                                  }}
+                                  className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-cyan-400 hover:bg-cyan-900/30 transition-colors"
+                                  title={t('layers.copy', lang)}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                                  </svg>
+                                </button>
+                                {copyingLayerId === layer.id && (
+                                  <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[140px] text-xs">
+                                    <div className="px-2 py-1 text-slate-500 font-medium">{t('layers.copyTo', lang)}</div>
+                                    {canWriteSame && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleCopyLayer(p.id, layer.id, p.id); }}
+                                        className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300"
+                                      >
+                                        {t('layers.sameProject', lang)}
+                                      </button>
+                                    )}
+                                    {writableOthers.map(tp => (
+                                      <button
+                                        key={tp.id}
+                                        onClick={(e) => { e.stopPropagation(); handleCopyLayer(p.id, layer.id, tp.id); }}
+                                        className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300 truncate"
+                                      >
+                                        {tp.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -909,10 +975,11 @@ export default function ProjectDrawer() {
                                       </svg>
                                     </button>
                                     <span className="text-slate-400 truncate flex-1">
+                                      <span className="text-amber-400/70" title={lang === 'no' ? 'Alle med lenken har tilgang' : 'Anyone with the link has access'}>{lang === 'no' ? 'Åpen' : 'Public'}</span>
                                       {layerName ? (
-                                        <><span className="text-cyan-400">{layerName}</span></>
+                                        <><span className="text-slate-600"> · </span><span className="text-cyan-400">{layerName}</span></>
                                       ) : (
-                                        <span>{lang === 'no' ? 'Hele prosjektet' : 'Whole project'}</span>
+                                        <span className="text-slate-600"> · </span>
                                       )}
                                       <span className="text-slate-600"> · {expiry}</span>
                                     </span>

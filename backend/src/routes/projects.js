@@ -290,6 +290,68 @@ router.post('/:id/copy', (req, res) => {
   });
 });
 
+// Copy a single layer (with all items) to same or different project
+router.post('/:id/layers/:layerId/copy', (req, res) => {
+  const sourceRole = getProjectRole(req.user.id, req.params.id);
+  if (!sourceRole) return res.status(404).json({ error: 'Project not found' });
+
+  const targetProjectId = req.body.targetProjectId || req.params.id;
+  const targetRole = getProjectRole(req.user.id, targetProjectId);
+  if (!targetRole || (targetRole !== 'admin' && targetRole !== 'editor')) {
+    return res.status(403).json({ error: 'Editor access required on target project' });
+  }
+
+  const db = getDb();
+  const layer = db.prepare('SELECT * FROM project_layers WHERE id = ? AND project_id = ?').get(req.params.layerId, req.params.id);
+  if (!layer) return res.status(404).json({ error: 'Layer not found' });
+
+  let result;
+  const copyTx = db.transaction(() => {
+    const newLayerId = crypto.randomUUID();
+    const newName = `${layer.name} (Kopi)`;
+    db.prepare('INSERT INTO project_layers (id, project_id, name, visible, source, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(newLayerId, targetProjectId, newName, 1, 'user', req.user.id);
+
+    // Copy markers
+    const markers = db.prepare('SELECT * FROM project_markers WHERE project_id = ? AND layer_id = ?').all(req.params.id, req.params.layerId);
+    for (const m of markers) {
+      db.prepare('INSERT INTO project_markers (id, project_id, layer_id, sidc, lat, lon, designation, higher_formation, additional_info, custom_label, source, created_by, properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), targetProjectId, newLayerId, m.sidc, m.lat, m.lon, m.designation, m.higher_formation, m.additional_info, m.custom_label, m.source, req.user.id, m.properties);
+    }
+
+    // Copy drawings
+    const drawings = db.prepare('SELECT * FROM project_drawings WHERE project_id = ? AND layer_id = ?').all(req.params.id, req.params.layerId);
+    for (const d of drawings) {
+      db.prepare('INSERT INTO project_drawings (id, project_id, layer_id, drawing_type, geometry, properties, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), targetProjectId, newLayerId, d.drawing_type, d.geometry, d.properties, d.source, req.user.id);
+    }
+
+    // Copy pins
+    const pins = db.prepare('SELECT * FROM project_pins WHERE project_id = ? AND layer_id = ?').all(req.params.id, req.params.layerId);
+    for (const pin of pins) {
+      db.prepare('INSERT INTO project_pins (id, project_id, layer_id, pin_type, lat, lon, properties, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(crypto.randomUUID(), targetProjectId, newLayerId, pin.pin_type, pin.lat, pin.lon, pin.properties, pin.source, req.user.id);
+    }
+
+    result = {
+      layer: { id: newLayerId, name: newName, visible: true },
+      markerCount: markers.length,
+      drawingCount: drawings.length,
+      pinCount: pins.length,
+    };
+  });
+
+  copyTx();
+
+  // Notify clients in the target project room
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`project:${targetProjectId}`).emit('server:project:refresh', { projectId: targetProjectId });
+  }
+
+  res.status(201).json(result);
+});
+
 // Share project with entire organization
 router.put('/:id/org-share', (req, res) => {
   const role = getProjectRole(req.user.id, req.params.id);

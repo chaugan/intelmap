@@ -35,6 +35,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
   const [shareToken, setShareToken] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   // Build URL based on access mode
   const currentUrl = resourceType === 'theme'
@@ -99,18 +100,20 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
     setQrDataUrl(display.toDataURL('image/png'));
   };
 
-  // Generate QR code whenever URL changes
+  // Generate QR code whenever URL changes (only after confirmed)
   useEffect(() => {
+    if (!confirmed) return;
     if (!qrCanvasRef.current || !activeUrl) return;
     QRCode.toCanvas(qrCanvasRef.current, activeUrl, {
       width: QR_SIZE,
       margin: 2,
       color: { dark: '#000000', light: '#ffffff' },
     }).then(() => compositeCanvas());
-  }, [activeUrl, logoLoaded]);
+  }, [confirmed, activeUrl, logoLoaded]);
 
-  // Create share token when switching to direct link mode or changing expiry
+  // Create share token only after confirmed and in directLink mode
   useEffect(() => {
+    if (!confirmed) return;
     if (accessMode !== 'directLink') {
       setShareToken(null);
       return;
@@ -133,7 +136,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
       })
       .catch(() => {})
       .finally(() => setGenerating(false));
-  }, [accessMode, expiresIn, resourceId, resourceType]);
+  }, [confirmed, accessMode, expiresIn, resourceId, resourceType]);
 
   // Close on Escape
   useEffect(() => {
@@ -202,115 +205,156 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
           )}
         </p>
 
-        {/* Access mode selector */}
-        {canCreateTokens && (
-          <div className="mb-4 space-y-2">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="accessMode"
-                checked={accessMode === 'current'}
-                onChange={() => setAccessMode('current')}
-                className="accent-emerald-500"
-              />
-              <span className={accessMode === 'current' ? 'text-emerald-400' : 'text-slate-300'}>
-                {t('share.currentAccess', lang)}
-              </span>
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="accessMode"
-                checked={accessMode === 'directLink'}
-                onChange={() => setAccessMode('directLink')}
-                className="accent-emerald-500"
-              />
-              <span className={accessMode === 'directLink' ? 'text-emerald-400' : 'text-slate-300'}>
-                {t('share.directLink', lang)}
-              </span>
-            </label>
+        {!confirmed ? (
+          <>
+            {/* Step 1: Choose share options */}
+            {canCreateTokens && (
+              <div className="mb-4 space-y-2">
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accessMode"
+                    checked={accessMode === 'current'}
+                    onChange={() => setAccessMode('current')}
+                    className="accent-emerald-500 mt-0.5"
+                  />
+                  <div>
+                    <span className={accessMode === 'current' ? 'text-emerald-400' : 'text-slate-300'}>
+                      {t('share.currentAccess', lang)}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {lang === 'no' ? 'Mottaker må logge inn — begrenset til egne rettigheter' : 'Receiver must log in — restricted to their own rights'}
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accessMode"
+                    checked={accessMode === 'directLink'}
+                    onChange={() => setAccessMode('directLink')}
+                    className="accent-emerald-500 mt-0.5"
+                  />
+                  <div>
+                    <span className={accessMode === 'directLink' ? 'text-emerald-400' : 'text-slate-300'}>
+                      {t('share.directLink', lang)}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {lang === 'no' ? 'Alle med lenken har tilgang — ingen innlogging' : 'Anyone with the link has access — no login required'}
+                    </p>
+                  </div>
+                </label>
 
-            {accessMode === 'directLink' && (
-              <div className="ml-6 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">{t('share.expiry', lang)}:</span>
-                  <select
-                    value={expiresIn}
-                    onChange={(e) => setExpiresIn(e.target.value)}
-                    className="text-xs bg-slate-700 border border-slate-600 rounded px-2 py-1 text-slate-200"
-                  >
-                    {EXPIRY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {t(opt.labelKey, lang)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-xs text-amber-400/80">
-                  {t('share.directLinkNote', lang)}
-                </p>
-                <p className="text-xs text-red-400/80 font-bold">
-                  {t('share.securityWarning', lang)}
-                </p>
+                {accessMode === 'directLink' && (
+                  <div className="ml-6 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{t('share.expiry', lang)}:</span>
+                      <select
+                        value={expiresIn}
+                        onChange={(e) => setExpiresIn(e.target.value)}
+                        className="text-xs bg-slate-700 border border-slate-600 rounded px-2 py-1 text-slate-200"
+                      >
+                        {EXPIRY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {t(opt.labelKey, lang)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-xs text-amber-400/80">
+                      {t('share.directLinkNote', lang)}
+                    </p>
+                    <p className="text-xs text-red-400/80 font-bold">
+                      {t('share.securityWarning', lang)}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* QR Code with logo */}
-        <div className="flex justify-center mb-4 bg-white p-4 rounded relative">
-          {/* Hidden canvas for QR generation */}
-          <canvas ref={qrCanvasRef} style={{ display: 'none' }} />
-          {/* Display canvas with QR + logo + text */}
-          <canvas ref={displayCanvasRef} />
-          {generating && (
-            <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded">
-              <span className="text-sm text-slate-600">{t('share.generating', lang)}</span>
+            {/* Confirm / Cancel */}
+            <div className="flex justify-between items-center">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-slate-300 transition-colors"
+              >
+                {lang === 'no' ? 'Avbryt' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => setConfirmed(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm text-white font-medium transition-colors"
+              >
+                {lang === 'no' ? 'Ok, del' : 'Ok, share'}
+              </button>
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            {/* Step 2: QR code + export */}
+            {/* QR Code with logo */}
+            <div className="flex justify-center mb-4 bg-white p-4 rounded relative">
+              {/* Hidden canvas for QR generation */}
+              <canvas ref={qrCanvasRef} style={{ display: 'none' }} />
+              {/* Display canvas with QR + logo + text */}
+              <canvas ref={displayCanvasRef} />
+              {generating && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded">
+                  <span className="text-sm text-slate-600">{t('share.generating', lang)}</span>
+                </div>
+              )}
+            </div>
 
-        {/* URL display + copy */}
-        <div className="mb-4 flex items-center gap-2 p-2 bg-slate-900 rounded">
-          <span className="flex-1 text-xs text-slate-400 break-all font-mono select-all cursor-text">{activeUrl}</span>
-          <button
-            onClick={() => { navigator.clipboard.writeText(activeUrl); }}
-            className="shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors"
-            title={lang === 'no' ? 'Kopier lenke' : 'Copy link'}
-          >
-            {lang === 'no' ? 'Kopier' : 'Copy'}
-          </button>
-        </div>
+            {/* URL display + copy */}
+            <div className="mb-4 flex items-center gap-2 p-2 bg-slate-900 rounded">
+              <span className="flex-1 text-xs text-slate-400 break-all font-mono select-all cursor-text">{activeUrl}</span>
+              <button
+                onClick={() => { navigator.clipboard.writeText(activeUrl); }}
+                className="shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors"
+                title={lang === 'no' ? 'Kopier lenke' : 'Copy link'}
+              >
+                {lang === 'no' ? 'Kopier' : 'Copy'}
+              </button>
+            </div>
 
-        {/* Export buttons */}
-        <div className="flex justify-center gap-2">
-          {user?.signalEnabled && signalLinked && (
-            <button
-              onClick={handleSignalLink}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded text-sm text-white transition-colors flex items-center gap-2"
-              title={lang === 'no' ? 'Del lenke via Signal' : 'Share link via Signal'}
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
-              Signal
-            </button>
-          )}
-          <ExportMenu
-            onSaveToDisk={handleSaveToDisk}
-            onTransferToWasos={handleWasosTransfer}
-            wasosLoggedIn={wasosLoggedIn}
-            onSendToSignal={user?.signalEnabled ? handleSignalTransfer : undefined}
-            signalLinked={signalLinked}
-            buttonLabel={t('themes.exportQr', lang)}
-            buttonClassName="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors flex items-center gap-2"
-            buttonIcon={
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            }
-          />
-        </div>
+            {/* Export buttons */}
+            <div className="flex justify-between items-center gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-slate-300 transition-colors"
+              >
+                {lang === 'no' ? 'Lukk' : 'Close'}
+              </button>
+              <div className="flex items-center gap-2">
+                {user?.signalEnabled && signalLinked && (
+                  <button
+                    onClick={handleSignalLink}
+                    className="px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded text-sm text-white transition-colors flex items-center gap-2"
+                    title={lang === 'no' ? 'Del lenke via Signal' : 'Share link via Signal'}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                    Signal
+                  </button>
+                )}
+                <ExportMenu
+                  onSaveToDisk={handleSaveToDisk}
+                  onTransferToWasos={handleWasosTransfer}
+                  wasosLoggedIn={wasosLoggedIn}
+                  onSendToSignal={user?.signalEnabled ? handleSignalTransfer : undefined}
+                  signalLinked={signalLinked}
+                  buttonLabel={t('themes.exportQr', lang)}
+                  buttonClassName="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm text-white transition-colors flex items-center gap-2"
+                  buttonIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  }
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -960,6 +960,30 @@ export default function TacticalMap() {
           </div>
         </DraggablePopup>
       ))}
+      {/* Centered project/layer context banner — always visible when a project is active */}
+      {activeProjectId && !placementMode && (() => {
+        const projName = myProjects.find(p => p.id === activeProjectId)?.name;
+        const layerName = activeLayerId
+          ? tacticalProjects[activeProjectId]?.layers?.find(l => l.id === activeLayerId)?.name
+          : null;
+        return (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 bg-slate-800/95 backdrop-blur-sm rounded-lg px-4 py-2 text-sm text-slate-200 leading-snug border border-slate-500/60 shadow-xl flex items-center gap-3 pointer-events-none">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
+              <span className="font-semibold text-emerald-300">{projName || '...'}</span>
+            </div>
+            <span className="text-slate-500">|</span>
+            {layerName ? (
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                <span className="font-medium text-cyan-300">{layerName}</span>
+              </div>
+            ) : (
+              <span className="text-slate-500 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</span>
+            )}
+          </div>
+        );
+      })()}
       {placementMode && (() => {
         const projName = activeProjectId ? myProjects.find(p => p.id === activeProjectId)?.name : null;
         const layerName = activeProjectId && (placementMode.layerId || activeLayerId)

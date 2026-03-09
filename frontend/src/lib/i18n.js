@@ -66,6 +66,9 @@ const translations = {
     'layers.delete': 'Slett',
     'layers.confirmDelete': 'Slett laget "{name}"? Alle markører og tegninger i dette laget vil også bli slettet.',
     'layers.aiTag': 'AI',
+    'layers.copy': 'Kopier lag',
+    'layers.copyTo': 'Kopier til',
+    'layers.sameProject': 'Samme prosjekt',
 
     // Symbol picker
     'symbols.title': 'NATO-symboler',
@@ -620,6 +623,9 @@ const translations = {
     'layers.delete': 'Delete',
     'layers.confirmDelete': 'Delete layer "{name}"? All markers and drawings in this layer will also be deleted.',
     'layers.aiTag': 'AI',
+    'layers.copy': 'Copy layer',
+    'layers.copyTo': 'Copy to',
+    'layers.sameProject': 'Same project',
 
     'symbols.title': 'NATO Symbols',
     'symbols.friendly': 'Friendly',
