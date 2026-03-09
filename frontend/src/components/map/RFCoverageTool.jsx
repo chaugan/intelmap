@@ -345,6 +345,34 @@ export default function RFCoverageTool() {
     mapRef.flyTo({ center: [lng, lat], zoom: Math.max(mapRef.getZoom(), 12), duration: 1200 });
   }, [mapRef]);
 
+  // Load a saved coverage's settings into the form and show its result
+  const loadSavedItem = useCallback((item) => {
+    setAntennaHeight(item.antennaHeight || 1.5);
+    setTxPowerWatts(item.txPowerWatts || 5);
+    setFrequencyMHz(item.frequencyMHz || '');
+    setRadiusKm(item.radiusKm || 15);
+    setAntenna({ lng: item.longitude, lat: item.latitude });
+    setError(null);
+    setDimmedBuckets(new Set());
+    if (item.geojson && item.stats) {
+      setResultGeojson(item.geojson);
+      setResult({ stats: item.stats, antennaElevation: item.antennaElevation, parameters: item.parameters });
+      setMode('result');
+      // Update map layers
+      if (mapRef) {
+        const src = mapRef.getSource(SOURCE_RESULT);
+        if (src) src.setData(applyDisplayOptions(item.geojson, new Set()));
+        const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
+        if (obsSrc) obsSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [item.longitude, item.latitude] }, properties: {} }] });
+      }
+    } else {
+      setResult(null);
+      setResultGeojson(null);
+      setMode('ready');
+    }
+    flyTo(item.longitude, item.latitude);
+  }, [mapRef, flyTo]);
+
   if (!visible) return null;
 
   const panelStyle = panelPos.x !== null
@@ -399,7 +427,8 @@ export default function RFCoverageTool() {
                     </button>
                     <span
                       className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-                      onClick={() => flyTo(c.longitude, c.latitude)}
+                      onClick={() => loadSavedItem(c)}
+                      title={lang === 'no' ? 'Last inn innstillinger' : 'Load settings'}
                     >
                       RF {c.frequencyMHz}MHz {c.txPowerWatts}W
                     </span>
