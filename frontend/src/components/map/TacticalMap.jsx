@@ -3,6 +3,7 @@ import Map, { Marker } from 'react-map-gl/maplibre';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
+import { useProjectStore } from '../../stores/useProjectStore.js';
 import { buildMapStyle } from '../../lib/map-styles.js';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
@@ -86,6 +87,8 @@ export default function TacticalMap() {
 
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
+  const myProjects = useProjectStore((s) => s.myProjects);
+  const tacticalProjects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const tacticalState = useTacticalStore();
   const visibleDrawings = getAllVisibleDrawings(tacticalState);
@@ -957,25 +960,40 @@ export default function TacticalMap() {
           </div>
         </DraggablePopup>
       ))}
-      {placementMode && (
-        <div className={`absolute top-4 left-1/2 -translate-x-1/2 text-white px-4 py-2 rounded shadow-lg z-10 flex items-center gap-3 ${
-          !user && !activeProjectId ? 'bg-amber-600' : 'bg-emerald-600'
-        }`}>
-          <span>
-            {activeProjectId
-              ? t('symbols.clickMap', lang)
-              : !user
-                ? (lang === 'no' ? 'Klikk for å plassere (ikke lagret - ikke innlogget)' : 'Click to place (not saved - not logged in)')
-                : (lang === 'no' ? 'Velg et aktivt prosjekt først' : 'Select an active project first')}
-          </span>
-          <button
-            onClick={() => setPlacementMode(null)}
-            className={`px-2 py-1 rounded text-sm ${!user && !activeProjectId ? 'bg-amber-800 hover:bg-amber-700' : 'bg-emerald-800 hover:bg-emerald-700'}`}
-          >
-            {t('symbols.cancel', lang)}
-          </button>
-        </div>
-      )}
+      {placementMode && (() => {
+        const projName = activeProjectId ? myProjects.find(p => p.id === activeProjectId)?.name : null;
+        const layerName = activeProjectId && (placementMode.layerId || activeLayerId)
+          ? tacticalProjects[activeProjectId]?.layers?.find(l => l.id === (placementMode.layerId || activeLayerId))?.name
+          : null;
+        const isWarning = user && !activeProjectId;
+        const isLocal = !user && !activeProjectId;
+        return (
+          <div className={`absolute top-4 left-1/2 -translate-x-1/2 text-white px-4 py-2 rounded shadow-lg z-10 flex items-center gap-3 ${
+            isLocal ? 'bg-amber-600' : isWarning ? 'bg-amber-600' : 'bg-emerald-600/95'
+          }`}>
+            <div className="flex flex-col">
+              <span className="text-sm">
+                {activeProjectId
+                  ? t('symbols.clickMap', lang)
+                  : isLocal
+                    ? (lang === 'no' ? 'Klikk for å plassere (ikke lagret)' : 'Click to place (not saved)')
+                    : (lang === 'no' ? 'Velg et aktivt prosjekt først' : 'Select an active project first')}
+              </span>
+              {projName && (
+                <span className="text-[11px] opacity-80 mt-0.5">
+                  {projName}{layerName ? ` · ${layerName}` : ''}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setPlacementMode(null)}
+              className={`px-2 py-1 rounded text-sm ${isLocal || isWarning ? 'bg-amber-800 hover:bg-amber-700' : 'bg-emerald-800 hover:bg-emerald-700'}`}
+            >
+              {t('symbols.cancel', lang)}
+            </button>
+          </div>
+        );
+      })()}
       {drawingInfoPopup && (
         <ItemInfoPopup
           projectId={drawingInfoPopup.projectId}

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore, getAllVisibleDrawings } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
+import { useProjectStore } from '../../stores/useProjectStore.js';
 import { socket } from '../../lib/socket.js';
 import { DRAW_COLORS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
@@ -108,6 +109,14 @@ export default function DrawingLayer() {
   const tacticalState = useTacticalStore();
   const drawings = getAllVisibleDrawings(tacticalState);
   const user = useAuthStore((s) => s.user);
+  const myProjects = useProjectStore((s) => s.myProjects);
+
+  // Resolve active project/layer names for context banner
+  const activeProjectName = activeProjectId ? myProjects.find(p => p.id === activeProjectId)?.name : null;
+  const activeLayerName = activeProjectId && activeLayerId
+    ? tacticalState.projects[activeProjectId]?.layers?.find(l => l.id === activeLayerId)?.name
+    : null;
+
   const [localDrawings, setLocalDrawings] = useState([]);
   const [activeMode, setActiveMode] = useState(null);
   const [drawColor, setDrawColor] = useState('#3b82f6');
@@ -769,6 +778,24 @@ export default function DrawingLayer() {
           <div className="bg-amber-600/90 rounded px-2 py-1.5 mb-1 text-[11px] text-white max-w-[140px] text-center leading-tight">
             <div className="font-bold">{t('draw.noProject', lang)}</div>
             <div className="mt-0.5 opacity-80">{t('draw.noProjectHint', lang)}</div>
+          </div>
+        )}
+
+        {/* Active project/layer context banner */}
+        {activeProjectId && !noProjectWarning && (
+          <div className="bg-slate-800/90 rounded px-2 py-1.5 mb-1 text-[10px] text-slate-300 max-w-[160px] leading-tight border border-slate-600/50">
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+              <span className="truncate font-medium text-emerald-300">{activeProjectName || '...'}</span>
+            </div>
+            {activeLayerName ? (
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                <span className="truncate text-cyan-300">{activeLayerName}</span>
+              </div>
+            ) : (
+              <div className="text-slate-500 mt-0.5 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</div>
+            )}
           </div>
         )}
 

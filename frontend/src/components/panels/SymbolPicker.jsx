@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
+import { useProjectStore } from '../../stores/useProjectStore.js';
 import { SYMBOL_CATEGORIES } from '../../lib/constants.js';
 import { generateSymbolSvg, getAffiliation } from '../../lib/milsymbol-utils.js';
 import { t } from '../../lib/i18n.js';
@@ -40,7 +42,12 @@ export default function SymbolPicker() {
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
   const projects = useTacticalStore((s) => s.projects);
+  const user = useAuthStore((s) => s.user);
+  const myProjects = useProjectStore((s) => s.myProjects);
   const layers = activeProjectId && projects[activeProjectId] ? projects[activeProjectId].layers : [];
+  const noProject = user && !activeProjectId;
+  const activeProjectName = activeProjectId ? myProjects.find(p => p.id === activeProjectId)?.name : null;
+  const activeLayerObj = activeProjectId && activeLayerId ? projects[activeProjectId]?.layers?.find(l => l.id === activeLayerId) : null;
   const [category, setCategory] = useState(categoryKeys[0]);
   const [tab, setTab] = useState('friendly');
   const [designation, setDesignation] = useState('');
@@ -102,9 +109,35 @@ export default function SymbolPicker() {
 
   return (
     <div className="flex flex-col h-full p-3">
-      <h2 className="text-sm font-semibold text-emerald-400 mb-3">
+      <h2 className="text-sm font-semibold text-emerald-400 mb-2">
         {t('symbols.title', lang)}
       </h2>
+
+      {/* No project warning */}
+      {noProject && (
+        <div className="bg-amber-600/90 rounded px-2.5 py-2 mb-2 text-[11px] text-white text-center leading-tight">
+          <div className="font-bold">{t('draw.noProject', lang)}</div>
+          <div className="mt-0.5 opacity-80">{t('draw.noProjectHint', lang)}</div>
+        </div>
+      )}
+
+      {/* Active project/layer context */}
+      {activeProjectId && (
+        <div className="bg-slate-700/60 rounded px-2.5 py-1.5 mb-2 text-[11px] leading-tight border border-slate-600/50">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+            <span className="truncate font-medium text-emerald-300">{activeProjectName || '...'}</span>
+          </div>
+          {activeLayerObj ? (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />
+              <span className="truncate text-cyan-300">{activeLayerObj.name}</span>
+            </div>
+          ) : (
+            <div className="text-slate-500 mt-0.5 italic">{lang === 'no' ? '(Intet lag)' : '(No layer)'}</div>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <input
@@ -169,7 +202,7 @@ export default function SymbolPicker() {
       )}
 
       {/* Symbol grid */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 overflow-y-auto ${noProject ? 'opacity-40 pointer-events-none' : ''}`}>
         {symbols.length === 0 && isSearching && (
           <div className="text-slate-500 text-xs text-center py-4">
             {lang === 'no' ? 'Ingen treff' : 'No matches'}
