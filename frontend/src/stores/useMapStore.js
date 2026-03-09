@@ -128,6 +128,9 @@ export const useMapStore = create((set) => ({
   // Measuring tool
   measuringToolVisible: false,
 
+  // Grid tool
+  gridToolVisible: false,
+
   // Viewshed tool
   viewshedToolVisible: false,
 
@@ -310,6 +313,7 @@ export const useMapStore = create((set) => ({
   })),
   setPlacementMode: (placementMode) => set({ placementMode }),
   toggleMeasuringTool: () => set((s) => ({ measuringToolVisible: !s.measuringToolVisible })),
+  toggleGridTool: () => set((s) => ({ gridToolVisible: !s.gridToolVisible })),
   toggleViewshedTool: () => set((s) => ({
     viewshedToolVisible: !s.viewshedToolVisible,
     ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false } : {}),

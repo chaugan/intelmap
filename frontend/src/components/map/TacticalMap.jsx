@@ -40,6 +40,7 @@ import InfrastructureLayer from './InfrastructureLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 import ViewshedTool from './ViewshedTool.jsx';
+import GridTool from './GridTool.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
 import WmsOverlayToggles from './WmsOverlayToggles.jsx';
 
@@ -771,6 +772,115 @@ export default function TacticalMap() {
               );
             }
 
+            // Grid drawing type — render grid lines + labels
+            if (d.drawingType === 'grid' && geom.type === 'Polygon') {
+              const ring = geom.coordinates[0]; // [SW, SE, NE, NW, SW]
+              if (ring.length < 5) return null;
+              const cols = d.properties?.columns || 5;
+              const gridColor = color;
+
+              // Compute rows from aspect ratio
+              const sw0 = ring[0], se0 = ring[1], ne0 = ring[2], nw0 = ring[3];
+              const R = 6371;
+              const midLat = (sw0[1] + ne0[1]) / 2;
+              const widthKm = R * Math.abs(se0[0] - sw0[0]) * Math.PI / 180 * Math.cos(midLat * Math.PI / 180);
+              const heightKm = R * Math.abs(ne0[1] - se0[1]) * Math.PI / 180;
+              const gridRows = Math.max(1, Math.round(cols * (heightKm / widthKm)));
+
+              // Interpolate in geo-coords then project
+              const lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+
+              // Project corners
+              const pSW = projectCoord(sw0);
+              const pSE = projectCoord(se0);
+              const pNE = projectCoord(ne0);
+              const pNW = projectCoord(nw0);
+              if (!pSW || !pSE || !pNE || !pNW) return null;
+
+              const colLbl = (n) => {
+                let s = ''; n++;
+                while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+                return s;
+              };
+
+              return (
+                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                  {isSelected && renderSelectionBBox([pSW, pSE, pNE, pNW], 10)}
+
+                  {/* Outer rectangle */}
+                  <polygon
+                    points={`${pSW.x},${pSW.y} ${pSE.x},${pSE.y} ${pNE.x},${pNE.y} ${pNW.x},${pNW.y}`}
+                    fill={gridColor}
+                    fillOpacity="0.05"
+                    stroke={gridColor}
+                    strokeWidth={sw}
+                  />
+
+                  {/* Vertical grid lines */}
+                  {Array.from({ length: cols - 1 }, (_, i) => {
+                    const f = (i + 1) / cols;
+                    const topGeo = lerp(nw0, ne0, f);
+                    const botGeo = lerp(sw0, se0, f);
+                    const topPt = projectCoord(topGeo);
+                    const botPt = projectCoord(botGeo);
+                    if (!topPt || !botPt) return null;
+                    return <line key={`v${i}`} x1={botPt.x} y1={botPt.y} x2={topPt.x} y2={topPt.y} stroke={gridColor} strokeWidth={1} opacity="0.6" />;
+                  })}
+
+                  {/* Horizontal grid lines */}
+                  {Array.from({ length: gridRows - 1 }, (_, i) => {
+                    const f = (i + 1) / gridRows;
+                    const leftGeo = lerp(sw0, nw0, f);
+                    const rightGeo = lerp(se0, ne0, f);
+                    const leftPt = projectCoord(leftGeo);
+                    const rightPt = projectCoord(rightGeo);
+                    if (!leftPt || !rightPt) return null;
+                    return <line key={`h${i}`} x1={leftPt.x} y1={leftPt.y} x2={rightPt.x} y2={rightPt.y} stroke={gridColor} strokeWidth={1} opacity="0.6" />;
+                  })}
+
+                  {/* Column headers (A, B, C, ...) along top edge */}
+                  {Array.from({ length: cols }, (_, i) => {
+                    const f = (i + 0.5) / cols;
+                    const topGeo = lerp(nw0, ne0, f);
+                    // Offset slightly above the top edge
+                    const aboveGeo = [topGeo[0], topGeo[1] + (ne0[1] - se0[1]) * 0.03];
+                    const pt = projectCoord(aboveGeo);
+                    if (!pt) return null;
+                    return (
+                      <text key={`cl${i}`} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
+                        fill="#ffffff" fontSize="13" fontWeight="700"
+                        stroke="#000000" strokeWidth="3" paintOrder="stroke">{colLbl(i)}</text>
+                    );
+                  })}
+
+                  {/* Row headers (1, 2, 3, ...) along left edge */}
+                  {Array.from({ length: gridRows }, (_, i) => {
+                    const f = 1 - (i + 0.5) / gridRows; // top-to-bottom: row 1 at top
+                    const leftGeo = lerp(sw0, nw0, f);
+                    // Offset slightly left of the left edge
+                    const beforeGeo = [leftGeo[0] - (se0[0] - sw0[0]) * 0.03, leftGeo[1]];
+                    const pt = projectCoord(beforeGeo);
+                    if (!pt) return null;
+                    return (
+                      <text key={`rl${i}`} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
+                        fill="#ffffff" fontSize="13" fontWeight="700"
+                        stroke="#000000" strokeWidth="3" paintOrder="stroke">{i + 1}</text>
+                    );
+                  })}
+
+                  {d.properties?.label && (() => {
+                    const cx = (pSW.x + pNE.x) / 2;
+                    const cy = (pSW.y + pNE.y) / 2;
+                    return (
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+                        fill="#ffffff" fontSize="16" fontWeight="700"
+                        stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
+                    );
+                  })()}
+                </g>
+              );
+            }
+
             if (geom.type === 'Polygon') {
               const ring = geom.coordinates[0];
               const pts = projectCoords(ring);
@@ -1063,6 +1173,7 @@ export default function TacticalMap() {
       )}
       <MeasuringTool />
       <ViewshedTool />
+      <GridTool />
       {/* Vessel Activity Box Drawing */}
       {vesselsVisible && <VesselActivityBox mapRef={mapInstance} />}
       {/* Vessel Activity Panel */}

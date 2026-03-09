@@ -202,6 +202,7 @@ export default function MapControls() {
 
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
+      {user && <GridButton lang={lang} />}
       {user && <ViewshedButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
@@ -338,6 +339,23 @@ function ToggleButton({ active, onClick, label, shortcut }) {
       title={`${label} (${shortcut})`}
     >
       {label}
+    </button>
+  );
+}
+
+function GridButton({ lang }) {
+  const active = useMapStore((s) => s.gridToolVisible);
+  const toggle = useMapStore((s) => s.toggleGridTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('layer.grid', lang)} (E)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h18v18H3V3zM3 9h18M3 15h18M9 3v18M15 3v18" />
+      </svg>
+      {t('layer.grid', lang)}
     </button>
   );
 }

@@ -18,6 +18,7 @@ export function useKeyboardShortcuts() {
   const toggleDrawingTools = useMapStore((s) => s.toggleDrawingTools);
   const toggleMeasuringTool = useMapStore((s) => s.toggleMeasuringTool);
   const toggleViewshedTool = useMapStore((s) => s.toggleViewshedTool);
+  const toggleGridTool = useMapStore((s) => s.toggleGridTool);
   const toggleSunlight = useMapStore((s) => s.toggleSunlight);
   const toggleHillshade = useMapStore((s) => s.toggleHillshade);
   const toggleTerrain = useMapStore((s) => s.toggleTerrain);
@@ -93,6 +94,10 @@ export function useKeyboardShortcuts() {
           if (useAuthStore.getState().user) toggleViewshedTool();
           break;
         }
+        case 'e': {
+          if (useAuthStore.getState().user) toggleGridTool();
+          break;
+        }
 
         // Panel toggles
         case '1': setActivePanel('layers'); break;
@@ -130,5 +135,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleGridTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }
