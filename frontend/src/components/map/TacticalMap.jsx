@@ -40,7 +40,9 @@ import InfrastructureLayer from './InfrastructureLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 import ViewshedTool from './ViewshedTool.jsx';
+import ViewshedOverlay from './ViewshedOverlay.jsx';
 import RFCoverageTool from './RFCoverageTool.jsx';
+import RFCoverageOverlay from './RFCoverageOverlay.jsx';
 import GridTool from './GridTool.jsx';
 import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
@@ -1221,6 +1223,8 @@ export default function TacticalMap() {
         />
       )}
       <MeasuringTool />
+      <ViewshedOverlay />
+      <RFCoverageOverlay />
       <ViewshedTool />
       <RFCoverageTool />
       <GridTool />

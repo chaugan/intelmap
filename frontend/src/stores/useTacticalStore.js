@@ -8,6 +8,7 @@ export const useTacticalStore = create((set, get) => ({
   activeLayerId: null,      // default layer for new markers/drawings
   visibleProjectIds: [],    // ordered: first = bottom z-layer, last = top
   layerVisibility: {},      // layerId → bool (client-local overrides)
+  itemVisibility: {},       // viewshedId/rfCoverageId → bool (client-local per-item toggle)
 
   // --- Project management ---
 
@@ -288,6 +289,13 @@ export const useTacticalStore = create((set, get) => ({
     layerVisibility: {
       ...s.layerVisibility,
       [layerId]: s.layerVisibility[layerId] === false ? true : false,
+    },
+  })),
+
+  toggleItemVisibility: (itemId) => set((s) => ({
+    itemVisibility: {
+      ...s.itemVisibility,
+      [itemId]: s.itemVisibility[itemId] === false ? true : false,
     },
   })),
 

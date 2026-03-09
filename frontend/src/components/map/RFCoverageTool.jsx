@@ -1,21 +1,18 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
 
+// Active-calculation-only layers (saved data is rendered by RFCoverageOverlay)
 const SOURCE_CIRCLE = 'rf-coverage-circle';
 const SOURCE_RESULT = 'rf-coverage-result';
 const SOURCE_OBSERVER = 'rf-coverage-observer-src';
-const SOURCE_SAVED = 'rf-coverage-saved';
-const SOURCE_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 const LAYER_CIRCLE_FILL = 'rf-coverage-circle-fill';
 const LAYER_CIRCLE_LINE = 'rf-coverage-circle-line';
 const LAYER_RESULT_FILL = 'rf-coverage-result-fill';
 const LAYER_OBSERVER = 'rf-coverage-observer';
-const LAYER_SAVED_FILL = 'rf-coverage-saved-fill';
-const LAYER_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 
 const BUCKETS = [
   { name: 'excellent',  min: -50, color: '#15803d', invertColor: '#991b1b' },
@@ -64,20 +61,6 @@ function circlePolygon(center, radiusKm, numPoints = 64) {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } };
 }
 
-function invertGeojson(geojson) {
-  if (!geojson?.features) return geojson;
-  return {
-    ...geojson,
-    features: geojson.features.map(f => ({
-      ...f,
-      properties: {
-        ...f.properties,
-        color: INVERT_MAP[f.properties.color] || f.properties.color,
-      },
-    })),
-  };
-}
-
 function applyDisplayOptions(geojson, invert, dimmedBuckets) {
   if (!geojson?.features) return geojson;
   let features = geojson.features;
@@ -93,37 +76,6 @@ function applyDisplayOptions(geojson, invert, dimmedBuckets) {
   return { ...geojson, features };
 }
 
-function buildSavedData(visibleProjectIds, projects, layerVisibility) {
-  const polygons = [];
-  const observers = [];
-  for (const pid of visibleProjectIds) {
-    const proj = projects[pid];
-    if (!proj?.rfCoverages) continue;
-    const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
-    );
-    for (const c of proj.rfCoverages) {
-      if (c.layerId && !visLayerIds.has(c.layerId)) continue;
-      if (c.geojson?.features) {
-        for (const f of c.geojson.features) {
-          polygons.push({ ...f, properties: { ...f.properties, id: c.id, projectId: pid } });
-        }
-      }
-      if (c.longitude != null && c.latitude != null) {
-        observers.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
-          properties: { id: c.id, projectId: pid },
-        });
-      }
-    }
-  }
-  return {
-    polygons: { type: 'FeatureCollection', features: polygons },
-    observers: { type: 'FeatureCollection', features: observers },
-  };
-}
-
 export default function RFCoverageTool() {
   const visible = useMapStore((s) => s.rfCoverageToolVisible);
   const mapRef = useMapStore((s) => s.mapRef);
@@ -132,7 +84,7 @@ export default function RFCoverageTool() {
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
   const projects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
-  const layerVisibility = useTacticalStore((s) => s.layerVisibility);
+  const itemVisibility = useTacticalStore((s) => s.itemVisibility);
 
   const [mode, setMode] = useState('idle');
   const [antennaHeight, setAntennaHeight] = useState(1.5);
@@ -164,7 +116,16 @@ export default function RFCoverageTool() {
   invertColorsRef.current = invertColors;
   dimmedBucketsRef.current = dimmedBuckets;
 
-  const savedCount = activeProjectId ? (projects[activeProjectId]?.rfCoverages?.length || 0) : 0;
+  // Collect all saved RF coverages from visible projects
+  const savedItems = [];
+  for (const pid of visibleProjectIds) {
+    const proj = projects[pid];
+    if (!proj?.rfCoverages) continue;
+    for (const c of proj.rfCoverages) {
+      savedItems.push({ ...c, _projectId: pid });
+    }
+  }
+
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
   const canCalculate = antenna && freqValid;
 
@@ -200,8 +161,8 @@ export default function RFCoverageTool() {
     window.addEventListener('touchend', onUp);
   }, []);
 
-  const ALL_LAYERS = [LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER, LAYER_SAVED_FILL, LAYER_SAVED_OBSERVERS];
-  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER, SOURCE_SAVED, SOURCE_SAVED_OBSERVERS];
+  const ALL_LAYERS = [LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER];
+  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER];
 
   const cleanup = useCallback(() => {
     if (!mapRef) return;
@@ -227,7 +188,7 @@ export default function RFCoverageTool() {
     }
   }, [mapRef]);
 
-  // Initialize layers
+  // Initialize active-calculation layers only
   useEffect(() => {
     if (!visible || !mapRef) return;
 
@@ -237,60 +198,14 @@ export default function RFCoverageTool() {
       const inv = invertColorsRef.current;
       const dim = dimmedBucketsRef.current;
 
-      // Sources
-      if (!mapRef.getSource(SOURCE_CIRCLE)) {
-        mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
-      }
-      if (!mapRef.getSource(SOURCE_RESULT)) {
-        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, inv, dim) : EMPTY_FC });
-      }
-      if (!mapRef.getSource(SOURCE_OBSERVER)) {
-        mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
-      }
-      if (!mapRef.getSource(SOURCE_SAVED)) {
-        mapRef.addSource(SOURCE_SAVED, { type: 'geojson', data: EMPTY_FC });
-      }
-      if (!mapRef.getSource(SOURCE_SAVED_OBSERVERS)) {
-        mapRef.addSource(SOURCE_SAVED_OBSERVERS, { type: 'geojson', data: EMPTY_FC });
-      }
+      if (!mapRef.getSource(SOURCE_CIRCLE)) mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
+      if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, inv, dim) : EMPTY_FC });
+      if (!mapRef.getSource(SOURCE_OBSERVER)) mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
 
-      // Layers
-      if (!mapRef.getLayer(LAYER_SAVED_FILL)) {
-        mapRef.addLayer({
-          id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED,
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 },
-        });
-      }
-      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) {
-        mapRef.addLayer({
-          id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS,
-          paint: { 'circle-radius': 6, 'circle-color': '#a855f7', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
-        });
-      }
-      if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) {
-        mapRef.addLayer({
-          id: LAYER_CIRCLE_FILL, type: 'fill', source: SOURCE_CIRCLE,
-          paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.08 },
-        });
-      }
-      if (!mapRef.getLayer(LAYER_CIRCLE_LINE)) {
-        mapRef.addLayer({
-          id: LAYER_CIRCLE_LINE, type: 'line', source: SOURCE_CIRCLE,
-          paint: { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [4, 4] },
-        });
-      }
-      if (!mapRef.getLayer(LAYER_RESULT_FILL)) {
-        mapRef.addLayer({
-          id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT,
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 },
-        });
-      }
-      if (!mapRef.getLayer(LAYER_OBSERVER)) {
-        mapRef.addLayer({
-          id: LAYER_OBSERVER, type: 'circle', source: SOURCE_OBSERVER,
-          paint: { 'circle-radius': 7, 'circle-color': '#a855f7', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
-        });
-      }
+      if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) mapRef.addLayer({ id: LAYER_CIRCLE_FILL, type: 'fill', source: SOURCE_CIRCLE, paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.08 } });
+      if (!mapRef.getLayer(LAYER_CIRCLE_LINE)) mapRef.addLayer({ id: LAYER_CIRCLE_LINE, type: 'line', source: SOURCE_CIRCLE, paint: { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [4, 4] } });
+      if (!mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.addLayer({ id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
+      if (!mapRef.getLayer(LAYER_OBSERVER)) mapRef.addLayer({ id: LAYER_OBSERVER, type: 'circle', source: SOURCE_OBSERVER, paint: { 'circle-radius': 7, 'circle-color': '#a855f7', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
     };
 
     initLayers();
@@ -301,76 +216,43 @@ export default function RFCoverageTool() {
   // Update opacity
   useEffect(() => {
     if (!mapRef || !visible) return;
-    if (mapRef.getLayer(LAYER_RESULT_FILL)) {
-      mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-opacity', opacity);
-    }
+    if (mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-opacity', opacity);
   }, [opacity, mapRef, visible]);
 
   // Update result display when invert or dimmed buckets change
   useEffect(() => {
     if (!mapRef || !resultGeojson) return;
     const src = mapRef.getSource(SOURCE_RESULT);
-    if (src) {
-      src.setData(applyDisplayOptions(resultGeojson, invertColors, dimmedBuckets));
-    }
+    if (src) src.setData(applyDisplayOptions(resultGeojson, invertColors, dimmedBuckets));
   }, [invertColors, dimmedBuckets, resultGeojson, mapRef]);
 
-  // Update circle preview when radius or antenna changes
+  // Update circle preview
   useEffect(() => {
     if (!mapRef || !antenna) return;
     const src = mapRef.getSource(SOURCE_CIRCLE);
-    if (src) {
-      src.setData(circlePolygon([antenna.lng, antenna.lat], radiusKm));
-    }
+    if (src) src.setData(circlePolygon([antenna.lng, antenna.lat], radiusKm));
   }, [radiusKm, antenna, mapRef]);
-
-  // Update saved data
-  useEffect(() => {
-    if (!visible || !mapRef) return;
-    const saved = buildSavedData(visibleProjectIds, projects, layerVisibility);
-    const src = mapRef.getSource(SOURCE_SAVED);
-    if (src) src.setData(saved.polygons);
-    const obsSrc = mapRef.getSource(SOURCE_SAVED_OBSERVERS);
-    if (obsSrc) obsSrc.setData(saved.observers);
-  }, [visible, mapRef, visibleProjectIds, projects, layerVisibility]);
 
   // Map click handler
   useEffect(() => {
     if (!visible || !mapRef) return;
-
     const onClick = (e) => {
       if (modeRef.current !== 'placing') return;
       const { lng, lat } = e.lngLat;
       setAntenna({ lng, lat });
       setMode('ready');
       mapRef.getCanvas().style.cursor = '';
-
-      // Show observer point
       const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
-      if (obsSrc) {
-        obsSrc.setData({
-          type: 'FeatureCollection',
-          features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }],
-        });
-      }
-
-      // Show radius circle
+      if (obsSrc) obsSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }] });
       const circleSrc = mapRef.getSource(SOURCE_CIRCLE);
-      if (circleSrc) {
-        circleSrc.setData(circlePolygon([lng, lat], radiusKm));
-      }
+      if (circleSrc) circleSrc.setData(circlePolygon([lng, lat], radiusKm));
     };
-
     mapRef.on('click', onClick);
     return () => mapRef.off('click', onClick);
   }, [visible, mapRef, radiusKm]);
 
   // Cleanup on hide
-  useEffect(() => {
-    if (!visible) {
-      reset();
-    }
-  }, [visible, reset]);
+  useEffect(() => { if (!visible) reset(); }, [visible, reset]);
 
   const handlePlaceAntenna = useCallback(() => {
     setMode('placing');
@@ -389,39 +271,22 @@ export default function RFCoverageTool() {
     if (!antenna || !isFinite(freq) || freq < 2) return;
     setMode('calculating');
     setError(null);
-
     try {
       const res = await fetch('/api/rfcoverage/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          longitude: antenna.lng,
-          latitude: antenna.lat,
-          antennaHeight,
-          txPowerWatts,
-          frequencyMHz,
-          radiusKm,
-          dampening,
-        }),
+        body: JSON.stringify({ longitude: antenna.lng, latitude: antenna.lat, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening }),
       });
-
       if (!res.ok) throw new Error('Calculation failed');
       const data = await res.json();
-
-      // Update refs immediately so styledata handler sees new data
       resultGeojsonRef.current = data.geojson;
-
       setResult(data);
       setResultGeojson(data.geojson);
       setMode('result');
-
-      // Update map
       if (mapRef) {
         const src = mapRef.getSource(SOURCE_RESULT);
-        if (src) {
-          src.setData(applyDisplayOptions(data.geojson, invertColors, dimmedBuckets));
-        }
+        if (src) src.setData(applyDisplayOptions(data.geojson, invertColors, dimmedBuckets));
       }
     } catch (err) {
       setError(err.message);
@@ -436,27 +301,24 @@ export default function RFCoverageTool() {
       layerId: activeLayerId,
       longitude: antenna.lng,
       latitude: antenna.lat,
-      antennaHeight,
-      txPowerWatts,
-      frequencyMHz,
-      radiusKm,
+      antennaHeight, txPowerWatts, frequencyMHz, radiusKm,
       geojson: resultGeojson,
       stats: result.stats,
     });
-  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, result, resultGeojson]);
+    // Reset for next antenna placement
+    reset();
+  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, result, resultGeojson, reset]);
 
-  const handleDeleteAll = useCallback(() => {
-    if (!activeProjectId) return;
-    socket.emit('client:rfcoverage:delete-all', { projectId: activeProjectId });
-  }, [activeProjectId]);
+  const flyTo = useCallback((lng, lat) => {
+    if (!mapRef) return;
+    mapRef.flyTo({ center: [lng, lat], zoom: Math.max(mapRef.getZoom(), 12), duration: 1200 });
+  }, [mapRef]);
 
   if (!visible) return null;
 
-  const panelStyle = panelPos.x !== null ? {
-    position: 'fixed', left: panelPos.x, top: panelPos.y, zIndex: 1000,
-  } : {
-    position: 'fixed', top: 80, right: 8, zIndex: 1000,
-  };
+  const panelStyle = panelPos.x !== null
+    ? { position: 'fixed', left: panelPos.x, top: panelPos.y, zIndex: 1000 }
+    : { position: 'fixed', top: 80, right: 8, zIndex: 1000 };
 
   return createPortal(
     <div
@@ -474,10 +336,7 @@ export default function RFCoverageTool() {
           </svg>
           {t('rfcoverage.title', lang)}
         </div>
-        <button
-          onClick={() => useMapStore.getState().toggleRFCoverageTool()}
-          className="text-slate-400 hover:text-white"
-        >
+        <button onClick={() => useMapStore.getState().toggleRFCoverageTool()} className="text-slate-400 hover:text-white">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -485,182 +344,175 @@ export default function RFCoverageTool() {
       </div>
 
       <div className="p-3 space-y-3">
-        {/* Antenna Height */}
-        <div>
-          <label className="text-xs text-slate-400">{t('rfcoverage.antennaHeight', lang)}</label>
-          <select
-            value={antennaHeight}
-            onChange={(e) => setAntennaHeight(Number(e.target.value))}
-            className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
-          >
-            <option value={1.5}>{t('rfcoverage.handheld', lang)}</option>
-            <option value={3}>{t('rfcoverage.vehicle', lang)}</option>
-            <option value={10}>{t('rfcoverage.mast', lang)}</option>
-          </select>
-        </div>
-
-        {/* Transmit Power */}
-        <div>
-          <label className="text-xs text-slate-400">{t('rfcoverage.txPower', lang)}</label>
-          <select
-            value={txPowerWatts}
-            onChange={(e) => setTxPowerWatts(Number(e.target.value))}
-            className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
-          >
-            {POWER_OPTIONS.map((p) => (
-              <option key={p.watts} value={p.watts}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Frequency */}
-        <div>
-          <label className="text-xs text-slate-400">{t('rfcoverage.frequency', lang)}</label>
-          <div className="flex gap-1 mt-1">
-            {FREQ_CHIPS.map((f) => (
-              <button
-                key={f.mhz}
-                onClick={() => setFrequencyMHz(f.mhz)}
-                className={`px-2 py-0.5 rounded text-xs ${frequencyMHz === f.mhz ? 'bg-purple-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
-              >
-                {f.label}
-              </button>
-            ))}
+        {/* === Saved Items List === */}
+        {savedItems.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-xs text-slate-400 font-medium">{savedItems.length} {t('rfcoverage.saved', lang)}</div>
+            <div className="space-y-px max-h-32 overflow-y-auto">
+              {savedItems.map((c) => {
+                const isVis = itemVisibility[c.id] !== false;
+                return (
+                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isVis ? '' : 'opacity-40'}`}>
+                    <button
+                      onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
+                      className={`shrink-0 ${isVis ? 'text-purple-400' : 'text-slate-600'}`}
+                      title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        {isVis ? (
+                          <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
+                        ) : (
+                          <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                        )}
+                      </svg>
+                    </button>
+                    <span
+                      className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                      onClick={() => flyTo(c.longitude, c.latitude)}
+                    >
+                      RF {c.frequencyMHz}MHz {c.txPowerWatts}W
+                    </span>
+                    <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
+                    <button
+                      onClick={() => flyTo(c.longitude, c.latitude)}
+                      className="shrink-0 text-slate-600 hover:text-cyan-400"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => socket.emit('client:rfcoverage:delete', { projectId: c._projectId, id: c.id })}
+                      className="shrink-0 text-slate-600 hover:text-red-400"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <input
-            type="number"
-            value={frequencyMHz}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === '') { setFrequencyMHz(''); return; }
-              const n = Number(raw);
-              if (isFinite(n)) setFrequencyMHz(Math.min(6000, n));
-            }}
-            placeholder="MHz"
-            className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
-            min={2} max={6000}
-          />
-        </div>
+        )}
 
-        {/* Radius */}
-        <div>
-          <label className="text-xs text-slate-400">{t('rfcoverage.radius', lang)}: {radiusKm} km</label>
-          <input
-            type="range" min={1} max={30} step={1} value={radiusKm}
-            onChange={(e) => setRadiusKm(Number(e.target.value))}
-            className="w-full mt-1"
-          />
-        </div>
+        {/* === New Antenna Config === */}
+        <div className="border-t border-slate-600 pt-2">
+          <div className="text-xs text-slate-400 font-medium mb-2">{t('rfcoverage.newAnalysis', lang)}</div>
 
-        {/* Antenna dampening */}
-        <div>
-          <label className="text-xs text-slate-400">{t('rfcoverage.dampening', lang)}</label>
-          <div className="flex items-center gap-2 mt-1">
+          {/* Antenna Height */}
+          <div>
+            <label className="text-xs text-slate-400">{t('rfcoverage.antennaHeight', lang)}</label>
+            <select value={antennaHeight} onChange={(e) => setAntennaHeight(Number(e.target.value))} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+              <option value={1.5}>{t('rfcoverage.handheld', lang)}</option>
+              <option value={3}>{t('rfcoverage.vehicle', lang)}</option>
+              <option value={10}>{t('rfcoverage.mast', lang)}</option>
+            </select>
+          </div>
+
+          {/* Transmit Power */}
+          <div className="mt-2">
+            <label className="text-xs text-slate-400">{t('rfcoverage.txPower', lang)}</label>
+            <select value={txPowerWatts} onChange={(e) => setTxPowerWatts(Number(e.target.value))} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+              {POWER_OPTIONS.map((p) => <option key={p.watts} value={p.watts}>{p.label}</option>)}
+            </select>
+          </div>
+
+          {/* Frequency */}
+          <div className="mt-2">
+            <label className="text-xs text-slate-400">{t('rfcoverage.frequency', lang)}</label>
+            <div className="flex gap-1 mt-1">
+              {FREQ_CHIPS.map((f) => (
+                <button key={f.mhz} onClick={() => setFrequencyMHz(f.mhz)} className={`px-2 py-0.5 rounded text-xs ${frequencyMHz === f.mhz ? 'bg-purple-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
             <input
-              type="number"
-              value={dampening === 0 ? '' : dampening}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === '' || raw === '-') { setDampening(0); return; }
-                const n = Number(raw);
-                if (!isFinite(n)) return;
-                setDampening(n > 0 ? -n : n);
-              }}
-              placeholder="0"
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
-              max={0}
+              type="number" value={frequencyMHz}
+              onChange={(e) => { const raw = e.target.value; if (raw === '') { setFrequencyMHz(''); return; } const n = Number(raw); if (isFinite(n)) setFrequencyMHz(Math.min(6000, n)); }}
+              placeholder="MHz" className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" min={2} max={6000}
             />
-            <span className="text-slate-400 text-xs shrink-0">dB</span>
+          </div>
+
+          {/* Radius */}
+          <div className="mt-2">
+            <label className="text-xs text-slate-400">{t('rfcoverage.radius', lang)}: {radiusKm} km</label>
+            <input type="range" min={1} max={30} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full mt-1" />
+          </div>
+
+          {/* Dampening */}
+          <div className="mt-2">
+            <label className="text-xs text-slate-400">{t('rfcoverage.dampening', lang)}</label>
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="number" value={dampening === 0 ? '' : dampening}
+                onChange={(e) => { const raw = e.target.value; if (raw === '' || raw === '-') { setDampening(0); return; } const n = Number(raw); if (!isFinite(n)) return; setDampening(n > 0 ? -n : n); }}
+                placeholder="0" className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" max={0}
+              />
+              <span className="text-slate-400 text-xs shrink-0">dB</span>
+            </div>
           </div>
         </div>
 
         {/* Action buttons */}
-        {mode === 'idle' && (
-          <button
-            onClick={handlePlaceAntenna}
-            className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium"
-          >
-            {t('rfcoverage.placeAntenna', lang)}
-          </button>
-        )}
-
-        {mode === 'placing' && (
-          <div className="text-center text-purple-300 text-xs py-2">
-            {t('rfcoverage.clickToPlace', lang)}
-          </div>
-        )}
-
-        {mode === 'ready' && (
-          <div className="flex gap-2">
-            <button
-              onClick={handleCalculate}
-              disabled={!canCalculate}
-              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium"
-            >
-              {t('rfcoverage.calculate', lang)}
-            </button>
-            <button
-              onClick={handlePlaceAntenna}
-              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm"
-            >
+        <div className="space-y-2">
+          {mode === 'idle' && (
+            <button onClick={handlePlaceAntenna} className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium">
               {t('rfcoverage.placeAntenna', lang)}
             </button>
-          </div>
-        )}
+          )}
 
-        {mode === 'calculating' && (
-          <div className="flex items-center justify-center gap-2 py-2">
-            <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <span className="text-purple-300">{t('rfcoverage.calculating', lang)}</span>
-          </div>
-        )}
+          {mode === 'placing' && (
+            <div className="text-center text-purple-300 text-xs py-2">{t('rfcoverage.clickToPlace', lang)}</div>
+          )}
 
-        {mode === 'result' && (
-          <div className="flex gap-2">
-            <button
-              onClick={handleCalculate}
-              disabled={!canCalculate}
-              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium"
-            >
-              {t('rfcoverage.recalculate', lang)}
-            </button>
-            <button
-              onClick={handlePlaceAntenna}
-              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm"
-            >
-              {t('rfcoverage.placeAntenna', lang)}
-            </button>
-          </div>
-        )}
+          {mode === 'ready' && (
+            <div className="flex gap-2">
+              <button onClick={handleCalculate} disabled={!canCalculate} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
+                {t('rfcoverage.calculate', lang)}
+              </button>
+              <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
+                {t('rfcoverage.placeAntenna', lang)}
+              </button>
+            </div>
+          )}
 
-        {error && <div className="text-red-400 text-xs">{error}</div>}
+          {mode === 'calculating' && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              <span className="text-purple-300">{t('rfcoverage.calculating', lang)}</span>
+            </div>
+          )}
+
+          {mode === 'result' && (
+            <div className="flex gap-2">
+              <button onClick={handleCalculate} disabled={!canCalculate} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
+                {t('rfcoverage.recalculate', lang)}
+              </button>
+              <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
+                {t('rfcoverage.placeAntenna', lang)}
+              </button>
+            </div>
+          )}
+
+          {error && <div className="text-red-400 text-xs">{error}</div>}
+        </div>
 
         {/* Result stats */}
         {mode === 'result' && result && (
           <div className="space-y-2">
-            {/* Stats grid — click to dim/hide a bucket on the map */}
             <div className="space-y-0.5 text-xs">
               {BUCKETS.map((b, i) => {
                 const pct = result.stats[b.name + 'Percent'] || 0;
-                const rangeLabel = i === 0 ? `> ${b.min} dBm`
-                  : i === BUCKETS.length - 1 ? `< ${BUCKETS[i - 1].min} dBm`
-                  : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
+                const rangeLabel = i === 0 ? `> ${b.min} dBm` : i === BUCKETS.length - 1 ? `< ${BUCKETS[i - 1].min} dBm` : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
                 const isDimmed = dimmedBuckets.has(b.name);
                 return (
-                  <div
-                    key={b.name}
-                    className={`flex items-center gap-1.5 cursor-pointer rounded px-0.5 py-px hover:bg-slate-700/40 transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
-                    onClick={() => {
-                      setDimmedBuckets(prev => {
-                        const next = new Set(prev);
-                        if (next.has(b.name)) next.delete(b.name);
-                        else next.add(b.name);
-                        return next;
-                      });
-                    }}
+                  <div key={b.name} className={`flex items-center gap-1.5 cursor-pointer rounded px-0.5 py-px hover:bg-slate-700/40 transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                    onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
                     title={isDimmed ? (lang === 'no' ? 'Vis på kart' : 'Show on map') : (lang === 'no' ? 'Skjul fra kart' : 'Hide from map')}
                   >
                     <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
@@ -676,53 +528,24 @@ export default function RFCoverageTool() {
               {t('rfcoverage.maxRange', lang)}: <span className="text-slate-200 font-mono">{result.stats.maxRangeKm} km</span>
             </div>
 
-            {/* Controls */}
             <div>
               <label className="text-xs text-slate-400">{t('rfcoverage.opacity', lang)}: {Math.round(opacity * 100)}%</label>
-              <input
-                type="range" min={10} max={100} step={5} value={opacity * 100}
-                onChange={(e) => setOpacity(Number(e.target.value) / 100)}
-                className="w-full"
-              />
+              <input type="range" min={10} max={100} step={5} value={opacity * 100} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full" />
             </div>
 
-            <button
-              onClick={() => setInvertColors(!invertColors)}
-              className={`w-full py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
-            >
+            <button onClick={() => setInvertColors(!invertColors)} className={`w-full py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
               {t('rfcoverage.invertColors', lang)}
             </button>
 
-            {/* Save / New analysis */}
+            {/* Save to project */}
             <div className="flex gap-2">
               {activeProjectId && (
-                <button
-                  onClick={handleSave}
-                  className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium"
-                >
+                <button onClick={handleSave} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium">
                   {t('rfcoverage.saveToProject', lang)}
                 </button>
               )}
-              <button
-                onClick={() => { reset(); handlePlaceAntenna(); }}
-                className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs"
-              >
+              <button onClick={() => { reset(); handlePlaceAntenna(); }} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
                 {t('rfcoverage.newAnalysis', lang)}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Saved coverages section */}
-        {savedCount > 0 && (
-          <div className="border-t border-slate-600 pt-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">{savedCount} {t('rfcoverage.saved', lang)}</span>
-              <button
-                onClick={handleDeleteAll}
-                className="text-red-400 hover:text-red-300 text-xs"
-              >
-                {t('rfcoverage.deleteAll', lang)}
               </button>
             </div>
           </div>
@@ -731,21 +554,12 @@ export default function RFCoverageTool() {
 
       {/* Color legend */}
       <div className="px-3 pb-2">
-        <div className="flex gap-1 text-[10px]">
+        <div className="flex gap-0.5 text-[10px]">
           {BUCKETS.map((b) => {
             const isDimmed = dimmedBuckets.has(b.name);
             return (
-              <div
-                key={b.name}
-                className={`flex-1 text-center cursor-pointer transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
-                onClick={() => {
-                  setDimmedBuckets(prev => {
-                    const next = new Set(prev);
-                    if (next.has(b.name)) next.delete(b.name);
-                    else next.add(b.name);
-                    return next;
-                  });
-                }}
+              <div key={b.name} className={`flex-1 text-center cursor-pointer transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
               >
                 <div className="h-2 rounded-sm" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
                 <div className="text-slate-400 mt-0.5">{b.min === -Infinity ? `<${BUCKETS[BUCKETS.length - 2].min}` : `>${b.min}`}</div>
