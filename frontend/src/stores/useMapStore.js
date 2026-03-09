@@ -136,6 +136,7 @@ export const useMapStore = create((set) => ({
 
   // RF Coverage tool
   rfCoverageToolVisible: false,
+  activeRFCoverageId: null, // ID of saved coverage currently loaded in the tool
 
   // User geolocation
   userLocation: null, // { longitude, latitude }

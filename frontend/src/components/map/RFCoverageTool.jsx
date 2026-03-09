@@ -183,6 +183,7 @@ export default function RFCoverageTool() {
     setResultGeojson(null);
     setError(null);
     setDimmedBuckets(new Set());
+    useMapStore.setState({ activeRFCoverageId: null });
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
       const src = mapRef.getSource(SOURCE_CIRCLE);
@@ -354,11 +355,12 @@ export default function RFCoverageTool() {
     setAntenna({ lng: item.longitude, lat: item.latitude });
     setError(null);
     setDimmedBuckets(new Set());
+    // Hide this item from the saved overlay to avoid double-rendering
+    useMapStore.setState({ activeRFCoverageId: item.id });
     if (item.geojson && item.stats) {
       setResultGeojson(item.geojson);
       setResult({ stats: item.stats, antennaElevation: item.antennaElevation, parameters: item.parameters });
       setMode('result');
-      // Update map layers
       if (mapRef) {
         const src = mapRef.getSource(SOURCE_RESULT);
         if (src) src.setData(applyDisplayOptions(item.geojson, new Set()));

@@ -24,7 +24,7 @@ const FILL_COLOR_EXPR = [
   ['get', 'color'],
 ];
 
-function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility) {
+function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility, excludeId) {
   const allFeatures = [];
   const observers = [];
   for (const pid of visibleProjectIds) {
@@ -36,6 +36,7 @@ function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, item
     for (const c of proj.rfCoverages) {
       if (c.layerId && !visLayerIds.has(c.layerId)) continue;
       if (itemVisibility[c.id] === false) continue;
+      if (c.id === excludeId) continue;
       if (c.geojson?.features) {
         for (const f of c.geojson.features) {
           allFeatures.push({ ...f, properties: { ...f.properties, id: c.id, projectId: pid } });
@@ -66,6 +67,7 @@ const OBSERVER_PAINT = { 'circle-radius': 6, 'circle-color': '#a855f7', 'circle-
 
 export default function RFCoverageOverlay() {
   const mapRef = useMapStore((s) => s.mapRef);
+  const activeRFCoverageId = useMapStore((s) => s.activeRFCoverageId);
   const projects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const layerVisibility = useTacticalStore((s) => s.layerVisibility);
@@ -96,7 +98,7 @@ export default function RFCoverageOverlay() {
       return;
     }
 
-    const data = buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility);
+    const data = buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility, activeRFCoverageId);
     dataRef.current = data;
 
     // Ensure sources exist, then update data
@@ -113,7 +115,7 @@ export default function RFCoverageOverlay() {
     };
     mapRef.on('styledata', onStyleData);
     return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
-  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
+  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility, activeRFCoverageId]);
 
   return null;
 }
