@@ -183,9 +183,11 @@ function resolveMgrsDigits(parsed, center) {
       for (const row of ROW_LETTERS) {
         const mgrsStr = `${zone}${band}${col}${row}${easting}${northing}`;
         try {
-          const [minLon, minLat, maxLon, maxLat] = toPoint(mgrsStr);
-          const lon = (minLon + maxLon) / 2;
-          const lat = (minLat + maxLat) / 2;
+          const pt = toPoint(mgrsStr);
+          // toPoint returns [lon, lat] or [minLon, minLat, maxLon, maxLat]
+          const lon = pt.length === 4 ? (pt[0] + pt[2]) / 2 : pt[0];
+          const lat = pt.length === 4 ? (pt[1] + pt[3]) / 2 : pt[1];
+          if (!isFinite(lat) || !isFinite(lon)) continue;
 
           const dLat = (lat - center.lat) * 111.32;
           const dLon = (lon - center.lng) * 111.32 * Math.cos(center.lat * Math.PI / 180);
