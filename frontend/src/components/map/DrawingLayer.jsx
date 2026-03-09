@@ -503,6 +503,7 @@ export default function DrawingLayer() {
         });
       }
       lastDragGeomRef.current = null;
+      useMapStore.setState({ dragPreview: null });
 
       setDragState(null);
       // Brief timeout so the click handler doesn't fire
@@ -528,12 +529,9 @@ export default function DrawingLayer() {
     if (ds.isLocal) {
       setLocalDrawings(prev => prev.map(d => d.id === ds.drawingId ? { ...d, geometry: newGeom } : d));
     } else {
-      // Directly mutate the drawing object for immediate visual feedback
-      const drawing = drawingsRef.current.find(d => d.id === ds.drawingId);
-      if (drawing) {
-        drawing.geometry = newGeom;
-        forceUpdate(n => n + 1);
-      }
+      // Set drag preview in store so TacticalMap renders the updated geometry live
+      useMapStore.setState({ dragPreview: { drawingId: ds.drawingId, geometry: newGeom } });
+      forceUpdate(n => n + 1);
     }
   }
 
@@ -1279,7 +1277,8 @@ export default function DrawingLayer() {
                     const p1 = pts[pts.length - 2];
                     const p2 = pts[pts.length - 1];
                     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                    const size = 18, halfW = 10;
+                    const arrowScale = Math.max(1, sw / 3);
+                    const size = 18 * arrowScale, halfW = 10 * arrowScale;
                     return (
                       <polygon
                         points={`${p2.x},${p2.y} ${p2.x - size * Math.cos(angle) + halfW * Math.sin(angle)},${p2.y - size * Math.sin(angle) - halfW * Math.cos(angle)} ${p2.x - size * Math.cos(angle) - halfW * Math.sin(angle)},${p2.y - size * Math.sin(angle) + halfW * Math.cos(angle)}`}

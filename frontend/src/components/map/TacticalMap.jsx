@@ -74,6 +74,7 @@ export default function TacticalMap() {
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
   const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
+  const dragPreview = useMapStore((s) => s.dragPreview);
   const setMapRef = useMapStore((s) => s.setMapRef);
   const setBounds = useMapStore((s) => s.setBounds);
   const setViewport = useMapStore((s) => s.setViewport);
@@ -623,9 +624,11 @@ export default function TacticalMap() {
       <DrawingLayer />
 
       {/* SVG overlay for committed drawings */}
-      {map && visibleDrawings.length > 0 && (
+      {map && visibleDrawings.length > 0 && (() => (
         <svg className="absolute inset-0 z-[4]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {visibleDrawings.map(d => {
+            // Use drag preview geometry if this drawing is being dragged
+            const geom = (dragPreview && dragPreview.drawingId === d.id) ? dragPreview.geometry : d.geometry;
             const color = d.properties?.color || '#3b82f6';
             const sw = d.properties?.strokeWidth || 3;
             const key = d.id;
@@ -705,8 +708,8 @@ export default function TacticalMap() {
               );
             };
 
-            if (d.geometry.type === 'LineString') {
-              const pts = projectCoords(d.geometry.coordinates);
+            if (geom.type === 'LineString') {
+              const pts = projectCoords(geom.coordinates);
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
@@ -736,8 +739,9 @@ export default function TacticalMap() {
                     const p1 = pts[pts.length - 2];
                     const p2 = pts[pts.length - 1];
                     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                    const size = 18;
-                    const halfW = 10;
+                    const scale = Math.max(1, sw / 3);
+                    const size = 18 * scale;
+                    const halfW = 10 * scale;
                     const tip = p2;
                     const leftX = tip.x - size * Math.cos(angle) + halfW * Math.sin(angle);
                     const leftY = tip.y - size * Math.sin(angle) - halfW * Math.cos(angle);
@@ -764,8 +768,8 @@ export default function TacticalMap() {
               );
             }
 
-            if (d.geometry.type === 'Polygon') {
-              const ring = d.geometry.coordinates[0];
+            if (geom.type === 'Polygon') {
+              const ring = geom.coordinates[0];
               const pts = projectCoords(ring);
               if (pts.length < 3) return null;
               const centroid = {
@@ -797,8 +801,8 @@ export default function TacticalMap() {
               );
             }
 
-            if (d.geometry.type === 'Point' && d.drawingType === 'text') {
-              const pt = projectCoord(d.geometry.coordinates);
+            if (geom.type === 'Point' && d.drawingType === 'text') {
+              const pt = projectCoord(geom.coordinates);
               if (!pt) return null;
               return (
                 <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
@@ -813,7 +817,7 @@ export default function TacticalMap() {
             return null;
           })}
         </svg>
-      )}
+      ))()}
 
       <BuildingsLayer />
       <TerrainLayer />

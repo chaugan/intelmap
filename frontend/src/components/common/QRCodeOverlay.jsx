@@ -184,7 +184,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-slate-800 rounded-lg p-6 max-w-sm w-full mx-4 shadow-2xl">
+      <div className={`bg-slate-800 rounded-lg p-6 w-full mx-4 shadow-2xl ${confirmed ? 'max-w-md' : 'max-w-sm'}`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
@@ -322,7 +322,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
                 onClick={onClose}
                 className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-slate-300 transition-colors"
               >
-                {lang === 'no' ? 'Lukk' : 'Close'}
+                {lang === 'no' ? 'Avbryt' : 'Cancel'}
               </button>
               <div className="flex items-center gap-2">
                 {user?.signalEnabled && signalLinked && (

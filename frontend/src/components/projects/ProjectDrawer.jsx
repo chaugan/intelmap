@@ -514,7 +514,7 @@ export default function ProjectDrawer() {
                 {/* Star (active project) */}
                 {visible && (
                   <button
-                    onClick={() => setActiveProject(p.id)}
+                    onClick={() => setActiveProject(active ? null : p.id)}
                     className={`w-7 h-7 flex items-center justify-center text-base ${
                       active ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'
                     }`}
