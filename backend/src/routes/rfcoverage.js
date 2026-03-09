@@ -32,7 +32,7 @@ function wattsToDbm(watts) {
 
 router.post('/calculate', async (req, res) => {
   try {
-    const { longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm: rawRadius } = req.body;
+    const { longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm: rawRadius, dampening: rawDampening } = req.body;
 
     if (!isFinite(longitude) || !isFinite(latitude)) {
       return res.status(400).json({ error: 'Invalid coordinates' });
@@ -45,6 +45,7 @@ router.post('/calculate', async (req, res) => {
     const radiusMeters = radius * 1000;
 
     const txPowerDbm = wattsToDbm(txPower);
+    const dampeningDb = Math.min(0, Number(rawDampening) || 0); // always negative or zero
     const lambda = 300 / freq; // wavelength in meters
 
     const { tileMap, getElevation } = await buildTileMap(latitude, longitude, radius);
@@ -123,7 +124,7 @@ router.post('/calculate', async (req, res) => {
           if (diffLoss < 0) diffLoss = 0;
         }
 
-        const pRx = txPowerDbm - fspl - diffLoss;
+        const pRx = txPowerDbm - fspl - diffLoss + dampeningDb;
         signalGrid[r][s] = pRx;
 
         const bucket = getBucket(pRx);

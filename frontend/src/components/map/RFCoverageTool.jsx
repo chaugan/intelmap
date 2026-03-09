@@ -139,6 +139,7 @@ export default function RFCoverageTool() {
   const [txPowerWatts, setTxPowerWatts] = useState(5);
   const [frequencyMHz, setFrequencyMHz] = useState('');
   const [radiusKm, setRadiusKm] = useState(15);
+  const [dampening, setDampening] = useState(0);
   const [opacity, setOpacity] = useState(0.6);
   const [invertColors, setInvertColors] = useState(false);
   const [dimmedBuckets, setDimmedBuckets] = useState(new Set());
@@ -401,6 +402,7 @@ export default function RFCoverageTool() {
           txPowerWatts,
           frequencyMHz,
           radiusKm,
+          dampening,
         }),
       });
 
@@ -425,7 +427,7 @@ export default function RFCoverageTool() {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, mapRef, invertColors, dimmedBuckets]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, invertColors, dimmedBuckets]);
 
   const handleSave = useCallback(() => {
     if (!activeProjectId || !result) return;
@@ -548,6 +550,28 @@ export default function RFCoverageTool() {
             onChange={(e) => setRadiusKm(Number(e.target.value))}
             className="w-full mt-1"
           />
+        </div>
+
+        {/* Antenna dampening */}
+        <div>
+          <label className="text-xs text-slate-400">{t('rfcoverage.dampening', lang)}</label>
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              type="number"
+              value={dampening === 0 ? '' : dampening}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '' || raw === '-') { setDampening(0); return; }
+                const n = Number(raw);
+                if (!isFinite(n)) return;
+                setDampening(n > 0 ? -n : n);
+              }}
+              placeholder="0"
+              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
+              max={0}
+            />
+            <span className="text-slate-400 text-xs shrink-0">dB</span>
+          </div>
         </div>
 
         {/* Action buttons */}
