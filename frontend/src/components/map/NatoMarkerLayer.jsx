@@ -2,8 +2,9 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import { useTacticalStore, getAllVisibleMarkers } from '../../stores/useTacticalStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
-import { generateSymbolSvg, getAffiliation } from '../../lib/milsymbol-utils.js';
+import { generateSymbolSvg, getAffiliation, getEchelonCode, setEchelonCode } from '../../lib/milsymbol-utils.js';
 import { getSymbolName } from '../../lib/symbol-lookup.js';
+import { ECHELONS } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
@@ -15,6 +16,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const clickTimerRef = useRef(null);
   const [infoPopup, setInfoPopup] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [echelonMenu, setEchelonMenu] = useState(null);
 
   const visibleMarkers = getAllVisibleMarkers(state);
 
@@ -22,7 +24,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   useEffect(() => {
     if (!selectedId) return;
     const onKey = (e) => {
-      if (e.key === 'Escape') { setSelectedId(null); }
+      if (e.key === 'Escape') { setSelectedId(null); setEchelonMenu(null); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
         e.preventDefault();
         const m = visibleMarkers.find(mk => mk.id === selectedId) || localMarkers.find(mk => mk.id === selectedId);
@@ -44,10 +46,20 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   useEffect(() => {
     const map = useMapStore.getState().mapRef;
     if (!map || !selectedId) return;
-    const handler = () => setSelectedId(null);
+    const handler = () => { setSelectedId(null); setEchelonMenu(null); };
     map.on('click', handler);
     return () => map.off('click', handler);
   }, [selectedId]);
+
+  // Close echelon menu on outside click
+  useEffect(() => {
+    if (!echelonMenu) return;
+    const handler = (e) => {
+      if (!e.target.closest('.echelon-menu')) setEchelonMenu(null);
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [echelonMenu]);
 
   const onDragStart = useCallback((markerId) => {
     dragRef.current = markerId;
@@ -80,6 +92,21 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
     }
   }, [lang]);
 
+  const onChangeEchelon = useCallback((marker, echelonCode) => {
+    const newSidc = setEchelonCode(marker.sidc, echelonCode);
+    if (newSidc === marker.sidc) return;
+    const projectId = marker._projectId || marker.projectId;
+    if (marker._local) {
+      if (setLocalMarkers) {
+        setLocalMarkers((prev) => prev.map((m) => m.id === marker.id ? { ...m, sidc: newSidc } : m));
+      }
+    } else {
+      useTacticalStore.getState().updateMarker(projectId, { ...marker, sidc: newSidc });
+      socket.emit('client:marker:update', { projectId, id: marker.id, sidc: newSidc });
+    }
+    setEchelonMenu(null);
+  }, [setLocalMarkers]);
+
   // Local marker handlers
   const onLocalDragEnd = useCallback((evt, marker) => {
     if (!setLocalMarkers) return;
@@ -110,9 +137,8 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const onContextMenu = useCallback((e, marker) => {
     e.preventDefault();
     e.stopPropagation();
-    setInfoPopup({
-      projectId: marker._projectId || marker.projectId,
-      layerId: marker.layerId,
+    setEchelonMenu({
+      marker,
       x: e.clientX,
       y: e.clientY,
     });
@@ -124,6 +150,8 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
     neutral: { en: 'Neutral', no: 'Nøytral' },
     unknown: { en: 'Unknown', no: 'Ukjent' },
   };
+
+  const currentEchelon = echelonMenu ? getEchelonCode(echelonMenu.marker.sidc) : null;
 
   return (
     <>
@@ -247,6 +275,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
                 setSelectedId(marker.id);
                 onLocalRenameLabel(marker);
               }}
+              onContextMenu={(e) => onContextMenu(e, marker)}
             >
               {/* Selection highlight ring */}
               {isSelected && (
@@ -276,6 +305,49 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
           </Marker>
         );
       })}
+      {/* Echelon context menu */}
+      {echelonMenu && (
+        <div
+          className="echelon-menu fixed z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-2"
+          style={{ left: echelonMenu.x, top: echelonMenu.y }}
+        >
+          <div className="text-[10px] text-slate-400 px-1 mb-1.5 font-semibold uppercase tracking-wide">
+            {lang === 'no' ? 'Enhetsstørrelse' : 'Echelon'}
+          </div>
+          <div className="flex gap-1 flex-wrap max-w-[240px]">
+            {ECHELONS.map((ech) => (
+              <button
+                key={ech.code}
+                onClick={() => onChangeEchelon(echelonMenu.marker, ech.code)}
+                className={`px-2 py-1 text-xs rounded transition-colors font-mono ${
+                  currentEchelon === ech.code
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+                title={ech.name[lang] || ech.name.en}
+              >
+                {ech.symbol}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 mt-2 border-t border-slate-700 pt-2">
+            <button
+              onClick={() => {
+                setInfoPopup({
+                  projectId: echelonMenu.marker._projectId || echelonMenu.marker.projectId,
+                  layerId: echelonMenu.marker.layerId,
+                  x: echelonMenu.x,
+                  y: echelonMenu.y,
+                });
+                setEchelonMenu(null);
+              }}
+              className="text-[10px] text-slate-400 hover:text-slate-200 px-1"
+            >
+              {lang === 'no' ? 'Laginfo...' : 'Layer info...'}
+            </button>
+          </div>
+        </div>
+      )}
       {infoPopup && (
         <ItemInfoPopup
           projectId={infoPopup.projectId}

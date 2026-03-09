@@ -14,17 +14,41 @@ for (const catKey of Object.keys(SYMBOL_CATEGORIES)) {
 
 /**
  * Look up the display name for a SIDC code.
- * Falls back to the raw SIDC if not found in the symbol catalog.
+ * Falls back to echelon-agnostic matching (wildcard at position 11),
+ * then to the raw SIDC if not found in the symbol catalog.
  */
 export function getSymbolName(sidc, lang = 'no') {
   const entry = sidcMap.get(sidc);
   if (entry) return entry.name[lang] || entry.name.en;
+
+  // Echelon-agnostic fallback: try matching with wildcard at position 11
+  if (sidc && sidc.length >= 15) {
+    const base = sidc.substring(0, 11) + '*' + sidc.substring(12);
+    for (const [key, val] of sidcMap) {
+      const keyBase = key.substring(0, 11) + '*' + key.substring(12);
+      if (keyBase === base) return val.name[lang] || val.name.en;
+    }
+  }
+
   return sidc;
 }
 
 /**
  * Get full symbol info: { name, affiliation, category } or null.
+ * Falls back to echelon-agnostic matching.
  */
 export function getSymbolInfo(sidc) {
-  return sidcMap.get(sidc) || null;
+  const entry = sidcMap.get(sidc);
+  if (entry) return entry;
+
+  // Echelon-agnostic fallback
+  if (sidc && sidc.length >= 15) {
+    const base = sidc.substring(0, 11) + '*' + sidc.substring(12);
+    for (const [key, val] of sidcMap) {
+      const keyBase = key.substring(0, 11) + '*' + key.substring(12);
+      if (keyBase === base) return val;
+    }
+  }
+
+  return null;
 }

@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
-import { SYMBOL_CATEGORIES } from '../../lib/constants.js';
-import { generateSymbolSvg, getAffiliation } from '../../lib/milsymbol-utils.js';
+import { SYMBOL_CATEGORIES, ECHELONS } from '../../lib/constants.js';
+import { generateSymbolSvg, getAffiliation, setEchelonCode } from '../../lib/milsymbol-utils.js';
 import { t } from '../../lib/i18n.js';
 
 const affiliationLabels = {
@@ -35,6 +35,8 @@ function fuzzyScore(query, target) {
   return 2;
 }
 
+const ECHELON_CATALOG = 'catalog';
+
 export default function SymbolPicker() {
   const lang = useMapStore((s) => s.lang);
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
@@ -49,6 +51,7 @@ export default function SymbolPicker() {
   const [designation, setDesignation] = useState('');
   const [selectedLayer, setSelectedLayer] = useState(activeLayerId || '');
   const [search, setSearch] = useState('');
+  const [echelonOverride, setEchelonOverride] = useState(ECHELON_CATALOG);
 
   // Sync layer dropdown when activeLayerId changes in the drawer
   useEffect(() => {
@@ -93,15 +96,31 @@ export default function SymbolPicker() {
     return all;
   }, [search, category, tab, lang]);
 
+  // Apply echelon override to SIDC
+  const getEffectiveSidc = (sidc) => {
+    if (echelonOverride === ECHELON_CATALOG) return sidc;
+    return setEchelonCode(sidc, echelonOverride);
+  };
+
   const handleSelect = (sidc) => {
+    const effectiveSidc = getEffectiveSidc(sidc);
     setPlacementMode({
-      sidc,
+      sidc: effectiveSidc,
       designation,
       layerId: selectedLayer || null,
     });
   };
 
   const isSearching = search.trim().length > 0;
+
+  // Echelon dropdown options
+  const echelonOptions = [
+    { value: ECHELON_CATALOG, label: lang === 'no' ? 'Som i katalog' : 'As in catalog' },
+    ...ECHELONS.map((e) => ({
+      value: e.code,
+      label: `${e.symbol} ${e.name[lang] || e.name.en}`,
+    })),
+  ];
 
   return (
     <div className="flex flex-col h-full p-3">
@@ -150,6 +169,19 @@ export default function SymbolPicker() {
         className="bg-slate-700 text-sm px-2 py-1.5 rounded border border-slate-600 focus:border-emerald-500 focus:outline-none mb-2"
       />
 
+      {/* Echelon override dropdown */}
+      <select
+        value={echelonOverride}
+        onChange={(e) => setEchelonOverride(e.target.value)}
+        className="bg-slate-700 text-sm px-2 py-1.5 rounded border border-slate-600 focus:border-amber-500 focus:outline-none mb-2"
+      >
+        {echelonOptions.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
       {/* Layer selector */}
       <select
         value={selectedLayer}
@@ -188,13 +220,14 @@ export default function SymbolPicker() {
         )}
         <div className="grid grid-cols-2 gap-2">
           {symbols.map((sym) => {
-            const rendered = generateSymbolSvg(sym.sidc, { size: 30 });
+            const displaySidc = getEffectiveSidc(sym.sidc);
+            const rendered = generateSymbolSvg(displaySidc, { size: 30 });
             return (
               <button
                 key={sym.sidc + (sym._affiliation || '')}
                 onClick={() => handleSelect(sym.sidc)}
                 className="flex flex-col items-center gap-1 bg-slate-700/50 hover:bg-slate-600 rounded p-2 transition-colors"
-                title={`${sym.name[lang] || sym.name.en} (${affiliationLabels[sym._affiliation || getAffiliation(sym.sidc)]?.[lang] || ''}) — ${sym.sidc}`}
+                title={`${sym.name[lang] || sym.name.en} (${affiliationLabels[sym._affiliation || getAffiliation(sym.sidc)]?.[lang] || ''}) — ${displaySidc}`}
               >
                 <div dangerouslySetInnerHTML={{ __html: rendered.svg }} />
                 <span className="text-[10px] text-slate-300 text-center leading-tight">

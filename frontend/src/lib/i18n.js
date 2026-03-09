@@ -79,6 +79,8 @@ const translations = {
     'symbols.designation': 'Betegnelse',
     'symbols.cancel': 'Avbryt',
     'symbols.category': 'Kategori',
+    'symbols.echelon': 'Enhetsstørrelse',
+    'symbols.echelonCatalog': 'Som i katalog',
 
     // Drawing
     'draw.line': 'Linje',
@@ -636,6 +638,8 @@ const translations = {
     'symbols.designation': 'Designation',
     'symbols.cancel': 'Cancel',
     'symbols.category': 'Category',
+    'symbols.echelon': 'Echelon',
+    'symbols.echelonCatalog': 'As in catalog',
 
     'draw.line': 'Line',
     'draw.polygon': 'Polygon',

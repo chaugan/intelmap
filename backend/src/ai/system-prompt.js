@@ -88,139 +88,188 @@ Common Overpass QL patterns:
 ## SIDC Reference Table (MIL-STD-2525C, 15 characters)
 The SIDC format: S[affiliation]G[category][function code][echelon]---
 Affiliations: F=Friendly, H=Hostile, N=Neutral
+Echelon codes (position 12): A=Team, B=Squad, D=Platoon, E=Company/Battery, F=Battalion, G=Regiment, H=Brigade, I=Division, J=Corps, -=Unknown
 
 ### Infantry
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCI----B--- | Friendly | Infantry Squad |
 | SFGPUCI----D--- | Friendly | Infantry Platoon |
-| SFGPUCI----G--- | Friendly | Infantry Company |
-| SFGPUCI----H--- | Friendly | Infantry Battalion |
-| SFGPUCI----I--- | Friendly | Infantry Regiment |
-| SFGPUCIZ---G--- | Friendly | Mech. Infantry Company |
-| SFGPUCIZ---H--- | Friendly | Mech. Infantry Battalion |
-| SFGPUCIM---G--- | Friendly | Motorized Infantry Company |
-| SFGPUCIM---H--- | Friendly | Motorized Infantry Battalion |
+| SFGPUCI----E--- | Friendly | Infantry Company |
+| SFGPUCI----F--- | Friendly | Infantry Battalion |
+| SFGPUCI----G--- | Friendly | Infantry Regiment |
+| SFGPUCIZ---E--- | Friendly | Mech. Infantry Company |
+| SFGPUCIZ---F--- | Friendly | Mech. Infantry Battalion |
+| SFGPUCIM---E--- | Friendly | Motorized Infantry Company |
+| SFGPUCIM---F--- | Friendly | Motorized Infantry Battalion |
 | SHGPUCI----B--- | Hostile | Infantry Squad |
 | SHGPUCI----D--- | Hostile | Infantry Platoon |
-| SHGPUCI----G--- | Hostile | Infantry Company |
-| SHGPUCI----H--- | Hostile | Infantry Battalion |
-| SHGPUCI----I--- | Hostile | Infantry Regiment |
-| SHGPUCIZ---G--- | Hostile | Mech. Infantry Company |
-| SHGPUCIZ---H--- | Hostile | Mech. Infantry Battalion |
-| SHGPUCIM---G--- | Hostile | Motorized Infantry Company |
-| SHGPUCIM---H--- | Hostile | Motorized Infantry Battalion |
-| SNGPUCI----G--- | Neutral | Infantry Company |
-| SNGPUCI----H--- | Neutral | Infantry Battalion |
+| SHGPUCI----E--- | Hostile | Infantry Company |
+| SHGPUCI----F--- | Hostile | Infantry Battalion |
+| SHGPUCI----G--- | Hostile | Infantry Regiment |
+| SHGPUCIZ---E--- | Hostile | Mech. Infantry Company |
+| SHGPUCIZ---F--- | Hostile | Mech. Infantry Battalion |
+| SHGPUCIM---E--- | Hostile | Motorized Infantry Company |
+| SHGPUCIM---F--- | Hostile | Motorized Infantry Battalion |
+| SNGPUCI----E--- | Neutral | Infantry Company |
+| SNGPUCI----F--- | Neutral | Infantry Battalion |
 
 ### Armor
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCA----D--- | Friendly | Armor Platoon |
-| SFGPUCA----G--- | Friendly | Armor Company |
-| SFGPUCA----H--- | Friendly | Armor Battalion |
-| SFGPUCA----I--- | Friendly | Armor Regiment |
+| SFGPUCA----E--- | Friendly | Armor Company |
+| SFGPUCA----F--- | Friendly | Armor Battalion |
+| SFGPUCA----G--- | Friendly | Armor Regiment |
 | SHGPUCA----D--- | Hostile | Armor Platoon |
-| SHGPUCA----G--- | Hostile | Armor Company |
-| SHGPUCA----H--- | Hostile | Armor Battalion |
-| SHGPUCA----I--- | Hostile | Armor Regiment |
+| SHGPUCA----E--- | Hostile | Armor Company |
+| SHGPUCA----F--- | Hostile | Armor Battalion |
+| SHGPUCA----G--- | Hostile | Armor Regiment |
 
 ### Artillery
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
-| SFGPUCF----G--- | Friendly | Artillery Battery |
-| SFGPUCF----H--- | Friendly | Artillery Battalion |
-| SFGPUCFR---G--- | Friendly | Rocket Artillery Battery |
-| SFGPUCFM---G--- | Friendly | Mortar Battery |
+| SFGPUCF----E--- | Friendly | Artillery Battery |
+| SFGPUCF----F--- | Friendly | Artillery Battalion |
+| SFGPUCFR---E--- | Friendly | Rocket Artillery Battery |
+| SFGPUCFM---E--- | Friendly | Mortar Battery |
 | SFGPUCFM---D--- | Friendly | Mortar Platoon |
-| SFGPUCFS---G--- | Friendly | SP Artillery Battery |
-| SHGPUCF----G--- | Hostile | Artillery Battery |
-| SHGPUCF----H--- | Hostile | Artillery Battalion |
-| SHGPUCFR---G--- | Hostile | Rocket Artillery Battery |
+| SFGPUCFS---E--- | Friendly | SP Artillery Battery |
+| SHGPUCF----E--- | Hostile | Artillery Battery |
+| SHGPUCF----F--- | Hostile | Artillery Battalion |
+| SHGPUCFR---E--- | Hostile | Rocket Artillery Battery |
 
 ### Air Defense
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCAA---D--- | Friendly | AD Platoon |
-| SFGPUCAA---G--- | Friendly | AD Battery |
-| SFGPUCAA---H--- | Friendly | AD Battalion |
-| SFGPUCAAM--G--- | Friendly | AD Missile Battery |
-| SHGPUCAA---G--- | Hostile | AD Battery |
-| SHGPUCAA---H--- | Hostile | AD Battalion |
+| SFGPUCAA---E--- | Friendly | AD Battery |
+| SFGPUCAA---F--- | Friendly | AD Battalion |
+| SFGPUCAAM--E--- | Friendly | AD Missile Battery |
+| SHGPUCAA---E--- | Hostile | AD Battery |
+| SHGPUCAA---F--- | Hostile | AD Battalion |
 
 ### Aviation
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
-| SFGPUCV----G--- | Friendly | Aviation Company |
-| SFGPUCV----H--- | Friendly | Aviation Battalion |
-| SFGPUCVA---G--- | Friendly | Attack Aviation Company |
-| SFGPUCVR---G--- | Friendly | Recon Aviation Company |
-| SHGPUCV----G--- | Hostile | Aviation Company |
-| SHGPUCVA---G--- | Hostile | Attack Aviation Company |
+| SFGPUCV----E--- | Friendly | Aviation Company |
+| SFGPUCV----F--- | Friendly | Aviation Battalion |
+| SFGPUCVA---E--- | Friendly | Attack Aviation Company |
+| SFGPUCVR---E--- | Friendly | Recon Aviation Company |
+| SHGPUCV----E--- | Hostile | Aviation Company |
+| SHGPUCVA---E--- | Hostile | Attack Aviation Company |
 
 ### Engineer
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCE----D--- | Friendly | Engineer Platoon |
-| SFGPUCE----G--- | Friendly | Engineer Company |
-| SFGPUCE----H--- | Friendly | Engineer Battalion |
-| SHGPUCE----G--- | Hostile | Engineer Company |
-| SHGPUCE----H--- | Hostile | Engineer Battalion |
+| SFGPUCE----E--- | Friendly | Engineer Company |
+| SFGPUCE----F--- | Friendly | Engineer Battalion |
+| SFGPUCEB---E--- | Friendly | Bridge Company |
+| SHGPUCE----E--- | Hostile | Engineer Company |
+| SHGPUCE----F--- | Hostile | Engineer Battalion |
 
 ### Reconnaissance
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCRR---D--- | Friendly | Recon Platoon |
-| SFGPUCRR---G--- | Friendly | Recon Company |
-| SFGPUCRR---H--- | Friendly | Recon Battalion |
+| SFGPUCRR---E--- | Friendly | Recon Company |
+| SFGPUCRR---F--- | Friendly | Recon Battalion |
 | SHGPUCRR---D--- | Hostile | Recon Platoon |
-| SHGPUCRR---G--- | Hostile | Recon Company |
-| SHGPUCRR---H--- | Hostile | Recon Battalion |
+| SHGPUCRR---E--- | Hostile | Recon Company |
+| SHGPUCRR---F--- | Hostile | Recon Battalion |
 
 ### Logistics & Supply
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
-| SFGPUSS----G--- | Friendly | Supply Company |
-| SFGPUSS----H--- | Friendly | Supply Battalion |
-| SFGPUST----G--- | Friendly | Transport Company |
-| SFGPUSM----G--- | Friendly | Maintenance Company |
-| SHGPUSS----G--- | Hostile | Supply Company |
+| SFGPUSS----E--- | Friendly | Supply Company |
+| SFGPUSS----F--- | Friendly | Supply Battalion |
+| SFGPUST----E--- | Friendly | Transport Company |
+| SFGPUSM----E--- | Friendly | Maintenance Company |
+| SFGPUSSA---E--- | Friendly | Ammunition Supply Company |
+| SFGPUSSF---E--- | Friendly | Fuel Supply Company |
+| SHGPUSS----E--- | Hostile | Supply Company |
 
 ### Medical
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUSM----D--- | Friendly | Medical Platoon |
-| SFGPUSM----G--- | Friendly | Medical Company |
-| SFGPUSM----H--- | Friendly | Medical Battalion |
-| SHGPUSM----G--- | Hostile | Medical Company |
+| SFGPUSM----E--- | Friendly | Medical Company |
+| SFGPUSM----F--- | Friendly | Medical Battalion |
+| SHGPUSM----E--- | Hostile | Medical Company |
 
 ### HQ / Command
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
-| SFGPUH-----E--- | Friendly | HQ Battalion |
-| SFGPUH-----F--- | Friendly | HQ Brigade |
-| SFGPUH-----G--- | Friendly | HQ Division |
-| SFGPUH-----H--- | Friendly | HQ Corps |
-| SHGPUH-----E--- | Hostile | HQ Battalion |
-| SHGPUH-----F--- | Hostile | HQ Brigade |
-| SHGPUH-----G--- | Hostile | HQ Division |
+| SFGPUH-----F--- | Friendly | HQ Battalion |
+| SFGPUH-----H--- | Friendly | HQ Brigade |
+| SFGPUH-----I--- | Friendly | HQ Division |
+| SFGPUH-----J--- | Friendly | HQ Corps |
+| SHGPUH-----F--- | Hostile | HQ Battalion |
+| SHGPUH-----H--- | Hostile | HQ Brigade |
+| SHGPUH-----I--- | Hostile | HQ Division |
 
 ### Signal / Communications
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUUS----D--- | Friendly | Signal Platoon |
-| SFGPUUS----G--- | Friendly | Signal Company |
-| SFGPUUS----H--- | Friendly | Signal Battalion |
-| SHGPUUS----G--- | Hostile | Signal Company |
+| SFGPUUS----E--- | Friendly | Signal Company |
+| SFGPUUS----F--- | Friendly | Signal Battalion |
+| SHGPUUS----E--- | Hostile | Signal Company |
 
 ### Special Forces
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCSM---B--- | Friendly | SF Team |
 | SFGPUCSM---D--- | Friendly | SF Platoon |
-| SFGPUCSM---G--- | Friendly | SF Company |
+| SFGPUCSM---E--- | Friendly | SF Company |
 | SHGPUCSM---B--- | Hostile | SF Team |
-| SHGPUCSM---G--- | Hostile | SF Company |
+| SHGPUCSM---E--- | Hostile | SF Company |
+
+### Military Police
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFGPUCMP---D--- | Friendly | MP Platoon |
+| SFGPUCMP---E--- | Friendly | MP Company |
+| SHGPUCMP---E--- | Hostile | MP Company |
+
+### Electronic Warfare
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFGPUEW----D--- | Friendly | EW Platoon |
+| SFGPUEW----E--- | Friendly | EW Company |
+| SHGPUEW----E--- | Hostile | EW Company |
+
+### Anti-Armor
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFGPUCIA---D--- | Friendly | Anti-Armor Platoon |
+| SFGPUCIA---E--- | Friendly | Anti-Armor Company |
+| SHGPUCIA---E--- | Hostile | Anti-Armor Company |
+
+### Air Units
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFAPMF-----E--- | Friendly | Fighter Squadron |
+| SFAPMFB----E--- | Friendly | Bomber Squadron |
+| SFAPMFT----E--- | Friendly | Transport Squadron |
+| SFAPMU-----E--- | Friendly | UAV Unit |
+| SHAPMF-----E--- | Hostile | Fighter Squadron |
+| SHAPMU-----E--- | Hostile | UAV Unit |
+
+### Radar / Sensor
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFGPUSR----D--- | Friendly | Radar Platoon |
+| SFGPUSR----E--- | Friendly | Radar Company |
+| SHGPUSR----E--- | Hostile | Radar Company |
+
+### Observation
+| SIDC | Affiliation | Description |
+|------|------------|-------------|
+| SFGPUUO----A--- | Friendly | Observation Post |
+| SFGPUCFO---A--- | Friendly | Forward Observer |
+| SHGPUUO----A--- | Hostile | Observation Post |
 
 ### Obstacles
 | SIDC | Affiliation | Description |
@@ -249,8 +298,8 @@ Affiliations: F=Friendly, H=Hostile, N=Neutral
 | SIDC | Affiliation | Description |
 |------|------------|-------------|
 | SFGPUCR----D--- | Friendly | CBRN Platoon |
-| SFGPUCR----G--- | Friendly | CBRN Company |
-| SHGPUCR----G--- | Hostile | CBRN Company |
+| SFGPUCR----E--- | Friendly | CBRN Company |
+| SHGPUCR----E--- | Hostile | CBRN Company |
 
 ## CRITICAL: Routes and Movement
 - For ANY route that follows roads (supply lines, vehicle movement, logistics, MSR/ASR): ALWAYS use the \`get_road_route\` tool. NEVER manually draw road routes with draw_line.

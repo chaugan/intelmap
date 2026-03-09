@@ -36,3 +36,12 @@ export function getAffiliation(sidc) {
     default: return 'unknown';
   }
 }
+
+export function getEchelonCode(sidc) {
+  return sidc?.length >= 12 ? sidc[11] : '-';
+}
+
+export function setEchelonCode(sidc, code) {
+  if (!sidc || sidc.length < 15) return sidc;
+  return sidc.substring(0, 11) + code + sidc.substring(12);
+}
