@@ -64,6 +64,7 @@ const translations = {
     'layers.create': 'Opprett',
     'layers.noLayers': 'Ingen lag ennå',
     'layers.delete': 'Slett',
+    'layers.confirmDelete': 'Slett laget "{name}"? Alle markører og tegninger i dette laget vil også bli slettet.',
     'layers.aiTag': 'AI',
 
     // Symbol picker
@@ -617,6 +618,7 @@ const translations = {
     'layers.create': 'Create',
     'layers.noLayers': 'No layers yet',
     'layers.delete': 'Delete',
+    'layers.confirmDelete': 'Delete layer "{name}"? All markers and drawings in this layer will also be deleted.',
     'layers.aiTag': 'AI',
 
     'symbols.title': 'NATO Symbols',

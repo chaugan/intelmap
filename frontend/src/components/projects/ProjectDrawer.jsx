@@ -475,7 +475,22 @@ export default function ProjectDrawer() {
                             {isActiveLayer && '\u25B8 '}{layer.name}
                           </span>
                         )}
-                        <span className="text-slate-500">{mCount}m {dCount}d</span>
+                        <span className="text-slate-500 mr-0.5">{mCount}m {dCount}d</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const msg = t('layers.confirmDelete', lang).replace('{name}', layer.name);
+                            if (!confirm(msg)) return;
+                            socket.emit('client:layer:delete', { projectId: p.id, id: layer.id });
+                            if (activeLayerId === layer.id) setActiveLayer(null);
+                          }}
+                          className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                          title={t('layers.delete', lang)}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     );
                   })}

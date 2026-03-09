@@ -40,8 +40,10 @@ export default function LayerManager() {
     setRenamingId(null);
   };
 
-  const deleteLayer = (id) => {
+  const deleteLayer = (id, name) => {
     if (!activeProjectId) return;
+    const msg = t('layers.confirmDelete', lang).replace('{name}', name || '');
+    if (!confirm(msg)) return;
     socket.emit('client:layer:delete', { projectId: activeProjectId, id });
   };
 
@@ -135,7 +137,7 @@ export default function LayerManager() {
                 </span>
               </div>
               <button
-                onClick={() => deleteLayer(layer.id)}
+                onClick={() => deleteLayer(layer.id, layer.name)}
                 className="text-red-400 hover:text-red-300 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
                 title={t('layers.delete', lang)}
               >
