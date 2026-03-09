@@ -459,24 +459,41 @@ export const useAuthStore = create((set, get) => ({
     });
   },
 
+  prepareSignalLinkShare: (linkUrl, linkLabel) => {
+    set({
+      signalUploadOpen: true,
+      signalUploadData: {
+        image: null,
+        coordinates: null,
+        filename: null,
+        preview: null,
+        linkUrl,
+        linkLabel,
+      },
+    });
+  },
+
   uploadToSignal: async (groupId, caption) => {
     const { signalUploadData } = get();
-    if (!signalUploadData?.image) {
-      throw new Error('No image to upload');
+    if (!signalUploadData?.image && !signalUploadData?.linkUrl) {
+      throw new Error('No content to send');
     }
 
     set({ signalUploading: true });
     try {
+      const body = {
+        groupId,
+        caption: caption || '',
+      };
+      if (signalUploadData.image) {
+        body.image = signalUploadData.image;
+        body.filename = signalUploadData.filename;
+      }
       const res = await fetch(`${SIGNAL_API}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          groupId,
-          image: signalUploadData.image,
-          caption: caption || '',
-          filename: signalUploadData.filename,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {

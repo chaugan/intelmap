@@ -319,6 +319,11 @@ const translations = {
     'share.projectQr': 'Prosjekt QR-kode',
     'share.qrLinkTo': 'Generert lenke til prosjektet:',
     'share.securityWarning': 'Mottakere kan se informasjon de normalt ikke har tilgang til!',
+    'share.layerOnly': 'Deler kun lag',
+    'share.shareLink': 'Del lenke',
+    'share.signalLink': 'Del lenke via Signal',
+    'signal.linkSent': 'Lenken er sendt til Signal-gruppen',
+    'signal.sendLink': 'Send lenke',
 
     // Timelapse
     'timelapse.title': 'Tidslapse',
@@ -857,6 +862,11 @@ const translations = {
     'share.projectQr': 'Project QR Code',
     'share.qrLinkTo': 'Generated link to the project:',
     'share.securityWarning': 'Recipients may see information they are not authorized to view!',
+    'share.layerOnly': 'Sharing layer only',
+    'share.shareLink': 'Share link',
+    'share.signalLink': 'Share link via Signal',
+    'signal.linkSent': 'Link sent to Signal group',
+    'signal.sendLink': 'Send link',
 
     // Timelapse
     'timelapse.title': 'Timelapse',

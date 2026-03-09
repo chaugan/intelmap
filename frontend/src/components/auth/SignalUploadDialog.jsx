@@ -22,9 +22,11 @@ export default function SignalUploadDialog() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  const isLinkMode = signalUploadData?.linkUrl && !signalUploadData?.image;
+
   useEffect(() => {
     if (signalUploadOpen) {
-      setDescription('');
+      setDescription(signalUploadData?.linkUrl || '');
       setError('');
       setSuccess(false);
       setSelectedGroup('');
@@ -87,13 +89,18 @@ export default function SignalUploadDialog() {
     }
     setError('');
     try {
-      // Apply security marking to image before sending
-      const markedImage = await applySecurityMarking(signalUploadData.image);
-      // Temporarily swap image data with marked version
-      const origImage = signalUploadData.image;
-      signalUploadData.image = markedImage;
-      await uploadToSignal(selectedGroup, description);
-      signalUploadData.image = origImage;
+      if (isLinkMode) {
+        // Link-only mode: send link text as caption
+        await uploadToSignal(selectedGroup, description);
+      } else {
+        // Apply security marking to image before sending
+        const markedImage = await applySecurityMarking(signalUploadData.image);
+        // Temporarily swap image data with marked version
+        const origImage = signalUploadData.image;
+        signalUploadData.image = markedImage;
+        await uploadToSignal(selectedGroup, description);
+        signalUploadData.image = origImage;
+      }
       setSuccess(true);
     } catch (err) {
       setError(err.message || t('signal.uploadFailed', lang));
@@ -123,7 +130,10 @@ export default function SignalUploadDialog() {
               {t('signal.uploadSuccess', lang)}
             </h2>
             <p className="text-sm text-slate-400 mb-4">
-              {lang === 'no' ? 'Bildet er sendt til Signal-gruppen' : 'Image sent to Signal group'}
+              {isLinkMode
+                ? (lang === 'no' ? 'Lenken er sendt til Signal-gruppen' : 'Link sent to Signal group')
+                : (lang === 'no' ? 'Bildet er sendt til Signal-gruppen' : 'Image sent to Signal group')
+              }
             </p>
             <button
               onClick={handleClose}
@@ -135,7 +145,9 @@ export default function SignalUploadDialog() {
         ) : (
           <>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">{t('signal.transfer', lang)}</h2>
+              <h2 className="text-lg font-bold">
+                {isLinkMode ? (lang === 'no' ? 'Del lenke via Signal' : 'Share link via Signal') : t('signal.transfer', lang)}
+              </h2>
               <button onClick={handleClose} className="text-slate-400 hover:text-white">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -144,7 +156,15 @@ export default function SignalUploadDialog() {
             </div>
 
             {/* Preview */}
-            {signalUploadData?.preview && (
+            {isLinkMode ? (
+              <div className="mb-4 p-3 bg-slate-900 rounded border border-slate-600">
+                <div className="text-xs text-slate-500 mb-1">{lang === 'no' ? 'Lenke' : 'Link'}</div>
+                <div className="text-sm text-blue-400 break-all font-mono">{signalUploadData.linkUrl}</div>
+                {signalUploadData.linkLabel && (
+                  <div className="text-xs text-slate-400 mt-1">{signalUploadData.linkLabel}</div>
+                )}
+              </div>
+            ) : signalUploadData?.preview ? (
               <div className="mb-4">
                 <img
                   src={signalUploadData.preview}
@@ -152,7 +172,7 @@ export default function SignalUploadDialog() {
                   className="w-full max-h-48 object-contain rounded border border-slate-600 bg-slate-900"
                 />
               </div>
-            )}
+            ) : null}
 
             {/* Security marking indicator */}
             {user?.exportMarking && user.exportMarking !== 'none' && (
@@ -231,7 +251,7 @@ export default function SignalUploadDialog() {
                   className="flex-1 px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded text-sm transition-colors disabled:opacity-50"
                   disabled={signalUploading || !selectedGroup || groups.length === 0}
                 >
-                  {signalUploading ? t('signal.uploading', lang) : t('signal.send', lang)}
+                  {signalUploading ? t('signal.uploading', lang) : isLinkMode ? (lang === 'no' ? 'Send lenke' : 'Send link') : t('signal.send', lang)}
                 </button>
               </div>
             </form>

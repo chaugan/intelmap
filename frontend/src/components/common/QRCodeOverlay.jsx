@@ -18,12 +18,13 @@ const BOTTOM_HEIGHT = 48; // space for logo + text below QR
 const CANVAS_WIDTH = QR_SIZE + 8; // QR margin (4px each side)
 const CANVAS_HEIGHT = QR_SIZE + 8 + BOTTOM_HEIGHT;
 
-export default function QRCodeOverlay({ resourceType = 'theme', resourceId, resourceName, onClose }) {
+export default function QRCodeOverlay({ resourceType = 'theme', resourceId, resourceName, layerId, layerName, onClose }) {
   const lang = useMapStore((s) => s.lang);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
   const signalLinked = useAuthStore((s) => s.signalLinked);
   const prepareSignalUpload = useAuthStore((s) => s.prepareSignalUpload);
+  const prepareSignalLinkShare = useAuthStore((s) => s.prepareSignalLinkShare);
   const user = useAuthStore((s) => s.user);
   const displayCanvasRef = useRef(null);
   const qrCanvasRef = useRef(null);
@@ -38,10 +39,12 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
   // Build URL based on access mode
   const currentUrl = resourceType === 'theme'
     ? `${window.location.origin}/?theme=${resourceId}`
-    : `${window.location.origin}/?project=${resourceId}`;
+    : layerId
+      ? `${window.location.origin}/?project=${resourceId}&layer=${layerId}`
+      : `${window.location.origin}/?project=${resourceId}`;
 
   const activeUrl = accessMode === 'directLink' && shareToken
-    ? `${window.location.origin}/?share=${shareToken}`
+    ? `${window.location.origin}/?share=${shareToken}${layerId ? `&layer=${layerId}` : ''}`
     : currentUrl;
 
   // Load logo image once
@@ -161,6 +164,12 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
     onClose();
   };
 
+  const handleSignalLink = () => {
+    const label = `${resourceName}${layerName ? ` \u2192 ${layerName}` : ''}`;
+    prepareSignalLinkShare(activeUrl, label);
+    onClose();
+  };
+
   const title = resourceType === 'theme'
     ? t('themes.qrTitle', lang)
     : t('share.projectQr', lang);
@@ -188,6 +197,9 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
         <p className="text-sm text-slate-400 mb-4">
           {resourceType === 'theme' ? t('themes.qrLinkTo', lang) : t('share.qrLinkTo', lang)}{' '}
           <span className="text-emerald-400 font-medium">{resourceName}</span>
+          {layerName && (
+            <span className="text-cyan-400"> &rarr; {layerName}</span>
+          )}
         </p>
 
         {/* Access mode selector */}
@@ -264,7 +276,19 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
         </div>
 
         {/* Export button */}
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2">
+          {user?.signalEnabled && signalLinked && (
+            <button
+              onClick={handleSignalLink}
+              className="px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded text-sm text-white transition-colors flex items-center gap-2"
+              title={lang === 'no' ? 'Del lenke via Signal' : 'Share link via Signal'}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+              Signal
+            </button>
+          )}
           <ExportMenu
             onSaveToDisk={handleSaveToDisk}
             onTransferToWasos={handleWasosTransfer}

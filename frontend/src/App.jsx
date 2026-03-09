@@ -220,7 +220,7 @@ function MapApp({ user }) {
 
   // Helper: open a project and fly to its saved view
   // projectData: optional { markers, drawings, layers, pins } for unauthenticated loading
-  const openProjectWithView = useCallback((projectId, savedView, projectData) => {
+  const openProjectWithView = useCallback((projectId, savedView, projectData, layerId) => {
     const tacticalState = useTacticalStore.getState();
     const { toggleProjectDrawer, projectDrawerOpen } = useMapStore.getState();
 
@@ -245,6 +245,21 @@ function MapApp({ user }) {
     }
 
     if (!projectDrawerOpen) toggleProjectDrawer();
+
+    // If a specific layer was shared, activate it and hide others
+    if (layerId && projectData) {
+      const hasLayer = projectData.layers?.some(l => l.id === layerId);
+      if (hasLayer) {
+        useTacticalStore.setState({ activeLayerId: layerId });
+        const newVisibility = {};
+        for (const l of projectData.layers || []) {
+          newVisibility[l.id] = l.id === layerId;
+        }
+        useTacticalStore.setState((s) => ({
+          layerVisibility: { ...s.layerVisibility, ...newVisibility },
+        }));
+      }
+    }
 
     if (savedView) {
       const applyView = () => {
@@ -316,7 +331,8 @@ function MapApp({ user }) {
           }
         } else if (data.valid && data.resourceType === 'project' && data.project) {
           const proj = data.project;
-          openProjectWithView(proj.id, proj.settings?.savedView, proj);
+          const layerParam = params.get('layer');
+          openProjectWithView(proj.id, proj.settings?.savedView, proj, layerParam);
         } else if (!data.valid) {
           setThemeError(data.error === 'expired' ? 'expired' : 'notFound');
         }
@@ -329,21 +345,24 @@ function MapApp({ user }) {
 
   // Handle project deep linking via URL parameter (requires auth)
   const pendingProjectIdRef = useRef(null);
+  const pendingLayerIdRef = useRef(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get('project');
     if (!projectId) return;
+    const layerParam = params.get('layer');
     window.history.replaceState({}, '', window.location.pathname);
     // If logged in, open immediately; otherwise store for later
     if (user) {
       fetch(`/api/projects/${projectId}`, { credentials: 'include' })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
-          if (data) openProjectWithView(data.id, data.settings?.savedView, data);
+          if (data) openProjectWithView(data.id, data.settings?.savedView, data, layerParam);
         })
         .catch(() => {});
     } else {
       pendingProjectIdRef.current = projectId;
+      pendingLayerIdRef.current = layerParam;
     }
   }, []); // Run once on mount
 
@@ -351,11 +370,13 @@ function MapApp({ user }) {
   useEffect(() => {
     if (user && pendingProjectIdRef.current) {
       const projectId = pendingProjectIdRef.current;
+      const layerId = pendingLayerIdRef.current;
       pendingProjectIdRef.current = null;
+      pendingLayerIdRef.current = null;
       fetch(`/api/projects/${projectId}`, { credentials: 'include' })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
-          if (data) openProjectWithView(data.id, data.settings?.savedView, data);
+          if (data) openProjectWithView(data.id, data.settings?.savedView, data, layerId);
         })
         .catch(() => {});
     }

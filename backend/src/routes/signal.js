@@ -156,8 +156,11 @@ router.post('/send', async (req, res) => {
   if (!requireSignalEnabled(req, res)) return;
 
   const { groupId, image, caption, filename } = req.body;
-  if (!groupId || !image) {
-    return res.status(400).json({ error: 'groupId and image are required' });
+  if (!groupId) {
+    return res.status(400).json({ error: 'groupId is required' });
+  }
+  if (!image && !caption) {
+    return res.status(400).json({ error: 'image or caption is required' });
   }
 
   const db = getDb();
@@ -167,15 +170,17 @@ router.post('/send', async (req, res) => {
   }
 
   try {
-    // Strip data URI prefix if present
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-
     const payload = {
       number: user.signal_phone,
       recipients: [groupId],
       message: caption || '',
-      base64_attachments: [`data:image/png;filename=${filename || 'image.png'};base64,${base64Data}`],
     };
+
+    if (image) {
+      // Strip data URI prefix if present
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      payload.base64_attachments = [`data:image/png;filename=${filename || 'image.png'};base64,${base64Data}`];
+    }
 
     const response = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',

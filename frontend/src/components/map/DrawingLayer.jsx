@@ -351,6 +351,24 @@ export default function DrawingLayer() {
     }
   }, [drawingToolsVisible]);
 
+  // Keyboard shortcuts: Enter to finish, Escape to cancel
+  useEffect(() => {
+    if (!activeMode) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Enter' && activeModeRef.current && activeModeRef.current !== 'text' && drawPointsRef.current.length >= 2) {
+        e.preventDefault();
+        finishDrawing();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setActiveMode(null);
+        setDrawPoints([]);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeMode]);
+
   const tools = [
     { id: 'line', icon: '/', shortcut: 'L' },
     { id: 'polygon', icon: '\u2B21', shortcut: 'P' },
@@ -387,26 +405,26 @@ export default function DrawingLayer() {
           </button>
         ))}
 
-        {/* Finish drawing button */}
-        {activeMode && activeMode !== 'text' && drawPoints.length >= 2 && (
-          <button
-            onClick={finishDrawing}
-            className="w-10 h-10 flex items-center justify-center rounded bg-emerald-600 text-white text-sm font-bold shadow-lg hover:bg-emerald-500"
-            title="Finish (Enter)"
-          >
-            {'\u2713'}
-          </button>
-        )}
-
-        {/* Cancel */}
+        {/* Finish / Cancel buttons */}
         {activeMode && (
-          <button
-            onClick={() => { setActiveMode(null); setDrawPoints([]); }}
-            className="w-10 h-10 flex items-center justify-center rounded bg-red-800 text-white text-sm font-bold shadow-lg hover:bg-red-700"
-            title="Cancel (Esc)"
-          >
-            {'\u2715'}
-          </button>
+          <div className="flex flex-col gap-3 mt-2">
+            {activeMode !== 'text' && drawPoints.length >= 2 && (
+              <button
+                onClick={finishDrawing}
+                className="w-10 h-10 flex items-center justify-center rounded bg-emerald-600 text-white text-sm font-bold shadow-lg hover:bg-emerald-500"
+                title="Finish (Enter)"
+              >
+                {'\u2713'}
+              </button>
+            )}
+            <button
+              onClick={() => { setActiveMode(null); setDrawPoints([]); }}
+              className="w-10 h-10 flex items-center justify-center rounded bg-red-800 text-white text-sm font-bold shadow-lg hover:bg-red-700"
+              title="Cancel (Esc)"
+            >
+              {'\u2715'}
+            </button>
+          </div>
         )}
 
         {/* Separator */}

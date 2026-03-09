@@ -50,6 +50,7 @@ export default function ProjectDrawer() {
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
+  const [qrLayerId, setQrLayerId] = useState(null);
   const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
@@ -535,7 +536,12 @@ export default function ProjectDrawer() {
                       {/* QR Code */}
                       {p.role === 'admin' && (
                         <button
-                          onClick={() => setQrProject(p)}
+                          onClick={() => {
+                            const projData = projects[p.id];
+                            const layerBelongsToProject = activeLayerId && projData?.layers?.some(l => l.id === activeLayerId);
+                            setQrProject(p);
+                            setQrLayerId(layerBelongsToProject ? activeLayerId : null);
+                          }}
                           className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-700/50"
                           title={t('themes.generateQr', lang)}
                         >
@@ -704,7 +710,9 @@ export default function ProjectDrawer() {
           resourceType="project"
           resourceId={qrProject.id}
           resourceName={qrProject.name}
-          onClose={() => setQrProject(null)}
+          layerId={qrLayerId}
+          layerName={qrLayerId ? projects[qrProject.id]?.layers?.find(l => l.id === qrLayerId)?.name : null}
+          onClose={() => { setQrProject(null); setQrLayerId(null); }}
         />
       )}
     </div>
