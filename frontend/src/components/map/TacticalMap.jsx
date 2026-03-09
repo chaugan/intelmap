@@ -75,6 +75,7 @@ export default function TacticalMap() {
   const lang = useMapStore((s) => s.lang);
   const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
   const dragPreview = useMapStore((s) => s.dragPreview);
+  const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
   const setMapRef = useMapStore((s) => s.setMapRef);
   const setBounds = useMapStore((s) => s.setBounds);
   const setViewport = useMapStore((s) => s.setViewport);
@@ -964,8 +965,8 @@ export default function TacticalMap() {
           </div>
         </DraggablePopup>
       ))}
-      {/* Centered project/layer context banner — always visible when a project is active */}
-      {activeProjectId && !placementMode && (() => {
+      {/* Centered project/layer context banner — visible when a project-saving tool is active */}
+      {activeProjectId && !placementMode && (drawingToolsVisible || activePanel === 'symbols' || activePanel === 'layers') && (() => {
         const projName = myProjects.find(p => p.id === activeProjectId)?.name;
         const layerName = activeLayerId
           ? tacticalProjects[activeProjectId]?.layers?.find(l => l.id === activeLayerId)?.name
