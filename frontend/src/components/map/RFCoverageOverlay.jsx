@@ -24,7 +24,7 @@ const FILL_COLOR_EXPR = [
   ['get', 'color'],
 ];
 
-function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility, excludeId) {
+function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility) {
   const allFeatures = [];
   const observers = [];
   for (const pid of visibleProjectIds) {
@@ -36,7 +36,6 @@ function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, item
     for (const c of proj.rfCoverages) {
       if (c.layerId && !visLayerIds.has(c.layerId)) continue;
       if (itemVisibility[c.id] === false) continue;
-      if (c.id === excludeId) continue;
       if (c.geojson?.features) {
         for (const f of c.geojson.features) {
           allFeatures.push({ ...f, properties: { ...f.properties, id: c.id, projectId: pid } });
@@ -74,7 +73,7 @@ export default function RFCoverageOverlay() {
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
   const dataRef = useRef(null);
 
-  // Single effect: create/update/remove sources+layers whenever state changes
+  // Build and render saved overlay data
   useEffect(() => {
     if (!mapRef) return;
 
@@ -98,16 +97,14 @@ export default function RFCoverageOverlay() {
       return;
     }
 
-    const data = buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility, activeRFCoverageId);
+    const data = buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility);
     dataRef.current = data;
 
-    // Ensure sources exist, then update data
     const srcP = mapRef.getSource(SOURCE_SAVED);
     if (srcP) { srcP.setData(data.polygons); } else { addLayersIfMissing(data.polygons, data.observers); }
     const srcO = mapRef.getSource(SOURCE_SAVED_OBSERVERS);
     if (srcO) { srcO.setData(data.observers); }
 
-    // Re-add after base map style changes
     const onStyleData = () => {
       const d = dataRef.current;
       if (!d) return;
@@ -115,7 +112,17 @@ export default function RFCoverageOverlay() {
     };
     mapRef.on('styledata', onStyleData);
     return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
-  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility, activeRFCoverageId]);
+  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
+
+  // Filter out the actively-loaded coverage from the saved overlay (synchronous, no flicker)
+  useEffect(() => {
+    if (!mapRef) return;
+    const filter = activeRFCoverageId
+      ? ['!=', ['get', 'id'], activeRFCoverageId]
+      : null;
+    if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, filter);
+    if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, filter);
+  }, [mapRef, activeRFCoverageId]);
 
   return null;
 }

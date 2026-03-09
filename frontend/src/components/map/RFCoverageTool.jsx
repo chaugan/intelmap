@@ -192,6 +192,9 @@ export default function RFCoverageTool() {
       if (resSrc) resSrc.setData(EMPTY_FC);
       const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
       if (obsSrc) obsSrc.setData(EMPTY_FC);
+      // Clear saved overlay filter so all items show again
+      if (mapRef.getLayer('rf-coverage-saved-fill')) mapRef.setFilter('rf-coverage-saved-fill', null);
+      if (mapRef.getLayer('rf-coverage-saved-observers')) mapRef.setFilter('rf-coverage-saved-observers', null);
     }
   }, [mapRef]);
 
@@ -348,6 +351,17 @@ export default function RFCoverageTool() {
 
   // Load a saved coverage's settings into the form and show its result
   const loadSavedItem = useCallback((item) => {
+    // Skip if already loaded
+    if (useMapStore.getState().activeRFCoverageId === item.id) return;
+
+    // Hide this item from the saved overlay — filter is synchronous (no flicker)
+    useMapStore.setState({ activeRFCoverageId: item.id });
+    if (mapRef) {
+      const excludeFilter = ['!=', ['get', 'id'], item.id];
+      if (mapRef.getLayer('rf-coverage-saved-fill')) mapRef.setFilter('rf-coverage-saved-fill', excludeFilter);
+      if (mapRef.getLayer('rf-coverage-saved-observers')) mapRef.setFilter('rf-coverage-saved-observers', excludeFilter);
+    }
+
     setAntennaHeight(item.antennaHeight || 1.5);
     setTxPowerWatts(item.txPowerWatts || 5);
     setFrequencyMHz(item.frequencyMHz || '');
@@ -355,8 +369,6 @@ export default function RFCoverageTool() {
     setAntenna({ lng: item.longitude, lat: item.latitude });
     setError(null);
     setDimmedBuckets(new Set());
-    // Hide this item from the saved overlay to avoid double-rendering
-    useMapStore.setState({ activeRFCoverageId: item.id });
     if (item.geojson && item.stats) {
       setResultGeojson(item.geojson);
       setResult({ stats: item.stats, antennaElevation: item.antennaElevation, parameters: item.parameters });
