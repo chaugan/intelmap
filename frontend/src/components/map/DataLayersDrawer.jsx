@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMapStore, getThemeState } from '../../stores/useMapStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
+import { useTacticalStore } from '../../stores/useTacticalStore.js';
+import { useProjectStore } from '../../stores/useProjectStore.js';
 import { t } from '../../lib/i18n.js';
+import { socket } from '../../lib/socket.js';
+import { getSymbolName } from '../../lib/symbol-lookup.js';
+import { generateSymbolSvg } from '../../lib/milsymbol-utils.js';
 import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
 import { InfrastructureLegend } from './InfrastructureLayer.jsx';
 import { useInfrastructure } from '../../hooks/useInfrastructure.js';
@@ -37,6 +42,345 @@ const OVERLAY_LABELS = {
   roadRestrictions: { no: 'Vegrestriksjoner', en: 'Road Restrictions' },
   infra: { no: 'Infrastruktur', en: 'Infrastructure' },
 };
+
+// Drawing type icons for the tactical item list
+const DRAWING_ICONS = {
+  line: '/',
+  arrow: '\u2192',
+  polygon: '\u2B21',
+  circle: '\u25EF',
+  text: 'T',
+};
+
+function getDrawingLabel(d, lang) {
+  if (d.drawingType === 'text' && d.properties?.text) return d.properties.text;
+  if (d.properties?.label) return d.properties.label;
+  const typeLabels = {
+    line: { en: 'Line', no: 'Linje' },
+    arrow: { en: 'Arrow', no: 'Pil' },
+    polygon: { en: 'Polygon', no: 'Polygon' },
+    circle: { en: 'Circle', no: 'Sirkel' },
+    text: { en: 'Text', no: 'Tekst' },
+  };
+  return typeLabels[d.drawingType]?.[lang] || d.drawingType || 'Drawing';
+}
+
+function getDrawingCenter(d) {
+  if (d.geometry.type === 'Point') return d.geometry.coordinates;
+  if (d.geometry.type === 'LineString') {
+    return d.geometry.coordinates[Math.floor(d.geometry.coordinates.length / 2)];
+  }
+  if (d.geometry.type === 'Polygon') {
+    const ring = d.geometry.coordinates[0];
+    const lng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    return [lng, lat];
+  }
+  return null;
+}
+
+function TacticalSection({ lang }) {
+  const projects = useTacticalStore((s) => s.projects);
+  const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
+  const activeProjectId = useTacticalStore((s) => s.activeProjectId);
+  const activeLayerId = useTacticalStore((s) => s.activeLayerId);
+  const setActiveLayer = useTacticalStore((s) => s.setActiveLayer);
+  const layerVisibility = useTacticalStore((s) => s.layerVisibility);
+  const toggleLayerVisibility = useTacticalStore((s) => s.toggleLayerVisibility);
+  const myProjects = useProjectStore((s) => s.myProjects);
+  const mapRef = useMapStore((s) => s.mapRef);
+
+  const [expandedProject, setExpandedProject] = useState(null);
+  const [expandedLayerId, setExpandedLayerId] = useState(null);
+  const [expandedUnassigned, setExpandedUnassigned] = useState(null);
+  const [copyingMarkerId, setCopyingMarkerId] = useState(null);
+
+  const copyTargets = myProjects
+    .filter((p) => visibleProjectIds.includes(p.id) && (p.role === 'admin' || p.role === 'editor'))
+    .map((p) => ({
+      projectId: p.id,
+      projectName: p.name,
+      layers: projects[p.id]?.layers || [],
+    }));
+
+  const handleCopyMarker = useCallback((marker, targetProjectId, targetLayerId) => {
+    socket.emit('client:marker:add', {
+      projectId: targetProjectId,
+      layerId: targetLayerId || null,
+      sidc: marker.sidc,
+      lat: marker.lat,
+      lon: marker.lon,
+      designation: marker.designation || '',
+      higherFormation: marker.higherFormation || '',
+      additionalInfo: marker.additionalInfo || '',
+      customLabel: marker.customLabel || '',
+    });
+    setCopyingMarkerId(null);
+  }, []);
+
+  const flyTo = (coords) => {
+    if (!mapRef || !coords) return;
+    mapRef.flyTo({ center: coords, zoom: Math.max(mapRef.getZoom(), 14), duration: 1200 });
+  };
+
+  const visibleProjects = visibleProjectIds
+    .map((id) => ({ id, meta: myProjects.find((p) => p.id === id), data: projects[id] }))
+    .filter((p) => p.data);
+
+  if (visibleProjects.length === 0) return null;
+
+  return (
+    <div className="px-3 py-2.5 border-b border-slate-700">
+      <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-2 font-semibold">
+        {lang === 'no' ? 'Taktiske lag' : 'Tactical Layers'}
+      </div>
+      <div className="space-y-1">
+        {visibleProjects.map(({ id: pId, meta, data }) => {
+          const expanded = expandedProject === pId;
+          const isActive = activeProjectId === pId;
+          return (
+            <div key={pId}>
+              <div
+                className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-1 cursor-pointer hover:bg-slate-700/40 transition-colors ${isActive ? 'bg-emerald-900/20' : ''}`}
+                onClick={() => setExpandedProject(expanded ? null : pId)}
+              >
+                <svg className={`w-2.5 h-2.5 transition-transform flex-shrink-0 text-slate-500 ${expanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6 4l8 6-8 6V4z" />
+                </svg>
+                <span className={`flex-1 truncate ${isActive ? 'text-emerald-300 font-medium' : 'text-slate-300'}`}>
+                  {meta?.name || pId.slice(0, 8)}
+                </span>
+                <span className="text-[10px] text-slate-600">
+                  {data.markers.length}m {data.drawings.length}d
+                </span>
+              </div>
+              {expanded && (
+                <div className="ml-3 mt-0.5 space-y-0.5">
+                  {data.layers.map((layer) => {
+                    const vis = layerVisibility[layer.id] !== false;
+                    const isActiveLayer = isActive && activeLayerId === layer.id;
+                    const layerMarkers = data.markers.filter((m) => m.layerId === layer.id);
+                    const layerDrawings = data.drawings.filter((d) => d.layerId === layer.id);
+                    const mCount = layerMarkers.length;
+                    const dCount = layerDrawings.length;
+                    const isLayerExpanded = expandedLayerId === layer.id;
+                    const hasItems = mCount + dCount > 0;
+                    return (
+                      <div key={layer.id}>
+                        <div className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={vis}
+                            onChange={() => toggleLayerVisibility(layer.id)}
+                            className="accent-emerald-500 w-3 h-3"
+                          />
+                          {hasItems ? (
+                            <button
+                              onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                              className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300"
+                            >
+                              <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M6 4l8 6-8 6V4z" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <span className="w-3 h-3 flex-shrink-0" />
+                          )}
+                          <span
+                            className={`flex-1 truncate cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
+                            onClick={() => { if (isActive) setActiveLayer(isActiveLayer ? null : layer.id); }}
+                          >
+                            {isActiveLayer && '\u25B8 '}{layer.name}
+                          </span>
+                          <span
+                            className={`text-slate-500 cursor-pointer hover:text-slate-300 ${hasItems ? '' : 'opacity-50'}`}
+                            onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                          >
+                            {mCount}m {dCount}d
+                          </span>
+                        </div>
+                        {isLayerExpanded && (
+                          <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
+                            <TacticalItemList
+                              markers={layerMarkers}
+                              drawings={layerDrawings}
+                              lang={lang}
+                              projectId={pId}
+                              flyTo={flyTo}
+                              copyTargets={copyTargets}
+                              copyingMarkerId={copyingMarkerId}
+                              setCopyingMarkerId={setCopyingMarkerId}
+                              onCopyMarker={handleCopyMarker}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {/* Unassigned items */}
+                  {(() => {
+                    const unMarkers = data.markers.filter((m) => !m.layerId);
+                    const unDrawings = data.drawings.filter((d) => !d.layerId);
+                    if (unMarkers.length + unDrawings.length === 0) return null;
+                    const isUnExpanded = expandedUnassigned === pId;
+                    return (
+                      <div>
+                        <div
+                          className="flex items-center gap-1.5 text-[11px] text-slate-500 italic px-1 cursor-pointer hover:text-slate-400"
+                          onClick={() => setExpandedUnassigned(isUnExpanded ? null : pId)}
+                        >
+                          <svg className={`w-2.5 h-2.5 transition-transform flex-shrink-0 ${isUnExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M6 4l8 6-8 6V4z" />
+                          </svg>
+                          {lang === 'no' ? 'Uten lag' : 'Unassigned'}: {unMarkers.length}m {unDrawings.length}d
+                        </div>
+                        {isUnExpanded && (
+                          <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
+                            <TacticalItemList
+                              markers={unMarkers}
+                              drawings={unDrawings}
+                              lang={lang}
+                              projectId={pId}
+                              flyTo={flyTo}
+                              copyTargets={copyTargets}
+                              copyingMarkerId={copyingMarkerId}
+                              setCopyingMarkerId={setCopyingMarkerId}
+                              onCopyMarker={handleCopyMarker}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TacticalItemList({ markers, drawings, lang, projectId, flyTo, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker }) {
+  if (markers.length === 0 && drawings.length === 0) {
+    return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
+  }
+
+  return (
+    <div className="space-y-px pl-1.5 max-h-48 overflow-y-auto">
+      {markers.map((m) => {
+        const name = m.designation || m.customLabel || getSymbolName(m.sidc, lang);
+        const sym = generateSymbolSvg(m.sidc, { size: 16 });
+        const isCopying = copyingMarkerId === m.id;
+        return (
+          <div key={m.id} className="relative">
+            <div className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+              <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
+              <span
+                className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                onClick={() => flyTo([m.lon, m.lat])}
+                title={name}
+              >
+                {name}
+              </span>
+              <button
+                onClick={() => flyTo([m.lon, m.lat])}
+                className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+                title={lang === 'no' ? 'Fly til' : 'Fly to'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
+              </button>
+              {copyTargets && onCopyMarker && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCopyingMarkerId(isCopying ? null : m.id); }}
+                  className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                  title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={() => socket.emit('client:marker:delete', { projectId, id: m.id })}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {isCopying && copyTargets && (
+              <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto">
+                {copyTargets.map((ct) => (
+                  <div key={ct.projectId}>
+                    <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
+                    <button
+                      onClick={() => onCopyMarker(m, ct.projectId, null)}
+                      className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
+                    >
+                      {lang === 'no' ? '(Intet lag)' : '(No layer)'}
+                    </button>
+                    {ct.layers.map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() => onCopyMarker(m, ct.projectId, l.id)}
+                        className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
+                      >
+                        {l.name}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {drawings.map((d) => {
+        const label = getDrawingLabel(d, lang);
+        const icon = DRAWING_ICONS[d.drawingType] || '?';
+        const center = getDrawingCenter(d);
+        const color = d.properties?.color || '#3b82f6';
+        return (
+          <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>{icon}</span>
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo(center)}
+              title={label}
+            >
+              {label}
+            </span>
+            <button
+              onClick={() => flyTo(center)}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] })}
+              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+              title={lang === 'no' ? 'Slett' : 'Delete'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function SunlightControls({ lang }) {
   const sunlightDate = useMapStore((s) => s.sunlightDate);
@@ -522,6 +866,9 @@ export default function DataLayersDrawer() {
             )}
           </div>
         )}
+
+        {/* Tactical Layers section */}
+        <TacticalSection lang={lang} />
 
         {/* Map Themes section (when logged in OR public themes exist) */}
         {showThemesSection && (

@@ -46,7 +46,7 @@ function getDrawingCenter(d) {
   return null;
 }
 
-function ItemList({ markers, drawings, lang, mapRef, projectId }) {
+function ItemList({ markers, drawings, lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker }) {
   if (markers.length === 0 && drawings.length === 0) {
     return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
   }
@@ -61,36 +61,75 @@ function ItemList({ markers, drawings, lang, mapRef, projectId }) {
       {markers.map((m) => {
         const name = m.designation || m.customLabel || getSymbolName(m.sidc, lang);
         const sym = generateSymbolSvg(m.sidc, { size: 16 });
+        const isCopying = copyingMarkerId === m.id;
         return (
-          <div key={m.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
-            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
-            <span
-              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-              onClick={() => flyTo([m.lon, m.lat])}
-              title={name}
-            >
-              {name}
-            </span>
-            <button
-              onClick={() => flyTo([m.lon, m.lat])}
-              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
-              title={lang === 'no' ? 'Fly til' : 'Fly to'}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path d="M12 19V5M5 12l7-7 7 7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => {
-                socket.emit('client:marker:delete', { projectId, id: m.id });
-              }}
-              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
-              title={lang === 'no' ? 'Slett' : 'Delete'}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div key={m.id} className="relative">
+            <div className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+              <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
+              <span
+                className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                onClick={() => flyTo([m.lon, m.lat])}
+                title={name}
+              >
+                {name}
+              </span>
+              <button
+                onClick={() => flyTo([m.lon, m.lat])}
+                className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+                title={lang === 'no' ? 'Fly til' : 'Fly to'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
+              </button>
+              {copyTargets && onCopyMarker && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCopyingMarkerId(isCopying ? null : m.id); }}
+                  className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                  title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  socket.emit('client:marker:delete', { projectId, id: m.id });
+                }}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {isCopying && copyTargets && (
+              <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto">
+                {copyTargets.map((ct) => (
+                  <div key={ct.projectId}>
+                    <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
+                    <button
+                      onClick={() => onCopyMarker(m, ct.projectId, null)}
+                      className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
+                    >
+                      {lang === 'no' ? '(Intet lag)' : '(No layer)'}
+                    </button>
+                    {ct.layers.map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() => onCopyMarker(m, ct.projectId, l.id)}
+                        className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
+                      >
+                        {l.name}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -186,6 +225,7 @@ export default function ProjectDrawer() {
   const [expandedLayerId, setExpandedLayerId] = useState(null); // show items in layer
   const [expandedUnassigned, setExpandedUnassigned] = useState(null); // projectId for unassigned items
   const [copyingLayerId, setCopyingLayerId] = useState(null); // which layer's copy dropdown is open
+  const [copyingMarkerId, setCopyingMarkerId] = useState(null); // which marker's copy dropdown is open
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
 
@@ -402,6 +442,30 @@ export default function ProjectDrawer() {
     } catch {}
   };
 
+  const handleCopyMarker = useCallback((marker, targetProjectId, targetLayerId) => {
+    socket.emit('client:marker:add', {
+      projectId: targetProjectId,
+      layerId: targetLayerId || null,
+      sidc: marker.sidc,
+      lat: marker.lat,
+      lon: marker.lon,
+      designation: marker.designation || '',
+      higherFormation: marker.higherFormation || '',
+      additionalInfo: marker.additionalInfo || '',
+      customLabel: marker.customLabel || '',
+    });
+    setCopyingMarkerId(null);
+  }, []);
+
+  // Compute copy targets: writable projects with their layers
+  const copyTargets = myProjects
+    .filter((p) => visibleProjectIds.includes(p.id) && (p.role === 'admin' || p.role === 'editor'))
+    .map((p) => ({
+      projectId: p.id,
+      projectName: p.name,
+      layers: projects[p.id]?.layers || [],
+    }));
+
   const isVisible = (id) => visibleProjectIds.includes(id);
   const isActive = (id) => activeProjectId === id;
 
@@ -483,16 +547,23 @@ export default function ProjectDrawer() {
               onDragOver={(e) => handleDragOver(e, p.id)}
               onDragEnd={handleDragEnd}
             >
-              {/* Main row */}
-              <div className="flex items-center gap-2 px-3 py-2 group">
+              {/* Main row — whole row clickable to expand/collapse */}
+              <div
+                className="flex items-center gap-2 px-3 py-2 group cursor-pointer hover:bg-slate-700/30 transition-colors"
+                onClick={() => setExpandedProject(expanded ? null : p.id)}
+              >
                 {/* Drag handle */}
-                <span className="text-slate-600 cursor-grab text-base" title="Drag to reorder">
+                <span
+                  className="text-slate-600 cursor-grab text-base"
+                  title="Drag to reorder"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   &#x2630;
                 </span>
 
                 {/* Eye toggle (visibility) */}
                 <button
-                  onClick={() => visible ? hideProject(p.id) : showProject(p.id, myProjects.map(pr => pr.id))}
+                  onClick={(e) => { e.stopPropagation(); visible ? hideProject(p.id) : showProject(p.id, myProjects.map(pr => pr.id)); }}
                   className={`w-7 h-7 flex items-center justify-center rounded ${
                     visible ? 'text-emerald-400' : 'text-slate-600'
                   }`}
@@ -514,7 +585,7 @@ export default function ProjectDrawer() {
                 {/* Star (active project) */}
                 {visible && (
                   <button
-                    onClick={() => setActiveProject(active ? null : p.id)}
+                    onClick={(e) => { e.stopPropagation(); setActiveProject(active ? null : p.id); }}
                     className={`w-7 h-7 flex items-center justify-center text-base ${
                       active ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'
                     }`}
@@ -535,13 +606,15 @@ export default function ProjectDrawer() {
                         if (e.key === 'Escape') setRenamingId(null);
                       }}
                       onBlur={() => setRenamingId(null)}
+                      onClick={(e) => e.stopPropagation()}
                       autoFocus
                       className="w-full px-1 py-0.5 bg-slate-900 border border-emerald-500 rounded text-sm text-white focus:outline-none"
                     />
                   ) : (
                     <div
-                      className="text-sm truncate cursor-pointer"
-                      onDoubleClick={() => {
+                      className="text-sm truncate"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
                         if (p.role === 'admin') {
                           setRenamingId(p.id);
                           setRenameVal(p.name);
@@ -565,18 +638,12 @@ export default function ProjectDrawer() {
                   )}
                 </div>
 
-                {/* Expand / collapse */}
-                <button
-                  onClick={() => setExpandedProject(expanded ? null : p.id)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300"
-                  title={expanded ? t('general.close', lang) : t('drawer.expand', lang)}
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <circle cx="4" cy="10" r="1.5" />
-                    <circle cx="10" cy="10" r="1.5" />
-                    <circle cx="16" cy="10" r="1.5" />
+                {/* Expand / collapse indicator */}
+                <div className="w-7 h-7 flex items-center justify-center text-slate-500">
+                  <svg className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6 4l8 6-8 6V4z" />
                   </svg>
-                </button>
+                </div>
               </div>
 
               {/* Expanded section */}
@@ -717,7 +784,7 @@ export default function ProjectDrawer() {
                         {/* Expanded item list */}
                         {isLayerExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={layerMarkers} drawings={layerDrawings} lang={lang} mapRef={mapRef} projectId={p.id} />
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
                           </div>
                         )}
                       </div>
@@ -742,7 +809,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} lang={lang} mapRef={mapRef} projectId={p.id} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
                           </div>
                         )}
                       </div>
