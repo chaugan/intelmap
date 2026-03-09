@@ -7,10 +7,10 @@ router.use(requireAuth);
 
 // Signal strength thresholds (dBm)
 const BUCKETS = [
-  { name: 'excellent', min: -70, color: '#22c55e' },
-  { name: 'good', min: -85, color: '#84cc16' },
-  { name: 'marginal', min: -100, color: '#eab308' },
-  { name: 'weak', min: -110, color: '#f97316' },
+  { name: 'excellent', min: -50, color: '#22c55e' },
+  { name: 'good', min: -60, color: '#84cc16' },
+  { name: 'marginal', min: -70, color: '#eab308' },
+  { name: 'weak', min: -90, color: '#f97316' },
   { name: 'noCoverage', min: -Infinity, color: '#ef4444' },
 ];
 
@@ -125,7 +125,7 @@ router.post('/calculate', async (req, res) => {
         bucketCounts[bucket.name]++;
         totalSamples++;
 
-        if (pRx >= -110 && dist > maxRangeM) {
+        if (pRx >= -90 && dist > maxRangeM) {
           maxRangeM = dist;
         }
       }

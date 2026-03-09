@@ -18,10 +18,10 @@ const LAYER_SAVED_FILL = 'rf-coverage-saved-fill';
 const LAYER_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 
 const BUCKETS = [
-  { name: 'excellent', min: -70, color: '#22c55e', invertColor: '#ef4444' },
-  { name: 'good', min: -85, color: '#84cc16', invertColor: '#f97316' },
-  { name: 'marginal', min: -100, color: '#eab308', invertColor: '#eab308' },
-  { name: 'weak', min: -110, color: '#f97316', invertColor: '#84cc16' },
+  { name: 'excellent', min: -50, color: '#22c55e', invertColor: '#ef4444' },
+  { name: 'good', min: -60, color: '#84cc16', invertColor: '#f97316' },
+  { name: 'marginal', min: -70, color: '#eab308', invertColor: '#eab308' },
+  { name: 'weak', min: -90, color: '#f97316', invertColor: '#84cc16' },
   { name: 'noCoverage', min: -Infinity, color: '#ef4444', invertColor: '#22c55e' },
 ];
 
@@ -76,6 +76,21 @@ function invertGeojson(geojson) {
   };
 }
 
+function applyDisplayOptions(geojson, invert, dimmedBuckets) {
+  if (!geojson?.features) return geojson;
+  let features = geojson.features;
+  if (dimmedBuckets.size > 0) {
+    features = features.filter(f => !dimmedBuckets.has(f.properties.bucket));
+  }
+  if (invert) {
+    features = features.map(f => ({
+      ...f,
+      properties: { ...f.properties, color: INVERT_MAP[f.properties.color] || f.properties.color },
+    }));
+  }
+  return { ...geojson, features };
+}
+
 function buildSavedData(visibleProjectIds, projects, layerVisibility) {
   const polygons = [];
   const observers = [];
@@ -124,6 +139,7 @@ export default function RFCoverageTool() {
   const [radiusKm, setRadiusKm] = useState(15);
   const [opacity, setOpacity] = useState(0.6);
   const [invertColors, setInvertColors] = useState(false);
+  const [dimmedBuckets, setDimmedBuckets] = useState(new Set());
   const [antenna, setAntenna] = useState(null);
   const [result, setResult] = useState(null);
   const [resultGeojson, setResultGeojson] = useState(null);
@@ -138,10 +154,12 @@ export default function RFCoverageTool() {
   const antennaRef = useRef(antenna);
   const resultGeojsonRef = useRef(resultGeojson);
   const invertColorsRef = useRef(invertColors);
+  const dimmedBucketsRef = useRef(dimmedBuckets);
   modeRef.current = mode;
   antennaRef.current = antenna;
   resultGeojsonRef.current = resultGeojson;
   invertColorsRef.current = invertColors;
+  dimmedBucketsRef.current = dimmedBuckets;
 
   const savedCount = activeProjectId ? (projects[activeProjectId]?.rfCoverages?.length || 0) : 0;
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
@@ -161,8 +179,9 @@ export default function RFCoverageTool() {
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
       const { offsetX, offsetY } = dragStartRef.current;
+      const pw = dragRef.current?.offsetWidth || 300;
       setPanelPos({
-        x: Math.max(0, Math.min(window.innerWidth - 300, cx - offsetX)),
+        x: Math.max(0, Math.min(window.innerWidth - pw, cx - offsetX)),
         y: Math.max(0, Math.min(window.innerHeight - 100, cy - offsetY)),
       });
     };
@@ -193,6 +212,7 @@ export default function RFCoverageTool() {
     setResult(null);
     setResultGeojson(null);
     setError(null);
+    setDimmedBuckets(new Set());
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
       const src = mapRef.getSource(SOURCE_CIRCLE);
@@ -212,13 +232,14 @@ export default function RFCoverageTool() {
       const ant = antennaRef.current;
       const gj = resultGeojsonRef.current;
       const inv = invertColorsRef.current;
+      const dim = dimmedBucketsRef.current;
 
       // Sources
       if (!mapRef.getSource(SOURCE_CIRCLE)) {
         mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
       }
       if (!mapRef.getSource(SOURCE_RESULT)) {
-        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? (inv ? invertGeojson(gj) : gj) : EMPTY_FC });
+        mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, inv, dim) : EMPTY_FC });
       }
       if (!mapRef.getSource(SOURCE_OBSERVER)) {
         mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
@@ -282,14 +303,14 @@ export default function RFCoverageTool() {
     }
   }, [opacity, mapRef, visible]);
 
-  // Update result display when invert changes
+  // Update result display when invert or dimmed buckets change
   useEffect(() => {
     if (!mapRef || !resultGeojson) return;
     const src = mapRef.getSource(SOURCE_RESULT);
     if (src) {
-      src.setData(invertColors ? invertGeojson(resultGeojson) : resultGeojson);
+      src.setData(applyDisplayOptions(resultGeojson, invertColors, dimmedBuckets));
     }
-  }, [invertColors, resultGeojson, mapRef]);
+  }, [invertColors, dimmedBuckets, resultGeojson, mapRef]);
 
   // Update circle preview when radius or antenna changes
   useEffect(() => {
@@ -395,14 +416,14 @@ export default function RFCoverageTool() {
       if (mapRef) {
         const src = mapRef.getSource(SOURCE_RESULT);
         if (src) {
-          src.setData(invertColors ? invertGeojson(data.geojson) : data.geojson);
+          src.setData(applyDisplayOptions(data.geojson, invertColors, dimmedBuckets));
         }
       }
     } catch (err) {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, mapRef, invertColors]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, mapRef, invertColors, dimmedBuckets]);
 
   const handleSave = useCallback(() => {
     if (!activeProjectId || !result) return;
@@ -430,14 +451,14 @@ export default function RFCoverageTool() {
   const panelStyle = panelPos.x !== null ? {
     position: 'fixed', left: panelPos.x, top: panelPos.y, zIndex: 1000,
   } : {
-    position: 'fixed', top: 100, right: 16, zIndex: 1000,
+    position: 'fixed', top: 80, right: 8, zIndex: 1000,
   };
 
   return createPortal(
     <div
       ref={dragRef}
       style={panelStyle}
-      className="w-[300px] bg-slate-800/95 backdrop-blur rounded-lg shadow-xl border border-slate-600 text-sm text-slate-200 select-none"
+      className="w-[calc(100vw-16px)] max-w-[300px] bg-slate-800/95 backdrop-blur rounded-lg shadow-xl border border-slate-600 text-sm text-slate-200 select-none max-h-[calc(100vh-100px)] overflow-y-auto"
       onMouseDown={onDragStart}
       onTouchStart={onDragStart}
     >
@@ -594,17 +615,30 @@ export default function RFCoverageTool() {
         {/* Result stats */}
         {mode === 'result' && result && (
           <div className="space-y-2">
-            {/* Stats grid */}
+            {/* Stats grid — click to dim/hide a bucket on the map */}
             <div className="space-y-0.5 text-xs">
               {BUCKETS.map((b, i) => {
                 const pct = result.stats[b.name + 'Percent'] || 0;
-                const rangeLabel = i === 0 ? '> -70 dBm'
-                  : i === BUCKETS.length - 1 ? '< -110 dBm'
+                const rangeLabel = i === 0 ? `> ${b.min} dBm`
+                  : i === BUCKETS.length - 1 ? `< ${BUCKETS[i - 1].min} dBm`
                   : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
+                const isDimmed = dimmedBuckets.has(b.name);
                 return (
-                  <div key={b.name} className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: invertColors ? b.invertColor : b.color }} />
-                    <span className="text-slate-300">{t(`rfcoverage.${b.name}`, lang)}</span>
+                  <div
+                    key={b.name}
+                    className={`flex items-center gap-1.5 cursor-pointer rounded px-0.5 py-px hover:bg-slate-700/40 transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                    onClick={() => {
+                      setDimmedBuckets(prev => {
+                        const next = new Set(prev);
+                        if (next.has(b.name)) next.delete(b.name);
+                        else next.add(b.name);
+                        return next;
+                      });
+                    }}
+                    title={isDimmed ? (lang === 'no' ? 'Vis på kart' : 'Show on map') : (lang === 'no' ? 'Skjul fra kart' : 'Hide from map')}
+                  >
+                    <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
+                    <span className={isDimmed ? 'text-slate-500 line-through' : 'text-slate-300'}>{t(`rfcoverage.${b.name}`, lang)}</span>
                     <span className="text-slate-500 text-[10px]">{rangeLabel}</span>
                     <span className="ml-auto font-mono">{pct}%</span>
                   </div>
@@ -672,12 +706,26 @@ export default function RFCoverageTool() {
       {/* Color legend */}
       <div className="px-3 pb-2">
         <div className="flex gap-1 text-[10px]">
-          {BUCKETS.map((b) => (
-            <div key={b.name} className="flex-1 text-center">
-              <div className="h-2 rounded-sm" style={{ backgroundColor: invertColors ? b.invertColor : b.color }} />
-              <div className="text-slate-400 mt-0.5">{b.min === -Infinity ? '<-110' : `>${b.min}`}</div>
-            </div>
-          ))}
+          {BUCKETS.map((b) => {
+            const isDimmed = dimmedBuckets.has(b.name);
+            return (
+              <div
+                key={b.name}
+                className={`flex-1 text-center cursor-pointer transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                onClick={() => {
+                  setDimmedBuckets(prev => {
+                    const next = new Set(prev);
+                    if (next.has(b.name)) next.delete(b.name);
+                    else next.add(b.name);
+                    return next;
+                  });
+                }}
+              >
+                <div className="h-2 rounded-sm" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
+                <div className="text-slate-400 mt-0.5">{b.min === -Infinity ? `<${BUCKETS[BUCKETS.length - 2].min}` : `>${b.min}`}</div>
+              </div>
+            );
+          })}
         </div>
         <div className="text-center text-[10px] text-slate-500 mt-0.5">dBm</div>
       </div>

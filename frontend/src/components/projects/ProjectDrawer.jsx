@@ -48,8 +48,8 @@ function getDrawingCenter(d) {
   return null;
 }
 
-function ItemList({ markers, drawings, lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker }) {
-  if (markers.length === 0 && drawings.length === 0) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker }) {
+  if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
     return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
   }
 
@@ -171,6 +171,84 @@ function ItemList({ markers, drawings, lang, mapRef, projectId, copyTargets, cop
               onClick={() => {
                 socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] });
               }}
+              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+              title={lang === 'no' ? 'Slett' : 'Delete'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        );
+      })}
+      {viewsheds.map((v) => {
+        const isHorizon = v.type === 'horizon';
+        const label = isHorizon
+          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${v.radiusKm || ''}km`
+          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
+        return (
+          <div key={v.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5" fill="none" stroke={isHorizon ? '#a855f7' : '#ef4444'} viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </span>
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo([v.longitude, v.latitude])}
+              title={label}
+            >
+              {label}
+            </span>
+            <button
+              onClick={() => flyTo([v.longitude, v.latitude])}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => socket.emit('client:viewshed:delete', { projectId, id: v.id })}
+              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+              title={lang === 'no' ? 'Slett' : 'Delete'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        );
+      })}
+      {rfCoverages.map((c) => {
+        const label = `RF ${c.frequencyMHz || '?'}MHz ${c.txPowerWatts || '?'}W`;
+        return (
+          <div key={c.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="#a855f7" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v4m0 12v4m0-12a4 4 0 100-8 4 4 0 000 8zm-6 2l-2 2m16-4l-2 2M6 16l-2 2m16-4l-2 2" />
+              </svg>
+            </span>
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo([c.longitude, c.latitude])}
+              title={label}
+            >
+              {label}
+            </span>
+            <button
+              onClick={() => flyTo([c.longitude, c.latitude])}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => socket.emit('client:rfcoverage:delete', { projectId, id: c.id })}
               className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
               title={lang === 'no' ? 'Slett' : 'Delete'}
             >
@@ -668,10 +746,14 @@ export default function ProjectDrawer() {
                     const isActiveLayer = active && activeLayerId === layer.id;
                     const layerMarkers = projData.markers.filter(m => m.layerId === layer.id);
                     const layerDrawings = projData.drawings.filter(d => d.layerId === layer.id);
+                    const layerViewsheds = (projData.viewsheds || []).filter(v => v.layerId === layer.id);
+                    const layerRFCoverages = (projData.rfCoverages || []).filter(c => c.layerId === layer.id);
                     const mCount = layerMarkers.length;
                     const dCount = layerDrawings.length;
+                    const vCount = layerViewsheds.length;
+                    const rCount = layerRFCoverages.length;
                     const isLayerExpanded = expandedLayerId === layer.id;
-                    const hasItems = mCount + dCount > 0;
+                    const hasItems = mCount + dCount + vCount + rCount > 0;
                     return (
                       <div key={layer.id}>
                         <div className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
@@ -727,7 +809,7 @@ export default function ProjectDrawer() {
                             onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
                             title={hasItems ? (lang === 'no' ? 'Vis innhold' : 'Show contents') : ''}
                           >
-                            {mCount}m {dCount}d
+                            {mCount}m {dCount}d{vCount > 0 ? ` ${vCount}v` : ''}{rCount > 0 ? ` ${rCount}r` : ''}
                           </span>
                           {/* Copy layer — only show if there's at least one writable target */}
                           {(() => {
@@ -794,7 +876,7 @@ export default function ProjectDrawer() {
                         {/* Expanded item list */}
                         {isLayerExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={layerMarkers} drawings={layerDrawings} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
                           </div>
                         )}
                       </div>
@@ -804,7 +886,9 @@ export default function ProjectDrawer() {
                   {projData && (() => {
                     const unMarkers = projData.markers.filter(m => !m.layerId);
                     const unDrawings = projData.drawings.filter(d => !d.layerId);
-                    if (unMarkers.length + unDrawings.length === 0) return null;
+                    const unViewsheds = (projData.viewsheds || []).filter(v => !v.layerId);
+                    const unRFCoverages = (projData.rfCoverages || []).filter(c => !c.layerId);
+                    if (unMarkers.length + unDrawings.length + unViewsheds.length + unRFCoverages.length === 0) return null;
                     const isUnExpanded = expandedUnassigned === p.id;
                     return (
                       <div>
@@ -815,11 +899,11 @@ export default function ProjectDrawer() {
                           <svg className={`w-2.5 h-2.5 transition-transform flex-shrink-0 ${isUnExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                             <path d="M6 4l8 6-8 6V4z" />
                           </svg>
-                          {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d
+                          {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d{unViewsheds.length > 0 ? ` ${unViewsheds.length}v` : ''}{unRFCoverages.length > 0 ? ` ${unRFCoverages.length}r` : ''}
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
                           </div>
                         )}
                       </div>
@@ -1099,7 +1183,7 @@ export default function ProjectDrawer() {
               {/* Stats when not expanded */}
               {!expanded && visible && projData && (
                 <div className="px-10 pb-1.5 text-xs text-slate-500">
-                  {projData.markers.length}m &middot; {projData.drawings.length}d &middot; {projData.layers.length}L
+                  {projData.markers.length}m &middot; {projData.drawings.length}d{(projData.viewsheds?.length || 0) > 0 ? ` \u00B7 ${projData.viewsheds.length}v` : ''}{(projData.rfCoverages?.length || 0) > 0 ? ` \u00B7 ${projData.rfCoverages.length}r` : ''} &middot; {projData.layers.length}L
                 </div>
               )}
             </div>
