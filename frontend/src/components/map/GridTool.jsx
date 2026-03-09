@@ -38,7 +38,7 @@ export default function GridTool() {
   const [corner1, setCorner1] = useState(null);
   const [corner2, setCorner2] = useState(null);
   const [mousePos, setMousePos] = useState(null);
-  const [columns, setColumns] = useState(5);
+  const [columns, setColumns] = useState('');
   const [, setTick] = useState(0);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -52,7 +52,7 @@ export default function GridTool() {
       setCorner1(null);
       setCorner2(null);
       setMousePos(null);
-      setColumns(5);
+      setColumns('');
     }
   }, [gridToolVisible]);
 
@@ -166,7 +166,7 @@ export default function GridTool() {
           [c1.lng, c1.lat],
         ]],
       },
-      properties: { columns, color: '#3b82f6', strokeWidth: 2 },
+      properties: { columns, color: '#3b82f6', strokeWidth: 2, opacity: 0.5 },
       source: 'user',
       createdBy: socket.id,
     });
@@ -176,7 +176,7 @@ export default function GridTool() {
     setCorner1(null);
     setCorner2(null);
     setMousePos(null);
-    setColumns(5);
+    setColumns('');
   }, [corner1, corner2, columns, activeProjectId, activeLayerId]);
 
   if (!gridToolVisible || !mapRef) return null;
@@ -273,12 +273,18 @@ export default function GridTool() {
               min={2}
               max={52}
               value={columns}
-              onChange={(e) => setColumns(Math.max(2, Math.min(52, parseInt(e.target.value) || 2)))}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') { setColumns(''); return; }
+                const n = parseInt(raw);
+                if (!isNaN(n)) setColumns(Math.max(0, Math.min(52, n)));
+              }}
               className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white mb-4 focus:outline-none focus:border-blue-500"
               autoFocus
             />
 
             {/* Preview info */}
+            {columns >= 2 && (
             <div className="bg-slate-700/50 rounded p-3 mb-4 text-sm space-y-1">
               <div className="flex justify-between">
                 <span className="text-slate-400">{t('grid.preview', lang)}:</span>
@@ -305,8 +311,10 @@ export default function GridTool() {
                 </>
               )}
             </div>
+            )}
 
             {/* Grid preview graphic */}
+            {columns >= 2 && (
             <div className="bg-slate-900 rounded p-3 mb-4 flex justify-center">
               <svg width="200" height={200 * (rows / columns)} viewBox={`0 0 ${columns} ${rows}`} className="max-h-[150px]">
                 <rect x="0" y="0" width={columns} height={rows} fill="none" stroke="#3b82f6" strokeWidth="0.06" />
@@ -324,6 +332,7 @@ export default function GridTool() {
                 ))}
               </svg>
             </div>
+            )}
 
             <div className="flex gap-3">
               <button
@@ -334,7 +343,7 @@ export default function GridTool() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!columns}
+                disabled={!columns || columns < 2}
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors font-medium"
               >
                 {t('grid.create', lang)}
