@@ -60,6 +60,7 @@ export const useMapStore = create((set) => ({
   hiddenTrafficCategories: [],
   drawingToolsVisible: false,
   drawingActiveMode: null, // shared so MeasuringTool can yield to active drawing
+  selectedDrawingId: null,
   sunlightVisible: false,
   sunlightOpacity: 0.5,
   buildingOpacity: 0.7,
@@ -296,7 +297,8 @@ export const useMapStore = create((set) => ({
   setSunlightTime: (sunlightTime) => set({ sunlightTime }),
   toggleSunlightAnimation: () => set((s) => ({ sunlightAnimating: !s.sunlightAnimating })),
   setSunlightAnimationSpeed: (sunlightAnimationSpeed) => set({ sunlightAnimationSpeed }),
-  toggleDrawingTools: () => set((s) => ({ drawingToolsVisible: !s.drawingToolsVisible })),
+  toggleDrawingTools: () => set((s) => ({ drawingToolsVisible: !s.drawingToolsVisible, ...(!s.drawingToolsVisible ? {} : { selectedDrawingId: null }) })),
+  setSelectedDrawingId: (id) => set({ selectedDrawingId: id }),
   setLang: (lang) => set({ lang }),
   setMapRef: (mapRef) => set({ mapRef }),
   setActivePanel: (panel) => set((s) => ({

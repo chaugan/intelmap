@@ -91,6 +91,11 @@ const translations = {
     'draw.confirmDeleteAll': 'Slett ALLE tegninger?',
     'draw.select': 'Velg',
     'draw.color': 'Farge',
+    'draw.noProject': 'Inget aktivt prosjekt',
+    'draw.noProjectHint': 'Velg et prosjekt for å tegne',
+    'draw.editLabel': 'Rediger etikett',
+    'draw.lineWidth': 'Linjebredde',
+    'draw.deleteDrawing': 'Slett tegning',
 
     // Weather
     'weather.title': 'Vær',
@@ -637,6 +642,11 @@ const translations = {
     'draw.confirmDeleteAll': 'Delete ALL drawings?',
     'draw.select': 'Select',
     'draw.color': 'Color',
+    'draw.noProject': 'No active project',
+    'draw.noProjectHint': 'Select a project to draw',
+    'draw.editLabel': 'Edit label',
+    'draw.lineWidth': 'Line width',
+    'draw.deleteDrawing': 'Delete drawing',
 
     'weather.title': 'Weather',
     'weather.temp': 'Temperature',

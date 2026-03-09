@@ -72,6 +72,7 @@ export default function TacticalMap() {
   const setRoadRestrictionsFetchedAt = useMapStore((s) => s.setRoadRestrictionsFetchedAt);
   const overlayOrder = useMapStore((s) => s.overlayOrder);
   const lang = useMapStore((s) => s.lang);
+  const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
   const setMapRef = useMapStore((s) => s.setMapRef);
   const setBounds = useMapStore((s) => s.setBounds);
   const setViewport = useMapStore((s) => s.setViewport);
@@ -623,7 +624,9 @@ export default function TacticalMap() {
         <svg className="absolute inset-0 z-[4]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {visibleDrawings.map(d => {
             const color = d.properties?.color || '#3b82f6';
+            const sw = d.properties?.strokeWidth || 3;
             const key = d.id;
+            const isSelected = selectedDrawingId === d.id;
             const handleContextMenu = (e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -636,12 +639,50 @@ export default function TacticalMap() {
               });
             };
 
+            // Helper: compute bounding box with padding from screen points
+            const getBBox = (pts, pad = 8) => {
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+              return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+            };
+
+            // Render selection bounding box with marching ants + corner handles
+            const renderSelectionBBox = (pts, pad = 12) => {
+              const bb = getBBox(pts, pad);
+              const cs = 6; // corner handle size
+              const corners = [
+                [bb.x, bb.y], [bb.x + bb.w, bb.y],
+                [bb.x, bb.y + bb.h], [bb.x + bb.w, bb.y + bb.h],
+              ];
+              return (
+                <>
+                  {/* Outer glow */}
+                  <rect x={bb.x - 2} y={bb.y - 2} width={bb.w + 4} height={bb.h + 4} fill="none" stroke="#06b6d4" strokeWidth="4" opacity="0.15" rx="6" />
+                  {/* Tinted fill */}
+                  <rect x={bb.x} y={bb.y} width={bb.w} height={bb.h} fill="#06b6d4" fillOpacity="0.05" stroke="none" rx="4" />
+                  {/* Marching ants border */}
+                  <rect x={bb.x} y={bb.y} width={bb.w} height={bb.h} fill="none" stroke="#06b6d4" strokeWidth="2" strokeDasharray="9 9" rx="4" className="selection-bbox" />
+                  {/* Corner handles */}
+                  {corners.map(([cx, cy], i) => (
+                    <rect key={i} x={cx - cs/2} y={cy - cs/2} width={cs} height={cs} fill="white" stroke="#06b6d4" strokeWidth="2" rx="1" />
+                  ))}
+                </>
+              );
+            };
+
             if (d.geometry.type === 'LineString') {
               const pts = projectCoords(d.geometry.coordinates);
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                  {/* Selection bounding box + glow */}
+                  {isSelected && (
+                    <>
+                      {renderSelectionBBox(pts)}
+                      <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#06b6d4" strokeWidth={sw + 8} opacity="0.25" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                  )}
                   {/* Invisible wider stroke for easier clicking */}
                   <polyline
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
@@ -653,7 +694,7 @@ export default function TacticalMap() {
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
                     fill="none"
                     stroke={color}
-                    strokeWidth="3"
+                    strokeWidth={sw}
                     strokeDasharray={d.properties?.lineType === 'dashed' ? '8 4' : 'none'}
                   />
                   {isArrow && (() => {
@@ -662,7 +703,6 @@ export default function TacticalMap() {
                     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
                     const size = 18;
                     const halfW = 10;
-                    // Arrow tip at p2, two barbs swept back
                     const tip = p2;
                     const leftX = tip.x - size * Math.cos(angle) + halfW * Math.sin(angle);
                     const leftY = tip.y - size * Math.sin(angle) - halfW * Math.cos(angle);
@@ -681,10 +721,8 @@ export default function TacticalMap() {
                   {d.properties?.label && (() => {
                     const mid = pts[Math.floor(pts.length / 2)];
                     return (
-                      <>
-                        <text x={mid.x} y={mid.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
-                          stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
-                      </>
+                      <text x={mid.x} y={mid.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
+                        stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                     );
                   })()}
                 </g>
@@ -700,13 +738,20 @@ export default function TacticalMap() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                  {/* Selection bounding box + glow */}
+                  {isSelected && (
+                    <>
+                      {renderSelectionBBox(pts, 10)}
+                      <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#06b6d4" strokeWidth={sw + 6} opacity="0.3" strokeLinejoin="round" />
+                    </>
+                  )}
                   <polygon
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
                     fill={color}
                     fillOpacity={d.properties?.fillOpacity ?? 0.15}
                     stroke={color}
-                    strokeWidth="2"
+                    strokeWidth={sw}
                   />
                   {d.properties?.label && (
                     <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="central"
@@ -721,7 +766,8 @@ export default function TacticalMap() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                  {isSelected && renderSelectionBBox([{ x: pt.x - 30, y: pt.y - 12 }, { x: pt.x + 30, y: pt.y + 12 }], 8)}
                   <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
                     stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>

@@ -28,11 +28,81 @@ function drawingIntersectsBox(drawing, box) {
   return false;
 }
 
+// ── Hit-testing helpers ──
+
+function screenDist(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+function distToSegment(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return screenDist(p, a);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return screenDist(p, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
+function pointInPolygonScreen(pt, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i].x, yi = ring[i].y;
+    const xj = ring[j].x, yj = ring[j].y;
+    if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function hitTestDrawing(drawing, clickScreen, map, threshold = 12) {
+  if (drawing.geometry.type === 'Point') {
+    try {
+      const pt = map.project(drawing.geometry.coordinates);
+      return screenDist(clickScreen, pt) <= threshold;
+    } catch { return false; }
+  }
+
+  if (drawing.geometry.type === 'LineString') {
+    const pts = drawing.geometry.coordinates.map(c => { try { return map.project(c); } catch { return null; } }).filter(Boolean);
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distToSegment(clickScreen, pts[i], pts[i + 1]) <= threshold) return true;
+    }
+    return false;
+  }
+
+  if (drawing.geometry.type === 'Polygon') {
+    const ring = drawing.geometry.coordinates[0].map(c => { try { return map.project(c); } catch { return null; } }).filter(Boolean);
+    if (pointInPolygonScreen(clickScreen, ring)) return true;
+    // Also check near edges
+    for (let i = 0; i < ring.length - 1; i++) {
+      if (distToSegment(clickScreen, ring[i], ring[i + 1]) <= threshold) return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+// Generate a 64-point circle polygon from center + radius in km
+function generateCirclePolygon(center, radiusKm) {
+  const coords = [];
+  for (let i = 0; i <= 64; i++) {
+    const angle = (i / 64) * 2 * Math.PI;
+    const dLat = (radiusKm / 111.32) * Math.cos(angle);
+    const dLon = (radiusKm / (111.32 * Math.cos(center[1] * Math.PI / 180))) * Math.sin(angle);
+    coords.push([center[0] + dLon, center[1] + dLat]);
+  }
+  return coords;
+}
+
 export default function DrawingLayer() {
   const lang = useMapStore((s) => s.lang);
   const mapRefValue = useMapStore((s) => s.mapRef);
   const placementMode = useMapStore((s) => s.placementMode);
   const drawingToolsVisible = useMapStore((s) => s.drawingToolsVisible);
+  const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
+  const setSelectedDrawingId = useMapStore((s) => s.setSelectedDrawingId);
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
   const tacticalState = useTacticalStore();
@@ -43,22 +113,32 @@ export default function DrawingLayer() {
   const [drawColor, setDrawColor] = useState('#3b82f6');
   const [drawPoints, setDrawPoints] = useState([]);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [cursorPoint, setCursorPoint] = useState(null); // [lng, lat] for circle preview
+  const [cursorPoint, setCursorPoint] = useState(null);
   const [, forceUpdate] = useState(0);
   const activeModeRef = useRef(activeMode);
   const drawColorRef = useRef(drawColor);
   const drawPointsRef = useRef(drawPoints);
 
-  // Selection state
+  // Selection state (rectangle batch select)
   const [selectMode, setSelectMode] = useState(false);
-  const [selectionRect, setSelectionRect] = useState(null); // { startX, startY, endX, endY }
+  const [selectionRect, setSelectionRect] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const isDraggingRef = useRef(false);
+
+  // Drag state for move/resize
+  const [dragState, setDragState] = useState(null);
+  const dragStateRef = useRef(null);
 
   // Keep refs in sync
   activeModeRef.current = activeMode;
   drawColorRef.current = drawColor;
   drawPointsRef.current = drawPoints;
+  dragStateRef.current = dragState;
+
+  // The selected drawing object
+  const selectedDrawing = selectedDrawingId
+    ? drawings.find(d => d.id === selectedDrawingId) || localDrawings.find(d => d.id === selectedDrawingId)
+    : null;
 
   // Share active drawing mode with store so MeasuringTool can yield
   useEffect(() => {
@@ -72,7 +152,6 @@ export default function DrawingLayer() {
     const color = drawColorRef.current;
     if (pts.length < 2 && mode !== 'text') return;
 
-    // Prompt for optional label
     const label = prompt(lang === 'no' ? 'Legg til etikett (valgfritt):' : 'Add label (optional):');
 
     let geometry, drawingType;
@@ -90,13 +169,7 @@ export default function DrawingLayer() {
       const dLon = ((edge[0] - c[0]) * Math.PI) / 180;
       const a = Math.sin(dLat/2)**2 + Math.cos(c[1]*Math.PI/180)*Math.cos(edge[1]*Math.PI/180)*Math.sin(dLon/2)**2;
       const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const coords = [];
-      for (let i = 0; i <= 64; i++) {
-        const angle = (i / 64) * 2 * Math.PI;
-        const dLat2 = (radiusKm / 111.32) * Math.cos(angle);
-        const dLon2 = (radiusKm / (111.32 * Math.cos(c[1] * Math.PI / 180))) * Math.sin(angle);
-        coords.push([c[0] + dLon2, c[1] + dLat2]);
-      }
+      const coords = generateCirclePolygon(c, radiusKm);
       geometry = { type: 'Polygon', coordinates: [coords] };
       drawingType = 'circle';
     }
@@ -108,7 +181,6 @@ export default function DrawingLayer() {
 
     if (geometry) {
       if (currentProjectId) {
-        // Logged in with active project - save to server
         socket.emit('client:drawing:add', {
           projectId: currentProjectId,
           drawingType,
@@ -119,12 +191,12 @@ export default function DrawingLayer() {
             lineType: mode === 'arrow' ? 'arrow' : 'solid',
             fillOpacity: 0.15,
             label: label || undefined,
+            strokeWidth: 3,
           },
           source: 'user',
           createdBy: socket.id,
         });
       } else if (!currentUser) {
-        // Not logged in - add to local drawings (not saved)
         setLocalDrawings((prev) => [...prev, {
           id: `local-${Date.now()}`,
           drawingType,
@@ -134,6 +206,7 @@ export default function DrawingLayer() {
             lineType: mode === 'arrow' ? 'arrow' : 'solid',
             fillOpacity: 0.15,
             label: label || undefined,
+            strokeWidth: 3,
           },
           _local: true,
         }]);
@@ -144,62 +217,324 @@ export default function DrawingLayer() {
     setActiveMode(null);
   }, [lang]);
 
-  // Register click handler on map
+  // ── Click handler: draw mode OR select single drawing ──
   useEffect(() => {
     if (!mapRefValue) return;
 
     const handler = (e) => {
-      if (selectMode || !activeModeRef.current || placementMode) return;
+      // Ignore clicks during drag
+      if (dragStateRef.current) return;
+      if (selectMode || placementMode) return;
+
       const { lng, lat } = e.lngLat;
 
-      if (activeModeRef.current === 'text') {
-        const text = prompt(lang === 'no' ? 'Skriv inn tekst:' : 'Enter text:');
-        const textState = useTacticalStore.getState();
-        const currentPid = textState.activeProjectId;
-        const currentLid = textState.activeLayerId;
-        const currentUser = useAuthStore.getState().user;
-        if (text) {
-          if (currentPid) {
-            // Logged in with active project - save to server
-            socket.emit('client:drawing:add', {
-              projectId: currentPid,
-              drawingType: 'text',
-              geometry: { type: 'Point', coordinates: [lng, lat] },
-              layerId: currentLid || null,
-              properties: { text, color: drawColorRef.current },
-              source: 'user',
-              createdBy: socket.id,
-            });
-          } else if (!currentUser) {
-            // Not logged in - add to local drawings
-            setLocalDrawings((prev) => [...prev, {
-              id: `local-${Date.now()}`,
-              drawingType: 'text',
-              geometry: { type: 'Point', coordinates: [lng, lat] },
-              properties: { text, color: drawColorRef.current },
-              _local: true,
-            }]);
+      // If we're in a drawing mode, handle drawing
+      if (activeModeRef.current) {
+        if (activeModeRef.current === 'text') {
+          const text = prompt(lang === 'no' ? 'Skriv inn tekst:' : 'Enter text:');
+          const textState = useTacticalStore.getState();
+          const currentPid = textState.activeProjectId;
+          const currentLid = textState.activeLayerId;
+          const currentUser = useAuthStore.getState().user;
+          if (text) {
+            if (currentPid) {
+              socket.emit('client:drawing:add', {
+                projectId: currentPid,
+                drawingType: 'text',
+                geometry: { type: 'Point', coordinates: [lng, lat] },
+                layerId: currentLid || null,
+                properties: { text, color: drawColorRef.current, strokeWidth: 3 },
+                source: 'user',
+                createdBy: socket.id,
+              });
+            } else if (!currentUser) {
+              setLocalDrawings((prev) => [...prev, {
+                id: `local-${Date.now()}`,
+                drawingType: 'text',
+                geometry: { type: 'Point', coordinates: [lng, lat] },
+                properties: { text, color: drawColorRef.current, strokeWidth: 3 },
+                _local: true,
+              }]);
+            }
           }
+          setActiveMode(null);
+          return;
         }
-        setActiveMode(null);
-        return;
-      }
 
-      if (activeModeRef.current === 'circle' && drawPointsRef.current.length === 1) {
-        // Second click: set edge point and auto-finish
+        if (activeModeRef.current === 'circle' && drawPointsRef.current.length === 1) {
+          setDrawPoints(prev => [...prev, [lng, lat]]);
+          setCursorPoint(null);
+          setTimeout(() => finishDrawing(), 0);
+          return;
+        }
+
         setDrawPoints(prev => [...prev, [lng, lat]]);
-        setCursorPoint(null);
-        // Use setTimeout so drawPoints state updates before finishDrawing reads it
-        setTimeout(() => finishDrawing(), 0);
         return;
       }
 
-      setDrawPoints(prev => [...prev, [lng, lat]]);
+      // Not in drawing mode — try to select a drawing by click
+      if (!drawingToolsVisible) return;
+      const clickScreen = mapRefValue.project([lng, lat]);
+
+      // Check server drawings first (topmost = last in array)
+      const allDrawings = [...drawings, ...localDrawings];
+      let found = null;
+      for (let i = allDrawings.length - 1; i >= 0; i--) {
+        if (hitTestDrawing(allDrawings[i], clickScreen, mapRefValue)) {
+          found = allDrawings[i];
+          break;
+        }
+      }
+
+      if (found) {
+        setSelectedDrawingId(found.id);
+      } else {
+        setSelectedDrawingId(null);
+      }
     };
 
     mapRefValue.on('click', handler);
     return () => mapRefValue.off('click', handler);
-  }, [mapRefValue, lang, placementMode, selectMode, finishDrawing]);
+  }, [mapRefValue, lang, placementMode, selectMode, finishDrawing, drawingToolsVisible, drawings, localDrawings, setSelectedDrawingId]);
+
+  // ── Double-click to edit label ──
+  useEffect(() => {
+    if (!mapRefValue || !drawingToolsVisible) return;
+
+    const handler = (e) => {
+      if (activeModeRef.current || selectMode) return;
+      const { lng, lat } = e.lngLat;
+      const clickScreen = mapRefValue.project([lng, lat]);
+
+      const allDrawings = [...drawings, ...localDrawings];
+      let found = null;
+      for (let i = allDrawings.length - 1; i >= 0; i--) {
+        if (hitTestDrawing(allDrawings[i], clickScreen, mapRefValue)) {
+          found = allDrawings[i];
+          break;
+        }
+      }
+
+      if (!found) return;
+      e.preventDefault();
+
+      if (found.drawingType === 'text') {
+        const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', found.properties?.text || '');
+        if (newText === null) return;
+        if (found._local) {
+          setLocalDrawings(prev => prev.map(d => d.id === found.id ? { ...d, properties: { ...d.properties, text: newText } } : d));
+        } else {
+          socket.emit('client:drawing:update', {
+            projectId: found._projectId,
+            id: found.id,
+            properties: { ...found.properties, text: newText },
+          });
+        }
+      } else {
+        const newLabel = prompt(lang === 'no' ? 'Rediger etikett:' : 'Edit label:', found.properties?.label || '');
+        if (newLabel === null) return;
+        if (found._local) {
+          setLocalDrawings(prev => prev.map(d => d.id === found.id ? { ...d, properties: { ...d.properties, label: newLabel || undefined } } : d));
+        } else {
+          socket.emit('client:drawing:update', {
+            projectId: found._projectId,
+            id: found.id,
+            properties: { ...found.properties, label: newLabel || undefined },
+          });
+        }
+      }
+    };
+
+    mapRefValue.on('dblclick', handler);
+    return () => mapRefValue.off('dblclick', handler);
+  }, [mapRefValue, drawingToolsVisible, selectMode, drawings, localDrawings, lang]);
+
+  // ── Drag to move / resize ──
+  useEffect(() => {
+    if (!mapRefValue || !drawingToolsVisible) return;
+    if (activeMode || selectMode) return;
+
+    const canvas = mapRefValue.getCanvas();
+    let moved = false;
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      if (!selectedDrawingId) return;
+
+      const drawing = drawings.find(d => d.id === selectedDrawingId) || localDrawings.find(d => d.id === selectedDrawingId);
+      if (!drawing) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const clickScreen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+      // Check vertex handles first (resize)
+      const vertices = getVertices(drawing);
+      for (let i = 0; i < vertices.length; i++) {
+        try {
+          const vScreen = mapRefValue.project(vertices[i]);
+          if (screenDist(clickScreen, vScreen) <= 10) {
+            e.preventDefault();
+            e.stopPropagation();
+            moved = false;
+            const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
+            setDragState({
+              type: 'vertex',
+              vertexIndex: i,
+              drawingId: drawing.id,
+              startLngLat: [startLngLat.lng, startLngLat.lat],
+              originalGeometry: JSON.parse(JSON.stringify(drawing.geometry)),
+              isLocal: !!drawing._local,
+              projectId: drawing._projectId,
+              drawingType: drawing.drawingType,
+            });
+            mapRefValue.dragPan.disable();
+            return;
+          }
+        } catch {}
+      }
+
+      // Check if click is on the drawing body (move)
+      if (hitTestDrawing(drawing, clickScreen, mapRefValue, 12)) {
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+        const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
+        setDragState({
+          type: 'move',
+          drawingId: drawing.id,
+          startLngLat: [startLngLat.lng, startLngLat.lat],
+          originalGeometry: JSON.parse(JSON.stringify(drawing.geometry)),
+          isLocal: !!drawing._local,
+          projectId: drawing._projectId,
+          drawingType: drawing.drawingType,
+        });
+        mapRefValue.dragPan.disable();
+      }
+    };
+
+    const onPointerMove = (e) => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      moved = true;
+
+      const rect = canvas.getBoundingClientRect();
+      const cursorScreen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const cursorLngLat = mapRefValue.unproject([cursorScreen.x, cursorScreen.y]);
+
+      if (ds.type === 'move') {
+        const dLng = cursorLngLat.lng - ds.startLngLat[0];
+        const dLat = cursorLngLat.lat - ds.startLngLat[1];
+        const newGeom = JSON.parse(JSON.stringify(ds.originalGeometry));
+
+        if (newGeom.type === 'Point') {
+          newGeom.coordinates[0] += dLng;
+          newGeom.coordinates[1] += dLat;
+        } else if (newGeom.type === 'LineString') {
+          newGeom.coordinates = newGeom.coordinates.map(c => [c[0] + dLng, c[1] + dLat]);
+        } else if (newGeom.type === 'Polygon') {
+          newGeom.coordinates[0] = newGeom.coordinates[0].map(c => [c[0] + dLng, c[1] + dLat]);
+        }
+
+        applyGeometryUpdate(ds, newGeom);
+      } else if (ds.type === 'vertex') {
+        const newGeom = JSON.parse(JSON.stringify(ds.originalGeometry));
+
+        if (ds.drawingType === 'circle') {
+          // For circles: recalculate radius from center to new handle position
+          const ring = newGeom.coordinates[0];
+          const cx = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+          const cy = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+          const R = 6371;
+          const dLat2 = ((cursorLngLat.lat - cy) * Math.PI) / 180;
+          const dLon2 = ((cursorLngLat.lng - cx) * Math.PI) / 180;
+          const a = Math.sin(dLat2/2)**2 + Math.cos(cy*Math.PI/180)*Math.cos(cursorLngLat.lat*Math.PI/180)*Math.sin(dLon2/2)**2;
+          const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const coords = generateCirclePolygon([cx, cy], Math.max(0.01, radiusKm));
+          newGeom.coordinates = [coords];
+        } else if (newGeom.type === 'LineString') {
+          newGeom.coordinates[ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
+        } else if (newGeom.type === 'Polygon') {
+          newGeom.coordinates[0][ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
+          // If first/last vertex, keep ring closed
+          if (ds.vertexIndex === 0) {
+            newGeom.coordinates[0][newGeom.coordinates[0].length - 1] = [cursorLngLat.lng, cursorLngLat.lat];
+          } else if (ds.vertexIndex === newGeom.coordinates[0].length - 1) {
+            newGeom.coordinates[0][0] = [cursorLngLat.lng, cursorLngLat.lat];
+          }
+        }
+
+        applyGeometryUpdate(ds, newGeom);
+      }
+    };
+
+    const onPointerUp = () => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      mapRefValue.dragPan.enable();
+
+      if (moved && !ds.isLocal && lastDragGeomRef.current) {
+        // Persist final geometry to server
+        socket.emit('client:drawing:update', {
+          projectId: ds.projectId,
+          id: ds.drawingId,
+          geometry: lastDragGeomRef.current,
+        });
+      }
+      lastDragGeomRef.current = null;
+
+      setDragState(null);
+      // Brief timeout so the click handler doesn't fire
+      setTimeout(() => { moved = false; }, 50);
+    };
+
+    canvas.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      if (dragStateRef.current) mapRefValue.dragPan.enable();
+    };
+  }, [mapRefValue, drawingToolsVisible, activeMode, selectMode, selectedDrawingId, drawings, localDrawings]);
+
+  // Track the latest geometry during drag for use in onPointerUp
+  const lastDragGeomRef = useRef(null);
+
+  function applyGeometryUpdate(ds, newGeom) {
+    lastDragGeomRef.current = newGeom;
+    if (ds.isLocal) {
+      setLocalDrawings(prev => prev.map(d => d.id === ds.drawingId ? { ...d, geometry: newGeom } : d));
+    } else {
+      // Directly mutate the drawing object for immediate visual feedback
+      const drawing = drawings.find(d => d.id === ds.drawingId);
+      if (drawing) {
+        drawing.geometry = newGeom;
+        forceUpdate(n => n + 1);
+      }
+    }
+  }
+
+  function getVertices(drawing) {
+    if (!drawing) return [];
+    if (drawing.drawingType === 'circle' && drawing.geometry.type === 'Polygon') {
+      // Show one handle at the "east" point (index 16 out of 65 = 0° = east)
+      const ring = drawing.geometry.coordinates[0];
+      if (ring.length > 16) return [ring[16]];
+      return [ring[0]];
+    }
+    if (drawing.geometry.type === 'LineString') {
+      return drawing.geometry.coordinates;
+    }
+    if (drawing.geometry.type === 'Polygon') {
+      // Exclude last point (duplicate of first for closure)
+      return drawing.geometry.coordinates[0].slice(0, -1);
+    }
+    if (drawing.geometry.type === 'Point') {
+      return [drawing.geometry.coordinates];
+    }
+    return [];
+  }
 
   // Circle preview: follow cursor after center is placed
   useEffect(() => {
@@ -219,7 +554,6 @@ export default function DrawingLayer() {
     if (!selectMode || !mapRefValue) return;
 
     const canvas = mapRefValue.getCanvas();
-
     canvas.style.touchAction = 'none';
 
     const onPointerDown = (e) => {
@@ -229,7 +563,6 @@ export default function DrawingLayer() {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       setSelectionRect({ startX: x, startY: y, endX: x, endY: y });
-      // Disable map drag during selection
       mapRefValue.dragPan.disable();
     };
 
@@ -241,7 +574,7 @@ export default function DrawingLayer() {
       setSelectionRect(prev => prev ? { ...prev, endX: x, endY: y } : null);
     };
 
-    const onPointerUp = (e) => {
+    const onPointerUp = () => {
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       mapRefValue.dragPan.enable();
@@ -254,13 +587,11 @@ export default function DrawingLayer() {
         const minY = Math.min(startY, endY);
         const maxY = Math.max(startY, endY);
 
-        // Only select if rectangle is big enough (not just a click)
         if (maxX - minX < 5 || maxY - minY < 5) {
           setSelectedIds(new Set());
           return null;
         }
 
-        // Convert screen rect to geo bounds
         const sw = mapRefValue.unproject([minX, maxY]);
         const ne = mapRefValue.unproject([maxX, minY]);
         const box = {
@@ -270,7 +601,6 @@ export default function DrawingLayer() {
           maxLat: ne.lat,
         };
 
-        // Find drawings that intersect the box (from all visible projects)
         const state = useTacticalStore.getState();
         const allDrawings = getAllVisibleDrawings(state);
         const ids = new Set();
@@ -320,13 +650,48 @@ export default function DrawingLayer() {
     exitSelectMode();
   }, [lang, exitSelectMode, activeProjectId, drawings]);
 
+  // Delete single selected drawing
+  const deleteSingleSelected = useCallback(() => {
+    if (!selectedDrawingId) return;
+    const drawing = drawings.find(d => d.id === selectedDrawingId);
+    if (drawing && drawing._projectId) {
+      socket.emit('client:drawing:delete-batch', { projectId: drawing._projectId, ids: [selectedDrawingId] });
+    }
+    const localD = localDrawings.find(d => d.id === selectedDrawingId);
+    if (localD) {
+      setLocalDrawings(prev => prev.filter(d => d.id !== selectedDrawingId));
+    }
+    setSelectedDrawingId(null);
+  }, [selectedDrawingId, drawings, localDrawings, setSelectedDrawingId]);
+
+  // Adjust line width of selected drawing
+  const adjustLineWidth = useCallback((delta) => {
+    if (!selectedDrawing) return;
+    const current = selectedDrawing.properties?.strokeWidth || 3;
+    const newWidth = Math.max(1, Math.min(20, current + delta));
+    if (selectedDrawing._local) {
+      setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
+        ? { ...d, properties: { ...d.properties, strokeWidth: newWidth } }
+        : d
+      ));
+    } else {
+      socket.emit('client:drawing:update', {
+        projectId: selectedDrawing._projectId,
+        id: selectedDrawing.id,
+        properties: { ...selectedDrawing.properties, strokeWidth: newWidth },
+      });
+    }
+  }, [selectedDrawing]);
+
   // Force re-render on map move so preview SVG stays in sync with map
   useEffect(() => {
-    if (!mapRefValue || drawPoints.length === 0) return;
+    if (!mapRefValue) return;
+    const needsSync = drawPoints.length > 0 || selectedDrawingId || dragState;
+    if (!needsSync) return;
     const onMove = () => forceUpdate((n) => n + 1);
     mapRefValue.on('move', onMove);
     return () => mapRefValue.off('move', onMove);
-  }, [mapRefValue, drawPoints.length > 0]);
+  }, [mapRefValue, drawPoints.length > 0, selectedDrawingId, !!dragState]);
 
   // Project draw points to screen coordinates for SVG preview
   const screenPoints = [];
@@ -347,27 +712,42 @@ export default function DrawingLayer() {
       setActiveMode(null);
       setDrawPoints([]);
       setCursorPoint(null);
+      setSelectedDrawingId(null);
       if (selectMode) exitSelectMode();
     }
   }, [drawingToolsVisible]);
 
-  // Keyboard shortcuts: Enter to finish, Escape to cancel
+  // Keyboard shortcuts: Enter to finish, Escape to cancel/deselect, Delete to remove selected
   useEffect(() => {
-    if (!activeMode) return;
+    if (!drawingToolsVisible) return;
     const onKeyDown = (e) => {
-      if (e.key === 'Enter' && activeModeRef.current && activeModeRef.current !== 'text' && drawPointsRef.current.length >= 2) {
+      // Delete/Backspace deletes selected drawing
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDrawingId && !activeMode) {
+        // Don't delete if user is in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         e.preventDefault();
-        finishDrawing();
+        deleteSingleSelected();
+        return;
       }
-      if (e.key === 'Escape') {
+
+      if (activeMode) {
+        if (e.key === 'Enter' && activeModeRef.current && activeModeRef.current !== 'text' && drawPointsRef.current.length >= 2) {
+          e.preventDefault();
+          finishDrawing();
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setActiveMode(null);
+          setDrawPoints([]);
+        }
+      } else if (e.key === 'Escape' && selectedDrawingId) {
         e.preventDefault();
-        setActiveMode(null);
-        setDrawPoints([]);
+        setSelectedDrawingId(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeMode]);
+  }, [drawingToolsVisible, activeMode, selectedDrawingId, deleteSingleSelected, setSelectedDrawingId]);
 
   const tools = [
     { id: 'line', icon: '/', shortcut: 'L' },
@@ -377,15 +757,28 @@ export default function DrawingLayer() {
     { id: 'text', icon: 'T', shortcut: 'T' },
   ];
 
+  // No-project warning for logged-in users
+  const noProjectWarning = drawingToolsVisible && user && !activeProjectId;
+
   return (
     <>
       {/* Drawing tools panel */}
       {drawingToolsVisible && <div className="absolute top-16 left-4 z-10 flex flex-col gap-1">
+        {/* No project warning banner */}
+        {noProjectWarning && (
+          <div className="bg-amber-600/90 rounded px-2 py-1.5 mb-1 text-[11px] text-white max-w-[140px] text-center leading-tight">
+            <div className="font-bold">{t('draw.noProject', lang)}</div>
+            <div className="mt-0.5 opacity-80">{t('draw.noProjectHint', lang)}</div>
+          </div>
+        )}
+
         {tools.map((tool) => (
           <button
             key={tool.id}
             onClick={() => {
+              if (noProjectWarning) return;
               if (selectMode) exitSelectMode();
+              setSelectedDrawingId(null);
               if (activeMode === tool.id) {
                 finishDrawing();
               } else {
@@ -395,11 +788,14 @@ export default function DrawingLayer() {
               }
             }}
             className={`w-10 h-10 flex items-center justify-center rounded text-lg font-bold transition-colors shadow-lg ${
-              activeMode === tool.id
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              noProjectWarning
+                ? 'bg-slate-800 text-slate-600 opacity-40 cursor-not-allowed'
+                : activeMode === tool.id
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
             title={`${t(`draw.${tool.id}`, lang)} (${tool.shortcut})`}
+            disabled={noProjectWarning}
           >
             {tool.icon}
           </button>
@@ -433,6 +829,8 @@ export default function DrawingLayer() {
         {/* Select/delete mode button */}
         <button
           onClick={() => {
+            if (noProjectWarning) return;
+            setSelectedDrawingId(null);
             if (selectMode) {
               exitSelectMode();
             } else {
@@ -442,11 +840,14 @@ export default function DrawingLayer() {
             }
           }}
           className={`w-10 h-10 flex items-center justify-center rounded text-sm font-bold transition-colors shadow-lg ${
-            selectMode
-              ? 'bg-amber-600 text-white'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            noProjectWarning
+              ? 'bg-slate-800 text-slate-600 opacity-40 cursor-not-allowed'
+              : selectMode
+                ? 'bg-amber-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
           title={t('draw.select', lang)}
+          disabled={noProjectWarning}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" />
@@ -454,7 +855,7 @@ export default function DrawingLayer() {
         </button>
 
         {/* Delete all button (server drawings) */}
-        {drawings.length > 0 && (
+        {drawings.length > 0 && !noProjectWarning && (
           <button
             onClick={deleteAll}
             className="w-10 h-10 flex items-center justify-center rounded bg-slate-800 text-red-400 hover:bg-red-800 hover:text-white text-sm font-bold transition-colors shadow-lg"
@@ -482,7 +883,7 @@ export default function DrawingLayer() {
           </button>
         )}
 
-        {/* Delete selected button */}
+        {/* Delete selected (batch) button */}
         {selectedIds.size > 0 && (
           <button
             onClick={deleteSelected}
@@ -498,37 +899,76 @@ export default function DrawingLayer() {
           </button>
         )}
 
+        {/* ── Selected drawing controls: delete, line width ── */}
+        {selectedDrawing && !activeMode && !selectMode && (
+          <div className="flex flex-col gap-1 mt-1">
+            {/* Delete single selected */}
+            <button
+              onClick={deleteSingleSelected}
+              className="w-10 h-10 flex items-center justify-center rounded bg-red-700 text-white text-sm font-bold shadow-lg hover:bg-red-600"
+              title={t('draw.deleteDrawing', lang)}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+
+            {/* Line width controls */}
+            {selectedDrawing.geometry.type !== 'Point' && (
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-slate-400">{t('draw.lineWidth', lang)}</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => adjustLineWidth(-1)}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                  >
+                    −
+                  </button>
+                  <span className="text-[11px] text-white w-4 text-center">{selectedDrawing.properties?.strokeWidth || 3}</span>
+                  <button
+                    onClick={() => adjustLineWidth(1)}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Color picker */}
         {!selectMode && (
           <div className="relative">
             <button
               onClick={() => setShowColorPicker(!showColorPicker)}
-              className="w-10 h-10 flex items-center justify-center rounded bg-slate-800 shadow-lg hover:bg-slate-700"
+              className={`w-10 h-10 flex items-center justify-center rounded bg-slate-800 shadow-lg hover:bg-slate-700 ${noProjectWarning ? 'opacity-40 cursor-not-allowed' : ''}`}
               title={t('draw.color', lang)}
+              disabled={noProjectWarning}
             >
               <div className="w-6 h-6 rounded" style={{ backgroundColor: drawColor }} />
             </button>
-            {showColorPicker && (
-              <div className="absolute left-12 top-0 bg-slate-800 p-2 rounded shadow-xl border border-slate-600">
-                <div className="grid grid-cols-5 gap-1 mb-2">
+            {showColorPicker && !noProjectWarning && (
+              <div className="absolute left-12 top-0 bg-slate-800 p-3 rounded shadow-xl border border-slate-600 min-w-[240px]">
+                <div className="grid grid-cols-5 gap-1.5 mb-2">
                   {DRAW_COLORS.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => { setDrawColor(c.color); setShowColorPicker(false); }}
-                      className={`w-8 h-8 rounded border-2 ${drawColor === c.color ? 'border-white' : 'border-transparent'}`}
+                      className={`w-10 h-10 rounded border-2 transition-transform hover:scale-110 ${drawColor === c.color ? 'border-white scale-110' : 'border-transparent'}`}
                       style={{ backgroundColor: c.color }}
                       title={lang === 'no' ? c.label : c.labelEn}
                     />
                   ))}
                 </div>
-                <label className="flex items-center gap-1.5 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="color"
                     value={drawColor}
                     onChange={(e) => { setDrawColor(e.target.value); }}
-                    className="w-8 h-8 rounded border-0 cursor-pointer bg-transparent p-0"
+                    className="w-10 h-10 rounded border-0 cursor-pointer bg-transparent p-0"
                   />
-                  <span className="text-[10px] text-slate-400">{lang === 'no' ? 'Egendefinert' : 'Custom'}</span>
+                  <span className="text-xs text-slate-400">{lang === 'no' ? 'Egendefinert' : 'Custom'}</span>
                 </label>
               </div>
             )}
@@ -562,6 +1002,13 @@ export default function DrawingLayer() {
           </div>
         )}
 
+        {/* Selected drawing hint */}
+        {selectedDrawing && !activeMode && !selectMode && (
+          <div className="bg-cyan-800/90 rounded px-2 py-1 mt-1 text-[10px] text-cyan-200 max-w-[140px] leading-tight">
+            {lang === 'no' ? 'Dra for å flytte. Dra hjørner for å endre. Dobbeltklikk for etikett.' : 'Drag to move. Drag handles to resize. Double-click to edit label.'}
+          </div>
+        )}
+
         {/* Not logged in warning */}
         {!user && !activeProjectId && (
           <div className="bg-amber-600/90 rounded px-2 py-1 mt-2 text-[10px] text-white max-w-[120px] text-center">
@@ -584,7 +1031,6 @@ export default function DrawingLayer() {
           {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
             const cx = screenPoints[0].x;
             const cy = screenPoints[0].y;
-            // Use cursor position for live preview, or second clicked point
             let ep = screenPoints.length >= 2 ? screenPoints[screenPoints.length - 1] : null;
             if (!ep && cursorPoint && mapRefValue) {
               try { const p = mapRefValue.project(cursorPoint); ep = { x: p.x, y: p.y }; } catch {}
@@ -674,34 +1120,64 @@ export default function DrawingLayer() {
         </svg>
       )}
 
+      {/* Vertex handles overlay for selected drawing */}
+      {mapRefValue && selectedDrawing && !activeMode && !selectMode && (
+        <svg className="absolute inset-0 z-[8]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
+          {getVertices(selectedDrawing).map((coord, i) => {
+            try {
+              const pt = mapRefValue.project(coord);
+              return (
+                <circle
+                  key={i}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="6"
+                  fill="white"
+                  stroke="#06b6d4"
+                  strokeWidth="2.5"
+                  style={{ cursor: 'grab', pointerEvents: 'auto' }}
+                />
+              );
+            } catch { return null; }
+          })}
+        </svg>
+      )}
+
       {/* Local drawings SVG overlay (not saved - non-logged-in users) */}
       {mapRefValue && localDrawings.length > 0 && (
         <svg className="absolute inset-0 z-[5]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {localDrawings.map(d => {
             const color = d.properties?.color || '#3b82f6';
+            const sw = d.properties?.strokeWidth || 3;
             const key = d.id;
+            const isSelected = selectedDrawingId === d.id;
 
             const projectCoord = (coord) => {
               try { const p = mapRefValue.project(coord); return { x: p.x, y: p.y }; }
               catch { return null; }
             };
 
-            const projectCoords = (coords) => coords.map(c => projectCoord(c)).filter(Boolean);
-
-            const handleDelete = (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setLocalDrawings((prev) => prev.filter((ld) => ld.id !== d.id));
-            };
+            const projectCoordsLocal = (coords) => coords.map(c => projectCoord(c)).filter(Boolean);
 
             if (d.geometry.type === 'LineString') {
-              const pts = projectCoords(d.geometry.coordinates);
+              const pts = projectCoordsLocal(d.geometry.coordinates);
               if (pts.length < 2) return null;
               const midPt = pts[Math.floor(pts.length / 2)];
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  {/* Selection highlight */}
+                  {isSelected && (
+                    <polyline
+                      points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke="#06b6d4"
+                      strokeWidth={sw + 6}
+                      strokeDasharray="6 4"
+                      opacity="0.6"
+                    />
+                  )}
                   {/* Invisible wider stroke for easier clicking */}
                   <polyline
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
@@ -713,7 +1189,7 @@ export default function DrawingLayer() {
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
                     fill="none"
                     stroke={color}
-                    strokeWidth="3"
+                    strokeWidth={sw}
                     strokeDasharray={d.properties?.lineType === 'dashed' ? '8 4' : 'none'}
                   />
                   {(d.properties?.lineType === 'arrow' || d.drawingType === 'arrow') && (() => {
@@ -738,22 +1214,33 @@ export default function DrawingLayer() {
 
             if (d.geometry.type === 'Polygon') {
               const ring = d.geometry.coordinates[0];
-              const pts = projectCoords(ring);
+              const pts = projectCoordsLocal(ring);
               if (pts.length < 3) return null;
               const centroid = {
                 x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  {/* Selection highlight */}
+                  {isSelected && (
+                    <polygon
+                      points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke="#06b6d4"
+                      strokeWidth={sw + 4}
+                      strokeDasharray="6 4"
+                      opacity="0.6"
+                    />
+                  )}
                   <polygon
                     points={pts.map(p => `${p.x},${p.y}`).join(' ')}
                     fill={color}
                     fillOpacity={d.properties?.fillOpacity ?? 0.15}
                     stroke={color}
-                    strokeWidth="2"
+                    strokeWidth={sw}
                   />
                   {d.properties?.label && (
                     <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="central"
@@ -768,9 +1255,12 @@ export default function DrawingLayer() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onClick={handleDelete}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
                   {/* Local indicator dot */}
                   <circle cx={pt.x - 10} cy={pt.y - 10} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
+                  {isSelected && (
+                    <rect x={pt.x - 30} y={pt.y - 14} width="60" height="28" fill="#06b6d4" fillOpacity="0.2" stroke="#06b6d4" strokeWidth="2" strokeDasharray="4 3" rx="3" />
+                  )}
                   <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
                     stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>

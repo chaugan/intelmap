@@ -97,6 +97,14 @@ html, body, #root {
   100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
 }
 
+/* Drawing selection bounding box — animated marching ants */
+@keyframes marching-ants {
+  to { stroke-dashoffset: -18; }
+}
+.selection-bbox {
+  animation: marching-ants 0.6s linear infinite;
+}
+
 /* Pulsation animation for restriction highlight */
 @keyframes pulse-color {
   0%, 100% { opacity: 1; transform: scale(1); }
