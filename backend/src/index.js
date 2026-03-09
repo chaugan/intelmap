@@ -22,6 +22,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
+  maxHttpBufferSize: 50e6, // 50MB — RF coverage geojson can be large
 });
 
 app.use(cors({ origin: true, credentials: true }));
