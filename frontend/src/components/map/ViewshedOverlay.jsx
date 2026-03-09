@@ -2,7 +2,7 @@
  * ViewshedOverlay — always mounted, renders saved viewsheds on the map
  * regardless of whether the ViewshedTool panel is open.
  */
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 
@@ -177,32 +177,52 @@ export default function ViewshedOverlay() {
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
   const dataRef = useRef(null);
 
-  const cleanup = useCallback(() => {
-    if (!mapRef) return;
-    for (const l of ALL_LAYERS) { if (mapRef.getLayer(l)) mapRef.removeLayer(l); }
-    for (const s of ALL_SOURCES) { if (mapRef.getSource(s)) mapRef.removeSource(s); }
-  }, [mapRef]);
-
-  // Check if there is any saved viewshed data to render
-  const hasData = visibleProjectIds.some(pid => {
-    const proj = projects[pid];
-    return proj?.viewsheds?.length > 0;
-  });
-
+  // Single effect: create/update/remove sources+layers whenever state changes
   useEffect(() => {
-    if (!mapRef || !hasData) {
-      if (mapRef) cleanup();
+    if (!mapRef) return;
+
+    const removeLayers = () => {
+      for (const l of ALL_LAYERS) { if (mapRef.getLayer(l)) mapRef.removeLayer(l); }
+      for (const s of ALL_SOURCES) { if (mapRef.getSource(s)) mapRef.removeSource(s); }
+    };
+
+    const hasData = visibleProjectIds.some(pid => projects[pid]?.viewsheds?.length > 0);
+
+    if (!hasData) {
+      removeLayers();
+      dataRef.current = null;
       return;
     }
 
-    const initLayers = () => {
-      const saved = dataRef.current || buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, itemVisibility);
+    const data = buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, itemVisibility);
+    dataRef.current = data;
 
-      if (!mapRef.getSource(SOURCE_SAVED)) mapRef.addSource(SOURCE_SAVED, { type: 'geojson', data: saved.polygons });
-      if (!mapRef.getSource(SOURCE_SAVED_OBSERVERS)) mapRef.addSource(SOURCE_SAVED_OBSERVERS, { type: 'geojson', data: saved.observers });
-      if (!mapRef.getSource(SOURCE_SAVED_BOUNDARIES)) mapRef.addSource(SOURCE_SAVED_BOUNDARIES, { type: 'geojson', data: saved.boundaries });
-      if (!mapRef.getSource(SOURCE_SAVED_HORIZONS)) mapRef.addSource(SOURCE_SAVED_HORIZONS, { type: 'geojson', data: saved.horizons });
+    // Ensure sources exist, then update data
+    const ensureSource = (id, d) => {
+      const src = mapRef.getSource(id);
+      if (src) { src.setData(d); } else { mapRef.addSource(id, { type: 'geojson', data: d }); }
+    };
+    ensureSource(SOURCE_SAVED, data.polygons);
+    ensureSource(SOURCE_SAVED_OBSERVERS, data.observers);
+    ensureSource(SOURCE_SAVED_BOUNDARIES, data.boundaries);
+    ensureSource(SOURCE_SAVED_HORIZONS, data.horizons);
 
+    // Ensure layers exist
+    if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.25 } });
+    if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
+    if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+    if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
+    if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
+    if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
+
+    // Re-add after base map style changes
+    const onStyleData = () => {
+      const d = dataRef.current;
+      if (!d) return;
+      if (!mapRef.getSource(SOURCE_SAVED)) mapRef.addSource(SOURCE_SAVED, { type: 'geojson', data: d.polygons });
+      if (!mapRef.getSource(SOURCE_SAVED_OBSERVERS)) mapRef.addSource(SOURCE_SAVED_OBSERVERS, { type: 'geojson', data: d.observers });
+      if (!mapRef.getSource(SOURCE_SAVED_BOUNDARIES)) mapRef.addSource(SOURCE_SAVED_BOUNDARIES, { type: 'geojson', data: d.boundaries });
+      if (!mapRef.getSource(SOURCE_SAVED_HORIZONS)) mapRef.addSource(SOURCE_SAVED_HORIZONS, { type: 'geojson', data: d.horizons });
       if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.25 } });
       if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
       if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
@@ -210,26 +230,9 @@ export default function ViewshedOverlay() {
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
       if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
     };
-
-    initLayers();
-    mapRef.on('styledata', initLayers);
-    return () => { mapRef.off('styledata', initLayers); cleanup(); };
-  }, [mapRef, hasData, cleanup]);
-
-  // Update data when projects/visibility change
-  useEffect(() => {
-    if (!mapRef || !hasData) return;
-    const saved = buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, itemVisibility);
-    dataRef.current = saved;
-    const src = mapRef.getSource(SOURCE_SAVED);
-    if (src) src.setData(saved.polygons);
-    const obsSrc = mapRef.getSource(SOURCE_SAVED_OBSERVERS);
-    if (obsSrc) obsSrc.setData(saved.observers);
-    const bSrc = mapRef.getSource(SOURCE_SAVED_BOUNDARIES);
-    if (bSrc) bSrc.setData(saved.boundaries);
-    const hSrc = mapRef.getSource(SOURCE_SAVED_HORIZONS);
-    if (hSrc) hSrc.setData(saved.horizons);
-  }, [mapRef, hasData, visibleProjectIds, projects, layerVisibility, itemVisibility]);
+    mapRef.on('styledata', onStyleData);
+    return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
+  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
 
   return null;
 }

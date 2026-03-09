@@ -27,7 +27,22 @@ const BUCKETS = [
   { name: 'noCoverage', min: -Infinity, color: '#991b1b', invertColor: '#15803d' },
 ];
 
-const INVERT_MAP = Object.fromEntries(BUCKETS.map(b => [b.color, b.invertColor]));
+// MapLibre interpolation expressions for smooth gradient fill
+const NORMAL_COLOR_EXPR = [
+  'interpolate', ['linear'], ['get', 'signalStrength'],
+  -95, '#991b1b', -90, '#dc2626', -85, '#ef4444', -80, '#f97316',
+  -75, '#f59e0b', -70, '#eab308', -65, '#84cc16', -60, '#4ade80',
+  -55, '#22c55e', -50, '#15803d',
+];
+const INVERTED_COLOR_EXPR = [
+  'interpolate', ['linear'], ['get', 'signalStrength'],
+  -95, '#15803d', -90, '#22c55e', -85, '#4ade80', -80, '#84cc16',
+  -75, '#eab308', -70, '#f59e0b', -65, '#f97316', -60, '#ef4444',
+  -55, '#dc2626', -50, '#991b1b',
+];
+// Fallback for old saved data that only has 'color' property
+const COLOR_EXPR = ['case', ['has', 'signalStrength'], NORMAL_COLOR_EXPR, ['get', 'color']];
+const COLOR_EXPR_INV = ['case', ['has', 'signalStrength'], INVERTED_COLOR_EXPR, ['get', 'color']];
 
 const POWER_OPTIONS = [
   { watts: 0.5, label: '0.5W (27 dBm)' },
@@ -61,19 +76,10 @@ function circlePolygon(center, radiusKm, numPoints = 64) {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } };
 }
 
-function applyDisplayOptions(geojson, invert, dimmedBuckets) {
+function applyDisplayOptions(geojson, dimmedBuckets) {
   if (!geojson?.features) return geojson;
-  let features = geojson.features;
-  if (dimmedBuckets.size > 0) {
-    features = features.filter(f => !dimmedBuckets.has(f.properties.bucket));
-  }
-  if (invert) {
-    features = features.map(f => ({
-      ...f,
-      properties: { ...f.properties, color: INVERT_MAP[f.properties.color] || f.properties.color },
-    }));
-  }
-  return { ...geojson, features };
+  if (dimmedBuckets.size === 0) return geojson;
+  return { ...geojson, features: geojson.features.filter(f => !dimmedBuckets.has(f.properties.bucket)) };
 }
 
 export default function RFCoverageTool() {
@@ -195,16 +201,16 @@ export default function RFCoverageTool() {
     const initLayers = () => {
       const ant = antennaRef.current;
       const gj = resultGeojsonRef.current;
-      const inv = invertColorsRef.current;
       const dim = dimmedBucketsRef.current;
+      const inv = invertColorsRef.current;
 
       if (!mapRef.getSource(SOURCE_CIRCLE)) mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
-      if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, inv, dim) : EMPTY_FC });
+      if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, dim) : EMPTY_FC });
       if (!mapRef.getSource(SOURCE_OBSERVER)) mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
 
       if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) mapRef.addLayer({ id: LAYER_CIRCLE_FILL, type: 'fill', source: SOURCE_CIRCLE, paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.08 } });
       if (!mapRef.getLayer(LAYER_CIRCLE_LINE)) mapRef.addLayer({ id: LAYER_CIRCLE_LINE, type: 'line', source: SOURCE_CIRCLE, paint: { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [4, 4] } });
-      if (!mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.addLayer({ id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.6 } });
+      if (!mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.addLayer({ id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT, paint: { 'fill-color': inv ? COLOR_EXPR_INV : COLOR_EXPR, 'fill-opacity': 0.6 } });
       if (!mapRef.getLayer(LAYER_OBSERVER)) mapRef.addLayer({ id: LAYER_OBSERVER, type: 'circle', source: SOURCE_OBSERVER, paint: { 'circle-radius': 7, 'circle-color': '#a855f7', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
     };
 
@@ -219,12 +225,20 @@ export default function RFCoverageTool() {
     if (mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-opacity', opacity);
   }, [opacity, mapRef, visible]);
 
-  // Update result display when invert or dimmed buckets change
+  // Update result display when dimmed buckets change
   useEffect(() => {
     if (!mapRef || !resultGeojson) return;
     const src = mapRef.getSource(SOURCE_RESULT);
-    if (src) src.setData(applyDisplayOptions(resultGeojson, invertColors, dimmedBuckets));
-  }, [invertColors, dimmedBuckets, resultGeojson, mapRef]);
+    if (src) src.setData(applyDisplayOptions(resultGeojson, dimmedBuckets));
+  }, [dimmedBuckets, resultGeojson, mapRef]);
+
+  // Update color expression when invert changes
+  useEffect(() => {
+    if (!mapRef || !visible) return;
+    if (mapRef.getLayer(LAYER_RESULT_FILL)) {
+      mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-color', invertColors ? COLOR_EXPR_INV : COLOR_EXPR);
+    }
+  }, [invertColors, mapRef, visible]);
 
   // Update circle preview
   useEffect(() => {
@@ -286,13 +300,13 @@ export default function RFCoverageTool() {
       setMode('result');
       if (mapRef) {
         const src = mapRef.getSource(SOURCE_RESULT);
-        if (src) src.setData(applyDisplayOptions(data.geojson, invertColors, dimmedBuckets));
+        if (src) src.setData(applyDisplayOptions(data.geojson, dimmedBuckets));
       }
     } catch (err) {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, invertColors, dimmedBuckets]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets]);
 
   const handleSave = useCallback(() => {
     if (!activeProjectId || !result) return;

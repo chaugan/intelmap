@@ -57,8 +57,8 @@ router.post('/calculate', async (req, res) => {
     const groundElevation = getElevation(longitude, latitude);
     const txElevation = groundElevation + height;
 
-    const numRays = 720;
-    const sampleStep = radius > 10 ? 100 : radius > 3 ? 50 : 30;
+    const numRays = 360;
+    const sampleStep = radius > 15 ? 150 : radius > 8 ? 100 : radius > 3 ? 60 : 30;
     const numSamples = Math.ceil(radiusMeters / sampleStep);
 
     // signalGrid[ray][sample] = dBm value
@@ -67,8 +67,9 @@ router.post('/calculate', async (req, res) => {
     let totalSamples = 0;
     let maxRangeM = 0;
 
+    const angleStep = 360 / numRays;
     for (let r = 0; r < numRays; r++) {
-      const bearingRad = (r * 0.5) * Math.PI / 180;
+      const bearingRad = (r * angleStep) * Math.PI / 180;
       signalGrid[r] = new Float32Array(numSamples);
 
       // Build terrain profile along ray for obstruction checks
@@ -137,56 +138,45 @@ router.post('/calculate', async (req, res) => {
       }
     }
 
-    // Build GeoJSON wedge polygons — merge consecutive samples in same bucket per ray
+    // Build GeoJSON wedge polygons — per-sample features for smooth gradient
     const features = [];
-    const angleStep = 0.5;
+    const rd = (v) => Math.round(v * 10000) / 10000; // 4 decimal places ≈ 11m
 
     for (let r = 0; r < numRays; r++) {
-      const bearingRad = (r * 0.5) * Math.PI / 180;
-      let startSample = 0;
-      let currentBucket = getBucket(signalGrid[r][0]);
+      const bearing1 = (r * angleStep - angleStep / 2) * Math.PI / 180;
+      const bearing2 = (r * angleStep + angleStep / 2) * Math.PI / 180;
 
-      for (let s = 0; s <= numSamples; s++) {
-        const bucket = s < numSamples ? getBucket(signalGrid[r][s]) : null;
+      for (let s = 0; s < numSamples; s++) {
+        const pRx = signalGrid[r][s];
+        if (pRx < -95) continue; // skip very weak signals
 
-        if (!bucket || bucket.name !== currentBucket.name) {
-          // Emit wedge from startSample to s-1
-          const bearing1 = (r * angleStep - angleStep / 2) * Math.PI / 180;
-          const bearing2 = (r * angleStep + angleStep / 2) * Math.PI / 180;
-          const dNear = (startSample + 1) * sampleStep;
-          const dFar = (s) * sampleStep;
+        const bucket = getBucket(pRx);
+        const dNear = s * sampleStep;
+        const dFar = (s + 1) * sampleStep;
+        if (dFar <= 0) continue;
 
-          if (dFar > dNear) {
-            const p1 = destination(latitude, longitude, bearing1, dNear);
-            const p2 = destination(latitude, longitude, bearing2, dNear);
-            const p3 = destination(latitude, longitude, bearing2, dFar);
-            const p4 = destination(latitude, longitude, bearing1, dFar);
+        const p1 = destination(latitude, longitude, bearing1, Math.max(dNear, 1));
+        const p2 = destination(latitude, longitude, bearing2, Math.max(dNear, 1));
+        const p3 = destination(latitude, longitude, bearing2, dFar);
+        const p4 = destination(latitude, longitude, bearing1, dFar);
 
-            features.push({
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                  [p1.lon, p1.lat],
-                  [p2.lon, p2.lat],
-                  [p3.lon, p3.lat],
-                  [p4.lon, p4.lat],
-                  [p1.lon, p1.lat],
-                ]],
-              },
-              properties: {
-                color: currentBucket.color,
-                bucket: currentBucket.name,
-                signalStrength: currentBucket.min,
-              },
-            });
-          }
-
-          if (bucket) {
-            startSample = s;
-            currentBucket = bucket;
-          }
-        }
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [rd(p1.lon), rd(p1.lat)],
+              [rd(p2.lon), rd(p2.lat)],
+              [rd(p3.lon), rd(p3.lat)],
+              [rd(p4.lon), rd(p4.lat)],
+              [rd(p1.lon), rd(p1.lat)],
+            ]],
+          },
+          properties: {
+            bucket: bucket.name,
+            signalStrength: Math.round(pRx * 10) / 10,
+          },
+        });
       }
     }
 
