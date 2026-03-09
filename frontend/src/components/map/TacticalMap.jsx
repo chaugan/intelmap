@@ -651,11 +651,21 @@ export default function TacticalMap() {
             };
 
             const handleClick = (e) => {
-              // Only select if drawing tools are visible
-              const { drawingToolsVisible, drawingActiveMode, setSelectedDrawingId } = useMapStore.getState();
-              if (!drawingToolsVisible || drawingActiveMode) return;
+              const { drawingToolsVisible, drawingActiveMode, gridToolVisible, setSelectedDrawingId } = useMapStore.getState();
+              // Allow selecting grids when grid tool is active
+              const canSelect = d.drawingType === 'grid'
+                ? (drawingToolsVisible || gridToolVisible) && !drawingActiveMode
+                : drawingToolsVisible && !drawingActiveMode;
+              if (!canSelect) return;
               e.stopPropagation();
+              // Signal to GridTool that this click was consumed by an existing grid
+              window.__gridClickConsumed = Date.now();
               setSelectedDrawingId(isSelected ? null : d.id);
+              // When selecting a grid via grid tool, switch to drawing tools mode
+              if (d.drawingType === 'grid' && gridToolVisible && !isSelected) {
+                useMapStore.getState().toggleGridTool();
+                if (!drawingToolsVisible) useMapStore.getState().toggleDrawingTools();
+              }
             };
 
             const handleDblClick = (e) => {
@@ -796,12 +806,17 @@ export default function TacticalMap() {
               };
 
               // Render one quadrant (or full grid if not in quadrant mode)
-              const renderQuadrant = (qSW, qSE, qNE, qNW, qCols, qRows, qColor, prefix) => {
+              // labelEdges: { colEdge: 'top'|'bottom', rowEdge: 'left'|'right' }
+              const renderQuadrant = (qSW, qSE, qNE, qNW, qCols, qRows, qColor, prefix, labelEdges) => {
                 const pqSW = projectCoord(qSW);
                 const pqSE = projectCoord(qSE);
                 const pqNE = projectCoord(qNE);
                 const pqNW = projectCoord(qNW);
                 if (!pqSW || !pqSE || !pqNE || !pqNW) return null;
+                const colEdge = labelEdges?.colEdge || 'top';
+                const rowEdge = labelEdges?.rowEdge || 'left';
+                const heightOffset = (qNE[1] - qSE[1]) * 0.03;
+                const widthOffset = (qSE[0] - qSW[0]) * 0.03;
                 return (
                   <g key={prefix}>
                     <polygon
@@ -827,12 +842,18 @@ export default function TacticalMap() {
                       if (!leftPt || !rightPt) return null;
                       return <line key={`${prefix}h${i}`} x1={leftPt.x} y1={leftPt.y} x2={rightPt.x} y2={rightPt.y} stroke={qColor} strokeWidth={1} opacity="0.6" />;
                     })}
-                    {/* Column headers */}
+                    {/* Column headers — on top or bottom edge */}
                     {Array.from({ length: qCols }, (_, i) => {
                       const f = (i + 0.5) / qCols;
-                      const topGeo = lerp(qNW, qNE, f);
-                      const aboveGeo = [topGeo[0], topGeo[1] + (qNE[1] - qSE[1]) * 0.03];
-                      const pt = projectCoord(aboveGeo);
+                      let geo;
+                      if (colEdge === 'top') {
+                        const edgeGeo = lerp(qNW, qNE, f);
+                        geo = [edgeGeo[0], edgeGeo[1] + heightOffset];
+                      } else {
+                        const edgeGeo = lerp(qSW, qSE, f);
+                        geo = [edgeGeo[0], edgeGeo[1] - heightOffset];
+                      }
+                      const pt = projectCoord(geo);
                       if (!pt) return null;
                       return (
                         <text key={`${prefix}cl${i}`} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
@@ -840,12 +861,18 @@ export default function TacticalMap() {
                           stroke="#000000" strokeWidth="3" paintOrder="stroke">{colLbl(i)}</text>
                       );
                     })}
-                    {/* Row headers */}
+                    {/* Row headers — on left or right edge */}
                     {Array.from({ length: qRows }, (_, i) => {
                       const f = 1 - (i + 0.5) / qRows;
-                      const leftGeo = lerp(qSW, qNW, f);
-                      const beforeGeo = [leftGeo[0] - (qSE[0] - qSW[0]) * 0.03, leftGeo[1]];
-                      const pt = projectCoord(beforeGeo);
+                      let geo;
+                      if (rowEdge === 'left') {
+                        const edgeGeo = lerp(qSW, qNW, f);
+                        geo = [edgeGeo[0] - widthOffset, edgeGeo[1]];
+                      } else {
+                        const edgeGeo = lerp(qSE, qNE, f);
+                        geo = [edgeGeo[0] + widthOffset, edgeGeo[1]];
+                      }
+                      const pt = projectCoord(geo);
                       if (!pt) return null;
                       return (
                         <text key={`${prefix}rl${i}`} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
@@ -881,10 +908,10 @@ export default function TacticalMap() {
 
                     return (
                       <>
-                        {renderQuadrant(midWest, center, midNorth, nw0, halfCeil, halfCeil, QUAD_COLORS.nw, 'qNW')}
-                        {renderQuadrant(center, midEast, ne0, midNorth, halfFloor, halfCeil, QUAD_COLORS.ne, 'qNE')}
-                        {renderQuadrant(sw0, midSouth, center, midWest, halfCeil, halfFloor, QUAD_COLORS.sw, 'qSW')}
-                        {renderQuadrant(midSouth, se0, midEast, center, halfFloor, halfFloor, QUAD_COLORS.se, 'qSE')}
+                        {renderQuadrant(midWest, center, midNorth, nw0, halfCeil, halfCeil, QUAD_COLORS.nw, 'qNW', { colEdge: 'top', rowEdge: 'left' })}
+                        {renderQuadrant(center, midEast, ne0, midNorth, halfFloor, halfCeil, QUAD_COLORS.ne, 'qNE', { colEdge: 'top', rowEdge: 'right' })}
+                        {renderQuadrant(sw0, midSouth, center, midWest, halfCeil, halfFloor, QUAD_COLORS.sw, 'qSW', { colEdge: 'bottom', rowEdge: 'left' })}
+                        {renderQuadrant(midSouth, se0, midEast, center, halfFloor, halfFloor, QUAD_COLORS.se, 'qSE', { colEdge: 'bottom', rowEdge: 'right' })}
                       </>
                     );
                   })()}

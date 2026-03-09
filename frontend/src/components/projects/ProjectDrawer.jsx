@@ -16,6 +16,7 @@ const DRAWING_ICONS = {
   polygon: '\u2B21',
   circle: '\u25EF',
   text: 'T',
+  grid: 'svg',
 };
 
 function getDrawingLabel(d, lang) {
@@ -27,6 +28,7 @@ function getDrawingLabel(d, lang) {
     polygon: { en: 'Polygon', no: 'Polygon' },
     circle: { en: 'Circle', no: 'Sirkel' },
     text: { en: 'Text', no: 'Tekst' },
+    grid: { en: 'Grid', no: 'Rutenett' },
   };
   return typeLabels[d.drawingType]?.[lang] || d.drawingType || 'Drawing';
 }
@@ -140,7 +142,15 @@ function ItemList({ markers, drawings, lang, mapRef, projectId, copyTargets, cop
         const color = d.properties?.color || '#3b82f6';
         return (
           <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
-            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>{icon}</span>
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>
+              {d.drawingType === 'grid' ? (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.5">
+                  <rect x="1" y="1" width="12" height="12" rx="0.5" />
+                  <line x1="5" y1="1" x2="5" y2="13" /><line x1="9" y1="1" x2="9" y2="13" />
+                  <line x1="1" y1="5" x2="13" y2="5" /><line x1="1" y1="9" x2="13" y2="9" />
+                </svg>
+              ) : icon}
+            </span>
             <span
               className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
               onClick={() => flyTo(center)}

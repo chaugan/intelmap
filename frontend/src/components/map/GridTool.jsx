@@ -5,6 +5,21 @@ import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
 
+function autoSelectCreatedGrid() {
+  const handler = (drawing) => {
+    if (drawing.drawingType === 'grid') {
+      useMapStore.getState().setSelectedDrawingId(drawing.id);
+      // Ensure drawing tools are visible so the settings panel shows
+      if (!useMapStore.getState().drawingToolsVisible) {
+        useMapStore.getState().toggleDrawingTools();
+      }
+    }
+  };
+  socket.once('server:drawing:added', handler);
+  // Safety cleanup after 5s
+  setTimeout(() => socket.off('server:drawing:added', handler), 5000);
+}
+
 // Latitude-corrected rectangle area
 function calculateRectArea(c1, c2) {
   const R = 6371;
@@ -75,6 +90,8 @@ export default function GridTool() {
 
   const handleClick = useCallback((e) => {
     if (drawingActiveMode) return;
+    // Skip if click was consumed by an existing grid SVG element
+    if (window.__gridClickConsumed && Date.now() - window.__gridClickConsumed < 200) return;
     const { lng, lat } = e.lngLat;
 
     if (phaseRef.current === 'idle') {
@@ -152,6 +169,8 @@ export default function GridTool() {
     const c1 = corner1;
     const c2 = corner2;
 
+    autoSelectCreatedGrid();
+
     socket.emit('client:drawing:add', {
       projectId: activeProjectId,
       layerId: activeLayerId || null,
@@ -171,12 +190,13 @@ export default function GridTool() {
       createdBy: socket.id,
     });
 
-    // Reset
+    // Reset and close grid tool
     setPhase('idle');
     setCorner1(null);
     setCorner2(null);
     setMousePos(null);
     setColumns('');
+    useMapStore.getState().toggleGridTool();
   }, [corner1, corner2, columns, activeProjectId, activeLayerId]);
 
   if (!gridToolVisible || !mapRef) return null;
