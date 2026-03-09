@@ -639,6 +639,38 @@ export default function TacticalMap() {
               });
             };
 
+            const handleClick = (e) => {
+              // Only select if drawing tools are visible
+              const { drawingToolsVisible, drawingActiveMode, setSelectedDrawingId } = useMapStore.getState();
+              if (!drawingToolsVisible || drawingActiveMode) return;
+              e.stopPropagation();
+              setSelectedDrawingId(isSelected ? null : d.id);
+            };
+
+            const handleDblClick = (e) => {
+              const { drawingToolsVisible, drawingActiveMode } = useMapStore.getState();
+              if (!drawingToolsVisible || drawingActiveMode) return;
+              e.stopPropagation();
+              e.preventDefault();
+              if (d.drawingType === 'text') {
+                const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', d.properties?.text || '');
+                if (newText === null) return;
+                socket.emit('client:drawing:update', {
+                  projectId: d._projectId,
+                  id: d.id,
+                  properties: { ...d.properties, text: newText },
+                });
+              } else {
+                const newLabel = prompt(lang === 'no' ? 'Rediger etikett:' : 'Edit label:', d.properties?.label || '');
+                if (newLabel === null) return;
+                socket.emit('client:drawing:update', {
+                  projectId: d._projectId,
+                  id: d.id,
+                  properties: { ...d.properties, label: newLabel || undefined },
+                });
+              }
+            };
+
             // Helper: compute bounding box with padding from screen points
             const getBBox = (pts, pad = 8) => {
               let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -675,7 +707,7 @@ export default function TacticalMap() {
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -738,7 +770,7 @@ export default function TacticalMap() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -766,7 +798,7 @@ export default function TacticalMap() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {isSelected && renderSelectionBBox([{ x: pt.x - 30, y: pt.y - 12 }, { x: pt.x + 30, y: pt.y + 12 }], 8)}
                   <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
