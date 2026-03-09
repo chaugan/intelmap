@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDb } from '../db/index.js';
 import { getViewsheds } from './viewshed-store.js';
+import { getRFCoverages } from './rfcoverage-store.js';
 
 /**
  * Per-project SQLite-backed store for tactical data.
@@ -16,7 +17,8 @@ export class ProjectStoreManager {
     const layers = db.prepare('SELECT * FROM project_layers WHERE project_id = ?').all(projectId).map(rowToLayer);
     const pins = db.prepare('SELECT * FROM project_pins WHERE project_id = ?').all(projectId).map(rowToPin);
     const viewsheds = getViewsheds(projectId);
-    return { markers, drawings, layers, pins, viewsheds };
+    const rfCoverages = getRFCoverages(projectId);
+    return { markers, drawings, layers, pins, viewsheds, rfCoverages };
   }
 
   // --- Markers ---

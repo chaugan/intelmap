@@ -134,6 +134,9 @@ export const useMapStore = create((set) => ({
   // Viewshed tool
   viewshedToolVisible: false,
 
+  // RF Coverage tool
+  rfCoverageToolVisible: false,
+
   // User geolocation
   userLocation: null, // { longitude, latitude }
 
@@ -316,7 +319,11 @@ export const useMapStore = create((set) => ({
   toggleGridTool: () => set((s) => ({ gridToolVisible: !s.gridToolVisible })),
   toggleViewshedTool: () => set((s) => ({
     viewshedToolVisible: !s.viewshedToolVisible,
-    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false } : {}),
+    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, rfCoverageToolVisible: false } : {}),
+  })),
+  toggleRFCoverageTool: () => set((s) => ({
+    rfCoverageToolVisible: !s.rfCoverageToolVisible,
+    ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false } : {}),
   })),
   setUserLocation: (userLocation) => set({ userLocation }),
   clearUserLocation: () => set({ userLocation: null }),

@@ -23,8 +23,8 @@ export function useSocket() {
     };
 
     // --- Project-scoped events ---
-    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds }) => {
-      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds });
+    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds, rfCoverages }) => {
+      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages });
     };
 
     const onMarkerAdded = (data) => {
@@ -77,6 +77,16 @@ export function useSocket() {
       useTacticalStore.getState().clearViewsheds(projectId);
     };
 
+    const onRFCoverageAdded = (data) => {
+      useTacticalStore.getState().addRFCoverage(data.projectId, data);
+    };
+    const onRFCoverageDeleted = ({ projectId, id }) => {
+      useTacticalStore.getState().deleteRFCoverage(projectId, id);
+    };
+    const onRFCoverageAllDeleted = ({ projectId }) => {
+      useTacticalStore.getState().clearRFCoverages(projectId);
+    };
+
     socket.on('connect', onConnect);
     socket.on('server:force-disconnect', onForceDisconnect);
     socket.on('server:project:state', onProjectState);
@@ -95,6 +105,9 @@ export function useSocket() {
     socket.on('server:viewshed:added', onViewshedAdded);
     socket.on('server:viewshed:deleted', onViewshedDeleted);
     socket.on('server:viewshed:all-deleted', onViewshedAllDeleted);
+    socket.on('server:rfcoverage:added', onRFCoverageAdded);
+    socket.on('server:rfcoverage:deleted', onRFCoverageDeleted);
+    socket.on('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
 
     return () => {
       socket.off('connect', onConnect);
@@ -115,6 +128,9 @@ export function useSocket() {
       socket.off('server:viewshed:added', onViewshedAdded);
       socket.off('server:viewshed:deleted', onViewshedDeleted);
       socket.off('server:viewshed:all-deleted', onViewshedAllDeleted);
+      socket.off('server:rfcoverage:added', onRFCoverageAdded);
+      socket.off('server:rfcoverage:deleted', onRFCoverageDeleted);
+      socket.off('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
     };
   }, []);
 }

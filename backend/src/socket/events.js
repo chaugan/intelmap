@@ -20,6 +20,9 @@ export const EVENTS = {
   CLIENT_VIEWSHED_SAVE: 'client:viewshed:save',
   CLIENT_VIEWSHED_DELETE: 'client:viewshed:delete',
   CLIENT_VIEWSHED_DELETE_ALL: 'client:viewshed:delete-all',
+  CLIENT_RFCOVERAGE_SAVE: 'client:rfcoverage:save',
+  CLIENT_RFCOVERAGE_DELETE: 'client:rfcoverage:delete',
+  CLIENT_RFCOVERAGE_DELETE_ALL: 'client:rfcoverage:delete-all',
 
   // Server → Client
   SERVER_PROJECT_STATE: 'server:project:state',
@@ -38,4 +41,7 @@ export const EVENTS = {
   SERVER_VIEWSHED_ADDED: 'server:viewshed:added',
   SERVER_VIEWSHED_DELETED: 'server:viewshed:deleted',
   SERVER_VIEWSHED_ALL_DELETED: 'server:viewshed:all-deleted',
+  SERVER_RFCOVERAGE_ADDED: 'server:rfcoverage:added',
+  SERVER_RFCOVERAGE_DELETED: 'server:rfcoverage:deleted',
+  SERVER_RFCOVERAGE_ALL_DELETED: 'server:rfcoverage:all-deleted',
 };

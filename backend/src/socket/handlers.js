@@ -2,6 +2,7 @@ import { EVENTS } from './events.js';
 import { projectStore } from '../store/project-store.js';
 import { getProjectRole, canMutateProject } from '../auth/project-access.js';
 import { addViewshed, deleteViewshed, deleteAllViewsheds } from '../store/viewshed-store.js';
+import { addRFCoverage, deleteRFCoverage, deleteAllRFCoverages } from '../store/rfcoverage-store.js';
 
 export function registerHandlers(socket, io) {
   const userId = socket.user.id;
@@ -144,6 +145,29 @@ export function registerHandlers(socket, io) {
     const count = deleteAllViewsheds(projectId);
     if (count > 0) {
       io.to(`project:${projectId}`).emit(EVENTS.SERVER_VIEWSHED_ALL_DELETED, { projectId });
+    }
+  });
+
+  // --- RF Coverages ---
+  socket.on(EVENTS.CLIENT_RFCOVERAGE_SAVE, (data) => {
+    const { projectId } = data;
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const coverage = addRFCoverage(projectId, { ...data, createdBy: userId });
+    io.to(`project:${projectId}`).emit(EVENTS.SERVER_RFCOVERAGE_ADDED, coverage);
+  });
+
+  socket.on(EVENTS.CLIENT_RFCOVERAGE_DELETE, ({ projectId, id }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    if (deleteRFCoverage(id, projectId)) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_RFCOVERAGE_DELETED, { projectId, id });
+    }
+  });
+
+  socket.on(EVENTS.CLIENT_RFCOVERAGE_DELETE_ALL, ({ projectId }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const count = deleteAllRFCoverages(projectId);
+    if (count > 0) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_RFCOVERAGE_ALL_DELETED, { projectId });
     }
   });
 }

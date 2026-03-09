@@ -40,6 +40,7 @@ import InfrastructureLayer from './InfrastructureLayer.jsx';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 import MeasuringTool from './MeasuringTool.jsx';
 import ViewshedTool from './ViewshedTool.jsx';
+import RFCoverageTool from './RFCoverageTool.jsx';
 import GridTool from './GridTool.jsx';
 import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
@@ -1221,6 +1222,7 @@ export default function TacticalMap() {
       )}
       <MeasuringTool />
       <ViewshedTool />
+      <RFCoverageTool />
       <GridTool />
       <GridSettingsPanel visibleDrawings={visibleDrawings} />
       {/* Vessel Activity Box Drawing */}

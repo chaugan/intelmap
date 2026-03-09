@@ -204,6 +204,7 @@ export default function MapControls() {
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
       {user && <GridButton lang={lang} />}
       {user && <ViewshedButton lang={lang} />}
+      {user && <RFCoverageButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
@@ -374,6 +375,26 @@ function ViewshedButton({ lang }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
       </svg>
       {t('viewshed.title', lang)}
+    </button>
+  );
+}
+
+function RFCoverageButton({ lang }) {
+  const active = useMapStore((s) => s.rfCoverageToolVisible);
+  const toggle = useMapStore((s) => s.toggleRFCoverageTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('rfcoverage.title', lang)} (U)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V10" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 14a6 6 0 00-12 0" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 00-18 0" />
+        <circle cx="12" cy="10" r="1" fill="currentColor" />
+      </svg>
+      {t('rfcoverage.title', lang)}
     </button>
   );
 }

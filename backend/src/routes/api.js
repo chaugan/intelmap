@@ -27,6 +27,7 @@ import sharesRouter from './shares.js';
 import upscaleRouter from './upscale.js';
 import signalRouter from './signal.js';
 import viewshedRouter from './viewshed.js';
+import rfcoverageRouter from './rfcoverage.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -57,4 +58,5 @@ router.use('/share', sharesRouter);
 router.use('/upscale', upscaleRouter);
 router.use('/signal', signalRouter);
 router.use('/viewshed', viewshedRouter);
+router.use('/rfcoverage', rfcoverageRouter);
 export default router;

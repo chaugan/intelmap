@@ -49,10 +49,10 @@ export const useTacticalStore = create((set, get) => ({
 
   // --- Project state (from server) ---
 
-  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds }) => set((s) => ({
+  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages }) => set((s) => ({
     projects: {
       ...s.projects,
-      [projectId]: { markers: markers || [], drawings: drawings || [], layers: layers || [], pins: pins || [], viewsheds: viewsheds || [] },
+      [projectId]: { markers: markers || [], drawings: drawings || [], layers: layers || [], pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [] },
     },
   })),
 
@@ -247,6 +247,39 @@ export const useTacticalStore = create((set, get) => ({
       projects: {
         ...s.projects,
         [projectId]: { ...proj, viewsheds: [] },
+      },
+    };
+  }),
+
+  addRFCoverage: (projectId, coverage) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, rfCoverages: [...(proj.rfCoverages || []), coverage] },
+      },
+    };
+  }),
+
+  deleteRFCoverage: (projectId, id) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, rfCoverages: (proj.rfCoverages || []).filter(c => c.id !== id) },
+      },
+    };
+  }),
+
+  clearRFCoverages: (projectId) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, rfCoverages: [] },
       },
     };
   }),

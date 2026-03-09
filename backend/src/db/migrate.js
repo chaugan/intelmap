@@ -226,6 +226,25 @@ export function runMigration() {
     console.log('Added layer_id column to project_viewsheds table');
   }
 
+  // Create project_rf_coverages table (if not exists)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_rf_coverages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      layer_id TEXT,
+      longitude REAL,
+      latitude REAL,
+      antenna_height REAL,
+      tx_power_watts REAL,
+      frequency_mhz REAL,
+      radius_km REAL,
+      geojson TEXT,
+      stats TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Add type column to project_viewsheds (viewshed | horizon)
   if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'type')) {
     db.prepare("ALTER TABLE project_viewsheds ADD COLUMN type TEXT DEFAULT 'viewshed'").run();
