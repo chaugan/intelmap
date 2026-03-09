@@ -342,13 +342,14 @@ router.post('/:id/share-token', (req, res) => {
   const id = crypto.randomUUID();
   const token = generateToken();
   const expiresAt = parseExpiresIn(req.body.expiresIn);
+  const layerId = req.body.layerId || null;
 
   db.prepare(
-    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, token, 'project', req.params.id, req.user.id, req.user.orgId, expiresAt);
+    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at, layer_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, token, 'project', req.params.id, req.user.id, req.user.orgId, expiresAt, layerId);
 
   const url = `${req.protocol}://${req.get('host')}/?share=${token}`;
-  res.status(201).json({ id, token, url, expiresAt });
+  res.status(201).json({ id, token, url, expiresAt, layerId });
 });
 
 // List share tokens for a project
@@ -358,7 +359,7 @@ router.get('/:id/share-tokens', (req, res) => {
 
   const db = getDb();
   const tokens = db.prepare(
-    `SELECT id, token, expires_at, created_at FROM share_tokens
+    `SELECT id, token, layer_id, expires_at, created_at FROM share_tokens
      WHERE resource_type = 'project' AND resource_id = ?
      ORDER BY created_at DESC`
   ).all(req.params.id);

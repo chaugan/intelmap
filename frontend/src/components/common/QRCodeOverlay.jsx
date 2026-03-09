@@ -123,7 +123,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ expiresIn }),
+      body: JSON.stringify({ expiresIn, layerId: layerId || undefined }),
     })
       .then((res) => res.json())
       .then((data) => {

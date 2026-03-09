@@ -19,6 +19,12 @@ export function runMigration() {
     db.prepare("ALTER TABLE groups ADD COLUMN auto_add_users INTEGER NOT NULL DEFAULT 0").run();
   }
 
+  // Add layer_id column to share_tokens table (if not exists)
+  const shareTokenCols = db.prepare("PRAGMA table_info(share_tokens)").all();
+  if (!shareTokenCols.some(c => c.name === 'layer_id')) {
+    db.prepare("ALTER TABLE share_tokens ADD COLUMN layer_id TEXT").run();
+  }
+
   // Get admin user for migrations
   const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   const adminId = admin?.id || 'system';

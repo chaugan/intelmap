@@ -51,6 +51,8 @@ export default function ProjectDrawer() {
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
   const [qrLayerId, setQrLayerId] = useState(null);
+  const [shareTokensProject, setShareTokensProject] = useState(null);
+  const [shareTokens, setShareTokens] = useState([]);
   const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
@@ -226,6 +228,26 @@ export default function ProjectDrawer() {
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const fetchShareTokens = async (projectId) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/share-tokens`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        // Filter out expired tokens
+        const now = new Date();
+        setShareTokens(data.filter(t => !t.expires_at || new Date(t.expires_at) > now));
+        setShareTokensProject(projectId);
+      }
+    } catch {}
+  };
+
+  const revokeShareToken = async (tokenId) => {
+    try {
+      await fetch(`/api/projects/share-token/${tokenId}`, { method: 'DELETE', credentials: 'include' });
+      setShareTokens(prev => prev.filter(t => t.id !== tokenId));
+    } catch {}
   };
 
   const isVisible = (id) => visibleProjectIds.includes(id);
@@ -668,6 +690,64 @@ export default function ProjectDrawer() {
                           </button>
                         )}
                       </>
+                    )}
+
+                    {/* Active share links (admin only) */}
+                    {p.role === 'admin' && (
+                      <div className="mt-1">
+                        {shareTokensProject === p.id ? (
+                          <div className="space-y-1">
+                            {shareTokens.length === 0 ? (
+                              <p className="text-xs text-slate-600">{lang === 'no' ? 'Ingen aktive delingslenker' : 'No active share links'}</p>
+                            ) : (
+                              shareTokens.map((tk) => {
+                                const layerName = tk.layer_id ? projData?.layers?.find(l => l.id === tk.layer_id)?.name : null;
+                                const expiry = tk.expires_at ? new Date(tk.expires_at).toLocaleDateString() : (lang === 'no' ? 'Aldri' : 'Never');
+                                return (
+                                  <div key={tk.id} className="flex items-center gap-1.5 text-xs">
+                                    <svg className="w-3 h-3 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                                      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                                    </svg>
+                                    <span className="text-slate-400 truncate flex-1">
+                                      {layerName ? (
+                                        <><span className="text-cyan-400">{layerName}</span></>
+                                      ) : (
+                                        <span>{lang === 'no' ? 'Hele prosjektet' : 'Whole project'}</span>
+                                      )}
+                                      <span className="text-slate-600"> · {expiry}</span>
+                                    </span>
+                                    <button
+                                      onClick={() => revokeShareToken(tk.id)}
+                                      className="text-red-400 hover:text-red-300 text-xs shrink-0"
+                                      title={lang === 'no' ? 'Tilbakekall' : 'Revoke'}
+                                    >
+                                      {'\u2715'}
+                                    </button>
+                                  </div>
+                                );
+                              })
+                            )}
+                            <button
+                              onClick={() => setShareTokensProject(null)}
+                              className="text-slate-500 hover:text-slate-400 text-xs"
+                            >
+                              {lang === 'no' ? 'Skjul' : 'Hide'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => fetchShareTokens(p.id)}
+                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                            </svg>
+                            {lang === 'no' ? 'Delingslenker' : 'Share links'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
