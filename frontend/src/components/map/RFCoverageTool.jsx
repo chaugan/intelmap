@@ -18,17 +18,19 @@ const LAYER_SAVED_FILL = 'rf-coverage-saved-fill';
 const LAYER_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 
 const BUCKETS = [
-  { name: 'excellent', min: -50, color: '#22c55e', invertColor: '#ef4444' },
-  { name: 'good', min: -60, color: '#84cc16', invertColor: '#f97316' },
-  { name: 'marginal', min: -70, color: '#eab308', invertColor: '#eab308' },
-  { name: 'weak', min: -90, color: '#f97316', invertColor: '#84cc16' },
-  { name: 'noCoverage', min: -Infinity, color: '#ef4444', invertColor: '#22c55e' },
+  { name: 'excellent',  min: -50, color: '#15803d', invertColor: '#991b1b' },
+  { name: 'veryGood',   min: -55, color: '#22c55e', invertColor: '#dc2626' },
+  { name: 'good',       min: -60, color: '#4ade80', invertColor: '#ef4444' },
+  { name: 'aboveAvg',   min: -65, color: '#84cc16', invertColor: '#f97316' },
+  { name: 'average',    min: -70, color: '#eab308', invertColor: '#f59e0b' },
+  { name: 'belowAvg',   min: -75, color: '#f59e0b', invertColor: '#eab308' },
+  { name: 'marginal',   min: -80, color: '#f97316', invertColor: '#84cc16' },
+  { name: 'weak',       min: -85, color: '#ef4444', invertColor: '#4ade80' },
+  { name: 'veryWeak',   min: -90, color: '#dc2626', invertColor: '#22c55e' },
+  { name: 'noCoverage', min: -Infinity, color: '#991b1b', invertColor: '#15803d' },
 ];
 
-const INVERT_MAP = {
-  '#22c55e': '#ef4444', '#84cc16': '#f97316', '#eab308': '#eab308',
-  '#f97316': '#84cc16', '#ef4444': '#22c55e',
-};
+const INVERT_MAP = Object.fromEntries(BUCKETS.map(b => [b.color, b.invertColor]));
 
 const POWER_OPTIONS = [
   { watts: 0.5, label: '0.5W (27 dBm)' },

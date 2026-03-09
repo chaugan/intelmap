@@ -5,13 +5,18 @@ import { buildTileMap, destination } from './dem-utils.js';
 const router = Router();
 router.use(requireAuth);
 
-// Signal strength thresholds (dBm)
+// Signal strength thresholds (dBm) — 5 dB steps from -50 to -90
 const BUCKETS = [
-  { name: 'excellent', min: -50, color: '#22c55e' },
-  { name: 'good', min: -60, color: '#84cc16' },
-  { name: 'marginal', min: -70, color: '#eab308' },
-  { name: 'weak', min: -90, color: '#f97316' },
-  { name: 'noCoverage', min: -Infinity, color: '#ef4444' },
+  { name: 'excellent',  min: -50, color: '#15803d' },
+  { name: 'veryGood',   min: -55, color: '#22c55e' },
+  { name: 'good',       min: -60, color: '#4ade80' },
+  { name: 'aboveAvg',   min: -65, color: '#84cc16' },
+  { name: 'average',    min: -70, color: '#eab308' },
+  { name: 'belowAvg',   min: -75, color: '#f59e0b' },
+  { name: 'marginal',   min: -80, color: '#f97316' },
+  { name: 'weak',       min: -85, color: '#ef4444' },
+  { name: 'veryWeak',   min: -90, color: '#dc2626' },
+  { name: 'noCoverage', min: -Infinity, color: '#991b1b' },
 ];
 
 function getBucket(dBm) {
@@ -57,7 +62,7 @@ router.post('/calculate', async (req, res) => {
 
     // signalGrid[ray][sample] = dBm value
     const signalGrid = new Array(numRays);
-    const bucketCounts = { excellent: 0, good: 0, marginal: 0, weak: 0, noCoverage: 0 };
+    const bucketCounts = Object.fromEntries(BUCKETS.map(b => [b.name, 0]));
     let totalSamples = 0;
     let maxRangeM = 0;
 
@@ -188,11 +193,7 @@ router.post('/calculate', async (req, res) => {
 
     const totalAreaKm2 = Math.round(Math.PI * radius * radius * 100) / 100;
     const stats = {
-      excellentPercent: totalSamples > 0 ? Math.round(bucketCounts.excellent / totalSamples * 100) : 0,
-      goodPercent: totalSamples > 0 ? Math.round(bucketCounts.good / totalSamples * 100) : 0,
-      marginalPercent: totalSamples > 0 ? Math.round(bucketCounts.marginal / totalSamples * 100) : 0,
-      weakPercent: totalSamples > 0 ? Math.round(bucketCounts.weak / totalSamples * 100) : 0,
-      noCoveragePercent: totalSamples > 0 ? Math.round(bucketCounts.noCoverage / totalSamples * 100) : 0,
+      ...Object.fromEntries(BUCKETS.map(b => [b.name + 'Percent', totalSamples > 0 ? Math.round(bucketCounts[b.name] / totalSamples * 100) : 0])),
       maxRangeKm: Math.round(maxRangeM / 100) / 10,
       totalAreaKm2,
     };
