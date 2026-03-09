@@ -1,7 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
+
+function calcGridDimensions(ring) {
+  if (!ring || ring.length < 5) return null;
+  const sw = ring[0], se = ring[1], ne = ring[2];
+  const R = 6371;
+  const midLat = (sw[1] + ne[1]) / 2;
+  const widthKm = R * Math.abs(se[0] - sw[0]) * Math.PI / 180 * Math.cos(midLat * Math.PI / 180);
+  const heightKm = R * Math.abs(ne[1] - se[1]) * Math.PI / 180;
+  return { widthKm, heightKm };
+}
+
+function fmtDist(km) {
+  return km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(2)} km`;
+}
 
 export default function GridSettingsPanel({ visibleDrawings }) {
   const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
@@ -89,6 +103,19 @@ export default function GridSettingsPanel({ visibleDrawings }) {
             className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
+
+        {/* Cell size info */}
+        {columns >= 2 && (() => {
+          const dims = calcGridDimensions(drawing.geometry?.coordinates?.[0]);
+          if (!dims) return null;
+          const cellW = dims.widthKm / columns;
+          const cellH = dims.heightKm / columns;
+          return (
+            <div className="text-xs text-slate-400">
+              {t('grid.cellSize', lang)}: {fmtDist(cellW)} × {fmtDist(cellH)}
+            </div>
+          );
+        })()}
 
         {/* Opacity slider */}
         <div>
