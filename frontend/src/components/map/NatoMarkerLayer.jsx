@@ -12,6 +12,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const lang = useMapStore((s) => s.lang);
   const dragRef = useRef(null);
   const dragEndTimeRef = useRef(0);
+  const clickTimerRef = useRef(null);
   const [infoPopup, setInfoPopup] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -158,12 +159,18 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
                 e.stopPropagation();
                 if (dragRef.current) return;
                 if (Date.now() - dragEndTimeRef.current < 400) return;
-                setSelectedId(isSelected ? null : marker.id);
+                // Delay single-click so double-click can cancel it
+                clearTimeout(clickTimerRef.current);
+                clickTimerRef.current = setTimeout(() => {
+                  setSelectedId(isSelected ? null : marker.id);
+                }, 250);
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                clearTimeout(clickTimerRef.current);
                 if (Date.now() - dragEndTimeRef.current < 400) return;
+                setSelectedId(marker.id);
                 onRenameLabel(marker);
               }}
               onContextMenu={(e) => onContextMenu(e, marker)}
@@ -181,7 +188,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
               {/* Delete button — visible when selected */}
               {isSelected && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
+                  onClick={(e) => { e.stopPropagation(); clearTimeout(clickTimerRef.current); onDelete(marker); }}
                   className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-600 rounded-full text-white text-xs flex items-center justify-center hover:bg-red-500 shadow-lg border border-red-400/50"
                   title={lang === 'no' ? 'Slett' : 'Delete'}
                 >
@@ -227,12 +234,17 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
                 e.stopPropagation();
                 if (dragRef.current) return;
                 if (Date.now() - dragEndTimeRef.current < 400) return;
-                setSelectedId(isSelected ? null : marker.id);
+                clearTimeout(clickTimerRef.current);
+                clickTimerRef.current = setTimeout(() => {
+                  setSelectedId(isSelected ? null : marker.id);
+                }, 250);
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                clearTimeout(clickTimerRef.current);
                 if (Date.now() - dragEndTimeRef.current < 400) return;
+                setSelectedId(marker.id);
                 onLocalRenameLabel(marker);
               }}
             >
@@ -251,7 +263,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
               {/* Delete button — visible when selected */}
               {isSelected && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onLocalDelete(marker); }}
+                  onClick={(e) => { e.stopPropagation(); clearTimeout(clickTimerRef.current); onLocalDelete(marker); }}
                   className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-600 rounded-full text-white text-xs flex items-center justify-center hover:bg-red-500 shadow-lg border border-red-400/50"
                   title={lang === 'no' ? 'Slett' : 'Delete'}
                 >
