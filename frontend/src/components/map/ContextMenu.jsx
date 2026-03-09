@@ -4,6 +4,7 @@ import { useWeather } from '../../hooks/useWeather.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import { calcWindChill } from '../../lib/weather-utils.js';
 import { t } from '../../lib/i18n.js';
+import { forward as mgrsForward } from 'mgrs';
 import MoonPhaseIcon from './MoonPhaseIcon.jsx';
 import StreetViewOverlay from './StreetViewOverlay.jsx';
 
@@ -16,25 +17,19 @@ const DANGER_COLORS = {
 };
 
 function toMGRS(lat, lon) {
-  // Simplified UTM/MGRS conversion for Norway
-  const zone = Math.floor((lon + 180) / 6) + 1;
-  const band = lat >= 72 ? 'X' : lat >= 64 ? 'W' : lat >= 56 ? 'V' : 'U';
-  const k0 = 0.9996;
-  const a = 6378137;
-  const e = 0.0818192;
-  const latRad = lat * Math.PI / 180;
-  const lonRad = lon * Math.PI / 180;
-  const lonOrigin = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
-  const N = a / Math.sqrt(1 - e * e * Math.sin(latRad) * Math.sin(latRad));
-  const T = Math.tan(latRad) * Math.tan(latRad);
-  const C = (e * e / (1 - e * e)) * Math.cos(latRad) * Math.cos(latRad);
-  const A = Math.cos(latRad) * (lonRad - lonOrigin);
-  const M = a * ((1 - e*e/4 - 3*e*e*e*e/64) * latRad -
-    (3*e*e/8 + 3*e*e*e*e/32) * Math.sin(2*latRad) +
-    (15*e*e*e*e/256) * Math.sin(4*latRad));
-  const easting = k0 * N * (A + (1-T+C)*A*A*A/6) + 500000;
-  const northing = k0 * (M + N * Math.tan(latRad) * (A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24));
-  return `${zone}${band} ${Math.round(easting)} ${Math.round(northing)}`;
+  try {
+    const mgrs = mgrsForward([lon, lat], 5);
+    // Format: "32VKM1234567890" → "32V KM 12345 67890"
+    const m = mgrs.match(/^(\d{1,2})([A-Z])([A-Z]{2})(\d+)$/);
+    if (m) {
+      const [, zone, band, sq, digits] = m;
+      const half = digits.length / 2;
+      return `${zone}${band} ${sq} ${digits.slice(0, half)} ${digits.slice(half)}`;
+    }
+    return mgrs;
+  } catch {
+    return '—';
+  }
 }
 
 export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalPinned, onPin }) {

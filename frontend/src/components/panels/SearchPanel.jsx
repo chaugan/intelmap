@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearch } from '../../hooks/useSearch.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
-import { resolveMgrs, parseMgrsInput } from '../../lib/mgrs-utils.js';
+import { resolveMgrs } from '../../lib/mgrs-utils.js';
 
 export default function SearchPanel() {
   const lang = useMapStore((s) => s.lang);
@@ -32,8 +32,8 @@ export default function SearchPanel() {
     const val = e.target.value;
     setQuery(val);
 
-    // Check if input matches MGRS easting/northing pattern
-    if (parseMgrsInput(val)) {
+    // Check if input matches MGRS grid digits or full UTM coordinates
+    if (/^\s*\d{2,}\s+\d{2,}\s*$/.test(val)) {
       const center = mapRef?.getCenter();
       if (center) {
         const candidates = resolveMgrs(val, center);
