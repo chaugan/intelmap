@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../db/index.js';
-import { requireAuth, requireAdmin } from '../auth/middleware.js';
+import { requireAuth, requireAdmin, requireSuperAdmin } from '../auth/middleware.js';
 import { captureService } from '../timelapse/capture-service.js';
 import { hlsGenerator } from '../timelapse/hls-generator.js';
 import { createExportJob, getExportStatus, getUserExports, deleteExport, getExportFilePath } from '../timelapse/export-worker.js';
@@ -396,7 +396,7 @@ router.delete('/exports/:id', requireAuth, requireTimelapseAccess, (req, res) =>
 // --- Admin endpoints ---
 
 // Get all cameras (admin)
-router.get('/admin/cameras', requireAdmin, (req, res) => {
+router.get('/admin/cameras', requireSuperAdmin, (req, res) => {
   try {
     const cameras = captureService.getAllCameras();
     res.json(cameras);
@@ -406,7 +406,7 @@ router.get('/admin/cameras', requireAdmin, (req, res) => {
 });
 
 // Toggle protection status (admin)
-router.post('/admin/cameras/:cameraId/protect', requireAdmin, (req, res) => {
+router.post('/admin/cameras/:cameraId/protect', requireSuperAdmin, (req, res) => {
   try {
     const { cameraId } = req.params;
     const { isProtected } = req.body;
@@ -419,7 +419,7 @@ router.post('/admin/cameras/:cameraId/protect', requireAdmin, (req, res) => {
 });
 
 // Delete timelapse camera and all data (admin)
-router.delete('/admin/cameras/:cameraId', requireAdmin, (req, res) => {
+router.delete('/admin/cameras/:cameraId', requireSuperAdmin, (req, res) => {
   try {
     const { cameraId } = req.params;
     const db = getDb();

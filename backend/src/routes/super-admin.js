@@ -62,6 +62,21 @@ router.post('/orgs', (req, res) => {
     VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
   `).run(id, name, slug, req.user.id);
 
+  // Seed org with API keys from global app_settings
+  const keysToSeed = [
+    'anthropic_api_key', 'google_maps_api_key',
+    'barentswatch_client_id', 'barentswatch_client_secret',
+    'ntfy_url', 'ntfy_token', 'vlm_url', 'vlm_api_token',
+  ];
+  const getGlobal = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  const insertOrgSetting = db.prepare(
+    'INSERT OR IGNORE INTO org_settings (org_id, key, value) VALUES (?, ?, ?)'
+  );
+  for (const key of keysToSeed) {
+    const row = getGlobal.get(key);
+    if (row?.value) insertOrgSetting.run(id, key, row.value);
+  }
+
   eventLogger.config.info(`Organization created: ${name} (${slug})`, { orgId: id });
   res.status(201).json({ id, name, slug, userCount: 0, createdBy: req.user.id });
 });

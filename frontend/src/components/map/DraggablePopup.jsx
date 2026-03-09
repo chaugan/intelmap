@@ -7,17 +7,18 @@ import { useMapStore } from '../../stores/useMapStore.js';
  *   originLng, originLat — geo-coordinates of the anchor point
  *   originX, originY     — initial screen position (fallback if no geo)
  *   initialDisplayLng, initialDisplayLat — saved display position to restore
+ *   initialOffset        — { dx, dy } initial pixel offset from origin (shows connection line immediately)
  *   onPin                — called when auto-pinned via drag
  *   showConnectionLine   — whether to show dashed line to origin (default true)
  *   children             — popup content
  */
-export default function DraggablePopup({ originLng, originLat, originX, originY, initialDisplayLng, initialDisplayLat, onPin, onDragEnd, showConnectionLine = true, children }) {
+export default function DraggablePopup({ originLng, originLat, originX, originY, initialDisplayLng, initialDisplayLat, initialOffset, onPin, onDragEnd, showConnectionLine = true, children }) {
   const mapRef = useMapStore((s) => s.mapRef);
-  const [offset, setOffset] = useState({ dx: 0, dy: 0 }); // offset from projected origin
-  const [isDragged, setIsDragged] = useState(false);
+  const [offset, setOffset] = useState(initialOffset || { dx: 0, dy: 0 }); // offset from projected origin
+  const [isDragged, setIsDragged] = useState(!!initialOffset);
   const dragRef = useRef(null);
   const startRef = useRef({ mouseX: 0, mouseY: 0, dx: 0, dy: 0 });
-  const isDraggedRef = useRef(false);
+  const isDraggedRef = useRef(!!initialOffset);
   const containerRef = useRef(null);
   const initializedRef = useRef(false);
 

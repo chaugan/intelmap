@@ -972,10 +972,11 @@ export default function TacticalMap() {
         <DraggablePopup
           originLng={mgrsMarker.lng}
           originLat={mgrsMarker.lat}
+          initialOffset={{ dx: 200, dy: -200 }}
           showConnectionLine={true}
         >
           <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 overflow-hidden min-w-[180px]">
-            <div className="bg-emerald-700 px-3 py-1.5 flex items-center justify-between">
+            <div className="draggable-header bg-emerald-700 px-3 py-1.5 flex items-center justify-between cursor-grab">
               <span className="text-xs font-semibold text-white">MGRS</span>
               <button
                 onClick={() => setMgrsMarker(null)}
