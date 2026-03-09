@@ -42,6 +42,7 @@ const FREQ_CHIPS = [
   { mhz: 70, label: 'VHF 70' },
   { mhz: 150, label: 'VHF 150' },
   { mhz: 300, label: 'UHF 300' },
+  { mhz: 450, label: 'UHF 450' },
 ];
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
@@ -119,7 +120,7 @@ export default function RFCoverageTool() {
   const [mode, setMode] = useState('idle');
   const [antennaHeight, setAntennaHeight] = useState(1.5);
   const [txPowerWatts, setTxPowerWatts] = useState(5);
-  const [frequencyMHz, setFrequencyMHz] = useState(150);
+  const [frequencyMHz, setFrequencyMHz] = useState('');
   const [radiusKm, setRadiusKm] = useState(15);
   const [opacity, setOpacity] = useState(0.6);
   const [invertColors, setInvertColors] = useState(false);
@@ -143,6 +144,8 @@ export default function RFCoverageTool() {
   invertColorsRef.current = invertColors;
 
   const savedCount = activeProjectId ? (projects[activeProjectId]?.rfCoverages?.length || 0) : 0;
+  const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
+  const canCalculate = antenna && freqValid;
 
   // --- Draggable panel handlers ---
   const onDragStart = useCallback((e) => {
@@ -358,7 +361,8 @@ export default function RFCoverageTool() {
   }, [mapRef]);
 
   const handleCalculate = useCallback(async () => {
-    if (!antenna) return;
+    const freq = Number(frequencyMHz);
+    if (!antenna || !isFinite(freq) || freq < 2) return;
     setMode('calculating');
     setError(null);
 
@@ -501,7 +505,13 @@ export default function RFCoverageTool() {
           <input
             type="number"
             value={frequencyMHz}
-            onChange={(e) => setFrequencyMHz(Math.max(2, Math.min(6000, Number(e.target.value) || 150)))}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') { setFrequencyMHz(''); return; }
+              const n = Number(raw);
+              if (isFinite(n)) setFrequencyMHz(Math.min(6000, n));
+            }}
+            placeholder="MHz"
             className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
             min={2} max={6000}
           />
@@ -537,7 +547,8 @@ export default function RFCoverageTool() {
           <div className="flex gap-2">
             <button
               onClick={handleCalculate}
-              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium"
+              disabled={!canCalculate}
+              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium"
             >
               {t('rfcoverage.calculate', lang)}
             </button>
@@ -560,19 +571,41 @@ export default function RFCoverageTool() {
           </div>
         )}
 
+        {mode === 'result' && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleCalculate}
+              disabled={!canCalculate}
+              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium"
+            >
+              {t('rfcoverage.recalculate', lang)}
+            </button>
+            <button
+              onClick={handlePlaceAntenna}
+              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm"
+            >
+              {t('rfcoverage.placeAntenna', lang)}
+            </button>
+          </div>
+        )}
+
         {error && <div className="text-red-400 text-xs">{error}</div>}
 
         {/* Result stats */}
         {mode === 'result' && result && (
           <div className="space-y-2">
             {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-1 text-xs">
-              {BUCKETS.map((b) => {
+            <div className="space-y-0.5 text-xs">
+              {BUCKETS.map((b, i) => {
                 const pct = result.stats[b.name + 'Percent'] || 0;
+                const rangeLabel = i === 0 ? '> -70 dBm'
+                  : i === BUCKETS.length - 1 ? '< -110 dBm'
+                  : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
                 return (
                   <div key={b.name} className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: invertColors ? b.invertColor : b.color }} />
                     <span className="text-slate-300">{t(`rfcoverage.${b.name}`, lang)}</span>
+                    <span className="text-slate-500 text-[10px]">{rangeLabel}</span>
                     <span className="ml-auto font-mono">{pct}%</span>
                   </div>
                 );
@@ -600,7 +633,7 @@ export default function RFCoverageTool() {
               {t('rfcoverage.invertColors', lang)}
             </button>
 
-            {/* Action buttons */}
+            {/* Save / New analysis */}
             <div className="flex gap-2">
               {activeProjectId && (
                 <button
