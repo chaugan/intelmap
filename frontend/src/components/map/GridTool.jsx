@@ -42,6 +42,8 @@ export default function GridTool() {
   const [, setTick] = useState(0);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const corner1Ref = useRef(corner1);
+  corner1Ref.current = corner1;
 
   // Reset when tool hidden
   useEffect(() => {
@@ -54,6 +56,23 @@ export default function GridTool() {
     }
   }, [gridToolVisible]);
 
+  // Snap to square: given corner1 and a raw cursor position, adjust c2
+  // so the rectangle has equal width and height in km (latitude-corrected)
+  const snapToSquare = useCallback((c1, raw) => {
+    const cosLat = Math.cos(((c1.lat + raw.lat) / 2) * Math.PI / 180);
+    const dLng = raw.lng - c1.lng;
+    const dLat = raw.lat - c1.lat;
+    // Width in degrees that equals the same km distance as dLat
+    // 1° lat ≈ 111.32 km, 1° lng ≈ 111.32 * cos(lat) km
+    // We want |dLng| * cosLat = |dLat|  →  |dLng| = |dLat| / cosLat
+    const absDLat = Math.abs(dLat);
+    const squareDLng = absDLat / (cosLat || 1);
+    return {
+      lng: c1.lng + Math.sign(dLng) * squareDLng,
+      lat: raw.lat,
+    };
+  }, []);
+
   const handleClick = useCallback((e) => {
     if (drawingActiveMode) return;
     const { lng, lat } = e.lngLat;
@@ -62,16 +81,27 @@ export default function GridTool() {
       setCorner1({ lng, lat });
       setPhase('drawing');
     } else if (phaseRef.current === 'drawing') {
-      setCorner2({ lng, lat });
+      const c1 = corner1Ref.current;
+      if (c1) {
+        const snapped = snapToSquare(c1, { lng, lat });
+        setCorner2(snapped);
+      } else {
+        setCorner2({ lng, lat });
+      }
       setPhase('dialog');
     }
-  }, [drawingActiveMode]);
+  }, [drawingActiveMode, snapToSquare]);
 
   const handleMouseMove = useCallback((e) => {
     if (phaseRef.current === 'drawing') {
-      setMousePos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      const c1 = corner1Ref.current;
+      if (c1) {
+        setMousePos(snapToSquare(c1, { lng: e.lngLat.lng, lat: e.lngLat.lat }));
+      } else {
+        setMousePos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      }
     }
-  }, []);
+  }, [snapToSquare]);
 
   // Escape key handling
   useEffect(() => {
@@ -117,7 +147,7 @@ export default function GridTool() {
   }, [mapRef, gridToolVisible, phase, handleClick, handleMouseMove]);
 
   const handleCreate = useCallback(() => {
-    if (!corner1 || !corner2 || !activeProjectId) return;
+    if (!corner1 || !corner2 || !columns) return;
 
     const c1 = corner1;
     const c2 = corner2;
@@ -170,9 +200,9 @@ export default function GridTool() {
     rectArea = calculateRectArea(c1, previewC2);
   }
 
-  // Dialog data
+  // Dialog data — always square so rows = columns
   const dialogArea = corner1 && corner2 ? calculateRectArea(corner1, corner2) : null;
-  const rows = dialogArea ? Math.max(1, Math.round(columns * (dialogArea.heightKm / dialogArea.widthKm))) : columns;
+  const rows = columns;
 
   return (
     <>
@@ -304,7 +334,7 @@ export default function GridTool() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!activeProjectId}
+                disabled={!columns}
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors font-medium"
               >
                 {t('grid.create', lang)}

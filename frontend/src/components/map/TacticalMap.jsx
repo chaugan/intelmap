@@ -779,13 +779,9 @@ export default function TacticalMap() {
               const cols = d.properties?.columns || 5;
               const gridColor = color;
 
-              // Compute rows from aspect ratio
+              // Square grid: rows = columns
               const sw0 = ring[0], se0 = ring[1], ne0 = ring[2], nw0 = ring[3];
-              const R = 6371;
-              const midLat = (sw0[1] + ne0[1]) / 2;
-              const widthKm = R * Math.abs(se0[0] - sw0[0]) * Math.PI / 180 * Math.cos(midLat * Math.PI / 180);
-              const heightKm = R * Math.abs(ne0[1] - se0[1]) * Math.PI / 180;
-              const gridRows = Math.max(1, Math.round(cols * (heightKm / widthKm)));
+              const gridRows = cols;
 
               // Interpolate in geo-coords then project
               const lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
