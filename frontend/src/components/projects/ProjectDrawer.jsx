@@ -703,12 +703,19 @@ export default function ProjectDrawer() {
                               shareTokens.map((tk) => {
                                 const layerName = tk.layer_id ? projData?.layers?.find(l => l.id === tk.layer_id)?.name : null;
                                 const expiry = tk.expires_at ? new Date(tk.expires_at).toLocaleDateString() : (lang === 'no' ? 'Aldri' : 'Never');
+                                const shareUrl = `${window.location.origin}/?share=${tk.token}${tk.layer_id ? `&layer=${tk.layer_id}` : ''}`;
                                 return (
-                                  <div key={tk.id} className="flex items-center gap-1.5 text-xs">
-                                    <svg className="w-3 h-3 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                                      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                                    </svg>
+                                  <div key={tk.id} className="flex items-center gap-1.5 text-xs group/link" title={shareUrl}>
+                                    <button
+                                      onClick={() => { navigator.clipboard.writeText(shareUrl); }}
+                                      className="shrink-0 text-cyan-500 hover:text-cyan-300 transition-colors"
+                                      title={lang === 'no' ? 'Kopier lenke' : 'Copy link'}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                        <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                                        <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                                      </svg>
+                                    </button>
                                     <span className="text-slate-400 truncate flex-1">
                                       {layerName ? (
                                         <><span className="text-cyan-400">{layerName}</span></>

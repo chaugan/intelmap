@@ -126,6 +126,8 @@ function UsersTab({ lang, currentUser }) {
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState('');
+  const [csvImportResult, setCsvImportResult] = useState(null);
+  const [csvImporting, setCsvImporting] = useState(false);
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [resetPasswordVal, setResetPasswordVal] = useState('');
 
@@ -278,6 +280,59 @@ function UsersTab({ lang, currentUser }) {
           {t('admin.createUser', lang)}
         </button>
       </form>
+
+      {/* CSV Import */}
+      <div className="flex items-center gap-2">
+        <label className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors cursor-pointer flex items-center gap-1.5">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+          </svg>
+          {lang === 'no' ? 'Importer CSV' : 'Import CSV'}
+          <input type="file" accept=".csv,.txt" className="hidden" disabled={csvImporting} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setCsvImporting(true);
+            setCsvImportResult(null);
+            setError('');
+            try {
+              const text = await file.text();
+              const lines = text.split(/\r?\n/).filter(l => l.trim());
+              if (lines.length === 0) { setError('Empty file'); setCsvImporting(false); return; }
+              // Detect separator and header
+              const sep = lines[0].includes(';') ? ';' : ',';
+              const header = lines[0].toLowerCase().split(sep).map(h => h.trim().replace(/^"?(.*?)"?$/, '$1'));
+              const userIdx = header.indexOf('user') !== -1 ? header.indexOf('user') : header.indexOf('username');
+              const passIdx = header.indexOf('password');
+              if (userIdx === -1 || passIdx === -1) { setError(lang === 'no' ? 'CSV må ha "user" og "password" kolonner' : 'CSV must have "user" and "password" columns'); setCsvImporting(false); return; }
+              const csvUsers = [];
+              for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(sep).map(c => c.trim().replace(/^"?(.*?)"?$/, '$1'));
+                if (cols[userIdx] && cols[passIdx]) {
+                  csvUsers.push({ user: cols[userIdx], password: cols[passIdx] });
+                }
+              }
+              if (csvUsers.length === 0) { setError(lang === 'no' ? 'Ingen gyldige rader funnet' : 'No valid rows found'); setCsvImporting(false); return; }
+              const res = await fetch(`${API}/users/bulk`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', body: JSON.stringify({ users: csvUsers }),
+              });
+              const data = await res.json();
+              if (!res.ok) { setError(data.error); } else { setCsvImportResult(data); fetchUsers(); }
+            } catch (err) { setError(err.message); }
+            setCsvImporting(false);
+            e.target.value = '';
+          }} />
+        </label>
+        {csvImporting && <span className="text-xs text-slate-400">{lang === 'no' ? 'Importerer...' : 'Importing...'}</span>}
+        {csvImportResult && (
+          <span className="text-xs">
+            <span className="text-emerald-400">{csvImportResult.created} {lang === 'no' ? 'opprettet' : 'created'}</span>
+            {csvImportResult.skipped > 0 && <span className="text-amber-400"> · {csvImportResult.skipped} {lang === 'no' ? 'hoppet over' : 'skipped'}</span>}
+            {csvImportResult.errors?.length > 0 && <span className="text-red-400"> · {csvImportResult.errors.length} {lang === 'no' ? 'feil' : 'errors'}</span>}
+          </span>
+        )}
+      </div>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 

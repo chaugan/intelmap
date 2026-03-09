@@ -167,6 +167,53 @@ router.post('/users', (req, res) => {
   res.status(201).json({ id, username, role: 'user', mustChangePassword: true, locked: false, aiChatEnabled: false });
 });
 
+// Bulk import users from CSV
+router.post('/users/bulk', (req, res) => {
+  const { users: csvUsers } = req.body;
+  if (!Array.isArray(csvUsers) || csvUsers.length === 0) {
+    return res.status(400).json({ error: 'No users provided' });
+  }
+
+  const db = getDb();
+  const orgId = req.user.orgId;
+  const autoGroups = db.prepare('SELECT id FROM groups WHERE org_id = ? AND auto_add_users = 1').all(orgId);
+  const insertMember = db.prepare(
+    `INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, 'viewer', datetime('now'))`
+  );
+
+  const results = { created: 0, skipped: 0, errors: [] };
+
+  for (const row of csvUsers) {
+    const username = sanitizeUsername(row.user || row.username);
+    if (!username) { results.errors.push(`Invalid username: "${row.user || row.username || ''}"`); continue; }
+
+    const password = row.password;
+    if (!validatePassword(password)) { results.errors.push(`${username}: invalid password`); continue; }
+
+    const existing = db.prepare('SELECT id FROM users WHERE username = ? AND org_id = ?').get(username, orgId);
+    if (existing) { results.skipped++; continue; }
+
+    const { hash, salt } = hashPassword(password);
+    const id = crypto.randomUUID();
+    db.prepare(
+      `INSERT INTO users (id, username, password_hash, salt, role, org_id, must_change_password, ai_chat_enabled)
+       VALUES (?, ?, ?, ?, 'user', ?, 1, 0)`
+    ).run(id, username, hash, salt, orgId);
+
+    for (const g of autoGroups) {
+      insertMember.run(g.id, id);
+    }
+
+    const projectId = crypto.randomUUID();
+    db.prepare('INSERT INTO projects_v2 (id, user_id, name, settings, org_id) VALUES (?, ?, ?, ?, ?)')
+      .run(projectId, id, 'Standard', '{}', orgId);
+
+    results.created++;
+  }
+
+  res.json(results);
+});
+
 // Delete user
 router.delete('/users/:id', (req, res) => {
   if (req.params.id === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
