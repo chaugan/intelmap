@@ -326,8 +326,9 @@ export default function RFCoverageTool() {
         }),
       });
       if (!res.ok) throw new Error('Save failed');
-      const saved = await res.json();
-      useTacticalStore.getState().addRFCoverage(activeProjectId, saved);
+      const meta = await res.json();
+      // Server returns metadata only; attach local geojson + stats
+      useTacticalStore.getState().addRFCoverage(activeProjectId, { ...meta, geojson: resultGeojson, stats: result.stats });
       reset();
     } catch (err) {
       console.error('RF save error:', err);

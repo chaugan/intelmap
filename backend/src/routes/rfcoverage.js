@@ -215,7 +215,9 @@ router.post('/save', (req, res) => {
       layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm,
       geojson, stats, createdBy: userId,
     });
-    res.json(coverage);
+    // Return metadata only — client already has the geojson
+    const { geojson: _, ...meta } = coverage;
+    res.json(meta);
   } catch (err) {
     console.error('RF coverage save error:', err);
     res.status(500).json({ error: 'Save failed' });
