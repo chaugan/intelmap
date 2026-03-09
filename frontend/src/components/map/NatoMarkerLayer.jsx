@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import { useTacticalStore, getAllVisibleMarkers } from '../../stores/useTacticalStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -13,8 +13,40 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const dragRef = useRef(null);
   const dragEndTimeRef = useRef(0);
   const [infoPopup, setInfoPopup] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
 
   const visibleMarkers = getAllVisibleMarkers(state);
+
+  // Deselect on Escape
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setSelectedId(null); }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const m = visibleMarkers.find(mk => mk.id === selectedId) || localMarkers.find(mk => mk.id === selectedId);
+        if (m) {
+          if (m._local) {
+            if (setLocalMarkers) setLocalMarkers(prev => prev.filter(mk => mk.id !== m.id));
+          } else {
+            socket.emit('client:marker:delete', { projectId: m._projectId || m.projectId, id: m.id });
+          }
+          setSelectedId(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId, visibleMarkers, localMarkers, setLocalMarkers]);
+
+  // Deselect when clicking on map (not on a marker)
+  useEffect(() => {
+    const map = useMapStore.getState().mapRef;
+    if (!map || !selectedId) return;
+    const handler = () => setSelectedId(null);
+    map.on('click', handler);
+    return () => map.off('click', handler);
+  }, [selectedId]);
 
   const onDragStart = useCallback((markerId) => {
     dragRef.current = markerId;
@@ -23,7 +55,6 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const onDragEnd = useCallback((evt, marker) => {
     const { lng, lat } = evt.lngLat;
     const projectId = marker._projectId || marker.projectId;
-    // Optimistic local update
     useTacticalStore.getState().updateMarker(projectId, { ...marker, lat, lon: lng });
     socket.emit('client:marker:update', { projectId, id: marker.id, lat, lon: lng });
     dragEndTimeRef.current = Date.now();
@@ -33,9 +64,22 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const onDelete = useCallback((marker) => {
     const projectId = marker._projectId || marker.projectId;
     socket.emit('client:marker:delete', { projectId, id: marker.id });
+    setSelectedId(null);
   }, []);
 
-  // Local marker handlers (for non-logged-in users)
+  const onRenameLabel = useCallback((marker) => {
+    const current = marker.customLabel || '';
+    const label = prompt(
+      lang === 'no' ? 'Skriv inn etikett for symbol:' : 'Enter label for symbol:',
+      current
+    );
+    if (label !== null) {
+      const projectId = marker._projectId || marker.projectId;
+      socket.emit('client:marker:update', { projectId, id: marker.id, customLabel: label });
+    }
+  }, [lang]);
+
+  // Local marker handlers
   const onLocalDragEnd = useCallback((evt, marker) => {
     if (!setLocalMarkers) return;
     const { lng, lat } = evt.lngLat;
@@ -47,10 +91,10 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
   const onLocalDelete = useCallback((marker) => {
     if (!setLocalMarkers) return;
     setLocalMarkers((prev) => prev.filter((m) => m.id !== marker.id));
+    setSelectedId(null);
   }, [setLocalMarkers]);
 
-  const onLocalClickLabel = useCallback((marker) => {
-    if (Date.now() - dragEndTimeRef.current < 400) return;
+  const onLocalRenameLabel = useCallback((marker) => {
     if (!setLocalMarkers) return;
     const current = marker.customLabel || '';
     const label = prompt(
@@ -61,19 +105,6 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
       setLocalMarkers((prev) => prev.map((m) => m.id === marker.id ? { ...m, customLabel: label } : m));
     }
   }, [lang, setLocalMarkers]);
-
-  const onClickLabel = useCallback((marker) => {
-    if (Date.now() - dragEndTimeRef.current < 400) return;
-    const current = marker.customLabel || '';
-    const label = prompt(
-      lang === 'no' ? 'Skriv inn etikett for symbol:' : 'Enter label for symbol:',
-      current
-    );
-    if (label !== null) {
-      const projectId = marker._projectId || marker.projectId;
-      socket.emit('client:marker:update', { projectId, id: marker.id, customLabel: label });
-    }
-  }, [lang]);
 
   const onContextMenu = useCallback((e, marker) => {
     e.preventDefault();
@@ -108,6 +139,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
         const tooltip = marker.designation
           ? `${marker.designation} — ${symName} (${affLabel})`
           : `${symName} (${affLabel})`;
+        const isSelected = selectedId === marker.id;
 
         return (
           <Marker
@@ -115,31 +147,49 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
             longitude={marker.lon}
             latitude={marker.lat}
             anchor="center"
-            draggable
+            draggable={isSelected}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onDragEnd(e, marker)}
           >
             <div
-              className="nato-marker group relative cursor-pointer flex flex-col items-center"
+              className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}
               title={tooltip}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!dragRef.current) onClickLabel(marker);
+                if (dragRef.current) return;
+                if (Date.now() - dragEndTimeRef.current < 400) return;
+                setSelectedId(isSelected ? null : marker.id);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (Date.now() - dragEndTimeRef.current < 400) return;
+                onRenameLabel(marker);
               }}
               onContextMenu={(e) => onContextMenu(e, marker)}
             >
+              {/* Selection highlight ring */}
+              {isSelected && (
+                <div className="absolute inset-0 -m-2 rounded-lg border-2 border-cyan-400 bg-cyan-400/10 pointer-events-none symbol-selected" />
+              )}
               <div dangerouslySetInnerHTML={{ __html: sym.svg }} />
               {marker.customLabel && (
                 <div className="text-[10px] text-center font-semibold text-white bg-slate-900/80 rounded px-1 -mt-1 whitespace-nowrap">
                   {marker.customLabel}
                 </div>
               )}
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex group-focus-within:flex items-center justify-center hover:bg-red-500"
-              >
-                x
-              </button>
+              {/* Delete button — visible when selected */}
+              {isSelected && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(marker); }}
+                  className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-600 rounded-full text-white text-xs flex items-center justify-center hover:bg-red-500 shadow-lg border border-red-400/50"
+                  title={lang === 'no' ? 'Slett' : 'Delete'}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </Marker>
         );
@@ -158,6 +208,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
         const tooltip = marker.designation
           ? `${marker.designation} — ${symName} (${affLabel})`
           : `${symName} (${affLabel})`;
+        const isSelected = selectedId === marker.id;
 
         return (
           <Marker
@@ -165,18 +216,30 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
             longitude={marker.lon}
             latitude={marker.lat}
             anchor="center"
-            draggable
+            draggable={isSelected}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onLocalDragEnd(e, marker)}
           >
             <div
-              className="nato-marker group relative cursor-pointer flex flex-col items-center"
+              className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}
               title={tooltip}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!dragRef.current) onLocalClickLabel(marker);
+                if (dragRef.current) return;
+                if (Date.now() - dragEndTimeRef.current < 400) return;
+                setSelectedId(isSelected ? null : marker.id);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (Date.now() - dragEndTimeRef.current < 400) return;
+                onLocalRenameLabel(marker);
               }}
             >
+              {/* Selection highlight ring */}
+              {isSelected && (
+                <div className="absolute inset-0 -m-2 rounded-lg border-2 border-cyan-400 bg-cyan-400/10 pointer-events-none symbol-selected" />
+              )}
               <div dangerouslySetInnerHTML={{ __html: sym.svg }} />
               {/* Local indicator badge */}
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-amber-500 rounded-full border border-white" title={lang === 'no' ? 'Ikke lagret' : 'Not saved'} />
@@ -185,12 +248,18 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
                   {marker.customLabel}
                 </div>
               )}
-              <button
-                onClick={(e) => { e.stopPropagation(); onLocalDelete(marker); }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs hidden group-hover:flex group-focus-within:flex items-center justify-center hover:bg-red-500"
-              >
-                x
-              </button>
+              {/* Delete button — visible when selected */}
+              {isSelected && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onLocalDelete(marker); }}
+                  className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-600 rounded-full text-white text-xs flex items-center justify-center hover:bg-red-500 shadow-lg border border-red-400/50"
+                  title={lang === 'no' ? 'Slett' : 'Delete'}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </Marker>
         );
