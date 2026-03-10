@@ -795,8 +795,8 @@ export default function RFCoverageTool() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 {t('rfcoverage.showPowerlines', lang)}
-                <span className={`ml-auto w-7 h-4 rounded-full relative transition-colors ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`}>
-                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${hvLinesEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                <span className={`ml-auto w-7 h-4 rounded-full relative transition-colors shrink-0 ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`}>
+                  <span className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform" style={{ transform: hvLinesEnabled ? 'translateX(14px)' : 'translateX(2px)' }} />
                 </span>
               </button>
             </div>
