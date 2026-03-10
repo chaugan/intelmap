@@ -396,6 +396,9 @@ export default function RFCoverageTool() {
     if (!visible || !mapRef) return;
     const onClick = (e) => {
       if (modeRef.current !== 'placing') return;
+      // Don't place antenna if an infra feature was clicked (let its popup open instead)
+      const infraHit = mapRef.queryRenderedFeatures(e.point, { layers: mapRef.getStyle().layers.filter(l => l.id.startsWith('infra-')).map(l => l.id) });
+      if (infraHit.length > 0) return;
       const { lng, lat } = e.lngLat;
       setAntenna({ lng, lat });
       setMode('ready');
