@@ -3,8 +3,11 @@ import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { useProjectStore } from '../../stores/useProjectStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
+
+const HV_POWERLINE_LAYERS = ['66kv', '110kv', '132kv', '220kv', '300kv', '420kv'];
 
 // Active-calculation-only layers (saved data is rendered by RFCoverageOverlay)
 const SOURCE_CIRCLE = 'rf-coverage-circle';
@@ -54,6 +57,9 @@ const POWER_OPTIONS = [
   { watts: 50, label: '50W (47 dBm)' },
 ];
 
+// Default dampening per antenna height (type)
+const HEIGHT_DAMPENING = { 1.5: -5, 3: -10, 10: -20 };
+
 const FREQ_CHIPS = [
   { mhz: 70, label: 'VHF 70' },
   { mhz: 150, label: 'VHF 150' },
@@ -95,6 +101,10 @@ export default function RFCoverageTool() {
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
   const myProjects = useProjectStore((s) => s.myProjects);
+  const user = useAuthStore((s) => s.user);
+  const infraVisible = useMapStore((s) => s.infraVisible);
+  const infraLayers = useMapStore((s) => s.infraLayers);
+  const canInfra = user?.infraviewEnabled || user?.role === 'admin';
 
   // Role-based editing: only admin/editor can save/delete/modify
   const activeProject = myProjects.find(p => p.id === activeProjectId);
@@ -106,7 +116,10 @@ export default function RFCoverageTool() {
   const [txPowerWatts, setTxPowerWatts] = useState(5);
   const [frequencyMHz, setFrequencyMHz] = useState('');
   const [radiusKm, setRadiusKm] = useState(15);
-  const [dampening, setDampening] = useState(0);
+  const [dampening, setDampening] = useState(HEIGHT_DAMPENING[1.5]);
+  const [dampeningManual, setDampeningManual] = useState(false); // true if user manually edited dampening
+  // Derive HV powerlines state from store (stays in sync with DataLayersDrawer)
+  const hvLinesEnabled = infraVisible && HV_POWERLINE_LAYERS.some(l => infraLayers[l]);
   const [opacity, setOpacity] = useState(0.6);
   const [invertColors, setInvertColors] = useState(false);
   const [dimmedBuckets, setDimmedBuckets] = useState(new Set());
@@ -178,6 +191,27 @@ export default function RFCoverageTool() {
     // Sync local state if this is the active item
     if (id === activeSessionId) setShowLabel(newVal);
   }, [activeSessionId]);
+
+  // Toggle HV powerlines visibility via InfraView store
+  const toggleHvPowerlines = useCallback((enable) => {
+    const store = useMapStore.getState();
+    if (enable) {
+      // Turn on infraVisible and all HV layers
+      if (!store.infraVisible) useMapStore.setState({ infraVisible: true });
+      const updated = { ...store.infraLayers };
+      for (const l of HV_POWERLINE_LAYERS) updated[l] = true;
+      useMapStore.setState({ infraLayers: updated });
+    } else {
+      // Turn off HV layers
+      const updated = { ...store.infraLayers };
+      for (const l of HV_POWERLINE_LAYERS) updated[l] = false;
+      useMapStore.setState({ infraLayers: updated });
+      // If no other layers remain on, hide infra entirely
+      if (!Object.values(updated).some(Boolean)) {
+        useMapStore.setState({ infraVisible: false });
+      }
+    }
+  }, []);
 
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
   const canCalculate = antenna && freqValid;
@@ -266,6 +300,7 @@ export default function RFCoverageTool() {
     setDimmedBuckets(new Set());
     setActiveSessionId(null);
     setShowLabel(false);
+    setDampeningManual(false);
     useMapStore.setState({ activeRFCoverageId: null });
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
@@ -515,6 +550,7 @@ export default function RFCoverageTool() {
     setFrequencyMHz(item.frequencyMHz || '');
     setRadiusKm(item.radiusKm || 15);
     setDampening(item.dampening || 0);
+    setDampeningManual(true); // loaded item has explicit dampening
     setShowLabel(!!item.showLabel);
     setAntenna({ lng: item.longitude, lat: item.latitude });
     setError(null);
@@ -697,7 +733,7 @@ export default function RFCoverageTool() {
           {/* Antenna Height */}
           <div>
             <label className="text-xs text-slate-400">{t('rfcoverage.antennaHeight', lang)}</label>
-            <select value={antennaHeight} onChange={(e) => setAntennaHeight(Number(e.target.value))} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+            <select value={antennaHeight} onChange={(e) => { const h = Number(e.target.value); setAntennaHeight(h); setDampening(HEIGHT_DAMPENING[h] || 0); setDampeningManual(false); }} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
               <option value={1.5}>{t('rfcoverage.handheld', lang)}</option>
               <option value={3}>{t('rfcoverage.vehicle', lang)}</option>
               <option value={10}>{t('rfcoverage.mast', lang)}</option>
@@ -741,12 +777,30 @@ export default function RFCoverageTool() {
             <div className="flex items-center gap-2 mt-1">
               <input
                 type="number" value={dampening === 0 ? '' : dampening}
-                onChange={(e) => { const raw = e.target.value; if (raw === '' || raw === '-') { setDampening(0); return; } const n = Number(raw); if (!isFinite(n)) return; setDampening(n > 0 ? -n : n); }}
+                onChange={(e) => { const raw = e.target.value; if (raw === '' || raw === '-') { setDampening(0); setDampeningManual(true); return; } const n = Number(raw); if (!isFinite(n)) return; setDampening(n > 0 ? -n : n); setDampeningManual(true); }}
                 placeholder="0" className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" max={0}
               />
               <span className="text-slate-400 text-xs shrink-0">dB</span>
             </div>
           </div>
+
+          {/* HV Powerlines toggle (InfraView) */}
+          {canInfra && (
+            <div className="mt-2">
+              <button
+                onClick={() => toggleHvPowerlines(!hvLinesEnabled)}
+                className={`flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs transition-colors ${hvLinesEnabled ? 'bg-amber-700/50 text-amber-200' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {t('rfcoverage.showPowerlines', lang)}
+                <span className={`ml-auto w-7 h-4 rounded-full relative transition-colors ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`}>
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${hvLinesEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Action buttons */}
