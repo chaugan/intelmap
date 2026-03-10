@@ -456,6 +456,7 @@ function MapApp({ user }) {
   }, [mapRef, applyTheme]);
 
   const isImpersonating = useAuthStore((s) => s.isImpersonating);
+  const rfCoverageToolVisible = useMapStore((s) => s.rfCoverageToolVisible);
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
   const isDragging = isDraggingChat || isDraggingTimelapse || isDraggingProject;
@@ -510,6 +511,14 @@ function MapApp({ user }) {
             <SidePanel />
           </div>
         )}
+
+        {/* RF Coverage Drawer */}
+        <div
+          className={`bg-slate-800 border-l border-slate-700 flex flex-col shrink-0 overflow-hidden relative transition-all duration-300`}
+          style={{ width: rfCoverageToolVisible ? 320 : 0 }}
+        >
+          <div id="rf-coverage-drawer" className="flex flex-col h-full w-[320px]" />
+        </div>
 
         {/* AI Chat Drawer */}
         <div
