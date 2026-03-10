@@ -117,8 +117,8 @@ export default function RFCoverageOverlay() {
           filter: ['==', ['get', 'showLabel'], 1],
           layout: {
             'text-field': ['get', 'label'],
-            'text-size': 11,
-            'text-offset': [0, 1.8],
+            'text-size': 14,
+            'text-offset': [0, 1.5],
             'text-anchor': 'top',
             'text-allow-overlap': true,
           },

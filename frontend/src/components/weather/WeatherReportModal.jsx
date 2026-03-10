@@ -386,12 +386,27 @@ function StatBox({ icon, label, value, isDark }) {
 }
 
 function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, border }) {
+  const containerRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const check = () => setCompact(el.offsetHeight < 260);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const iconSize = compact ? 22 : 40;
+
   return (
-    <div className={`${bgCard} rounded-lg p-3 flex flex-col`} style={{ height: '100%' }}>
-      <h2 className={`text-base font-semibold mb-2 shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+    <div ref={containerRef} className={`${bgCard} rounded-lg ${compact ? 'p-1.5' : 'p-3'} flex flex-col`} style={{ height: '100%' }}>
+      <h2 className={`${compact ? 'text-xs mb-0.5' : 'text-base mb-2'} font-semibold shrink-0 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
         {lang === 'no' ? '7-dagers prognose' : '7-Day Forecast'}
       </h2>
-      <div className="flex-1 flex gap-2 min-h-0 overflow-x-auto lg:overflow-hidden">
+      <div className={`flex-1 flex ${compact ? 'gap-0.5' : 'gap-2'} min-h-0 overflow-x-auto lg:overflow-hidden`}>
         {daily.map((day, i) => {
           const date = new Date(day.date);
           const dayNameShort = date.toLocaleDateString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short' });
@@ -405,35 +420,35 @@ function SevenDayForecastHorizontal({ daily, lang, isDark, bgCard, textMuted, bo
           return (
             <div
               key={day.date}
-              className={`flex-1 min-w-[70px] flex flex-col items-center justify-between rounded-lg p-2 overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50' : 'bg-blue-50') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
+              className={`flex-1 min-w-[70px] flex flex-col items-center justify-between rounded-lg ${compact ? 'px-0.5 py-0.5' : 'p-2'} overflow-hidden ${i === 0 ? (isDark ? 'bg-slate-600/50' : 'bg-blue-50') : (isDark ? 'bg-slate-700/40' : 'bg-slate-100/60')}`}
             >
               {/* Day and date */}
               <div className="text-center shrink-0">
-                <div className="text-sm lg:text-lg font-bold">
+                <div className={`${compact ? 'text-[10px] lg:text-xs' : 'text-sm lg:text-lg'} font-bold leading-tight`}>
                   <span className="wr-day-short lg:hidden">{dayNameShort}</span>
                   <span className="wr-day-long hidden lg:inline">{dayNameLong}</span>
                 </div>
-                <div className={`text-xs lg:text-base ${textMuted}`}>{dateNum}. {month}</div>
+                <div className={`${compact ? 'text-[9px] lg:text-[10px]' : 'text-xs lg:text-base'} leading-tight ${textMuted}`}>{dateNum}. {month}</div>
               </div>
 
               {/* Weather icon */}
-              <div className="my-1 flex items-center justify-center">
-                {day.symbol ? <WeatherIcon symbol={day.symbol} size={40} /> : null}
+              <div className={`${compact ? '' : 'my-1'} flex items-center justify-center`}>
+                {day.symbol ? <WeatherIcon symbol={day.symbol} size={iconSize} /> : null}
               </div>
 
               {/* Temperatures */}
               <div className="text-center shrink-0">
-                <div className={`text-xl lg:text-2xl font-bold ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
-                <div className={`text-base lg:text-xl ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
+                <div className={`${compact ? 'text-sm lg:text-base' : 'text-xl lg:text-2xl'} font-bold leading-tight ${tempHighColor}`}>{day.tempHigh?.toFixed(0)}°</div>
+                <div className={`${compact ? 'text-xs lg:text-sm' : 'text-base lg:text-xl'} leading-tight ${tempLowColor || textMuted}`}>{day.tempLow?.toFixed(0)}°</div>
               </div>
 
               {/* Extra info */}
               <div className="text-center space-y-0 shrink-0">
-                <div className={`text-xs lg:text-base ${day.precipitation > 0.1 ? 'text-blue-400 font-medium' : textMuted}`}>
+                <div className={`${compact ? 'text-[9px] lg:text-[10px]' : 'text-xs lg:text-base'} leading-tight ${day.precipitation > 0.1 ? 'text-blue-400 font-medium' : textMuted}`}>
                   {(day.precipitation || 0).toFixed(1)} mm
                 </div>
-                <div className={`text-xs lg:text-base ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
-                <div className={`text-xs lg:text-sm ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
+                <div className={`${compact ? 'text-[9px] lg:text-[10px]' : 'text-xs lg:text-base'} leading-tight ${textMuted}`}>{day.windMax?.toFixed(0)} m/s</div>
+                <div className={`${compact ? 'text-[9px] lg:text-[10px]' : 'text-xs lg:text-sm'} leading-tight ${textMuted}`}>{day.cloudAvg?.toFixed(0)}% ☁</div>
               </div>
             </div>
           );

@@ -14,6 +14,7 @@ const LAYER_CIRCLE_FILL = 'rf-coverage-circle-fill';
 const LAYER_CIRCLE_LINE = 'rf-coverage-circle-line';
 const LAYER_RESULT_FILL = 'rf-coverage-result-fill';
 const LAYER_OBSERVER = 'rf-coverage-observer';
+const LAYER_OBSERVER_LABEL = 'rf-coverage-observer-label';
 
 const BUCKETS = [
   { name: 'excellent',  min: -50, color: '#15803d', invertColor: '#991b1b' },
@@ -132,6 +133,8 @@ export default function RFCoverageTool() {
   dimmedBucketsRef.current = dimmedBuckets;
 
   const [showLabel, setShowLabel] = useState(false); // label toggle for current active calc
+  const showLabelRef = useRef(false);
+  showLabelRef.current = showLabel;
 
   // Collect all saved RF coverages from visible projects
   const savedItems = [];
@@ -164,12 +167,17 @@ export default function RFCoverageTool() {
   // Toggle label for a session coverage (local only)
   const toggleSessionLabel = useCallback((id) => {
     const store = useMapStore.getState();
+    const item = store.sessionRFCoverages.find(c => c.id === id);
+    if (!item) return;
+    const newVal = !item.showLabel;
     useMapStore.setState({
       sessionRFCoverages: store.sessionRFCoverages.map(c =>
-        c.id === id ? { ...c, showLabel: !c.showLabel } : c
+        c.id === id ? { ...c, showLabel: newVal } : c
       ),
     });
-  }, []);
+    // Sync local state if this is the active item
+    if (id === activeSessionId) setShowLabel(newVal);
+  }, [activeSessionId]);
 
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
   const canCalculate = antenna && freqValid;
@@ -206,8 +214,21 @@ export default function RFCoverageTool() {
     window.addEventListener('touchend', onUp);
   }, []);
 
-  const ALL_LAYERS = [LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER];
+  const ALL_LAYERS = [LAYER_OBSERVER_LABEL, LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER];
   const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER];
+
+  // Build observer point GeoJSON with label properties
+  const buildObserverFC = useCallback((ant) => {
+    if (!ant) return EMPTY_FC;
+    const h = antennaHeight === 1.5 ? '1.5m' : antennaHeight === 3 ? '3m' : antennaHeight === 10 ? '10m' : `${antennaHeight}m`;
+    const freq = Number(frequencyMHz);
+    const label = `${h} | ${txPowerWatts}W | ${freq || '?'}MHz`;
+    return { type: 'FeatureCollection', features: [{
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] },
+      properties: { showLabel: showLabelRef.current ? 1 : 0, label },
+    }] };
+  }, [antennaHeight, txPowerWatts, frequencyMHz]);
 
   const cleanup = useCallback(() => {
     if (!mapRef) return;
@@ -219,15 +240,16 @@ export default function RFCoverageTool() {
   const saveToSession = useCallback(() => {
     if (!antenna || !resultGeojson || !result) return null;
     const id = activeSessionId || crypto.randomUUID();
+    const store = useMapStore.getState();
+    const existing = store.sessionRFCoverages.find(c => c.id === id);
+    // Use store's showLabel for existing entries (toggleSessionLabel updates the store directly)
+    const effectiveShowLabel = existing ? existing.showLabel : showLabel;
     const entry = {
       id, longitude: antenna.lng, latitude: antenna.lat,
       antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
-      geojson: resultGeojson, stats: result.stats, showLabel,
+      geojson: resultGeojson, stats: result.stats, showLabel: effectiveShowLabel,
     };
-    const store = useMapStore.getState();
-    const existing = store.sessionRFCoverages.find(c => c.id === id);
     if (existing) {
-      // Update in place
       useMapStore.setState({ sessionRFCoverages: store.sessionRFCoverages.map(c => c.id === id ? entry : c) });
     } else {
       useMapStore.setState({ sessionRFCoverages: [...store.sessionRFCoverages, entry] });
@@ -271,12 +293,18 @@ export default function RFCoverageTool() {
 
       if (!mapRef.getSource(SOURCE_CIRCLE)) mapRef.addSource(SOURCE_CIRCLE, { type: 'geojson', data: EMPTY_FC });
       if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: gj ? applyDisplayOptions(gj, dim) : EMPTY_FC });
-      if (!mapRef.getSource(SOURCE_OBSERVER)) mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ant.lng, ant.lat] }, properties: {} }] } : EMPTY_FC });
+      if (!mapRef.getSource(SOURCE_OBSERVER)) mapRef.addSource(SOURCE_OBSERVER, { type: 'geojson', data: ant ? buildObserverFC(ant) : EMPTY_FC });
 
       if (!mapRef.getLayer(LAYER_CIRCLE_FILL)) mapRef.addLayer({ id: LAYER_CIRCLE_FILL, type: 'fill', source: SOURCE_CIRCLE, paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.08 } });
       if (!mapRef.getLayer(LAYER_CIRCLE_LINE)) mapRef.addLayer({ id: LAYER_CIRCLE_LINE, type: 'line', source: SOURCE_CIRCLE, paint: { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [4, 4] } });
       if (!mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.addLayer({ id: LAYER_RESULT_FILL, type: 'fill', source: SOURCE_RESULT, paint: { 'fill-color': inv ? COLOR_EXPR_INV : COLOR_EXPR, 'fill-opacity': 0.6 } });
       if (!mapRef.getLayer(LAYER_OBSERVER)) mapRef.addLayer({ id: LAYER_OBSERVER, type: 'circle', source: SOURCE_OBSERVER, paint: { 'circle-radius': 7, 'circle-color': '#a855f7', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      if (!mapRef.getLayer(LAYER_OBSERVER_LABEL)) mapRef.addLayer({
+        id: LAYER_OBSERVER_LABEL, type: 'symbol', source: SOURCE_OBSERVER,
+        filter: ['==', ['get', 'showLabel'], 1],
+        layout: { 'text-field': ['get', 'label'], 'text-size': 14, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-allow-overlap': true },
+        paint: { 'text-color': '#e2e8f0', 'text-halo-color': 'rgba(15,23,42,0.85)', 'text-halo-width': 1.5 },
+      });
     };
 
     initLayers();
@@ -289,6 +317,13 @@ export default function RFCoverageTool() {
     if (!mapRef || !visible) return;
     if (mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-opacity', opacity);
   }, [opacity, mapRef, visible]);
+
+  // Update observer label when showLabel or params change
+  useEffect(() => {
+    if (!mapRef || !antenna) return;
+    const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
+    if (obsSrc) obsSrc.setData(buildObserverFC(antenna));
+  }, [mapRef, antenna, showLabel, buildObserverFC]);
 
   // Update result display when dimmed buckets change
   useEffect(() => {
@@ -322,7 +357,7 @@ export default function RFCoverageTool() {
       setMode('ready');
       mapRef.getCanvas().style.cursor = '';
       const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
-      if (obsSrc) obsSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }] });
+      if (obsSrc) obsSrc.setData(buildObserverFC({ lng, lat }));
       const circleSrc = mapRef.getSource(SOURCE_CIRCLE);
       if (circleSrc) circleSrc.setData(circlePolygon([lng, lat], radiusKm));
     };
@@ -483,7 +518,7 @@ export default function RFCoverageTool() {
         const src = mapRef.getSource(SOURCE_RESULT);
         if (src) src.setData(applyDisplayOptions(item.geojson, new Set()));
         const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
-        if (obsSrc) obsSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [item.longitude, item.latitude] }, properties: {} }] });
+        if (obsSrc) obsSrc.setData(buildObserverFC({ lng: item.longitude, lat: item.latitude }));
       }
     } else {
       setResult(null);
@@ -775,9 +810,20 @@ export default function RFCoverageTool() {
               <input type="range" min={10} max={100} step={5} value={opacity * 100} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full" />
             </div>
 
-            <button onClick={() => setInvertColors(!invertColors)} className={`w-full py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
-              {t('rfcoverage.invertColors', lang)}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setInvertColors(!invertColors)} className={`flex-1 py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
+                {t('rfcoverage.invertColors', lang)}
+              </button>
+              <button
+                onClick={() => setShowLabel(!showLabel)}
+                className={`px-2 py-1 rounded text-xs ${showLabel ? 'bg-cyan-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+                title={t(showLabel ? 'rfcoverage.hideLabel' : 'rfcoverage.showLabel', lang)}
+              >
+                <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </button>
+            </div>
 
             {/* Save to project */}
             <div className="flex gap-2">
