@@ -193,6 +193,7 @@ export default function RFCoverageTool() {
   const [radiusKm, setRadiusKm] = useState(15);
   const [dampening, setDampening] = useState(HEIGHT_DAMPENING[1.5]);
   const [dampeningManual, setDampeningManual] = useState(false); // true if user manually edited dampening
+  const [enableReflections, setEnableReflections] = useState(true);
   // Derive HV powerlines state from store (stays in sync with DataLayersDrawer)
   const hvLinesEnabled = infraVisible && HV_POWERLINE_LAYERS.some(l => infraLayers[l]);
   const [opacity, setOpacity] = useState(0.6);
@@ -572,7 +573,7 @@ export default function RFCoverageTool() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ longitude: antenna.lng, latitude: antenna.lat, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening }),
+        body: JSON.stringify({ longitude: antenna.lng, latitude: antenna.lat, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, enableReflections }),
       });
       if (!res.ok) throw new Error('Calculation failed');
       const data = await res.json();
@@ -614,7 +615,7 @@ export default function RFCoverageTool() {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets, activeSessionId, showLabel]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, enableReflections, mapRef, dimmedBuckets, activeSessionId, showLabel]);
 
   const handleSave = useCallback(async () => {
     if (!activeProjectId || !result) return;
@@ -1039,6 +1040,22 @@ export default function RFCoverageTool() {
                 />
                 <span className="text-slate-400 text-xs shrink-0">dB</span>
               </div>
+            </div>
+
+            {/* Terrain reflections toggle */}
+            <div className="mt-2">
+              <button
+                onClick={() => setEnableReflections(!enableReflections)}
+                className={`flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs transition-colors ${enableReflections ? 'bg-purple-700/50 text-purple-200' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 3l-6 9h6l-3 9 12-13h-7l4-5H9z" />
+                </svg>
+                {t('rfcoverage.reflections', lang)}
+                <span className={`ml-auto inline-flex items-center shrink-0 rounded-full transition-colors ${enableReflections ? 'bg-purple-500' : 'bg-slate-600'}`} style={{ width: 28, height: 16, padding: 2 }}>
+                  <span className="rounded-full bg-white transition-transform" style={{ width: 12, height: 12, transform: enableReflections ? 'translateX(12px)' : 'translateX(0)' }} />
+                </span>
+              </button>
             </div>
 
             {/* HV Powerlines toggle (InfraView) */}

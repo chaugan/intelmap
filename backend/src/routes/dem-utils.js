@@ -64,6 +64,64 @@ export function tileToLngLat(x, y, zoom) {
   return { lng, lat };
 }
 
+/**
+ * Compute terrain surface normal at a point by sampling 4 neighbors.
+ * Returns { normalBearing (rad, direction slope faces outward), slopeAngle (degrees) }
+ */
+export function computeSurfaceNormal(lon, lat, getElevation, cellSizeMeters = 90) {
+  const dLat = (cellSizeMeters / 6371000) * (180 / Math.PI);
+  const dLon = dLat / Math.cos(lat * Math.PI / 180);
+
+  const eN = getElevation(lon, lat + dLat);
+  const eS = getElevation(lon, lat - dLat);
+  const eE = getElevation(lon + dLon, lat);
+  const eW = getElevation(lon - dLon, lat);
+
+  const dzdx = (eE - eW) / (2 * cellSizeMeters); // east-west gradient
+  const dzdy = (eN - eS) / (2 * cellSizeMeters); // north-south gradient
+
+  // Slope angle from horizontal
+  const slopeAngle = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy)) * 180 / Math.PI;
+
+  // Normal bearing: direction the slope faces outward (downhill direction)
+  // atan2(-dzdx, -dzdy) gives bearing from north, clockwise
+  let normalBearing = Math.atan2(-dzdx, -dzdy);
+  if (normalBearing < 0) normalBearing += 2 * Math.PI;
+
+  return { normalBearing, slopeAngle };
+}
+
+/**
+ * Reflect an incoming bearing off a surface with the given normal bearing.
+ * All angles in radians. Returns reflected bearing in [0, 2π).
+ */
+export function reflectBearing(incomingBearingRad, surfaceNormalBearingRad) {
+  let reflected = 2 * surfaceNormalBearingRad - incomingBearingRad + Math.PI;
+  reflected = ((reflected % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return reflected;
+}
+
+/**
+ * Estimate reflection loss in dB for terrain reflection.
+ * Steeper slopes reflect better; higher frequencies scatter more.
+ * Returns a negative dB value (loss). -Infinity if slope too gentle.
+ */
+export function reflectionLossDb(slopeAngle, frequencyMHz) {
+  if (slopeAngle < 15) return -Infinity;
+
+  // Base loss: cliff (>70°) = -6 dB, gentle (15°) = -18 dB, linear interpolation
+  const baseLoss = -18 + (slopeAngle - 15) * (12 / 55); // -18 at 15°, -6 at 70°
+  const clamped = Math.max(-18, Math.min(-6, baseLoss));
+
+  // Frequency penalty
+  let freqPenalty = 0;
+  if (frequencyMHz > 1000) freqPenalty = -5;
+  else if (frequencyMHz > 300) freqPenalty = -2;
+
+  const total = clamped + freqPenalty;
+  return Math.max(total, -25); // cap at -25 dB worst case (not -Infinity for valid slopes)
+}
+
 export function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
