@@ -94,8 +94,7 @@ function getSignalAtPoint(geojson, lng, lat) {
   return null;
 }
 
-function analyzeLinks(selectedNodes, mode) {
-  const threshold = mode === 'digital' ? -60 : -70;
+function analyzeLinks(selectedNodes, threshold) {
   const links = [];
   for (let i = 0; i < selectedNodes.length; i++) {
     for (let j = i + 1; j < selectedNodes.length; j++) {
@@ -223,6 +222,7 @@ export default function RFCoverageTool() {
   // Link Analysis state
   const [linkExpanded, setLinkExpanded] = useState(false);
   const [linkMode, setLinkMode] = useState('digital');
+  const [linkThreshold, setLinkThreshold] = useState(-80);
   const [linkSelectedIds, setLinkSelectedIds] = useState(new Set());
   const [linkResults, setLinkResults] = useState([]);
 
@@ -453,8 +453,8 @@ export default function RFCoverageTool() {
     }
     const selected = allCoverages.filter(c => linkSelectedIds.has(c.id));
     if (selected.length < 2) { setLinkResults([]); return; }
-    setLinkResults(analyzeLinks(selected, linkMode));
-  }, [linkExpanded, linkSelectedIds, linkMode, sessionRFCoverages.length, savedItems.length]);
+    setLinkResults(analyzeLinks(selected, linkThreshold));
+  }, [linkExpanded, linkSelectedIds, linkThreshold, sessionRFCoverages.length, savedItems.length]);
 
   // Link Analysis: manage map layers — always on top of all RF layers
   const addLinkLayers = useCallback(() => {
@@ -723,20 +723,38 @@ export default function RFCoverageTool() {
 
       {linkExpanded && (
         <div className="px-3 pb-3 space-y-2">
-          {/* Mode toggle */}
+          {/* Mode toggle + threshold */}
           <div className="flex gap-2">
             <button
-              onClick={() => setLinkMode('digital')}
+              onClick={() => { setLinkMode('digital'); setLinkThreshold(-80); }}
               className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'digital' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
             >
               {t('rfcoverage.digital', lang)}
             </button>
             <button
-              onClick={() => setLinkMode('analog')}
+              onClick={() => { setLinkMode('analog'); setLinkThreshold(-60); }}
               className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'analog' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
             >
               {t('rfcoverage.analog', lang)}
             </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-slate-400 shrink-0">{t('rfcoverage.threshold', lang)}</label>
+            <input
+              type="number"
+              value={linkThreshold === 0 ? '' : linkThreshold}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '' || raw === '-') { setLinkThreshold(0); setLinkMode(''); return; }
+                const n = Number(raw);
+                if (!isFinite(n)) return;
+                setLinkThreshold(n > 0 ? -n : n);
+                setLinkMode('');
+              }}
+              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-0.5 text-[11px]"
+              max={0}
+            />
+            <span className="text-slate-400 text-[11px] shrink-0">dBm</span>
           </div>
 
           {/* Node selection checkboxes */}
