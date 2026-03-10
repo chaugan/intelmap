@@ -796,7 +796,7 @@ export default function RFCoverageTool() {
                 </svg>
                 {t('rfcoverage.showPowerlines', lang)}
                 <span className={`ml-auto w-7 h-4 rounded-full relative transition-colors shrink-0 ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`}>
-                  <span className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform" style={{ transform: hvLinesEnabled ? 'translateX(14px)' : 'translateX(2px)' }} />
+                  <span className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform" style={{ transform: hvLinesEnabled ? 'translateX(2px)' : 'translateX(14px)' }} />
                 </span>
               </button>
             </div>
