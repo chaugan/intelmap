@@ -205,11 +205,6 @@ export default function RFCoverageTool() {
   const [error, setError] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null); // ID of session item being edited
 
-  // Draggable panel state
-  const [panelPos, setPanelPos] = useState({ x: null, y: null });
-  const dragRef = useRef(null);
-  const dragStartRef = useRef(null);
-
   const modeRef = useRef(mode);
   const antennaRef = useRef(antenna);
   const resultGeojsonRef = useRef(resultGeojson);
@@ -297,38 +292,6 @@ export default function RFCoverageTool() {
 
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
   const canCalculate = antenna && freqValid;
-
-  // --- Draggable panel handlers ---
-  const onDragStart = useCallback((e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
-    e.preventDefault();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const rect = dragRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    dragStartRef.current = { offsetX: clientX - rect.left, offsetY: clientY - rect.top };
-
-    const onMove = (ev) => {
-      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
-      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      const { offsetX, offsetY } = dragStartRef.current;
-      const pw = dragRef.current?.offsetWidth || 300;
-      setPanelPos({
-        x: Math.max(0, Math.min(window.innerWidth - pw, cx - offsetX)),
-        y: Math.max(0, Math.min(window.innerHeight - 100, cy - offsetY)),
-      });
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
-  }, []);
 
   const ALL_LAYERS = [LAYER_OBSERVER_LABEL, LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER, LAYER_LINK_ANALYSIS_LINE, LAYER_LINK_ANALYSIS_LABEL];
   const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER, SOURCE_LINK_ANALYSIS];
@@ -493,7 +456,32 @@ export default function RFCoverageTool() {
     setLinkResults(analyzeLinks(selected, linkMode));
   }, [linkExpanded, linkSelectedIds, linkMode, sessionRFCoverages.length, savedItems.length]);
 
-  // Link Analysis: manage map layers
+  // Link Analysis: manage map layers — always on top of all RF layers
+  const addLinkLayers = useCallback(() => {
+    if (!mapRef) return;
+    // Remove existing first so we can re-add on top
+    if (mapRef.getLayer(LAYER_LINK_ANALYSIS_LABEL)) mapRef.removeLayer(LAYER_LINK_ANALYSIS_LABEL);
+    if (mapRef.getLayer(LAYER_LINK_ANALYSIS_LINE)) mapRef.removeLayer(LAYER_LINK_ANALYSIS_LINE);
+    if (!mapRef.getSource(SOURCE_LINK_ANALYSIS)) return;
+    mapRef.addLayer({
+      id: LAYER_LINK_ANALYSIS_LINE, type: 'line', source: SOURCE_LINK_ANALYSIS,
+      filter: ['!', ['has', 'isLabel']],
+      paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.9 },
+    });
+    mapRef.addLayer({
+      id: LAYER_LINK_ANALYSIS_LABEL, type: 'symbol', source: SOURCE_LINK_ANALYSIS,
+      filter: ['==', ['get', 'isLabel'], 1],
+      layout: {
+        'text-field': ['get', 'label'], 'text-size': 12,
+        'text-allow-overlap': true, 'text-anchor': 'center',
+      },
+      paint: {
+        'text-color': '#e2e8f0',
+        'text-halo-color': 'rgba(15,23,42,0.85)', 'text-halo-width': 1.5,
+      },
+    });
+  }, [mapRef]);
+
   useEffect(() => {
     if (!mapRef) return;
     const removeLinkLayers = () => {
@@ -508,28 +496,20 @@ export default function RFCoverageTool() {
     const geojson = buildLinkGeoJSON(linkResults);
     if (mapRef.getSource(SOURCE_LINK_ANALYSIS)) {
       mapRef.getSource(SOURCE_LINK_ANALYSIS).setData(geojson);
+      // Re-add layers on top so they're above any re-drawn coverage layers
+      addLinkLayers();
     } else {
       mapRef.addSource(SOURCE_LINK_ANALYSIS, { type: 'geojson', data: geojson });
-      mapRef.addLayer({
-        id: LAYER_LINK_ANALYSIS_LINE, type: 'line', source: SOURCE_LINK_ANALYSIS,
-        filter: ['!', ['has', 'isLabel']],
-        paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.9 },
-      });
-      mapRef.addLayer({
-        id: LAYER_LINK_ANALYSIS_LABEL, type: 'symbol', source: SOURCE_LINK_ANALYSIS,
-        filter: ['==', ['get', 'isLabel'], 1],
-        layout: {
-          'text-field': ['get', 'label'], 'text-size': 12,
-          'text-allow-overlap': true, 'text-anchor': 'center',
-        },
-        paint: {
-          'text-color': '#e2e8f0',
-          'text-halo-color': 'rgba(15,23,42,0.85)', 'text-halo-width': 1.5,
-        },
-      });
+      addLinkLayers();
     }
     return () => removeLinkLayers();
-  }, [mapRef, linkExpanded, linkResults]);
+  }, [mapRef, linkExpanded, linkResults, addLinkLayers]);
+
+  // Re-raise link layers to top whenever a coverage is (re)calculated
+  useEffect(() => {
+    if (!mapRef || !linkExpanded || linkResults.length === 0) return;
+    if (mapRef.getSource(SOURCE_LINK_ANALYSIS)) addLinkLayers();
+  }, [mapRef, linkExpanded, linkResults, resultGeojson, addLinkLayers]);
 
   // Map click handler
   useEffect(() => {
@@ -721,20 +701,112 @@ export default function RFCoverageTool() {
 
   if (!visible) return null;
 
-  const panelStyle = panelPos.x !== null
-    ? { position: 'fixed', left: panelPos.x, top: panelPos.y, zIndex: 1000 }
-    : { position: 'fixed', top: 80, right: 8, zIndex: 1000 };
+  // Link Analysis UI block (reused in two places won't work — just inline it once, positioned after lists)
+  const linkAnalysisUI = allCoverages.length >= 2 ? (
+    <div className="border-t border-slate-600">
+      <button
+        onClick={() => setLinkExpanded(!linkExpanded)}
+        className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700/50"
+      >
+        <span className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+          {t('rfcoverage.linkAnalysis', lang)}
+        </span>
+        <svg className={`w-3 h-3 transition-transform ${linkExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      {linkExpanded && (
+        <div className="px-3 pb-3 space-y-2">
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLinkMode('digital')}
+              className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'digital' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+            >
+              {t('rfcoverage.digital', lang)}
+            </button>
+            <button
+              onClick={() => setLinkMode('analog')}
+              className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'analog' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+            >
+              {t('rfcoverage.analog', lang)}
+            </button>
+          </div>
+
+          {/* Node selection checkboxes */}
+          <div className="space-y-0.5 max-h-28 overflow-y-auto">
+            {allCoverages.map((c) => {
+              const checked = linkSelectedIds.has(c.id);
+              const sourceLabel = c._source === 'session' ? t('rfcoverage.session', lang) : t('rfcoverage.saved', lang);
+              return (
+                <label key={c.id} className="flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => setLinkSelectedIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                      return next;
+                    })}
+                    className="accent-emerald-500"
+                  />
+                  <span className="truncate text-slate-300">RF {c.frequencyMHz}MHz {c.txPowerWatts}W</span>
+                  <span className="text-slate-500 text-[10px] ml-auto">({sourceLabel})</span>
+                </label>
+              );
+            })}
+          </div>
+
+          {linkSelectedIds.size < 2 && (
+            <div className="text-[11px] text-slate-500 text-center py-1">{t('rfcoverage.selectNodes', lang)}</div>
+          )}
+
+          {/* Results */}
+          {linkResults.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[11px] text-slate-400 font-medium">{t('rfcoverage.linkResults', lang)}</div>
+              {linkResults.map((link, i) => {
+                const aName = `RF ${link.from.frequencyMHz}MHz ${link.from.txPowerWatts}W`;
+                const bName = `RF ${link.to.frequencyMHz}MHz ${link.to.txPowerWatts}W`;
+                const aDbm = link.aToB_dBm !== null ? `${Math.round(link.aToB_dBm)} dBm` : t('rfcoverage.noData', lang);
+                const bDbm = link.bToA_dBm !== null ? `${Math.round(link.bToA_dBm)} dBm` : t('rfcoverage.noData', lang);
+                return (
+                  <div key={i} className="text-[11px] space-y-0.5 bg-slate-700/30 rounded px-2 py-1">
+                    <div className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${link.aReachesB ? 'bg-green-400' : 'bg-red-500'}`} />
+                      <span className="text-slate-300 truncate">{aName}</span>
+                      <span className="text-slate-500">→</span>
+                      <span className="text-slate-300 truncate">{bName}</span>
+                      <span className={`ml-auto font-mono ${link.aReachesB ? 'text-green-400' : 'text-red-400'}`}>{aDbm}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${link.bReachesA ? 'bg-green-400' : 'bg-red-500'}`} />
+                      <span className="text-slate-300 truncate">{bName}</span>
+                      <span className="text-slate-500">→</span>
+                      <span className="text-slate-300 truncate">{aName}</span>
+                      <span className={`ml-auto font-mono ${link.bReachesA ? 'text-green-400' : 'text-red-400'}`}>{bDbm}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   return createPortal(
     <div
-      ref={dragRef}
-      style={panelStyle}
-      className="w-[calc(100vw-16px)] max-w-[300px] bg-slate-800/95 backdrop-blur rounded-lg shadow-xl border border-slate-600 text-sm text-slate-200 select-none max-h-[calc(100vh-100px)] overflow-y-auto"
-      onMouseDown={onDragStart}
-      onTouchStart={onDragStart}
+      className="fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-slate-800/95 backdrop-blur shadow-xl border-l border-slate-600 text-sm text-slate-200 select-none flex flex-col"
+      style={{ zIndex: 1000 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-600 cursor-move">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-600 shrink-0">
         <div className="flex items-center gap-2 font-medium">
           <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v4m0 12v4m0-12a4 4 0 100-8 4 4 0 000 8zm-6 2l-2 2m16-4l-2 2M6 16l-2 2m16-4l-2 2" />
@@ -748,97 +820,40 @@ export default function RFCoverageTool() {
         </button>
       </div>
 
-      <div className="p-3 space-y-3">
-        {/* === Session (unsaved) coverages === */}
-        {sessionRFCoverages.length > 0 && (
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400 font-medium">{sessionRFCoverages.length} {lang === 'no' ? 'ulagret' : 'unsaved'}</div>
-            <div className="space-y-px max-h-32 overflow-y-auto">
-              {sessionRFCoverages.map((c) => {
-                const isActive = activeSessionId === c.id;
-                const isVis = itemVisibility[c.id] !== false;
-                return (
-                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isActive ? 'bg-purple-900/30 border border-purple-700/50' : ''} ${isVis ? '' : 'opacity-40'}`}>
-                    <button
-                      onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
-                      className={`shrink-0 ${isVis ? 'text-amber-400' : 'text-slate-600'}`}
-                      title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        {isVis ? (
-                          <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
-                        ) : (
-                          <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
-                        )}
-                      </svg>
-                    </button>
-                    <span
-                      className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-                      onClick={() => loadItem(c, true)}
-                    >
-                      RF {c.frequencyMHz}MHz {c.txPowerWatts}W
-                    </span>
-                    <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
-                    <button
-                      onClick={() => toggleSessionLabel(c.id)}
-                      className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
-                      title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => {
-                        useMapStore.setState({ sessionRFCoverages: useMapStore.getState().sessionRFCoverages.filter(x => x.id !== c.id) });
-                        if (activeSessionId === c.id) reset();
-                      }}
-                      className="shrink-0 text-slate-600 hover:text-red-400"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* === Saved Items List (project-saved) === */}
-        {savedItems.length > 0 && (
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400 font-medium">{savedItems.length} {t('rfcoverage.saved', lang)}</div>
-            <div className="space-y-px max-h-32 overflow-y-auto">
-              {savedItems.map((c) => {
-                const isVis = itemVisibility[c.id] !== false;
-                return (
-                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isVis ? '' : 'opacity-40'}`}>
-                    <button
-                      onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
-                      className={`shrink-0 ${isVis ? 'text-purple-400' : 'text-slate-600'}`}
-                      title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        {isVis ? (
-                          <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
-                        ) : (
-                          <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
-                        )}
-                      </svg>
-                    </button>
-                    <span
-                      className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-                      onClick={() => loadItem(c, false)}
-                      title={lang === 'no' ? 'Last inn innstillinger' : 'Load settings'}
-                    >
-                      RF {c.frequencyMHz}MHz {c.txPowerWatts}W
-                    </span>
-                    <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
-                    {editableProjectIds.has(c._projectId) && (
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-3 space-y-3">
+          {/* === Session (unsaved) coverages === */}
+          {sessionRFCoverages.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-slate-400 font-medium">{sessionRFCoverages.length} {lang === 'no' ? 'ulagret' : 'unsaved'}</div>
+              <div className="space-y-px max-h-32 overflow-y-auto">
+                {sessionRFCoverages.map((c) => {
+                  const isActive = activeSessionId === c.id;
+                  const isVis = itemVisibility[c.id] !== false;
+                  return (
+                    <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isActive ? 'bg-purple-900/30 border border-purple-700/50' : ''} ${isVis ? '' : 'opacity-40'}`}>
                       <button
-                        onClick={() => toggleSavedLabel(c)}
+                        onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
+                        className={`shrink-0 ${isVis ? 'text-amber-400' : 'text-slate-600'}`}
+                        title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          {isVis ? (
+                            <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
+                          ) : (
+                            <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                          )}
+                        </svg>
+                      </button>
+                      <span
+                        className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                        onClick={() => loadItem(c, true)}
+                      >
+                        RF {c.frequencyMHz}MHz {c.txPowerWatts}W
+                      </span>
+                      <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
+                      <button
+                        onClick={() => toggleSessionLabel(c.id)}
                         className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
                         title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
                       >
@@ -846,338 +861,301 @@ export default function RFCoverageTool() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
                         </svg>
                       </button>
-                    )}
-                    <button
-                      onClick={() => flyTo(c.longitude, c.latitude)}
-                      className="shrink-0 text-slate-600 hover:text-cyan-400"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path d="M12 19V5M5 12l7-7 7 7" />
-                      </svg>
-                    </button>
-                    {editableProjectIds.has(c._projectId) && (
                       <button
-                        onClick={() => socket.emit('client:rfcoverage:delete', { projectId: c._projectId, id: c.id })}
+                        onClick={() => {
+                          useMapStore.setState({ sessionRFCoverages: useMapStore.getState().sessionRFCoverages.filter(x => x.id !== c.id) });
+                          if (activeSessionId === c.id) reset();
+                        }}
                         className="shrink-0 text-slate-600 hover:text-red-400"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                           <path d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* === New Antenna Config === */}
-        <div className="border-t border-slate-600 pt-2">
-          <div className="text-xs text-slate-400 font-medium mb-2">{t('rfcoverage.newAnalysis', lang)}</div>
-
-          {/* Antenna Height */}
-          <div>
-            <label className="text-xs text-slate-400">{t('rfcoverage.antennaHeight', lang)}</label>
-            <select value={antennaHeight} onChange={(e) => { const h = Number(e.target.value); setAntennaHeight(h); setDampening(HEIGHT_DAMPENING[h] || 0); setDampeningManual(false); }} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
-              <option value={1.5}>{t('rfcoverage.handheld', lang)}</option>
-              <option value={3}>{t('rfcoverage.vehicle', lang)}</option>
-              <option value={10}>{t('rfcoverage.mast', lang)}</option>
-            </select>
-          </div>
-
-          {/* Transmit Power */}
-          <div className="mt-2">
-            <label className="text-xs text-slate-400">{t('rfcoverage.txPower', lang)}</label>
-            <select value={txPowerWatts} onChange={(e) => setTxPowerWatts(Number(e.target.value))} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
-              {POWER_OPTIONS.map((p) => <option key={p.watts} value={p.watts}>{p.label}</option>)}
-            </select>
-          </div>
-
-          {/* Frequency */}
-          <div className="mt-2">
-            <label className="text-xs text-slate-400">{t('rfcoverage.frequency', lang)}</label>
-            <div className="flex gap-1 mt-1">
-              {FREQ_CHIPS.map((f) => (
-                <button key={f.mhz} onClick={() => setFrequencyMHz(f.mhz)} className={`px-2 py-0.5 rounded text-xs ${frequencyMHz === f.mhz ? 'bg-purple-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number" value={frequencyMHz}
-              onChange={(e) => { const raw = e.target.value; if (raw === '') { setFrequencyMHz(''); return; } const n = Number(raw); if (isFinite(n)) setFrequencyMHz(Math.min(6000, n)); }}
-              placeholder="MHz" className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" min={2} max={6000}
-            />
-          </div>
-
-          {/* Radius */}
-          <div className="mt-2">
-            <label className="text-xs text-slate-400">{t('rfcoverage.radius', lang)}: {radiusKm} km</label>
-            <input type="range" min={1} max={30} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full mt-1" />
-          </div>
-
-          {/* Dampening */}
-          <div className="mt-2">
-            <label className="text-xs text-slate-400">{t('rfcoverage.dampening', lang)}</label>
-            <div className="flex items-center gap-2 mt-1">
-              <input
-                type="number" value={dampening === 0 ? '' : dampening}
-                onChange={(e) => { const raw = e.target.value; if (raw === '' || raw === '-') { setDampening(0); setDampeningManual(true); return; } const n = Number(raw); if (!isFinite(n)) return; setDampening(n > 0 ? -n : n); setDampeningManual(true); }}
-                placeholder="0" className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" max={0}
-              />
-              <span className="text-slate-400 text-xs shrink-0">dB</span>
-            </div>
-          </div>
-
-          {/* HV Powerlines toggle (InfraView) */}
-          {canInfra && (
-            <div className="mt-2">
-              <button
-                onClick={() => toggleHvPowerlines(!hvLinesEnabled)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs transition-colors ${hvLinesEnabled ? 'bg-amber-700/50 text-amber-200' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                {t('rfcoverage.showPowerlines', lang)}
-                <span className={`ml-auto inline-flex items-center shrink-0 rounded-full transition-colors ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`} style={{ width: 28, height: 16, padding: 2 }}>
-                  <span className="rounded-full bg-white transition-transform" style={{ width: 12, height: 12, transform: hvLinesEnabled ? 'translateX(12px)' : 'translateX(0)' }} />
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div className="space-y-2">
-          {mode === 'idle' && (
-            <button onClick={handlePlaceAntenna} className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium">
-              {t('rfcoverage.placeAntenna', lang)}
-            </button>
-          )}
-
-          {mode === 'placing' && (
-            <div className="text-center text-purple-300 text-xs py-2">{t('rfcoverage.clickToPlace', lang)}</div>
-          )}
-
-          {mode === 'ready' && (
-            <div className="flex gap-2">
-              <button onClick={handleCalculate} disabled={!canCalculate} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
-                {t('rfcoverage.calculate', lang)}
-              </button>
-              <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
-                {t('rfcoverage.placeAntenna', lang)}
-              </button>
-            </div>
-          )}
-
-          {mode === 'calculating' && (
-            <div className="flex items-center justify-center gap-2 py-2">
-              <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              <span className="text-purple-300">{t('rfcoverage.calculating', lang)}</span>
-            </div>
-          )}
-
-          {(mode === 'result' || mode === 'saving') && (
-            <div className="flex gap-2">
-              <button onClick={handleCalculate} disabled={!canCalculate || mode === 'saving'} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
-                {t('rfcoverage.recalculate', lang)}
-              </button>
-              <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
-                {t('rfcoverage.placeAntenna', lang)}
-              </button>
-            </div>
-          )}
-
-          {error && <div className="text-red-400 text-xs">{error}</div>}
-        </div>
-
-        {/* Error display */}
-        {error && (
-          <div className="px-3 py-1.5 bg-red-900/50 border border-red-700 rounded text-xs text-red-300">{error}</div>
-        )}
-
-        {/* Result stats */}
-        {(mode === 'result' || mode === 'saving') && result && (
-          <div className="space-y-2">
-            <div className="space-y-0.5 text-xs">
-              {BUCKETS.map((b, i) => {
-                const pct = result.stats[b.name + 'Percent'] || 0;
-                const rangeLabel = i === 0 ? `> ${b.min} dBm` : i === BUCKETS.length - 1 ? `< ${BUCKETS[i - 1].min} dBm` : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
-                const isDimmed = dimmedBuckets.has(b.name);
-                return (
-                  <div key={b.name} className={`flex items-center gap-1.5 cursor-pointer rounded px-0.5 py-px hover:bg-slate-700/40 transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
-                    onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
-                    title={isDimmed ? (lang === 'no' ? 'Vis på kart' : 'Show on map') : (lang === 'no' ? 'Skjul fra kart' : 'Hide from map')}
-                  >
-                    <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
-                    <span className={isDimmed ? 'text-slate-500 line-through' : 'text-slate-300'}>{t(`rfcoverage.${b.name}`, lang)}</span>
-                    <span className="text-slate-500 text-[10px]">{rangeLabel}</span>
-                    <span className="ml-auto font-mono">{pct}%</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="text-xs text-slate-400">
-              {t('rfcoverage.maxRange', lang)}: <span className="text-slate-200 font-mono">{result.stats.maxRangeKm} km</span>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-400">{t('rfcoverage.opacity', lang)}: {Math.round(opacity * 100)}%</label>
-              <input type="range" min={10} max={100} step={5} value={opacity * 100} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full" />
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => setInvertColors(!invertColors)} className={`flex-1 py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
-                {t('rfcoverage.invertColors', lang)}
-              </button>
-              <button
-                onClick={() => setShowLabel(!showLabel)}
-                className={`px-2 py-1 rounded text-xs ${showLabel ? 'bg-cyan-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
-                title={t(showLabel ? 'rfcoverage.hideLabel' : 'rfcoverage.showLabel', lang)}
-              >
-                <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Save to project */}
-            <div className="flex gap-2">
-              {activeProjectId && canEditActive && (
-                <button onClick={handleSave} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-wait rounded text-xs font-medium">
-                  {mode === 'saving' ? t('rfcoverage.saving', lang) : t('rfcoverage.saveToProject', lang)}
-                </button>
-              )}
-              <button onClick={() => { saveToSession(); reset(); handlePlaceAntenna(); }} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
-                {t('rfcoverage.newAnalysis', lang)}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Color legend */}
-      <div className="px-3 pb-2">
-        <div className="flex gap-0.5 text-[10px]">
-          {BUCKETS.map((b) => {
-            const isDimmed = dimmedBuckets.has(b.name);
-            return (
-              <div key={b.name} className={`flex-1 text-center cursor-pointer transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
-                onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
-              >
-                <div className="h-2 rounded-sm" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
-                <div className="text-slate-400 mt-0.5">{b.min === -Infinity ? `<${BUCKETS[BUCKETS.length - 2].min}` : `>${b.min}`}</div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-        <div className="text-center text-[10px] text-slate-500 mt-0.5">dBm</div>
-      </div>
+            </div>
+          )}
 
-      {/* Link Analysis */}
-      {allCoverages.length >= 2 && (
-        <div className="border-t border-slate-600">
-          <button
-            onClick={() => setLinkExpanded(!linkExpanded)}
-            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700/50"
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              {t('rfcoverage.linkAnalysis', lang)}
-            </span>
-            <svg className={`w-3 h-3 transition-transform ${linkExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
-          {linkExpanded && (
-            <div className="px-3 pb-3 space-y-2">
-              {/* Mode toggle */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setLinkMode('digital')}
-                  className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'digital' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
-                >
-                  {t('rfcoverage.digital', lang)}
-                </button>
-                <button
-                  onClick={() => setLinkMode('analog')}
-                  className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'analog' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
-                >
-                  {t('rfcoverage.analog', lang)}
-                </button>
-              </div>
-
-              {/* Node selection checkboxes */}
-              <div className="space-y-0.5 max-h-28 overflow-y-auto">
-                {allCoverages.map((c) => {
-                  const checked = linkSelectedIds.has(c.id);
-                  const sourceLabel = c._source === 'session' ? t('rfcoverage.session', lang) : t('rfcoverage.saved', lang);
+          {/* === Saved Items List (project-saved) === */}
+          {savedItems.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-slate-400 font-medium">{savedItems.length} {t('rfcoverage.saved', lang)}</div>
+              <div className="space-y-px max-h-32 overflow-y-auto">
+                {savedItems.map((c) => {
+                  const isVis = itemVisibility[c.id] !== false;
                   return (
-                    <label key={c.id} className="flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => setLinkSelectedIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
-                          return next;
-                        })}
-                        className="accent-emerald-500"
-                      />
-                      <span className="truncate text-slate-300">RF {c.frequencyMHz}MHz {c.txPowerWatts}W</span>
-                      <span className="text-slate-500 text-[10px] ml-auto">({sourceLabel})</span>
-                    </label>
+                    <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isVis ? '' : 'opacity-40'}`}>
+                      <button
+                        onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
+                        className={`shrink-0 ${isVis ? 'text-purple-400' : 'text-slate-600'}`}
+                        title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          {isVis ? (
+                            <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
+                          ) : (
+                            <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                          )}
+                        </svg>
+                      </button>
+                      <span
+                        className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                        onClick={() => loadItem(c, false)}
+                        title={lang === 'no' ? 'Last inn innstillinger' : 'Load settings'}
+                      >
+                        RF {c.frequencyMHz}MHz {c.txPowerWatts}W
+                      </span>
+                      <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
+                      {editableProjectIds.has(c._projectId) && (
+                        <button
+                          onClick={() => toggleSavedLabel(c)}
+                          className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
+                          title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => flyTo(c.longitude, c.latitude)}
+                        className="shrink-0 text-slate-600 hover:text-cyan-400"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                      </button>
+                      {editableProjectIds.has(c._projectId) && (
+                        <button
+                          onClick={() => socket.emit('client:rfcoverage:delete', { projectId: c._projectId, id: c.id })}
+                          className="shrink-0 text-slate-600 hover:text-red-400"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Link Analysis — right after coverage lists */}
+          {linkAnalysisUI}
+
+          {/* === New Antenna Config === */}
+          <div className="border-t border-slate-600 pt-2">
+            <div className="text-xs text-slate-400 font-medium mb-2">{t('rfcoverage.newAnalysis', lang)}</div>
+
+            {/* Antenna Height */}
+            <div>
+              <label className="text-xs text-slate-400">{t('rfcoverage.antennaHeight', lang)}</label>
+              <select value={antennaHeight} onChange={(e) => { const h = Number(e.target.value); setAntennaHeight(h); setDampening(HEIGHT_DAMPENING[h] || 0); setDampeningManual(false); }} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+                <option value={1.5}>{t('rfcoverage.handheld', lang)}</option>
+                <option value={3}>{t('rfcoverage.vehicle', lang)}</option>
+                <option value={10}>{t('rfcoverage.mast', lang)}</option>
+              </select>
+            </div>
+
+            {/* Transmit Power */}
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">{t('rfcoverage.txPower', lang)}</label>
+              <select value={txPowerWatts} onChange={(e) => setTxPowerWatts(Number(e.target.value))} className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm">
+                {POWER_OPTIONS.map((p) => <option key={p.watts} value={p.watts}>{p.label}</option>)}
+              </select>
+            </div>
+
+            {/* Frequency */}
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">{t('rfcoverage.frequency', lang)}</label>
+              <div className="flex gap-1 mt-1">
+                {FREQ_CHIPS.map((f) => (
+                  <button key={f.mhz} onClick={() => setFrequencyMHz(f.mhz)} className={`px-2 py-0.5 rounded text-xs ${frequencyMHz === f.mhz ? 'bg-purple-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number" value={frequencyMHz}
+                onChange={(e) => { const raw = e.target.value; if (raw === '') { setFrequencyMHz(''); return; } const n = Number(raw); if (isFinite(n)) setFrequencyMHz(Math.min(6000, n)); }}
+                placeholder="MHz" className="w-full mt-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" min={2} max={6000}
+              />
+            </div>
+
+            {/* Radius */}
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">{t('rfcoverage.radius', lang)}: {radiusKm} km</label>
+              <input type="range" min={1} max={30} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full mt-1" />
+            </div>
+
+            {/* Dampening */}
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">{t('rfcoverage.dampening', lang)}</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="number" value={dampening === 0 ? '' : dampening}
+                  onChange={(e) => { const raw = e.target.value; if (raw === '' || raw === '-') { setDampening(0); setDampeningManual(true); return; } const n = Number(raw); if (!isFinite(n)) return; setDampening(n > 0 ? -n : n); setDampeningManual(true); }}
+                  placeholder="0" className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" max={0}
+                />
+                <span className="text-slate-400 text-xs shrink-0">dB</span>
+              </div>
+            </div>
+
+            {/* HV Powerlines toggle (InfraView) */}
+            {canInfra && (
+              <div className="mt-2">
+                <button
+                  onClick={() => toggleHvPowerlines(!hvLinesEnabled)}
+                  className={`flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs transition-colors ${hvLinesEnabled ? 'bg-amber-700/50 text-amber-200' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {t('rfcoverage.showPowerlines', lang)}
+                  <span className={`ml-auto inline-flex items-center shrink-0 rounded-full transition-colors ${hvLinesEnabled ? 'bg-amber-500' : 'bg-slate-600'}`} style={{ width: 28, height: 16, padding: 2 }}>
+                    <span className="rounded-full bg-white transition-transform" style={{ width: 12, height: 12, transform: hvLinesEnabled ? 'translateX(12px)' : 'translateX(0)' }} />
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="space-y-2">
+            {mode === 'idle' && (
+              <button onClick={handlePlaceAntenna} className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium">
+                {t('rfcoverage.placeAntenna', lang)}
+              </button>
+            )}
+
+            {mode === 'placing' && (
+              <div className="text-center text-purple-300 text-xs py-2">{t('rfcoverage.clickToPlace', lang)}</div>
+            )}
+
+            {mode === 'ready' && (
+              <div className="flex gap-2">
+                <button onClick={handleCalculate} disabled={!canCalculate} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
+                  {t('rfcoverage.calculate', lang)}
+                </button>
+                <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
+                  {t('rfcoverage.placeAntenna', lang)}
+                </button>
+              </div>
+            )}
+
+            {mode === 'calculating' && (
+              <div className="flex items-center justify-center gap-2 py-2">
+                <svg className="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                <span className="text-purple-300">{t('rfcoverage.calculating', lang)}</span>
+              </div>
+            )}
+
+            {(mode === 'result' || mode === 'saving') && (
+              <div className="flex gap-2">
+                <button onClick={handleCalculate} disabled={!canCalculate || mode === 'saving'} className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm font-medium">
+                  {t('rfcoverage.recalculate', lang)}
+                </button>
+                <button onClick={handlePlaceAntenna} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm">
+                  {t('rfcoverage.placeAntenna', lang)}
+                </button>
+              </div>
+            )}
+
+            {error && <div className="text-red-400 text-xs">{error}</div>}
+          </div>
+
+          {/* Error display */}
+          {error && (
+            <div className="px-3 py-1.5 bg-red-900/50 border border-red-700 rounded text-xs text-red-300">{error}</div>
+          )}
+
+          {/* Result stats */}
+          {(mode === 'result' || mode === 'saving') && result && (
+            <div className="space-y-2">
+              <div className="space-y-0.5 text-xs">
+                {BUCKETS.map((b, i) => {
+                  const pct = result.stats[b.name + 'Percent'] || 0;
+                  const rangeLabel = i === 0 ? `> ${b.min} dBm` : i === BUCKETS.length - 1 ? `< ${BUCKETS[i - 1].min} dBm` : `${b.min} to ${BUCKETS[i - 1].min} dBm`;
+                  const isDimmed = dimmedBuckets.has(b.name);
+                  return (
+                    <div key={b.name} className={`flex items-center gap-1.5 cursor-pointer rounded px-0.5 py-px hover:bg-slate-700/40 transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                      onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
+                      title={isDimmed ? (lang === 'no' ? 'Vis på kart' : 'Show on map') : (lang === 'no' ? 'Skjul fra kart' : 'Hide from map')}
+                    >
+                      <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
+                      <span className={isDimmed ? 'text-slate-500 line-through' : 'text-slate-300'}>{t(`rfcoverage.${b.name}`, lang)}</span>
+                      <span className="text-slate-500 text-[10px]">{rangeLabel}</span>
+                      <span className="ml-auto font-mono">{pct}%</span>
+                    </div>
                   );
                 })}
               </div>
 
-              {linkSelectedIds.size < 2 && (
-                <div className="text-[11px] text-slate-500 text-center py-1">{t('rfcoverage.selectNodes', lang)}</div>
-              )}
+              <div className="text-xs text-slate-400">
+                {t('rfcoverage.maxRange', lang)}: <span className="text-slate-200 font-mono">{result.stats.maxRangeKm} km</span>
+              </div>
 
-              {/* Results */}
-              {linkResults.length > 0 && (
-                <div className="space-y-1">
-                  <div className="text-[11px] text-slate-400 font-medium">{t('rfcoverage.linkResults', lang)}</div>
-                  {linkResults.map((link, i) => {
-                    const aName = `RF ${link.from.frequencyMHz}MHz ${link.from.txPowerWatts}W`;
-                    const bName = `RF ${link.to.frequencyMHz}MHz ${link.to.txPowerWatts}W`;
-                    const aDbm = link.aToB_dBm !== null ? `${Math.round(link.aToB_dBm)} dBm` : t('rfcoverage.noData', lang);
-                    const bDbm = link.bToA_dBm !== null ? `${Math.round(link.bToA_dBm)} dBm` : t('rfcoverage.noData', lang);
-                    return (
-                      <div key={i} className="text-[11px] space-y-0.5 bg-slate-700/30 rounded px-2 py-1">
-                        <div className="flex items-center gap-1">
-                          <span className={`w-2 h-2 rounded-full ${link.aReachesB ? 'bg-green-400' : 'bg-red-500'}`} />
-                          <span className="text-slate-300 truncate">{aName}</span>
-                          <span className="text-slate-500">→</span>
-                          <span className="text-slate-300 truncate">{bName}</span>
-                          <span className={`ml-auto font-mono ${link.aReachesB ? 'text-green-400' : 'text-red-400'}`}>{aDbm}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className={`w-2 h-2 rounded-full ${link.bReachesA ? 'bg-green-400' : 'bg-red-500'}`} />
-                          <span className="text-slate-300 truncate">{bName}</span>
-                          <span className="text-slate-500">→</span>
-                          <span className="text-slate-300 truncate">{aName}</span>
-                          <span className={`ml-auto font-mono ${link.bReachesA ? 'text-green-400' : 'text-red-400'}`}>{bDbm}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <div>
+                <label className="text-xs text-slate-400">{t('rfcoverage.opacity', lang)}: {Math.round(opacity * 100)}%</label>
+                <input type="range" min={10} max={100} step={5} value={opacity * 100} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full" />
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setInvertColors(!invertColors)} className={`flex-1 py-1 rounded text-xs ${invertColors ? 'bg-purple-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>
+                  {t('rfcoverage.invertColors', lang)}
+                </button>
+                <button
+                  onClick={() => setShowLabel(!showLabel)}
+                  className={`px-2 py-1 rounded text-xs ${showLabel ? 'bg-cyan-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+                  title={t(showLabel ? 'rfcoverage.hideLabel' : 'rfcoverage.showLabel', lang)}
+                >
+                  <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Save to project */}
+              <div className="flex gap-2">
+                {activeProjectId && canEditActive && (
+                  <button onClick={handleSave} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-wait rounded text-xs font-medium">
+                    {mode === 'saving' ? t('rfcoverage.saving', lang) : t('rfcoverage.saveToProject', lang)}
+                  </button>
+                )}
+                <button onClick={() => { saveToSession(); reset(); handlePlaceAntenna(); }} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
+                  {t('rfcoverage.newAnalysis', lang)}
+                </button>
+              </div>
             </div>
           )}
         </div>
-      )}
+
+        {/* Color legend */}
+        <div className="px-3 pb-2">
+          <div className="flex gap-0.5 text-[10px]">
+            {BUCKETS.map((b) => {
+              const isDimmed = dimmedBuckets.has(b.name);
+              return (
+                <div key={b.name} className={`flex-1 text-center cursor-pointer transition-opacity ${isDimmed ? 'opacity-30' : ''}`}
+                  onClick={() => setDimmedBuckets(prev => { const next = new Set(prev); if (next.has(b.name)) next.delete(b.name); else next.add(b.name); return next; })}
+                >
+                  <div className="h-2 rounded-sm" style={{ backgroundColor: isDimmed ? '#475569' : (invertColors ? b.invertColor : b.color) }} />
+                  <div className="text-slate-400 mt-0.5">{b.min === -Infinity ? `<${BUCKETS[BUCKETS.length - 2].min}` : `>${b.min}`}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-center text-[10px] text-slate-500 mt-0.5">dBm</div>
+        </div>
+      </div>
     </div>,
     document.body
   );
