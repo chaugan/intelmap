@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useProjectStore } from '../../stores/useProjectStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -48,7 +49,67 @@ function getDrawingCenter(d) {
   return null;
 }
 
+// Portal-rendered copy dropdown positioned next to the trigger button
+function CopyDropdown({ anchorRef, copyTargets, marker, lang, onCopyMarker, onClose }) {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!anchorRef?.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const dropW = 180, dropH = 200;
+    const left = Math.min(rect.right, window.innerWidth - dropW - 8);
+    const top = rect.bottom + 4 + dropH > window.innerHeight
+      ? Math.max(8, rect.top - dropH - 4)
+      : rect.bottom + 4;
+    setPos({ top, left });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) &&
+          anchorRef?.current && !anchorRef.current.contains(e.target)) {
+        onClose?.();
+      }
+    };
+    document.addEventListener('pointerdown', handle);
+    return () => document.removeEventListener('pointerdown', handle);
+  }, [anchorRef, onClose]);
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="fixed z-[99999] bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto"
+      style={{ top: pos.top, left: pos.left }}
+    >
+      {copyTargets.map((ct) => (
+        <div key={ct.projectId}>
+          <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
+          <button
+            onClick={() => onCopyMarker(marker, ct.projectId, null)}
+            className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
+          >
+            {lang === 'no' ? '(Intet lag)' : '(No layer)'}
+          </button>
+          {ct.layers.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => onCopyMarker(marker, ct.projectId, l.id)}
+              className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
+            >
+              {l.name}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>,
+    document.body
+  );
+}
+
 function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker, canEdit = true }) {
+  const copyBtnRefs = useRef({});
+
   if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
     return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
   }
@@ -86,6 +147,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
               </button>
               {canEdit && copyTargets && onCopyMarker && (
                 <button
+                  ref={(el) => { copyBtnRefs.current[m.id] = el; }}
                   onClick={(e) => { e.stopPropagation(); setCopyingMarkerId(isCopying ? null : m.id); }}
                   className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
                   title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
@@ -111,28 +173,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
               )}
             </div>
             {isCopying && copyTargets && (
-              <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto">
-                {copyTargets.map((ct) => (
-                  <div key={ct.projectId}>
-                    <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
-                    <button
-                      onClick={() => onCopyMarker(m, ct.projectId, null)}
-                      className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
-                    >
-                      {lang === 'no' ? '(Intet lag)' : '(No layer)'}
-                    </button>
-                    {ct.layers.map((l) => (
-                      <button
-                        key={l.id}
-                        onClick={() => onCopyMarker(m, ct.projectId, l.id)}
-                        className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
-                      >
-                        {l.name}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[m.id] }} copyTargets={copyTargets} marker={m} lang={lang} onCopyMarker={onCopyMarker} onClose={() => setCopyingMarkerId(null)} />
             )}
           </div>
         );
