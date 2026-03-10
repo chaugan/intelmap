@@ -228,9 +228,16 @@ export default function RFCoverageTool() {
 
   // Collect all saved RF coverages from visible projects
   const savedItems = [];
+  const loadingProjectNames = [];
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
-    if (!proj?.rfCoverages) continue;
+    if (!proj) {
+      // Project joined but data not yet received from server
+      const meta = myProjects.find(p => p.id === pid);
+      if (meta) loadingProjectNames.push(meta.name || pid);
+      continue;
+    }
+    if (!proj.rfCoverages) continue;
     for (const c of proj.rfCoverages) {
       savedItems.push({ ...c, _projectId: pid });
     }
@@ -893,6 +900,17 @@ export default function RFCoverageTool() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Loading indicator for projects not yet received */}
+          {loadingProjectNames.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+              <svg className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              <span className="truncate">{loadingProjectNames.join(', ')}…</span>
             </div>
           )}
 
