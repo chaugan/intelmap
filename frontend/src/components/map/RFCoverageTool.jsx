@@ -69,6 +69,82 @@ const FREQ_CHIPS = [
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
+const SOURCE_LINK_ANALYSIS = 'rf-link-analysis';
+const LAYER_LINK_ANALYSIS_LINE = 'rf-link-analysis-line';
+const LAYER_LINK_ANALYSIS_LABEL = 'rf-link-analysis-label';
+
+function pointInPolygon([px, py], ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi))
+      inside = !inside;
+  }
+  return inside;
+}
+
+function getSignalAtPoint(geojson, lng, lat) {
+  if (!geojson?.features) return null;
+  for (const f of geojson.features) {
+    if (f.geometry?.type !== 'Polygon') continue;
+    if (pointInPolygon([lng, lat], f.geometry.coordinates[0])) {
+      return f.properties.signalStrength;
+    }
+  }
+  return null;
+}
+
+function analyzeLinks(selectedNodes, mode) {
+  const threshold = mode === 'digital' ? -60 : -70;
+  const links = [];
+  for (let i = 0; i < selectedNodes.length; i++) {
+    for (let j = i + 1; j < selectedNodes.length; j++) {
+      const a = selectedNodes[i], b = selectedNodes[j];
+      const aToB_dBm = getSignalAtPoint(a.geojson, b.longitude, b.latitude);
+      const bToA_dBm = getSignalAtPoint(b.geojson, a.longitude, a.latitude);
+      const aReachesB = aToB_dBm !== null && aToB_dBm >= threshold;
+      const bReachesA = bToA_dBm !== null && bToA_dBm >= threshold;
+      const midLng = (a.longitude + b.longitude) / 2;
+      const midLat = (a.latitude + b.latitude) / 2;
+      links.push({
+        from: a, to: b,
+        aReachesB, bReachesA,
+        aToB_dBm, bToA_dBm,
+        midpoint: [midLng, midLat],
+      });
+    }
+  }
+  return links;
+}
+
+function buildLinkGeoJSON(links) {
+  const features = [];
+  for (const link of links) {
+    const { from, to, aReachesB, bReachesA, aToB_dBm, bToA_dBm, midpoint } = link;
+    // Half from A to midpoint
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: [[from.longitude, from.latitude], midpoint] },
+      properties: { color: aReachesB ? '#39ff14' : '#ff1744' },
+    });
+    // Half from midpoint to B
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: [midpoint, [to.longitude, to.latitude]] },
+      properties: { color: bReachesA ? '#39ff14' : '#ff1744' },
+    });
+    // Label at midpoint
+    const aLabel = aToB_dBm !== null ? `${Math.round(aToB_dBm)}` : '—';
+    const bLabel = bToA_dBm !== null ? `${Math.round(bToA_dBm)}` : '—';
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: midpoint },
+      properties: { label: `${aLabel} / ${bLabel} dBm`, isLabel: 1 },
+    });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 function circlePolygon(center, radiusKm, numPoints = 64) {
   const coords = [];
   const R = 6371;
@@ -148,6 +224,12 @@ export default function RFCoverageTool() {
   const [showLabel, setShowLabel] = useState(false); // label toggle for current active calc
   const showLabelRef = useRef(false);
   showLabelRef.current = showLabel;
+
+  // Link Analysis state
+  const [linkExpanded, setLinkExpanded] = useState(false);
+  const [linkMode, setLinkMode] = useState('digital');
+  const [linkSelectedIds, setLinkSelectedIds] = useState(new Set());
+  const [linkResults, setLinkResults] = useState([]);
 
   // Collect all saved RF coverages from visible projects
   const savedItems = [];
@@ -248,8 +330,8 @@ export default function RFCoverageTool() {
     window.addEventListener('touchend', onUp);
   }, []);
 
-  const ALL_LAYERS = [LAYER_OBSERVER_LABEL, LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER];
-  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER];
+  const ALL_LAYERS = [LAYER_OBSERVER_LABEL, LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE, LAYER_RESULT_FILL, LAYER_OBSERVER, LAYER_LINK_ANALYSIS_LINE, LAYER_LINK_ANALYSIS_LABEL];
+  const ALL_SOURCES = [SOURCE_CIRCLE, SOURCE_RESULT, SOURCE_OBSERVER, SOURCE_LINK_ANALYSIS];
 
   // Build observer point GeoJSON with label properties
   const buildObserverFC = useCallback((ant) => {
@@ -391,6 +473,64 @@ export default function RFCoverageTool() {
     if (src) src.setData(circlePolygon([antenna.lng, antenna.lat], radiusKm));
   }, [radiusKm, antenna, mapRef]);
 
+  // Link Analysis: enumerate all available coverages (session + saved)
+  const allCoverages = [];
+  for (const c of sessionRFCoverages) {
+    allCoverages.push({ ...c, _source: 'session' });
+  }
+  for (const item of savedItems) {
+    allCoverages.push({ ...item, _source: 'saved' });
+  }
+
+  // Link Analysis: run analysis when selection or mode changes
+  useEffect(() => {
+    if (!linkExpanded || linkSelectedIds.size < 2) {
+      setLinkResults([]);
+      return;
+    }
+    const selected = allCoverages.filter(c => linkSelectedIds.has(c.id));
+    if (selected.length < 2) { setLinkResults([]); return; }
+    setLinkResults(analyzeLinks(selected, linkMode));
+  }, [linkExpanded, linkSelectedIds, linkMode, sessionRFCoverages.length, savedItems.length]);
+
+  // Link Analysis: manage map layers
+  useEffect(() => {
+    if (!mapRef) return;
+    const removeLinkLayers = () => {
+      if (mapRef.getLayer(LAYER_LINK_ANALYSIS_LABEL)) mapRef.removeLayer(LAYER_LINK_ANALYSIS_LABEL);
+      if (mapRef.getLayer(LAYER_LINK_ANALYSIS_LINE)) mapRef.removeLayer(LAYER_LINK_ANALYSIS_LINE);
+      if (mapRef.getSource(SOURCE_LINK_ANALYSIS)) mapRef.removeSource(SOURCE_LINK_ANALYSIS);
+    };
+    if (!linkExpanded || linkResults.length === 0) {
+      removeLinkLayers();
+      return;
+    }
+    const geojson = buildLinkGeoJSON(linkResults);
+    if (mapRef.getSource(SOURCE_LINK_ANALYSIS)) {
+      mapRef.getSource(SOURCE_LINK_ANALYSIS).setData(geojson);
+    } else {
+      mapRef.addSource(SOURCE_LINK_ANALYSIS, { type: 'geojson', data: geojson });
+      mapRef.addLayer({
+        id: LAYER_LINK_ANALYSIS_LINE, type: 'line', source: SOURCE_LINK_ANALYSIS,
+        filter: ['!', ['has', 'isLabel']],
+        paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.9 },
+      });
+      mapRef.addLayer({
+        id: LAYER_LINK_ANALYSIS_LABEL, type: 'symbol', source: SOURCE_LINK_ANALYSIS,
+        filter: ['==', ['get', 'isLabel'], 1],
+        layout: {
+          'text-field': ['get', 'label'], 'text-size': 12,
+          'text-allow-overlap': true, 'text-anchor': 'center',
+        },
+        paint: {
+          'text-color': '#e2e8f0',
+          'text-halo-color': 'rgba(15,23,42,0.85)', 'text-halo-width': 1.5,
+        },
+      });
+    }
+    return () => removeLinkLayers();
+  }, [mapRef, linkExpanded, linkResults]);
+
   // Map click handler
   useEffect(() => {
     if (!visible || !mapRef) return;
@@ -417,6 +557,9 @@ export default function RFCoverageTool() {
     if (!visible) {
       saveToSession();
       reset();
+      setLinkExpanded(false);
+      setLinkSelectedIds(new Set());
+      setLinkResults([]);
     }
   }, [visible, saveToSession, reset]);
 
@@ -936,6 +1079,105 @@ export default function RFCoverageTool() {
         </div>
         <div className="text-center text-[10px] text-slate-500 mt-0.5">dBm</div>
       </div>
+
+      {/* Link Analysis */}
+      {allCoverages.length >= 2 && (
+        <div className="border-t border-slate-600">
+          <button
+            onClick={() => setLinkExpanded(!linkExpanded)}
+            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700/50"
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              {t('rfcoverage.linkAnalysis', lang)}
+            </span>
+            <svg className={`w-3 h-3 transition-transform ${linkExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {linkExpanded && (
+            <div className="px-3 pb-3 space-y-2">
+              {/* Mode toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLinkMode('digital')}
+                  className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'digital' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+                >
+                  {t('rfcoverage.digital', lang)}
+                </button>
+                <button
+                  onClick={() => setLinkMode('analog')}
+                  className={`flex-1 py-1 rounded text-[11px] ${linkMode === 'analog' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}
+                >
+                  {t('rfcoverage.analog', lang)}
+                </button>
+              </div>
+
+              {/* Node selection checkboxes */}
+              <div className="space-y-0.5 max-h-28 overflow-y-auto">
+                {allCoverages.map((c) => {
+                  const checked = linkSelectedIds.has(c.id);
+                  const sourceLabel = c._source === 'session' ? t('rfcoverage.session', lang) : t('rfcoverage.saved', lang);
+                  return (
+                    <label key={c.id} className="flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setLinkSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                          return next;
+                        })}
+                        className="accent-emerald-500"
+                      />
+                      <span className="truncate text-slate-300">RF {c.frequencyMHz}MHz {c.txPowerWatts}W</span>
+                      <span className="text-slate-500 text-[10px] ml-auto">({sourceLabel})</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {linkSelectedIds.size < 2 && (
+                <div className="text-[11px] text-slate-500 text-center py-1">{t('rfcoverage.selectNodes', lang)}</div>
+              )}
+
+              {/* Results */}
+              {linkResults.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-slate-400 font-medium">{t('rfcoverage.linkResults', lang)}</div>
+                  {linkResults.map((link, i) => {
+                    const aName = `RF ${link.from.frequencyMHz}MHz ${link.from.txPowerWatts}W`;
+                    const bName = `RF ${link.to.frequencyMHz}MHz ${link.to.txPowerWatts}W`;
+                    const aDbm = link.aToB_dBm !== null ? `${Math.round(link.aToB_dBm)} dBm` : t('rfcoverage.noData', lang);
+                    const bDbm = link.bToA_dBm !== null ? `${Math.round(link.bToA_dBm)} dBm` : t('rfcoverage.noData', lang);
+                    return (
+                      <div key={i} className="text-[11px] space-y-0.5 bg-slate-700/30 rounded px-2 py-1">
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full ${link.aReachesB ? 'bg-green-400' : 'bg-red-500'}`} />
+                          <span className="text-slate-300 truncate">{aName}</span>
+                          <span className="text-slate-500">→</span>
+                          <span className="text-slate-300 truncate">{bName}</span>
+                          <span className={`ml-auto font-mono ${link.aReachesB ? 'text-green-400' : 'text-red-400'}`}>{aDbm}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full ${link.bReachesA ? 'bg-green-400' : 'bg-red-500'}`} />
+                          <span className="text-slate-300 truncate">{bName}</span>
+                          <span className="text-slate-500">→</span>
+                          <span className="text-slate-300 truncate">{aName}</span>
+                          <span className={`ml-auto font-mono ${link.bReachesA ? 'text-green-400' : 'text-red-400'}`}>{bDbm}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>,
     document.body
   );
