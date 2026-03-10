@@ -76,6 +76,16 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
     const handleClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target) &&
           moreButtonRef.current && !moreButtonRef.current.contains(e.target)) {
+        // Don't close if click landed inside a sub-portal (e.g. ExportMenu dropdown).
+        // Sub-portals are appended to document.body with high z-index.
+        let node = e.target;
+        while (node && node !== document.body) {
+          if (node.parentElement === document.body && node !== menuRef.current &&
+              node.style?.zIndex && parseInt(node.style.zIndex) >= 99999) {
+            return; // click is inside a sub-portal, don't close
+          }
+          node = node.parentElement;
+        }
         setMenuOpen(false);
       }
     };

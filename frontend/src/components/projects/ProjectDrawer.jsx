@@ -48,7 +48,7 @@ function getDrawingCenter(d) {
   return null;
 }
 
-function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker }) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker, canEdit = true }) {
   if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
     return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
   }
@@ -84,7 +84,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                   <path d="M12 19V5M5 12l7-7 7 7" />
                 </svg>
               </button>
-              {copyTargets && onCopyMarker && (
+              {canEdit && copyTargets && onCopyMarker && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setCopyingMarkerId(isCopying ? null : m.id); }}
                   className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
@@ -96,17 +96,19 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                   </svg>
                 </button>
               )}
-              <button
-                onClick={() => {
-                  socket.emit('client:marker:delete', { projectId, id: m.id });
-                }}
-                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
-                title={lang === 'no' ? 'Slett' : 'Delete'}
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    socket.emit('client:marker:delete', { projectId, id: m.id });
+                  }}
+                  className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                  title={lang === 'no' ? 'Slett' : 'Delete'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
             {isCopying && copyTargets && (
               <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto">
@@ -167,17 +169,19 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
-            <button
-              onClick={() => {
-                socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] });
-              }}
-              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
-              title={lang === 'no' ? 'Slett' : 'Delete'}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] });
+                }}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         );
       })}
@@ -210,15 +214,17 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
-            <button
-              onClick={() => socket.emit('client:viewshed:delete', { projectId, id: v.id })}
-              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
-              title={lang === 'no' ? 'Slett' : 'Delete'}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => socket.emit('client:viewshed:delete', { projectId, id: v.id })}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         );
       })}
@@ -247,15 +253,17 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
-            <button
-              onClick={() => socket.emit('client:rfcoverage:delete', { projectId, id: c.id })}
-              className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
-              title={lang === 'no' ? 'Slett' : 'Delete'}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => socket.emit('client:rfcoverage:delete', { projectId, id: c.id })}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         );
       })}
@@ -625,6 +633,7 @@ export default function ProjectDrawer() {
           const active = isActive(p.id);
           const expanded = expandedProject === p.id;
           const projData = projects[p.id];
+          const canEditProject = p.role === 'admin' || p.role === 'editor';
 
           return (
             <div
@@ -795,6 +804,7 @@ export default function ProjectDrawer() {
                                 if (active) setActiveLayer(isActiveLayer ? null : layer.id);
                               }}
                               onDoubleClick={(e) => {
+                                if (!canEditProject) return;
                                 e.stopPropagation();
                                 setRenamingLayerId(layer.id);
                                 setRenameLayerVal(layer.name);
@@ -856,27 +866,29 @@ export default function ProjectDrawer() {
                               </div>
                             );
                           })()}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const msg = t('layers.confirmDelete', lang).replace('{name}', layer.name);
-                              if (!confirm(msg)) return;
-                              socket.emit('client:layer:delete', { projectId: p.id, id: layer.id });
-                              if (activeLayerId === layer.id) setActiveLayer(null);
-                              if (expandedLayerId === layer.id) setExpandedLayerId(null);
-                            }}
-                            className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-                            title={t('layers.delete', lang)}
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
+                          {canEditProject && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const msg = t('layers.confirmDelete', lang).replace('{name}', layer.name);
+                                if (!confirm(msg)) return;
+                                socket.emit('client:layer:delete', { projectId: p.id, id: layer.id });
+                                if (activeLayerId === layer.id) setActiveLayer(null);
+                                if (expandedLayerId === layer.id) setExpandedLayerId(null);
+                              }}
+                              className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                              title={t('layers.delete', lang)}
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                         {/* Expanded item list */}
                         {isLayerExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} canEdit={canEditProject} />
                           </div>
                         )}
                       </div>
@@ -903,7 +915,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} canEdit={canEditProject} />
                           </div>
                         )}
                       </div>

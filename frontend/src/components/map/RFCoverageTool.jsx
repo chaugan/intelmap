@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
+import { useProjectStore } from '../../stores/useProjectStore.js';
 import { socket } from '../../lib/socket.js';
 import { t } from '../../lib/i18n.js';
 
@@ -92,6 +93,12 @@ export default function RFCoverageTool() {
   const projects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
+  const myProjects = useProjectStore((s) => s.myProjects);
+
+  // Role-based editing: only admin/editor can save/delete/modify
+  const activeProject = myProjects.find(p => p.id === activeProjectId);
+  const canEditActive = activeProject?.role === 'admin' || activeProject?.role === 'editor';
+  const editableProjectIds = new Set(myProjects.filter(p => p.role === 'admin' || p.role === 'editor').map(p => p.id));
 
   const [mode, setMode] = useState('idle');
   const [antennaHeight, setAntennaHeight] = useState(1.5);
@@ -590,15 +597,17 @@ export default function RFCoverageTool() {
                       RF {c.frequencyMHz}MHz {c.txPowerWatts}W
                     </span>
                     <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
-                    <button
-                      onClick={() => toggleSavedLabel(c)}
-                      className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
-                      title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                    </button>
+                    {editableProjectIds.has(c._projectId) && (
+                      <button
+                        onClick={() => toggleSavedLabel(c)}
+                        className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
+                        title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                      </button>
+                    )}
                     <button
                       onClick={() => flyTo(c.longitude, c.latitude)}
                       className="shrink-0 text-slate-600 hover:text-cyan-400"
@@ -607,14 +616,16 @@ export default function RFCoverageTool() {
                         <path d="M12 19V5M5 12l7-7 7 7" />
                       </svg>
                     </button>
-                    <button
-                      onClick={() => socket.emit('client:rfcoverage:delete', { projectId: c._projectId, id: c.id })}
-                      className="shrink-0 text-slate-600 hover:text-red-400"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    {editableProjectIds.has(c._projectId) && (
+                      <button
+                        onClick={() => socket.emit('client:rfcoverage:delete', { projectId: c._projectId, id: c.id })}
+                        className="shrink-0 text-slate-600 hover:text-red-400"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -770,7 +781,7 @@ export default function RFCoverageTool() {
 
             {/* Save to project */}
             <div className="flex gap-2">
-              {activeProjectId && (
+              {activeProjectId && canEditActive && (
                 <button onClick={handleSave} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-wait rounded text-xs font-medium">
                   {mode === 'saving' ? t('rfcoverage.saving', lang) : t('rfcoverage.saveToProject', lang)}
                 </button>
