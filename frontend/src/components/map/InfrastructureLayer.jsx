@@ -302,8 +302,9 @@ export default function InfrastructureLayer({ mapRef }) {
   useEffect(() => {
     const map = getMap();
     if (!map || !infraVisible || !canView) return;
-    const enter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const leave = () => { map.getCanvas().style.cursor = ''; };
+    let prevCursor = '';
+    const enter = () => { const canvas = map.getCanvas(); prevCursor = canvas.style.cursor; canvas.style.cursor = 'pointer'; };
+    const leave = () => { map.getCanvas().style.cursor = prevCursor; };
     const attached = [];
     for (const name of addedRef.current) {
       for (const suffix of SUFFIXES) {
@@ -311,7 +312,7 @@ export default function InfrastructureLayer({ mapRef }) {
         try { if (map.getLayer(id)) { map.on('mouseenter', id, enter); map.on('mouseleave', id, leave); attached.push(id); } } catch {}
       }
     }
-    return () => { for (const id of attached) { try { map.off('mouseenter', id, enter); map.off('mouseleave', id, leave); } catch {} } map.getCanvas().style.cursor = ''; };
+    return () => { for (const id of attached) { try { map.off('mouseenter', id, enter); map.off('mouseleave', id, leave); } catch {} } };
   }, [infraVisible, canView, infraLayers, layerData]);
 
   return null;
