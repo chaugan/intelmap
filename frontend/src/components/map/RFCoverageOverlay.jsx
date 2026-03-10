@@ -1,7 +1,6 @@
 /**
- * RFCoverageOverlay — always mounted, renders saved RF coverages on the map
- * regardless of whether the RFCoverageTool panel is open.
- * Composite display: overlapping coverages show the best (highest dBm) signal.
+ * RFCoverageOverlay — always mounted, renders saved RF coverages AND
+ * session (unsaved) coverages on the map.
  */
 import { useEffect, useRef } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
@@ -14,7 +13,6 @@ const LAYER_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
-// Smooth gradient color expression (handles both new signalStrength and old color props)
 const FILL_COLOR_EXPR = [
   'case', ['has', 'signalStrength'],
   ['interpolate', ['linear'], ['get', 'signalStrength'],
@@ -24,9 +22,11 @@ const FILL_COLOR_EXPR = [
   ['get', 'color'],
 ];
 
-function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility) {
+function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVisibility, sessionCoverages) {
   const allFeatures = [];
   const observers = [];
+
+  // Project-saved coverages
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
     if (!proj?.rfCoverages) continue;
@@ -50,7 +50,23 @@ function buildCompositeRFData(visibleProjectIds, projects, layerVisibility, item
       }
     }
   }
-  // Sort by signalStrength ascending (weakest first) so strongest paints on top
+
+  // Session (unsaved) coverages
+  for (const c of sessionCoverages) {
+    if (c.geojson?.features) {
+      for (const f of c.geojson.features) {
+        allFeatures.push({ ...f, properties: { ...f.properties, id: c.id, session: true } });
+      }
+    }
+    if (c.longitude != null && c.latitude != null) {
+      observers.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
+        properties: { id: c.id, session: true },
+      });
+    }
+  }
+
   allFeatures.sort((a, b) => (a.properties.signalStrength || -999) - (b.properties.signalStrength || -999));
   return {
     polygons: { type: 'FeatureCollection', features: allFeatures },
@@ -67,13 +83,14 @@ const OBSERVER_PAINT = { 'circle-radius': 6, 'circle-color': '#a855f7', 'circle-
 export default function RFCoverageOverlay() {
   const mapRef = useMapStore((s) => s.mapRef);
   const activeRFCoverageId = useMapStore((s) => s.activeRFCoverageId);
+  const sessionRFCoverages = useMapStore((s) => s.sessionRFCoverages);
   const projects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const layerVisibility = useTacticalStore((s) => s.layerVisibility);
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
   const dataRef = useRef(null);
 
-  // Build and render saved overlay data
+  // Build and render overlay data (saved + session coverages)
   useEffect(() => {
     if (!mapRef) return;
 
@@ -89,7 +106,8 @@ export default function RFCoverageOverlay() {
       if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: OBSERVER_PAINT });
     };
 
-    const hasData = visibleProjectIds.some(pid => projects[pid]?.rfCoverages?.length > 0);
+    const hasSaved = visibleProjectIds.some(pid => projects[pid]?.rfCoverages?.length > 0);
+    const hasData = hasSaved || sessionRFCoverages.length > 0;
 
     if (!hasData) {
       removeLayers();
@@ -97,7 +115,7 @@ export default function RFCoverageOverlay() {
       return;
     }
 
-    const data = buildCompositeRFData(visibleProjectIds, projects, layerVisibility, itemVisibility);
+    const data = buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVisibility, sessionRFCoverages);
     dataRef.current = data;
 
     const srcP = mapRef.getSource(SOURCE_SAVED);
@@ -105,24 +123,24 @@ export default function RFCoverageOverlay() {
     const srcO = mapRef.getSource(SOURCE_SAVED_OBSERVERS);
     if (srcO) { srcO.setData(data.observers); }
 
+    // Re-apply filter for active item
+    const filter = activeRFCoverageId ? ['!=', ['get', 'id'], activeRFCoverageId] : null;
+    if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, filter);
+    if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, filter);
+
     const onStyleData = () => {
       const d = dataRef.current;
       if (!d) return;
       addLayersIfMissing(d.polygons, d.observers);
+      const f = useMapStore.getState().activeRFCoverageId;
+      if (f) {
+        if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, ['!=', ['get', 'id'], f]);
+        if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, ['!=', ['get', 'id'], f]);
+      }
     };
     mapRef.on('styledata', onStyleData);
     return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
-  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
-
-  // Filter out the actively-loaded coverage from the saved overlay (synchronous, no flicker)
-  useEffect(() => {
-    if (!mapRef) return;
-    const filter = activeRFCoverageId
-      ? ['!=', ['get', 'id'], activeRFCoverageId]
-      : null;
-    if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, filter);
-    if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, filter);
-  }, [mapRef, activeRFCoverageId]);
+  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility, sessionRFCoverages, activeRFCoverageId]);
 
   return null;
 }

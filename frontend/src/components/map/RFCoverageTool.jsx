@@ -86,6 +86,7 @@ export default function RFCoverageTool() {
   const visible = useMapStore((s) => s.rfCoverageToolVisible);
   const mapRef = useMapStore((s) => s.mapRef);
   const lang = useMapStore((s) => s.lang);
+  const sessionRFCoverages = useMapStore((s) => s.sessionRFCoverages);
   const activeProjectId = useTacticalStore((s) => s.activeProjectId);
   const activeLayerId = useTacticalStore((s) => s.activeLayerId);
   const projects = useTacticalStore((s) => s.projects);
@@ -105,6 +106,7 @@ export default function RFCoverageTool() {
   const [result, setResult] = useState(null);
   const [resultGeojson, setResultGeojson] = useState(null);
   const [error, setError] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null); // ID of session item being edited
 
   // Draggable panel state
   const [panelPos, setPanelPos] = useState({ x: null, y: null });
@@ -176,6 +178,26 @@ export default function RFCoverageTool() {
     for (const s of ALL_SOURCES) { if (mapRef.getSource(s)) mapRef.removeSource(s); }
   }, [mapRef]);
 
+  // Save current active result to session (if it's not already saved to a project)
+  const saveToSession = useCallback(() => {
+    if (!antenna || !resultGeojson || !result) return null;
+    const id = activeSessionId || crypto.randomUUID();
+    const entry = {
+      id, longitude: antenna.lng, latitude: antenna.lat,
+      antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
+      geojson: resultGeojson, stats: result.stats,
+    };
+    const store = useMapStore.getState();
+    const existing = store.sessionRFCoverages.find(c => c.id === id);
+    if (existing) {
+      // Update in place
+      useMapStore.setState({ sessionRFCoverages: store.sessionRFCoverages.map(c => c.id === id ? entry : c) });
+    } else {
+      useMapStore.setState({ sessionRFCoverages: [...store.sessionRFCoverages, entry] });
+    }
+    return id;
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId]);
+
   const reset = useCallback(() => {
     setMode('idle');
     setAntenna(null);
@@ -183,6 +205,7 @@ export default function RFCoverageTool() {
     setResultGeojson(null);
     setError(null);
     setDimmedBuckets(new Set());
+    setActiveSessionId(null);
     useMapStore.setState({ activeRFCoverageId: null });
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
@@ -192,7 +215,7 @@ export default function RFCoverageTool() {
       if (resSrc) resSrc.setData(EMPTY_FC);
       const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
       if (obsSrc) obsSrc.setData(EMPTY_FC);
-      // Clear saved overlay filter so all items show again
+      // Clear overlay filter so all items show again
       if (mapRef.getLayer('rf-coverage-saved-fill')) mapRef.setFilter('rf-coverage-saved-fill', null);
       if (mapRef.getLayer('rf-coverage-saved-observers')) mapRef.setFilter('rf-coverage-saved-observers', null);
     }
@@ -269,8 +292,13 @@ export default function RFCoverageTool() {
     return () => mapRef.off('click', onClick);
   }, [visible, mapRef, radiusKm]);
 
-  // Cleanup on hide
-  useEffect(() => { if (!visible) reset(); }, [visible, reset]);
+  // On tool close: save active result to session, then clear active layers
+  useEffect(() => {
+    if (!visible) {
+      saveToSession();
+      reset();
+    }
+  }, [visible, saveToSession, reset]);
 
   const handlePlaceAntenna = useCallback(() => {
     setMode('placing');
@@ -302,6 +330,30 @@ export default function RFCoverageTool() {
       setResult(data);
       setResultGeojson(data.geojson);
       setMode('result');
+
+      // Create/update session entry for this calculation
+      const sessId = activeSessionId || crypto.randomUUID();
+      setActiveSessionId(sessId);
+      const sessEntry = {
+        id: sessId, longitude: antenna.lng, latitude: antenna.lat,
+        antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
+        geojson: data.geojson, stats: data.stats,
+      };
+      const store = useMapStore.getState();
+      const existing = store.sessionRFCoverages.find(c => c.id === sessId);
+      if (existing) {
+        useMapStore.setState({ sessionRFCoverages: store.sessionRFCoverages.map(c => c.id === sessId ? sessEntry : c) });
+      } else {
+        useMapStore.setState({ sessionRFCoverages: [...store.sessionRFCoverages, sessEntry] });
+      }
+      // Exclude from overlay while active in tool
+      useMapStore.setState({ activeRFCoverageId: sessId });
+      if (mapRef) {
+        const excludeFilter = ['!=', ['get', 'id'], sessId];
+        if (mapRef.getLayer('rf-coverage-saved-fill')) mapRef.setFilter('rf-coverage-saved-fill', excludeFilter);
+        if (mapRef.getLayer('rf-coverage-saved-observers')) mapRef.setFilter('rf-coverage-saved-observers', excludeFilter);
+      }
+
       if (mapRef) {
         const src = mapRef.getSource(SOURCE_RESULT);
         if (src) src.setData(applyDisplayOptions(data.geojson, dimmedBuckets));
@@ -310,7 +362,7 @@ export default function RFCoverageTool() {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets, activeSessionId]);
 
   const handleSave = useCallback(async () => {
     if (!activeProjectId || !result) return;
@@ -336,25 +388,35 @@ export default function RFCoverageTool() {
       const meta = await res.json();
       // Server re-calculates and stores geojson; attach local copy for immediate display
       useTacticalStore.getState().addRFCoverage(activeProjectId, { ...meta, geojson: resultGeojson, stats: result.stats });
+      // Remove from session since it's now saved to project
+      if (activeSessionId) {
+        const store = useMapStore.getState();
+        useMapStore.setState({ sessionRFCoverages: store.sessionRFCoverages.filter(c => c.id !== activeSessionId) });
+      }
       reset();
     } catch (err) {
       console.error('RF save error:', err);
       setError(err.message || 'Save failed');
       setMode('result');
     }
-  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, reset]);
+  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId, reset]);
 
   const flyTo = useCallback((lng, lat) => {
     if (!mapRef) return;
     mapRef.flyTo({ center: [lng, lat], zoom: Math.max(mapRef.getZoom(), 12), duration: 1200 });
   }, [mapRef]);
 
-  // Load a saved coverage's settings into the form and show its result
-  const loadSavedItem = useCallback((item) => {
+  // Load a coverage (saved or session) into the tool for viewing/editing
+  const loadItem = useCallback((item, isSession = false) => {
+    // Save current active result to session before switching
+    if (activeSessionId && resultGeojson && result) {
+      saveToSession();
+    }
+
     // Skip if already loaded
     if (useMapStore.getState().activeRFCoverageId === item.id) return;
 
-    // Hide this item from the saved overlay — filter is synchronous (no flicker)
+    // Hide this item from the overlay — filter is synchronous (no flicker)
     useMapStore.setState({ activeRFCoverageId: item.id });
     if (mapRef) {
       const excludeFilter = ['!=', ['get', 'id'], item.id];
@@ -362,10 +424,12 @@ export default function RFCoverageTool() {
       if (mapRef.getLayer('rf-coverage-saved-observers')) mapRef.setFilter('rf-coverage-saved-observers', excludeFilter);
     }
 
+    setActiveSessionId(isSession ? item.id : null);
     setAntennaHeight(item.antennaHeight || 1.5);
     setTxPowerWatts(item.txPowerWatts || 5);
     setFrequencyMHz(item.frequencyMHz || '');
     setRadiusKm(item.radiusKm || 15);
+    setDampening(item.dampening || 0);
     setAntenna({ lng: item.longitude, lat: item.latitude });
     setError(null);
     setDimmedBuckets(new Set());
@@ -385,7 +449,7 @@ export default function RFCoverageTool() {
       setMode('ready');
     }
     flyTo(item.longitude, item.latitude);
-  }, [mapRef, flyTo]);
+  }, [mapRef, flyTo, activeSessionId, resultGeojson, result, saveToSession]);
 
   if (!visible) return null;
 
@@ -417,7 +481,42 @@ export default function RFCoverageTool() {
       </div>
 
       <div className="p-3 space-y-3">
-        {/* === Saved Items List === */}
+        {/* === Session (unsaved) coverages === */}
+        {sessionRFCoverages.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-xs text-slate-400 font-medium">{sessionRFCoverages.length} {lang === 'no' ? 'ulagret' : 'unsaved'}</div>
+            <div className="space-y-px max-h-32 overflow-y-auto">
+              {sessionRFCoverages.map((c) => {
+                const isActive = activeSessionId === c.id;
+                return (
+                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isActive ? 'bg-purple-900/30 border border-purple-700/50' : ''}`}>
+                    <span className="shrink-0 w-2 h-2 rounded-full bg-amber-500" title={lang === 'no' ? 'Ulagret' : 'Unsaved'} />
+                    <span
+                      className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+                      onClick={() => loadItem(c, true)}
+                    >
+                      RF {c.frequencyMHz}MHz {c.txPowerWatts}W
+                    </span>
+                    <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
+                    <button
+                      onClick={() => {
+                        useMapStore.setState({ sessionRFCoverages: useMapStore.getState().sessionRFCoverages.filter(x => x.id !== c.id) });
+                        if (activeSessionId === c.id) reset();
+                      }}
+                      className="shrink-0 text-slate-600 hover:text-red-400"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* === Saved Items List (project-saved) === */}
         {savedItems.length > 0 && (
           <div className="space-y-1">
             <div className="text-xs text-slate-400 font-medium">{savedItems.length} {t('rfcoverage.saved', lang)}</div>
@@ -441,7 +540,7 @@ export default function RFCoverageTool() {
                     </button>
                     <span
                       className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-                      onClick={() => loadSavedItem(c)}
+                      onClick={() => loadItem(c, false)}
                       title={lang === 'no' ? 'Last inn innstillinger' : 'Load settings'}
                     >
                       RF {c.frequencyMHz}MHz {c.txPowerWatts}W
@@ -623,7 +722,7 @@ export default function RFCoverageTool() {
                   {mode === 'saving' ? t('rfcoverage.saving', lang) : t('rfcoverage.saveToProject', lang)}
                 </button>
               )}
-              <button onClick={() => { reset(); handlePlaceAntenna(); }} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
+              <button onClick={() => { saveToSession(); reset(); handlePlaceAntenna(); }} disabled={mode === 'saving'} className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">
                 {t('rfcoverage.newAnalysis', lang)}
               </button>
             </div>
