@@ -318,6 +318,15 @@ export default function RFCoverageTool() {
     if (mapRef.getLayer(LAYER_RESULT_FILL)) mapRef.setPaintProperty(LAYER_RESULT_FILL, 'fill-opacity', opacity);
   }, [opacity, mapRef, visible]);
 
+  // Hide/show active layers when session item visibility is toggled
+  useEffect(() => {
+    if (!mapRef || !activeSessionId) return;
+    const isVis = itemVisibility[activeSessionId] !== false;
+    for (const l of [LAYER_RESULT_FILL, LAYER_OBSERVER, LAYER_OBSERVER_LABEL, LAYER_CIRCLE_FILL, LAYER_CIRCLE_LINE]) {
+      if (mapRef.getLayer(l)) mapRef.setLayoutProperty(l, 'visibility', isVis ? 'visible' : 'none');
+    }
+  }, [mapRef, activeSessionId, itemVisibility]);
+
   // Update observer label when showLabel or params change
   useEffect(() => {
     if (!mapRef || !antenna) return;
@@ -565,9 +574,22 @@ export default function RFCoverageTool() {
             <div className="space-y-px max-h-32 overflow-y-auto">
               {sessionRFCoverages.map((c) => {
                 const isActive = activeSessionId === c.id;
+                const isVis = itemVisibility[c.id] !== false;
                 return (
-                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isActive ? 'bg-purple-900/30 border border-purple-700/50' : ''}`}>
-                    <span className="shrink-0 w-2 h-2 rounded-full bg-amber-500" title={lang === 'no' ? 'Ulagret' : 'Unsaved'} />
+                  <div key={c.id} className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 hover:bg-slate-700/50 ${isActive ? 'bg-purple-900/30 border border-purple-700/50' : ''} ${isVis ? '' : 'opacity-40'}`}>
+                    <button
+                      onClick={() => useTacticalStore.getState().toggleItemVisibility(c.id)}
+                      className={`shrink-0 ${isVis ? 'text-amber-400' : 'text-slate-600'}`}
+                      title={isVis ? (lang === 'no' ? 'Skjul' : 'Hide') : (lang === 'no' ? 'Vis' : 'Show')}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        {isVis ? (
+                          <><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>
+                        ) : (
+                          <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M3 3l18 18" />
+                        )}
+                      </svg>
+                    </button>
                     <span
                       className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
                       onClick={() => loadItem(c, true)}

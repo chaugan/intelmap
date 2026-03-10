@@ -56,6 +56,7 @@ function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVi
 
   // Session (unsaved) coverages
   for (const c of sessionCoverages) {
+    if (itemVisibility[c.id] === false) continue;
     if (c.geojson?.features) {
       for (const f of c.geojson.features) {
         allFeatures.push({ ...f, properties: { ...f.properties, id: c.id, session: true } });
