@@ -141,7 +141,7 @@ html, body, #root {
 .weather-export-mode .wr-content {
   display: grid !important;
   flex-direction: unset !important;
-  grid-template-rows: auto 44% 1fr 100px auto !important;
+  grid-template-rows: auto minmax(0, 5fr) minmax(0, 3fr) minmax(80px, auto) auto !important;
   gap: 12px !important;
   height: 100% !important;
   padding: 1rem !important;

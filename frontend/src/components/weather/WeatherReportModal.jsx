@@ -205,7 +205,7 @@ export default function WeatherReportModal({ lat, lon, onClose }) {
             {data && !loading && (
               <div
                 className="wr-content p-3 lg:p-4 lg:h-full flex flex-col gap-3 lg:grid lg:gap-3"
-                style={{ gridTemplateRows: 'auto 44% 1fr 100px auto' }}
+                style={{ gridTemplateRows: 'auto minmax(0, 5fr) minmax(0, 3fr) minmax(80px, auto) auto' }}
               >
                 {/* Row 1: Header (auto height) */}
                 <ReportHeader data={data} lang={lang} accent={accent} textMuted={textMuted} />
@@ -338,28 +338,28 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
   });
 
   return (
-    <div className={`${bgCard} rounded-lg p-3 h-full flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
+    <div className={`${bgCard} rounded-lg p-2 lg:p-3 h-full flex flex-col min-h-0 overflow-hidden ${isDark ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80' : 'bg-gradient-to-br from-white to-slate-100'}`}>
       {/* Temperature row - icon, temp, description on left; Weather now on right */}
-      <div className="flex items-center justify-between mb-2 shrink-0">
+      <div className="flex items-center justify-between mb-1 shrink-0">
         <div className="flex items-center gap-2">
-          {current.symbol && <WeatherIcon symbol={current.symbol} size={44} />}
-          <div className={`text-2xl lg:text-3xl font-bold ${tempColor}`}>
+          {current.symbol && <WeatherIcon symbol={current.symbol} size={36} />}
+          <div className={`text-xl lg:text-2xl font-bold ${tempColor}`}>
             {current.temperature?.toFixed(1)}°C
           </div>
           <div className="ml-2 hidden sm:block">
             {current.symbol && (
-              <div className={`text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
+              <div className={`text-xs lg:text-sm ${textMuted}`}>{getWeatherLabel(current.symbol, lang)}</div>
             )}
           </div>
         </div>
-        <div className={`text-sm lg:text-base font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+        <div className={`text-xs lg:text-sm font-semibold text-right ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
           {lang === 'no' ? 'Været nå' : 'Weather now'}<br />
-          <span className={`text-xs lg:text-sm font-normal ${textMuted}`}>{nowStr}</span>
+          <span className={`text-[10px] lg:text-xs font-normal ${textMuted}`}>{nowStr}</span>
         </div>
       </div>
 
       {/* Stat boxes - 2 columns on mobile, 3 on larger screens */}
-      <div className="wr-stat-grid grid grid-cols-2 lg:grid-cols-3 gap-1.5 lg:gap-2 flex-1">
+      <div className="wr-stat-grid grid grid-cols-2 lg:grid-cols-3 gap-1 lg:gap-1.5 flex-1 min-h-0">
         <StatBox icon={<WindIcon />} label={lang === 'no' ? 'Vind' : 'Wind'} value={`${current.windSpeed?.toFixed(1)} m/s ${windDir}`} isDark={isDark} />
         <StatBox icon={<HumidityIcon />} label={lang === 'no' ? 'Fuktighet' : 'Humidity'} value={`${current.humidity?.toFixed(0)}%`} isDark={isDark} />
         <StatBox icon={<WindChillIcon />} label={lang === 'no' ? 'Føles som' : 'Feels like'} value={current.feelsLike != null ? `${current.feelsLike.toFixed(1)}°C` : '-'} isDark={isDark} />
@@ -377,10 +377,10 @@ function CurrentConditionsHero({ current, snowDepth, lang, isDark, bgCard, textM
 
 function StatBox({ icon, label, value, isDark }) {
   return (
-    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-1.5 lg:p-2 text-center flex flex-col justify-center`}>
-      <div className="flex justify-center mb-0.5 lg:mb-1 opacity-70">{icon}</div>
-      <div className={`text-xs lg:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
-      <div className="font-semibold text-sm lg:text-base">{value}</div>
+    <div className={`${isDark ? 'bg-slate-600/50' : 'bg-slate-100'} rounded p-1 lg:p-1.5 text-center flex flex-col justify-center min-h-0 overflow-hidden`}>
+      <div className="flex justify-center mb-0.5 opacity-70">{icon}</div>
+      <div className={`text-[10px] lg:text-xs leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>
+      <div className="font-semibold text-xs lg:text-sm leading-tight">{value}</div>
     </div>
   );
 }
