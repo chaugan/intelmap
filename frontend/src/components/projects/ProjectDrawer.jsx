@@ -50,7 +50,7 @@ function getDrawingCenter(d) {
 }
 
 // Portal-rendered copy dropdown positioned next to the trigger button
-function CopyDropdown({ anchorRef, copyTargets, marker, lang, onCopyMarker, onClose }) {
+function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
 
@@ -79,14 +79,14 @@ function CopyDropdown({ anchorRef, copyTargets, marker, lang, onCopyMarker, onCl
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[99999] bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[160px] text-[11px] max-h-48 overflow-y-auto"
+      className="fixed z-[99999] bg-slate-800 border border-slate-600 rounded shadow-xl py-1 w-[180px] text-[11px] max-h-48 overflow-y-auto"
       style={{ top: pos.top, left: pos.left }}
     >
       {copyTargets.map((ct) => (
         <div key={ct.projectId}>
           <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
           <button
-            onClick={() => onCopyMarker(marker, ct.projectId, null)}
+            onClick={() => onCopy(item, ct.projectId, null)}
             className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
           >
             {lang === 'no' ? '(Intet lag)' : '(No layer)'}
@@ -94,7 +94,7 @@ function CopyDropdown({ anchorRef, copyTargets, marker, lang, onCopyMarker, onCl
           {ct.layers.map((l) => (
             <button
               key={l.id}
-              onClick={() => onCopyMarker(marker, ct.projectId, l.id)}
+              onClick={() => onCopy(item, ct.projectId, l.id)}
               className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
             >
               {l.name}
@@ -107,7 +107,7 @@ function CopyDropdown({ anchorRef, copyTargets, marker, lang, onCopyMarker, onCl
   );
 }
 
-function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingMarkerId, setCopyingMarkerId, onCopyMarker, canEdit = true }) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true }) {
   const copyBtnRefs = useRef({});
 
   if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
@@ -124,7 +124,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
       {markers.map((m) => {
         const name = m.designation || m.customLabel || getSymbolName(m.sidc, lang);
         const sym = generateSymbolSvg(m.sidc, { size: 16 });
-        const isCopying = copyingMarkerId === m.id;
+        const isCopying = copyingItemId === m.id;
         return (
           <div key={m.id} className="relative">
             <div className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
@@ -145,10 +145,10 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                   <path d="M12 19V5M5 12l7-7 7 7" />
                 </svg>
               </button>
-              {canEdit && copyTargets && onCopyMarker && (
+              {canEdit && copyTargets && onCopyItem && (
                 <button
                   ref={(el) => { copyBtnRefs.current[m.id] = el; }}
-                  onClick={(e) => { e.stopPropagation(); setCopyingMarkerId(isCopying ? null : m.id); }}
+                  onClick={(e) => { e.stopPropagation(); setCopyingItemId(isCopying ? null : m.id); }}
                   className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
                   title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
                 >
@@ -173,7 +173,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
               )}
             </div>
             {isCopying && copyTargets && (
-              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[m.id] }} copyTargets={copyTargets} marker={m} lang={lang} onCopyMarker={onCopyMarker} onClose={() => setCopyingMarkerId(null)} />
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[m.id] }} copyTargets={copyTargets} item={{ ...m, _type: 'marker' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
             )}
           </div>
         );
@@ -183,6 +183,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const icon = DRAWING_ICONS[d.drawingType] || '?';
         const center = getDrawingCenter(d);
         const color = d.properties?.color || '#3b82f6';
+        const isCopying = copyingItemId === d.id;
         return (
           <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>
@@ -210,6 +211,19 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
+            {canEdit && copyTargets && onCopyItem && (
+              <button
+                ref={(el) => { copyBtnRefs.current[d.id] = el; }}
+                onClick={(e) => { e.stopPropagation(); setCopyingItemId(isCopying ? null : d.id); }}
+                className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+            )}
             {canEdit && (
               <button
                 onClick={() => {
@@ -223,6 +237,9 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 </svg>
               </button>
             )}
+            {isCopying && copyTargets && (
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[d.id] }} copyTargets={copyTargets} item={{ ...d, _type: 'drawing' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
+            )}
           </div>
         );
       })}
@@ -231,6 +248,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const label = isHorizon
           ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${v.radiusKm || ''}km`
           : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
+        const isCopying = copyingItemId === v.id;
         return (
           <div key={v.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
@@ -255,6 +273,19 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
+            {canEdit && copyTargets && onCopyItem && (
+              <button
+                ref={(el) => { copyBtnRefs.current[v.id] = el; }}
+                onClick={(e) => { e.stopPropagation(); setCopyingItemId(isCopying ? null : v.id); }}
+                className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+            )}
             {canEdit && (
               <button
                 onClick={() => socket.emit('client:viewshed:delete', { projectId, id: v.id })}
@@ -266,11 +297,15 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 </svg>
               </button>
             )}
+            {isCopying && copyTargets && (
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[v.id] }} copyTargets={copyTargets} item={{ ...v, _type: 'viewshed' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
+            )}
           </div>
         );
       })}
       {rfCoverages.map((c) => {
         const label = `RF ${c.frequencyMHz || '?'}MHz ${c.txPowerWatts || '?'}W`;
+        const isCopying = copyingItemId === c.id;
         return (
           <div key={c.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
@@ -294,6 +329,19 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                 <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </button>
+            {canEdit && copyTargets && onCopyItem && (
+              <button
+                ref={(el) => { copyBtnRefs.current[c.id] = el; }}
+                onClick={(e) => { e.stopPropagation(); setCopyingItemId(isCopying ? null : c.id); }}
+                className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+            )}
             {canEdit && (
               <button
                 onClick={() => socket.emit('client:rfcoverage:delete', { projectId, id: c.id })}
@@ -304,6 +352,9 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
                   <path d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            )}
+            {isCopying && copyTargets && (
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[c.id] }} copyTargets={copyTargets} item={{ ...c, _type: 'rfcoverage' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
             )}
           </div>
         );
@@ -362,7 +413,7 @@ export default function ProjectDrawer() {
   const [expandedLayerId, setExpandedLayerId] = useState(null); // show items in layer
   const [expandedUnassigned, setExpandedUnassigned] = useState(null); // projectId for unassigned items
   const [copyingLayerId, setCopyingLayerId] = useState(null); // which layer's copy dropdown is open
-  const [copyingMarkerId, setCopyingMarkerId] = useState(null); // which marker's copy dropdown is open
+  const [copyingItemId, setCopyingItemId] = useState(null); // which item's copy dropdown is open
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
 
@@ -579,19 +630,59 @@ export default function ProjectDrawer() {
     } catch {}
   };
 
-  const handleCopyMarker = useCallback((marker, targetProjectId, targetLayerId) => {
-    socket.emit('client:marker:add', {
-      projectId: targetProjectId,
-      layerId: targetLayerId || null,
-      sidc: marker.sidc,
-      lat: marker.lat,
-      lon: marker.lon,
-      designation: marker.designation || '',
-      higherFormation: marker.higherFormation || '',
-      additionalInfo: marker.additionalInfo || '',
-      customLabel: marker.customLabel || '',
-    });
-    setCopyingMarkerId(null);
+  const handleCopyItem = useCallback((item, targetProjectId, targetLayerId) => {
+    const type = item._type;
+    if (type === 'marker') {
+      socket.emit('client:marker:add', {
+        projectId: targetProjectId,
+        layerId: targetLayerId || null,
+        sidc: item.sidc,
+        lat: item.lat,
+        lon: item.lon,
+        designation: item.designation || '',
+        higherFormation: item.higherFormation || '',
+        additionalInfo: item.additionalInfo || '',
+        customLabel: item.customLabel || '',
+      });
+    } else if (type === 'drawing') {
+      socket.emit('client:drawing:add', {
+        projectId: targetProjectId,
+        layerId: targetLayerId || null,
+        drawingType: item.drawingType,
+        geometry: item.geometry,
+        properties: item.properties || {},
+      });
+    } else if (type === 'viewshed') {
+      socket.emit('client:viewshed:save', {
+        projectId: targetProjectId,
+        layerId: targetLayerId || null,
+        longitude: item.longitude,
+        latitude: item.latitude,
+        observerHeight: item.observerHeight,
+        radiusKm: item.radiusKm,
+        type: item.type || 'viewshed',
+        geojson: item.geojson,
+      });
+    } else if (type === 'rfcoverage') {
+      fetch('/api/rfcoverage/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          projectId: targetProjectId,
+          layerId: targetLayerId || null,
+          longitude: item.longitude,
+          latitude: item.latitude,
+          antennaHeight: item.antennaHeight,
+          txPowerWatts: item.txPowerWatts,
+          frequencyMHz: item.frequencyMHz,
+          radiusKm: item.radiusKm,
+          geojson: typeof item.geojson === 'string' ? item.geojson : JSON.stringify(item.geojson),
+          stats: typeof item.stats === 'string' ? item.stats : JSON.stringify(item.stats || {}),
+        }),
+      }).catch(err => console.error('RF coverage copy error:', err));
+    }
+    setCopyingItemId(null);
   }, []);
 
   // Compute copy targets: writable projects with their layers
@@ -929,7 +1020,7 @@ export default function ProjectDrawer() {
                         {/* Expanded item list */}
                         {isLayerExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} canEdit={canEditProject} />
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} />
                           </div>
                         )}
                       </div>
@@ -956,7 +1047,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingMarkerId={copyingMarkerId} setCopyingMarkerId={setCopyingMarkerId} onCopyMarker={handleCopyMarker} canEdit={canEditProject} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} />
                           </div>
                         )}
                       </div>
