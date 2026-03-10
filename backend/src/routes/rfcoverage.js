@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { buildTileMap, destination } from './dem-utils.js';
-import { addRFCoverage, deleteRFCoverage } from '../store/rfcoverage-store.js';
+import { addRFCoverage, deleteRFCoverage, updateRFCoverageLabel } from '../store/rfcoverage-store.js';
 import { canMutateProject } from '../auth/project-access.js';
 
 const router = Router();
@@ -193,7 +193,7 @@ router.post('/calculate', async (req, res) => {
 router.post('/save', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { projectId, layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening } = req.body;
+    const { projectId, layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, showLabel } = req.body;
     if (!projectId || !canMutateProject(userId, projectId)) {
       return res.status(403).json({ error: 'No access' });
     }
@@ -206,7 +206,7 @@ router.post('/save', async (req, res) => {
 
     const coverage = addRFCoverage(projectId, {
       layerId, longitude, latitude, antennaHeight, txPowerWatts, frequencyMHz, radiusKm,
-      geojson: result.geojson, stats: result.stats, createdBy: userId,
+      geojson: result.geojson, stats: result.stats, showLabel: !!showLabel, createdBy: userId,
     });
 
     // Notify other clients via socket (same shape as socket handler)
@@ -221,6 +221,29 @@ router.post('/save', async (req, res) => {
   } catch (err) {
     console.error('RF coverage save error:', err);
     res.status(500).json({ error: 'Save failed' });
+  }
+});
+
+// Toggle label visibility for a saved RF coverage
+router.patch('/:id/label', (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { projectId, showLabel } = req.body;
+    if (!projectId || !canMutateProject(userId, projectId)) {
+      return res.status(403).json({ error: 'No access' });
+    }
+    const ok = updateRFCoverageLabel(req.params.id, projectId, showLabel);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project:${projectId}`).emit('server:rfcoverage:label-updated', { projectId, id: req.params.id, showLabel: !!showLabel });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('RF coverage label update error:', err);
+    res.status(500).json({ error: 'Update failed' });
   }
 });
 

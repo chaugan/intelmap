@@ -265,6 +265,20 @@ export const useTacticalStore = create((set, get) => ({
     };
   }),
 
+  updateRFCoverageLabel: (projectId, id, showLabel) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: {
+          ...proj,
+          rfCoverages: (proj.rfCoverages || []).map(c => c.id === id ? { ...c, showLabel } : c),
+        },
+      },
+    };
+  }),
+
   deleteRFCoverage: (projectId, id) => set((s) => {
     const proj = s.projects[projectId];
     if (!proj) return {};

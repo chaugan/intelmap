@@ -124,6 +124,8 @@ export default function RFCoverageTool() {
   invertColorsRef.current = invertColors;
   dimmedBucketsRef.current = dimmedBuckets;
 
+  const [showLabel, setShowLabel] = useState(false); // label toggle for current active calc
+
   // Collect all saved RF coverages from visible projects
   const savedItems = [];
   for (const pid of visibleProjectIds) {
@@ -133,6 +135,34 @@ export default function RFCoverageTool() {
       savedItems.push({ ...c, _projectId: pid });
     }
   }
+
+  // Toggle label for a saved project coverage (PATCH to server)
+  const toggleSavedLabel = useCallback(async (item) => {
+    const newVal = !item.showLabel;
+    // Optimistic update
+    useTacticalStore.getState().updateRFCoverageLabel(item._projectId, item.id, newVal);
+    try {
+      await fetch(`/api/rfcoverage/${item.id}/label`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId: item._projectId, showLabel: newVal }),
+      });
+    } catch (err) {
+      // Revert on failure
+      useTacticalStore.getState().updateRFCoverageLabel(item._projectId, item.id, !newVal);
+    }
+  }, []);
+
+  // Toggle label for a session coverage (local only)
+  const toggleSessionLabel = useCallback((id) => {
+    const store = useMapStore.getState();
+    useMapStore.setState({
+      sessionRFCoverages: store.sessionRFCoverages.map(c =>
+        c.id === id ? { ...c, showLabel: !c.showLabel } : c
+      ),
+    });
+  }, []);
 
   const freqValid = typeof frequencyMHz === 'number' && isFinite(frequencyMHz) && frequencyMHz >= 2;
   const canCalculate = antenna && freqValid;
@@ -185,7 +215,7 @@ export default function RFCoverageTool() {
     const entry = {
       id, longitude: antenna.lng, latitude: antenna.lat,
       antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
-      geojson: resultGeojson, stats: result.stats,
+      geojson: resultGeojson, stats: result.stats, showLabel,
     };
     const store = useMapStore.getState();
     const existing = store.sessionRFCoverages.find(c => c.id === id);
@@ -196,7 +226,7 @@ export default function RFCoverageTool() {
       useMapStore.setState({ sessionRFCoverages: [...store.sessionRFCoverages, entry] });
     }
     return id;
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId, showLabel]);
 
   const reset = useCallback(() => {
     setMode('idle');
@@ -206,6 +236,7 @@ export default function RFCoverageTool() {
     setError(null);
     setDimmedBuckets(new Set());
     setActiveSessionId(null);
+    setShowLabel(false);
     useMapStore.setState({ activeRFCoverageId: null });
     if (mapRef) {
       mapRef.getCanvas().style.cursor = '';
@@ -334,14 +365,16 @@ export default function RFCoverageTool() {
       // Create/update session entry for this calculation
       const sessId = activeSessionId || crypto.randomUUID();
       setActiveSessionId(sessId);
+      // Preserve showLabel from previous session entry if it exists
+      const store = useMapStore.getState();
+      const existingEntry = store.sessionRFCoverages.find(c => c.id === sessId);
       const sessEntry = {
         id: sessId, longitude: antenna.lng, latitude: antenna.lat,
         antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
         geojson: data.geojson, stats: data.stats,
+        showLabel: existingEntry?.showLabel || showLabel,
       };
-      const store = useMapStore.getState();
-      const existing = store.sessionRFCoverages.find(c => c.id === sessId);
-      if (existing) {
+      if (existingEntry) {
         useMapStore.setState({ sessionRFCoverages: store.sessionRFCoverages.map(c => c.id === sessId ? sessEntry : c) });
       } else {
         useMapStore.setState({ sessionRFCoverages: [...store.sessionRFCoverages, sessEntry] });
@@ -362,7 +395,7 @@ export default function RFCoverageTool() {
       setError(err.message);
       setMode('ready');
     }
-  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets, activeSessionId]);
+  }, [antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, mapRef, dimmedBuckets, activeSessionId, showLabel]);
 
   const handleSave = useCallback(async () => {
     if (!activeProjectId || !result) return;
@@ -379,6 +412,7 @@ export default function RFCoverageTool() {
           longitude: antenna.lng,
           latitude: antenna.lat,
           antennaHeight, txPowerWatts, frequencyMHz: Number(frequencyMHz), radiusKm, dampening,
+          showLabel: showLabel || false,
         }),
       });
       if (!res.ok) {
@@ -387,7 +421,7 @@ export default function RFCoverageTool() {
       }
       const meta = await res.json();
       // Server re-calculates and stores geojson; attach local copy for immediate display
-      useTacticalStore.getState().addRFCoverage(activeProjectId, { ...meta, geojson: resultGeojson, stats: result.stats });
+      useTacticalStore.getState().addRFCoverage(activeProjectId, { ...meta, geojson: resultGeojson, stats: result.stats, showLabel: showLabel || false });
       // Remove from session since it's now saved to project
       if (activeSessionId) {
         const store = useMapStore.getState();
@@ -399,7 +433,7 @@ export default function RFCoverageTool() {
       setError(err.message || 'Save failed');
       setMode('result');
     }
-  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId, reset]);
+  }, [activeProjectId, activeLayerId, antenna, antennaHeight, txPowerWatts, frequencyMHz, radiusKm, dampening, result, resultGeojson, activeSessionId, showLabel, reset]);
 
   const flyTo = useCallback((lng, lat) => {
     if (!mapRef) return;
@@ -430,6 +464,7 @@ export default function RFCoverageTool() {
     setFrequencyMHz(item.frequencyMHz || '');
     setRadiusKm(item.radiusKm || 15);
     setDampening(item.dampening || 0);
+    setShowLabel(!!item.showLabel);
     setAntenna({ lng: item.longitude, lat: item.latitude });
     setError(null);
     setDimmedBuckets(new Set());
@@ -499,6 +534,15 @@ export default function RFCoverageTool() {
                     </span>
                     <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
                     <button
+                      onClick={() => toggleSessionLabel(c.id)}
+                      className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
+                      title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => {
                         useMapStore.setState({ sessionRFCoverages: useMapStore.getState().sessionRFCoverages.filter(x => x.id !== c.id) });
                         if (activeSessionId === c.id) reset();
@@ -546,6 +590,15 @@ export default function RFCoverageTool() {
                       RF {c.frequencyMHz}MHz {c.txPowerWatts}W
                     </span>
                     <span className="text-slate-500 text-[10px]">{c.radiusKm}km</span>
+                    <button
+                      onClick={() => toggleSavedLabel(c)}
+                      className={`shrink-0 ${c.showLabel ? 'text-cyan-400' : 'text-slate-600 hover:text-cyan-400'}`}
+                      title={lang === 'no' ? 'Vis/skjul etikett' : 'Show/hide label'}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => flyTo(c.longitude, c.latitude)}
                       className="shrink-0 text-slate-600 hover:text-cyan-400"

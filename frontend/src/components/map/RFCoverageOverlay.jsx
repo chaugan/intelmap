@@ -10,6 +10,7 @@ const SOURCE_SAVED = 'rf-coverage-saved';
 const SOURCE_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
 const LAYER_SAVED_FILL = 'rf-coverage-saved-fill';
 const LAYER_SAVED_OBSERVERS = 'rf-coverage-saved-observers';
+const LAYER_SAVED_LABELS = 'rf-coverage-saved-labels';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
@@ -42,10 +43,12 @@ function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVi
         }
       }
       if (c.longitude != null && c.latitude != null) {
+        const heightLabel = c.antennaHeight === 1.5 ? '1.5m' : c.antennaHeight === 3 ? '3m' : c.antennaHeight === 10 ? '10m' : `${c.antennaHeight}m`;
+        const label = `${heightLabel} | ${c.txPowerWatts}W | ${c.frequencyMHz}MHz`;
         observers.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
-          properties: { id: c.id, projectId: pid },
+          properties: { id: c.id, projectId: pid, showLabel: c.showLabel ? 1 : 0, label },
         });
       }
     }
@@ -59,10 +62,12 @@ function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVi
       }
     }
     if (c.longitude != null && c.latitude != null) {
+      const heightLabel = c.antennaHeight === 1.5 ? '1.5m' : c.antennaHeight === 3 ? '3m' : c.antennaHeight === 10 ? '10m' : `${c.antennaHeight}m`;
+      const label = `${heightLabel} | ${c.txPowerWatts}W | ${c.frequencyMHz}MHz`;
       observers.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
-        properties: { id: c.id, session: true },
+        properties: { id: c.id, session: true, showLabel: c.showLabel ? 1 : 0, label },
       });
     }
   }
@@ -74,7 +79,7 @@ function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVi
   };
 }
 
-const ALL_LAYERS = [LAYER_SAVED_FILL, LAYER_SAVED_OBSERVERS];
+const ALL_LAYERS = [LAYER_SAVED_FILL, LAYER_SAVED_OBSERVERS, LAYER_SAVED_LABELS];
 const ALL_SOURCES = [SOURCE_SAVED, SOURCE_SAVED_OBSERVERS];
 
 const FILL_PAINT = { 'fill-color': FILL_COLOR_EXPR, 'fill-opacity': 0.4 };
@@ -104,6 +109,26 @@ export default function RFCoverageOverlay() {
       if (!mapRef.getSource(SOURCE_SAVED_OBSERVERS)) mapRef.addSource(SOURCE_SAVED_OBSERVERS, { type: 'geojson', data: oData });
       if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: FILL_PAINT });
       if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: OBSERVER_PAINT });
+      if (!mapRef.getLayer(LAYER_SAVED_LABELS)) {
+        mapRef.addLayer({
+          id: LAYER_SAVED_LABELS,
+          type: 'symbol',
+          source: SOURCE_SAVED_OBSERVERS,
+          filter: ['==', ['get', 'showLabel'], 1],
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-size': 11,
+            'text-offset': [0, 1.8],
+            'text-anchor': 'top',
+            'text-allow-overlap': true,
+          },
+          paint: {
+            'text-color': '#e2e8f0',
+            'text-halo-color': 'rgba(15,23,42,0.85)',
+            'text-halo-width': 1.5,
+          },
+        });
+      }
     };
 
     const hasSaved = visibleProjectIds.some(pid => projects[pid]?.rfCoverages?.length > 0);
@@ -127,6 +152,13 @@ export default function RFCoverageOverlay() {
     const filter = activeRFCoverageId ? ['!=', ['get', 'id'], activeRFCoverageId] : null;
     if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, filter);
     if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, filter);
+    if (mapRef.getLayer(LAYER_SAVED_LABELS)) {
+      // Labels: must show label AND not be the active item
+      const labelFilter = activeRFCoverageId
+        ? ['all', ['==', ['get', 'showLabel'], 1], ['!=', ['get', 'id'], activeRFCoverageId]]
+        : ['==', ['get', 'showLabel'], 1];
+      mapRef.setFilter(LAYER_SAVED_LABELS, labelFilter);
+    }
 
     const onStyleData = () => {
       const d = dataRef.current;
@@ -136,6 +168,7 @@ export default function RFCoverageOverlay() {
       if (f) {
         if (mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.setFilter(LAYER_SAVED_FILL, ['!=', ['get', 'id'], f]);
         if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.setFilter(LAYER_SAVED_OBSERVERS, ['!=', ['get', 'id'], f]);
+        if (mapRef.getLayer(LAYER_SAVED_LABELS)) mapRef.setFilter(LAYER_SAVED_LABELS, ['all', ['==', ['get', 'showLabel'], 1], ['!=', ['get', 'id'], f]]);
       }
     };
     mapRef.on('styledata', onStyleData);

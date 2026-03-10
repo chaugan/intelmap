@@ -245,6 +245,13 @@ export function runMigration() {
     )
   `);
 
+  // Add show_label column to project_rf_coverages
+  const rfCols = db.prepare("PRAGMA table_info(project_rf_coverages)").all();
+  if (rfCols.length > 0 && !rfCols.some(c => c.name === 'show_label')) {
+    db.prepare("ALTER TABLE project_rf_coverages ADD COLUMN show_label INTEGER DEFAULT 0").run();
+    console.log('Added show_label column to project_rf_coverages table');
+  }
+
   // Add type column to project_viewsheds (viewshed | horizon)
   if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'type')) {
     db.prepare("ALTER TABLE project_viewsheds ADD COLUMN type TEXT DEFAULT 'viewshed'").run();

@@ -6,8 +6,8 @@ export function addRFCoverage(projectId, data) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO project_rf_coverages (id, project_id, layer_id, longitude, latitude, antenna_height, tx_power_watts, frequency_mhz, radius_km, geojson, stats, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO project_rf_coverages (id, project_id, layer_id, longitude, latitude, antenna_height, tx_power_watts, frequency_mhz, radius_km, geojson, stats, created_by, created_at, show_label)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, projectId, data.layerId || null,
     data.longitude, data.latitude,
@@ -16,7 +16,8 @@ export function addRFCoverage(projectId, data) {
     JSON.stringify(data.geojson),
     JSON.stringify(data.stats),
     data.createdBy || '',
-    now
+    now,
+    data.showLabel ? 1 : 0
   );
   return {
     id, projectId,
@@ -29,6 +30,7 @@ export function addRFCoverage(projectId, data) {
     radiusKm: data.radiusKm,
     geojson: data.geojson,
     stats: data.stats,
+    showLabel: !!data.showLabel,
     createdBy: data.createdBy || '',
     createdAt: now,
   };
@@ -44,6 +46,12 @@ export function getRFCoverages(projectId) {
 export function deleteRFCoverage(id, projectId) {
   const db = getDb();
   const result = db.prepare('DELETE FROM project_rf_coverages WHERE id = ? AND project_id = ?').run(id, projectId);
+  return result.changes > 0;
+}
+
+export function updateRFCoverageLabel(id, projectId, showLabel) {
+  const db = getDb();
+  const result = db.prepare('UPDATE project_rf_coverages SET show_label = ? WHERE id = ? AND project_id = ?').run(showLabel ? 1 : 0, id, projectId);
   return result.changes > 0;
 }
 
@@ -66,6 +74,7 @@ function rowToRFCoverage(row) {
     radiusKm: row.radius_km,
     geojson: tryParseJson(row.geojson, null),
     stats: tryParseJson(row.stats, {}),
+    showLabel: !!row.show_label,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };

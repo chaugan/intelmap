@@ -86,6 +86,9 @@ export function useSocket() {
     const onRFCoverageAllDeleted = ({ projectId }) => {
       useTacticalStore.getState().clearRFCoverages(projectId);
     };
+    const onRFCoverageLabelUpdated = ({ projectId, id, showLabel }) => {
+      useTacticalStore.getState().updateRFCoverageLabel(projectId, id, showLabel);
+    };
 
     socket.on('connect', onConnect);
     socket.on('server:force-disconnect', onForceDisconnect);
@@ -108,6 +111,7 @@ export function useSocket() {
     socket.on('server:rfcoverage:added', onRFCoverageAdded);
     socket.on('server:rfcoverage:deleted', onRFCoverageDeleted);
     socket.on('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
+    socket.on('server:rfcoverage:label-updated', onRFCoverageLabelUpdated);
 
     return () => {
       socket.off('connect', onConnect);
@@ -131,6 +135,7 @@ export function useSocket() {
       socket.off('server:rfcoverage:added', onRFCoverageAdded);
       socket.off('server:rfcoverage:deleted', onRFCoverageDeleted);
       socket.off('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
+      socket.off('server:rfcoverage:label-updated', onRFCoverageLabelUpdated);
     };
   }, []);
 }

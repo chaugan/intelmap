@@ -602,6 +602,8 @@ const translations = {
     'rfcoverage.saved': 'lagret',
     'rfcoverage.clear': 'Fjern',
     'rfcoverage.deleteAll': 'Slett alle',
+    'rfcoverage.showLabel': 'Vis etikett',
+    'rfcoverage.hideLabel': 'Skjul etikett',
 
     // General
     'lang.switch': 'English',
@@ -1205,6 +1207,8 @@ const translations = {
     'rfcoverage.saved': 'saved',
     'rfcoverage.clear': 'Clear',
     'rfcoverage.deleteAll': 'Delete all',
+    'rfcoverage.showLabel': 'Show label',
+    'rfcoverage.hideLabel': 'Hide label',
 
     'lang.switch': 'Norsk',
     'general.close': 'Close',
