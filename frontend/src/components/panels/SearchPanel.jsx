@@ -9,7 +9,8 @@ export default function SearchPanel() {
   const flyTo = useMapStore((s) => s.flyTo);
   const setActivePanel = useMapStore((s) => s.setActivePanel);
   const mapRef = useMapStore((s) => s.mapRef);
-  const setMgrsMarker = useMapStore((s) => s.setMgrsMarker);
+  const addMgrsMarker = useMapStore((s) => s.addMgrsMarker);
+  const clearUnpinnedMgrsMarkers = useMapStore((s) => s.clearUnpinnedMgrsMarkers);
   const [query, setQuery] = useState('');
   const [mgrsResults, setMgrsResults] = useState([]);
   const { results, loading, search, setResults } = useSearch();
@@ -23,10 +24,10 @@ export default function SearchPanel() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Clear MGRS marker when panel unmounts
+  // Clear unpinned MGRS markers when panel unmounts
   useEffect(() => {
-    return () => setMgrsMarker(null);
-  }, [setMgrsMarker]);
+    return () => clearUnpinnedMgrsMarkers();
+  }, [clearUnpinnedMgrsMarkers]);
 
   const handleChange = (e) => {
     const val = e.target.value;
@@ -74,7 +75,7 @@ export default function SearchPanel() {
 
   const handleMgrsSelect = (candidate) => {
     flyTo(candidate.lon, candidate.lat, 15);
-    setMgrsMarker({ lng: candidate.lon, lat: candidate.lat, mgrs: candidate.mgrsFormatted });
+    addMgrsMarker({ lng: candidate.lon, lat: candidate.lat, mgrs: candidate.mgrsFormatted });
   };
 
   const handleSelect = (result) => {

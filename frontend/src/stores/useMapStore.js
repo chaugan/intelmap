@@ -143,7 +143,7 @@ export const useMapStore = create((set) => ({
   userLocation: null, // { longitude, latitude }
 
   // MGRS marker
-  mgrsMarker: null, // { lng, lat, mgrs } or null
+  mgrsMarkers: [], // [{ id, lng, lat, mgrs, pinned }]
 
   // Fly-around rotation
   flyAroundActive: false,
@@ -329,7 +329,19 @@ export const useMapStore = create((set) => ({
   })),
   setUserLocation: (userLocation) => set({ userLocation }),
   clearUserLocation: () => set({ userLocation: null }),
-  setMgrsMarker: (marker) => set({ mgrsMarker: marker }),
+  addMgrsMarker: (marker) => set((s) => ({
+    // Replace unpinned markers, keep pinned ones
+    mgrsMarkers: [...s.mgrsMarkers.filter(m => m.pinned), { ...marker, id: crypto.randomUUID(), pinned: false }],
+  })),
+  removeMgrsMarker: (id) => set((s) => ({
+    mgrsMarkers: s.mgrsMarkers.filter(m => m.id !== id),
+  })),
+  toggleMgrsMarkerPin: (id) => set((s) => ({
+    mgrsMarkers: s.mgrsMarkers.map(m => m.id === id ? { ...m, pinned: !m.pinned } : m),
+  })),
+  clearUnpinnedMgrsMarkers: () => set((s) => ({
+    mgrsMarkers: s.mgrsMarkers.filter(m => m.pinned),
+  })),
   setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,
