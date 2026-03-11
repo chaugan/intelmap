@@ -44,4 +44,5 @@ export const EVENTS = {
   SERVER_RFCOVERAGE_ADDED: 'server:rfcoverage:added',
   SERVER_RFCOVERAGE_DELETED: 'server:rfcoverage:deleted',
   SERVER_RFCOVERAGE_ALL_DELETED: 'server:rfcoverage:all-deleted',
+  SERVER_AUDIT_ENTRY: 'server:audit:entry',
 };

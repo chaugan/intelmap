@@ -646,6 +646,20 @@ const translations = {
     'symbol.move': 'Flytt',
     'symbol.moveAndGo': 'Flytt og gå til',
     'symbol.invalidGrid': 'Skriv inn gyldig ruteref',
+
+    // Audit log
+    'audit.title': 'Endringslogg',
+    'audit.empty': 'Ingen endringer registrert',
+    'audit.loadMore': 'Last inn flere',
+    'audit.loading': 'Laster...',
+    'audit.entries': 'hendelser',
+    'audit.added': 'La til',
+    'audit.updated': 'Oppdaterte',
+    'audit.deleted': 'Slettet',
+    'audit.deletedAll': 'Slettet alle',
+    'audit.new': 'Ny',
+    'audit.justNow': 'Akkurat nå',
+    'audit.minutesAgo': 'min siden',
   },
   en: {
     'app.title': 'IntelMap',
@@ -1284,6 +1298,20 @@ const translations = {
     'symbol.move': 'Move',
     'symbol.moveAndGo': 'Move and go',
     'symbol.invalidGrid': 'Enter valid grid',
+
+    // Audit log
+    'audit.title': 'Audit log',
+    'audit.empty': 'No changes recorded',
+    'audit.loadMore': 'Load more',
+    'audit.loading': 'Loading...',
+    'audit.entries': 'entries',
+    'audit.added': 'Added',
+    'audit.updated': 'Updated',
+    'audit.deleted': 'Deleted',
+    'audit.deletedAll': 'Deleted all',
+    'audit.new': 'New',
+    'audit.justNow': 'Just now',
+    'audit.minutesAgo': 'min ago',
   },
 };
 

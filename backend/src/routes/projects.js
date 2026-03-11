@@ -448,6 +448,22 @@ router.delete('/share-token/:tokenId', (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/projects/:id/audit-log?limit=50&offset=0
+router.get('/:id/audit-log', (req, res) => {
+  const role = getProjectRole(req.user.id, req.params.id);
+  if (role !== 'admin' && role !== 'editor') {
+    return res.status(403).json({ error: 'Editor access required' });
+  }
+  const db = getDb();
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const offset = parseInt(req.query.offset) || 0;
+  const entries = db.prepare(
+    'SELECT * FROM project_audit_log WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?'
+  ).all(req.params.id, limit, offset);
+  const { c: total } = db.prepare('SELECT COUNT(*) as c FROM project_audit_log WHERE project_id = ?').get(req.params.id);
+  res.json({ entries, total, limit, offset });
+});
+
 function tryParseJson(str, fallback) {
   try { return JSON.parse(str); } catch { return fallback; }
 }

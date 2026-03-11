@@ -366,6 +366,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_org ON users(username, org_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_super ON users(username)
   WHERE org_id IS NULL;
 
+-- Project Audit Log: per-project change tracking
+CREATE TABLE IF NOT EXISTS project_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  summary TEXT NOT NULL,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_project_created ON project_audit_log(project_id, created_at DESC);
+
 -- Organization indexes
 CREATE INDEX IF NOT EXISTS idx_org_deleted ON organizations(delete_permanently_at)
   WHERE delete_permanently_at IS NOT NULL;

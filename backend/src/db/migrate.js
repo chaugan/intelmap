@@ -258,6 +258,23 @@ export function runMigration() {
     console.log('Added type column to project_viewsheds table');
   }
 
+  // Create project_audit_log table (if not exists)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_project_created ON project_audit_log(project_id, created_at DESC)`);
+
   // 1. Migrate old projects table snapshots (only if projects_v2 is empty)
   const v2Count = db.prepare('SELECT COUNT(*) as c FROM projects_v2').get().c;
   const oldProjects = v2Count === 0 ? db.prepare('SELECT * FROM projects').all() : [];

@@ -90,6 +90,11 @@ export function useSocket() {
       useTacticalStore.getState().updateRFCoverageLabel(projectId, id, showLabel);
     };
 
+    const onAuditEntry = (entry) => {
+      window.dispatchEvent(new CustomEvent('audit-entry', { detail: entry }));
+    };
+
+    socket.on('server:audit:entry', onAuditEntry);
     socket.on('connect', onConnect);
     socket.on('server:force-disconnect', onForceDisconnect);
     socket.on('server:project:state', onProjectState);
@@ -114,6 +119,7 @@ export function useSocket() {
     socket.on('server:rfcoverage:label-updated', onRFCoverageLabelUpdated);
 
     return () => {
+      socket.off('server:audit:entry', onAuditEntry);
       socket.off('connect', onConnect);
       socket.off('server:force-disconnect', onForceDisconnect);
       socket.off('server:project:state', onProjectState);

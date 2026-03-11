@@ -9,6 +9,7 @@ import { t } from '../../lib/i18n.js';
 import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { generateSymbolSvg } from '../../lib/milsymbol-utils.js';
 import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
+import AuditLogDialog from './AuditLogDialog.jsx';
 
 // Drawing type icons for the item list
 const DRAWING_ICONS = {
@@ -407,6 +408,7 @@ export default function ProjectDrawer() {
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
   const [qrLayerId, setQrLayerId] = useState(null);
+  const [auditProject, setAuditProject] = useState(null);
   const [shareTokensProject, setShareTokensProject] = useState(null);
   const [shareTokens, setShareTokens] = useState([]);
   const [viewSavedId, setViewSavedId] = useState(null); // flash "saved" feedback
@@ -1356,6 +1358,20 @@ export default function ProjectDrawer() {
                         {t('projects.copy', lang)}
                       </button>
 
+                      {/* Audit Log */}
+                      {(p.role === 'admin' || p.role === 'editor') && (
+                        <button
+                          onClick={() => setAuditProject(p)}
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-700/50"
+                          title={t('audit.title', lang)}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                          {t('audit.title', lang)}
+                        </button>
+                      )}
+
                       {/* QR Code */}
                       {(p.role === 'admin' || p.role === 'editor') && (
                         <button
@@ -1593,6 +1609,16 @@ export default function ProjectDrawer() {
           </div>
         );
       })()}
+
+      {/* Audit Log Dialog */}
+      {auditProject && (
+        <AuditLogDialog
+          projectId={auditProject.id}
+          projectName={auditProject.name}
+          lang={lang}
+          onClose={() => setAuditProject(null)}
+        />
+      )}
 
       {/* QR Code Overlay for projects */}
       {qrProject && (
