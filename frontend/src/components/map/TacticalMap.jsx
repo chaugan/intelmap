@@ -47,7 +47,7 @@ import GridTool from './GridTool.jsx';
 import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
 import WmsOverlayToggles from './WmsOverlayToggles.jsx';
-import DeclutterOverlay, { DeclutterLines } from './DeclutterOverlay.jsx';
+import DeclutterOverlay from './DeclutterOverlay.jsx';
 
 let nextMenuId = 1;
 
@@ -115,7 +115,6 @@ export default function TacticalMap() {
   const declutterActive = useMapStore((s) => s.declutterActive);
   const toggleDeclutter = useMapStore((s) => s.toggleDeclutter);
   const [declutterOffsets, setDeclutterOffsets] = useState(null);
-  const [declutterLines, setDeclutterLines] = useState([]);
 
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
   const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
@@ -565,10 +564,7 @@ export default function TacticalMap() {
         )}
       </Map>
 
-      {/* Declutter leader lines (rendered outside Map, lines stop at item edges) */}
-      {declutterActive && <DeclutterLines lines={declutterLines} />}
-
-      {/* Declutter computation (headless) */}
+      {/* Declutter: algorithm + leader lines SVG (direct DOM, no per-frame re-renders) */}
       <DeclutterOverlay
         map={mapInstance}
         markers={visibleMarkers}
@@ -576,7 +572,6 @@ export default function TacticalMap() {
         drawings={visibleDrawings}
         active={declutterActive}
         onOffsetsChange={setDeclutterOffsets}
-        onLinesChange={setDeclutterLines}
       />
 
       {/* Compass rose */}
