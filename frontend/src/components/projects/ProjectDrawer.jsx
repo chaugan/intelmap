@@ -1146,22 +1146,17 @@ export default function ProjectDrawer() {
                             >
                               {mCount}m {dCount}d{vCount > 0 ? ` ${vCount}v` : ''}{rCount > 0 ? ` ${rCount}r` : ''}
                             </span>
-                            {/* Move category */}
+                            {/* Move to Not in use / Active */}
                             {canEditProject && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   moveLayerCategory(p.id, layer.id, isNotInUse ? 'active' : 'not_in_use');
                                 }}
-                                className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-amber-400 hover:bg-amber-900/30 transition-colors"
+                                className={`px-1.5 py-0 flex-shrink-0 rounded border text-[9px] font-medium transition-colors ${isNotInUse ? 'border-emerald-700 text-emerald-500 hover:bg-emerald-900/40' : 'border-slate-600 text-slate-400 hover:bg-amber-900/30 hover:text-amber-400 hover:border-amber-700'}`}
                                 title={isNotInUse ? t('layers.moveToActive', lang) : t('layers.moveToNotInUse', lang)}
                               >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                  {isNotInUse
-                                    ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                    : <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                  }
-                                </svg>
+                                {isNotInUse ? '↑' : '↓'}
                               </button>
                             )}
                             {/* Copy layer */}
