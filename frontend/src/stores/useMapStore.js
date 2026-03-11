@@ -145,6 +145,9 @@ export const useMapStore = create((set) => ({
   // MGRS marker
   mgrsMarkers: [], // [{ id, lng, lat, mgrs, pinned }]
 
+  // Declutter
+  declutterActive: false,
+
   // Fly-around rotation
   flyAroundActive: false,
 
@@ -342,6 +345,7 @@ export const useMapStore = create((set) => ({
   clearUnpinnedMgrsMarkers: () => set((s) => ({
     mgrsMarkers: s.mgrsMarkers.filter(m => m.pinned),
   })),
+  toggleDeclutter: () => set((s) => ({ declutterActive: !s.declutterActive })),
   setFlyAroundActive: (flyAroundActive) => set({ flyAroundActive }),
   toggleProjectDrawer: () => set((s) => ({
     projectDrawerOpen: !s.projectDrawerOpen,

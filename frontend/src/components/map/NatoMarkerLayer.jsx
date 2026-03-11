@@ -8,7 +8,7 @@ import { ECHELONS } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
-export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) {
+export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, declutterOffsets, declutterActive }) {
   const state = useTacticalStore();
   const lang = useMapStore((s) => s.lang);
   const dragRef = useRef(null);
@@ -170,15 +170,18 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
           : `${symName} (${affLabel})`;
         const isSelected = selectedId === marker.id;
 
+        const declutterOff = declutterOffsets?.get(`marker:${marker.id}`);
+
         return (
           <Marker
             key={marker.id}
             longitude={marker.lon}
             latitude={marker.lat}
             anchor="center"
-            draggable={isSelected}
+            draggable={isSelected && !declutterActive}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onDragEnd(e, marker)}
+            offset={declutterOff ? [declutterOff.dx, declutterOff.dy] : undefined}
           >
             <div
               className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}
@@ -244,6 +247,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
           ? `${marker.designation} — ${symName} (${affLabel})`
           : `${symName} (${affLabel})`;
         const isSelected = selectedId === marker.id;
+        const localDeclutterOff = declutterOffsets?.get(`marker:${marker.id}`);
 
         return (
           <Marker
@@ -251,9 +255,10 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers }) 
             longitude={marker.lon}
             latitude={marker.lat}
             anchor="center"
-            draggable={isSelected}
+            draggable={isSelected && !declutterActive}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onLocalDragEnd(e, marker)}
+            offset={localDeclutterOff ? [localDeclutterOff.dx, localDeclutterOff.dy] : undefined}
           >
             <div
               className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}

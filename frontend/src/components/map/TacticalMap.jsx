@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import Map, { Marker } from 'react-map-gl/maplibre';
 import { useMapStore } from '../../stores/useMapStore.js';
-import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins } from '../../stores/useTacticalStore.js';
+import { useTacticalStore, getAllVisibleDrawings, getAllVisiblePins, getAllVisibleMarkers } from '../../stores/useTacticalStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { useProjectStore } from '../../stores/useProjectStore.js';
 import { buildMapStyle } from '../../lib/map-styles.js';
@@ -47,6 +47,7 @@ import GridTool from './GridTool.jsx';
 import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
 import WmsOverlayToggles from './WmsOverlayToggles.jsx';
+import DeclutterOverlay from './DeclutterOverlay.jsx';
 
 let nextMenuId = 1;
 
@@ -104,10 +105,16 @@ export default function TacticalMap() {
   const visibleDrawings = getAllVisibleDrawings(tacticalState);
   const visiblePins = getAllVisiblePins(tacticalState);
   const contextPins = visiblePins.filter(p => p.pinType === 'context');
+  const visibleMarkers = getAllVisibleMarkers(tacticalState);
 
   // Auth state for local-only markers (non-logged-in users)
   const user = useAuthStore((s) => s.user);
   const [localMarkers, setLocalMarkers] = useState([]);
+
+  // Declutter state
+  const declutterActive = useMapStore((s) => s.declutterActive);
+  const toggleDeclutter = useMapStore((s) => s.toggleDeclutter);
+  const [declutterOffsets, setDeclutterOffsets] = useState(null);
 
   const { data: avalancheWarningsData, loading: avalancheWarningsLoading, fetchedAt: avalancheWarningsFetchedAt } = useAvalancheWarnings(avalancheWarningsVisible, avalancheWarningsDay);
   const { data: aircraftData, loading: aircraftLoading, fetchedAt: aircraftFetchedAt } = useAircraft(aircraftVisible);
@@ -545,7 +552,7 @@ export default function TacticalMap() {
         preserveDrawingBuffer={true}
         attributionControl={false}
       >
-        <NatoMarkerLayer localMarkers={localMarkers} setLocalMarkers={setLocalMarkers} />
+        <NatoMarkerLayer localMarkers={localMarkers} setLocalMarkers={setLocalMarkers} declutterOffsets={declutterOffsets} declutterActive={declutterActive} />
         {webcamsVisible && <WebcamLayer />}
         {userLocation && (
           <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
@@ -556,6 +563,16 @@ export default function TacticalMap() {
           </Marker>
         )}
       </Map>
+
+      {/* Declutter overlay — leader lines */}
+      <DeclutterOverlay
+        map={mapInstance}
+        markers={visibleMarkers}
+        localMarkers={localMarkers}
+        drawings={visibleDrawings}
+        active={declutterActive}
+        onOffsetsChange={setDeclutterOffsets}
+      />
 
       {/* Compass rose */}
       <button
@@ -629,6 +646,36 @@ export default function TacticalMap() {
           )}
         </div>
       )}
+
+      {/* Declutter button — visible when 2+ markers/text exist */}
+      {(() => {
+        const textDrawingCount = visibleDrawings.filter(d => d.drawingType === 'text' || d.properties?.label).length;
+        const totalItems = visibleMarkers.length + localMarkers.length + textDrawingCount;
+        if (totalItems < 2) return null;
+        return (
+          <button
+            onClick={toggleDeclutter}
+            className={`absolute top-4 z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
+              declutterActive
+                ? 'bg-amber-600/90 hover:bg-amber-500/90'
+                : 'bg-slate-800/80 hover:bg-slate-700/90'
+            }`}
+            style={{ left: pitch > 5 ? '9rem' : '4.5rem' }}
+            title={lang === 'no'
+              ? (declutterActive ? 'Deaktiver opprydding' : 'Rydd opp overlappende symboler')
+              : (declutterActive ? 'Disable declutter' : 'Spread overlapping symbols')
+            }
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="7,7 3,3" />
+              <polyline points="17,7 21,3" />
+              <polyline points="7,17 3,21" />
+              <polyline points="17,17 21,21" />
+              <rect x="8" y="8" width="8" height="8" rx="1" fill={declutterActive ? 'rgba(255,255,255,0.3)' : 'none'} />
+            </svg>
+          </button>
+        );
+      })()}
 
       <DrawingLayer />
 
@@ -778,8 +825,9 @@ export default function TacticalMap() {
                   })()}
                   {d.properties?.label && (() => {
                     const mid = pts[Math.floor(pts.length / 2)];
+                    const dOff = declutterOffsets?.get(`drawing:${d.id}`);
                     return (
-                      <text x={mid.x} y={mid.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
+                      <text x={mid.x + (dOff?.dx || 0)} y={mid.y - 10 + (dOff?.dy || 0)} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
                         stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                     );
                   })()}
@@ -957,11 +1005,14 @@ export default function TacticalMap() {
                     stroke={color}
                     strokeWidth={sw}
                   />
-                  {d.properties?.label && (
-                    <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="central"
-                      fill="#ffffff" fontSize="16" fontWeight="700"
-                      stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
-                  )}
+                  {d.properties?.label && (() => {
+                    const dOff = declutterOffsets?.get(`drawing:${d.id}`);
+                    return (
+                      <text x={centroid.x + (dOff?.dx || 0)} y={centroid.y + (dOff?.dy || 0)} textAnchor="middle" dominantBaseline="central"
+                        fill="#ffffff" fontSize="16" fontWeight="700"
+                        stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
+                    );
+                  })()}
                 </g>
               );
             }
@@ -969,10 +1020,13 @@ export default function TacticalMap() {
             if (geom.type === 'Point' && d.drawingType === 'text') {
               const pt = projectCoord(geom.coordinates);
               if (!pt) return null;
+              const dOff = declutterOffsets?.get(`drawing:${d.id}`);
+              const tx = pt.x + (dOff?.dx || 0);
+              const ty = pt.y + (dOff?.dy || 0);
               return (
                 <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
-                  {isSelected && renderSelectionBBox([{ x: pt.x - 30, y: pt.y - 12 }, { x: pt.x + 30, y: pt.y + 12 }], 8)}
-                  <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
+                  {isSelected && renderSelectionBBox([{ x: tx - 30, y: ty - 12 }, { x: tx + 30, y: ty + 12 }], 8)}
+                  <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
                     stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>
                 </g>
