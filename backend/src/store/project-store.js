@@ -138,10 +138,11 @@ export class ProjectStoreManager {
     const db = getDb();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const category = data.category === 'not_in_use' ? 'not_in_use' : 'active';
     db.prepare(
-      'INSERT INTO project_layers (id, project_id, name, visible, source, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, projectId, data.name || 'Unnamed', data.visible !== false ? 1 : 0, data.source || 'user', data.createdBy || '', now);
-    return { id, projectId, name: data.name || 'Unnamed', visible: true, source: data.source || 'user', createdBy: data.createdBy || '', createdAt: now };
+      'INSERT INTO project_layers (id, project_id, name, visible, category, source, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, projectId, data.name || 'Unnamed', data.visible !== false ? 1 : 0, category, data.source || 'user', data.createdBy || '', now);
+    return { id, projectId, name: data.name || 'Unnamed', visible: true, category, source: data.source || 'user', createdBy: data.createdBy || '', createdAt: now };
   }
 
   updateLayer(projectId, id, changes) {
@@ -152,6 +153,7 @@ export class ProjectStoreManager {
     const updates = {};
     if (changes.name !== undefined) updates.name = changes.name;
     if (changes.visible !== undefined) updates.visible = changes.visible ? 1 : 0;
+    if (changes.category !== undefined) updates.category = changes.category;
     if (changes.source !== undefined) updates.source = changes.source;
 
     if (Object.keys(updates).length === 0) return rowToLayer(row);
@@ -265,6 +267,7 @@ function rowToLayer(row) {
     projectId: row.project_id,
     name: row.name,
     visible: !!row.visible,
+    category: row.category || 'active',
     source: row.source,
     createdBy: row.created_by,
     createdAt: row.created_at,

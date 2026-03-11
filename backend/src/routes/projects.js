@@ -305,12 +305,14 @@ router.post('/:id/layers/:layerId/copy', (req, res) => {
   const layer = db.prepare('SELECT * FROM project_layers WHERE id = ? AND project_id = ?').get(req.params.layerId, req.params.id);
   if (!layer) return res.status(404).json({ error: 'Layer not found' });
 
+  const targetCategory = req.body.targetCategory === 'not_in_use' ? 'not_in_use' : 'active';
+
   let result;
   const copyTx = db.transaction(() => {
     const newLayerId = crypto.randomUUID();
     const newName = `${layer.name} (Kopi)`;
-    db.prepare('INSERT INTO project_layers (id, project_id, name, visible, source, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(newLayerId, targetProjectId, newName, 1, 'user', req.user.id);
+    db.prepare('INSERT INTO project_layers (id, project_id, name, visible, category, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(newLayerId, targetProjectId, newName, 1, targetCategory, 'user', req.user.id);
 
     // Copy markers
     const markers = db.prepare('SELECT * FROM project_markers WHERE project_id = ? AND layer_id = ?').all(req.params.id, req.params.layerId);

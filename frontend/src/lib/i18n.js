@@ -82,6 +82,9 @@ const translations = {
     'layers.copy': 'Kopier lag',
     'layers.copyTo': 'Kopier til',
     'layers.sameProject': 'Samme prosjekt',
+    'layers.notInUse': 'Ikke i bruk',
+    'layers.moveToActive': 'Flytt til aktive lag',
+    'layers.moveToNotInUse': 'Flytt til ikke i bruk',
 
     // Symbol picker
     'symbols.title': 'NATO-symboler',
@@ -704,6 +707,9 @@ const translations = {
     'layers.copy': 'Copy layer',
     'layers.copyTo': 'Copy to',
     'layers.sameProject': 'Same project',
+    'layers.notInUse': 'Not in use',
+    'layers.moveToActive': 'Move to active layers',
+    'layers.moveToNotInUse': 'Move to not in use',
 
     'symbols.title': 'NATO Symbols',
     'symbols.friendly': 'Friendly',

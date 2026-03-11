@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS project_layers (
   project_id TEXT NOT NULL REFERENCES projects_v2(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   visible INTEGER NOT NULL DEFAULT 1,
+  category TEXT NOT NULL DEFAULT 'active',
   source TEXT DEFAULT 'user',
   created_by TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

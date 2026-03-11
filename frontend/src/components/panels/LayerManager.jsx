@@ -20,15 +20,20 @@ export default function LayerManager() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal] = useState('');
   const [copyingLayerId, setCopyingLayerId] = useState(null);
+  const [notInUseCollapsed, setNotInUseCollapsed] = useState(false);
 
   const projData = activeProjectId ? projects[activeProjectId] : null;
-  const layers = projData?.layers || [];
+  const allLayers = projData?.layers || [];
   const markers = projData?.markers || [];
   const drawings = projData?.drawings || [];
   const activeProject = myProjects.find(p => p.id === activeProjectId);
   const projectRole = activeProject?.role;
 
   const canEdit = projectRole === 'admin' || projectRole === 'editor';
+
+  // Split layers by category
+  const activeLayers = allLayers.filter(l => l.category !== 'not_in_use');
+  const notInUseLayers = allLayers.filter(l => l.category === 'not_in_use');
 
   const createLayer = () => {
     if (!newName.trim() || !activeProjectId) return;
@@ -55,12 +60,12 @@ export default function LayerManager() {
     if (activeLayerId === id) setActiveLayer(null);
   };
 
-  const handleCopyLayer = async (layerId, targetProjectId) => {
+  const handleCopyLayer = async (layerId, targetProjectId, targetCategory) => {
     try {
       const res = await fetch(`/api/projects/${activeProjectId}/layers/${layerId}/copy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetProjectId }),
+        body: JSON.stringify({ targetProjectId, targetCategory }),
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Copy failed');
@@ -70,6 +75,16 @@ export default function LayerManager() {
       setCopyingLayerId(null);
     } catch (err) {
       console.error('Layer copy error:', err);
+    }
+  };
+
+  const moveLayerCategory = (id, newCategory) => {
+    if (!activeProjectId) return;
+    socket.emit('client:layer:update', { projectId: activeProjectId, id, category: newCategory });
+    // If moving to not_in_use, also disable visibility
+    if (newCategory === 'not_in_use') {
+      const { layerVisibility: lv } = useTacticalStore.getState();
+      if (lv[id] !== false) toggleLayerVisibility(id);
     }
   };
 
@@ -83,6 +98,139 @@ export default function LayerManager() {
       </div>
     );
   }
+
+  const writableOthers = myProjects.filter(tp => tp.id !== activeProjectId && (tp.role === 'admin' || tp.role === 'editor'));
+
+  const renderLayer = (layer, isNotInUse) => {
+    const vis = layerVisibility[layer.id] !== false;
+    const isActiveLayer = activeLayerId === layer.id;
+    const markerCount = markers.filter(m => m.layerId === layer.id).length;
+    const drawingCount = drawings.filter(d => d.layerId === layer.id).length;
+    const canCopy = canEdit || writableOthers.length > 0;
+
+    return (
+      <div
+        key={layer.id}
+        className={`rounded px-2 py-1.5 group ${isActiveLayer ? 'bg-emerald-900/30 border border-emerald-600/40' : 'bg-slate-700/50'}`}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={vis}
+            onChange={() => toggleLayerVisibility(layer.id)}
+            className="accent-emerald-500 w-3.5 h-3.5"
+          />
+          <div className="flex-1 min-w-0">
+            {renamingId === layer.id ? (
+              <input
+                value={renameVal}
+                onChange={(e) => setRenameVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') renameLayer(layer.id);
+                  if (e.key === 'Escape') setRenamingId(null);
+                }}
+                onBlur={() => setRenamingId(null)}
+                autoFocus
+                className="w-full px-1 py-0 bg-slate-900 border border-emerald-500 rounded text-sm text-white focus:outline-none"
+              />
+            ) : (
+              <span
+                className={`text-sm truncate block cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
+                onClick={() => setActiveLayer(isActiveLayer ? null : layer.id)}
+                onDoubleClick={() => { if (canEdit) { setRenamingId(layer.id); setRenameVal(layer.name); } }}
+                title={t('drawer.setActiveLayer', lang)}
+              >
+                {isActiveLayer && '\u25B8 '}{layer.name}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] text-slate-500 whitespace-nowrap">
+            {markerCount}m {drawingCount}d
+          </span>
+          {layer.source === 'ai' && (
+            <span className="text-[10px] px-1 bg-purple-600 rounded text-white">
+              {t('layers.aiTag', lang)}
+            </span>
+          )}
+
+          {/* Move category */}
+          {canEdit && (
+            <button
+              onClick={() => moveLayerCategory(layer.id, isNotInUse ? 'active' : 'not_in_use')}
+              className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-amber-400 hover:bg-amber-900/30 transition-colors opacity-0 group-hover:opacity-100"
+              title={isNotInUse ? t('layers.moveToActive', lang) : t('layers.moveToNotInUse', lang)}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                {isNotInUse
+                  ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                }
+              </svg>
+            </button>
+          )}
+
+          {/* Copy layer */}
+          {canCopy && (
+            <div className="relative">
+              <button
+                onClick={() => setCopyingLayerId(copyingLayerId === layer.id ? null : layer.id)}
+                className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-cyan-400 hover:bg-cyan-900/30 transition-colors opacity-0 group-hover:opacity-100"
+                title={t('layers.copy', lang)}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+              {copyingLayerId === layer.id && (
+                <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[140px] text-xs">
+                  <div className="px-2 py-1 text-slate-500 font-medium">{t('layers.copyTo', lang)}</div>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleCopyLayer(layer.id, activeProjectId)}
+                      className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300"
+                    >
+                      {t('layers.sameProject', lang)}
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => handleCopyLayer(layer.id, activeProjectId, 'not_in_use')}
+                      className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-400"
+                    >
+                      {t('layers.notInUse', lang)}
+                    </button>
+                  )}
+                  {writableOthers.map(tp => (
+                    <button
+                      key={tp.id}
+                      onClick={() => handleCopyLayer(layer.id, tp.id)}
+                      className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300 truncate"
+                    >
+                      {tp.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Delete */}
+          {canEdit && (
+            <button
+              onClick={() => deleteLayer(layer.id, layer.name)}
+              className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors opacity-0 group-hover:opacity-100"
+              title={t('layers.delete', lang)}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full p-3">
@@ -112,116 +260,12 @@ export default function LayerManager() {
 
       {/* Layer list */}
       <div className="flex-1 overflow-y-auto space-y-1">
-        {layers.length === 0 && (
+        {activeLayers.length === 0 && notInUseLayers.length === 0 && (
           <p className="text-slate-500 text-sm">{t('layers.noLayers', lang)}</p>
         )}
-        {layers.map((layer) => {
-          const vis = layerVisibility[layer.id] !== false;
-          const isActiveLayer = activeLayerId === layer.id;
-          const markerCount = markers.filter(m => m.layerId === layer.id).length;
-          const drawingCount = drawings.filter(d => d.layerId === layer.id).length;
-          const writableOthers = myProjects.filter(tp => tp.id !== activeProjectId && (tp.role === 'admin' || tp.role === 'editor'));
-          const canCopy = canEdit || writableOthers.length > 0;
 
-          return (
-            <div
-              key={layer.id}
-              className={`rounded px-2 py-1.5 group ${isActiveLayer ? 'bg-emerald-900/30 border border-emerald-600/40' : 'bg-slate-700/50'}`}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={vis}
-                  onChange={() => toggleLayerVisibility(layer.id)}
-                  className="accent-emerald-500 w-3.5 h-3.5"
-                />
-                <div className="flex-1 min-w-0">
-                  {renamingId === layer.id ? (
-                    <input
-                      value={renameVal}
-                      onChange={(e) => setRenameVal(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') renameLayer(layer.id);
-                        if (e.key === 'Escape') setRenamingId(null);
-                      }}
-                      onBlur={() => setRenamingId(null)}
-                      autoFocus
-                      className="w-full px-1 py-0 bg-slate-900 border border-emerald-500 rounded text-sm text-white focus:outline-none"
-                    />
-                  ) : (
-                    <span
-                      className={`text-sm truncate block cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
-                      onClick={() => setActiveLayer(isActiveLayer ? null : layer.id)}
-                      onDoubleClick={() => { if (canEdit) { setRenamingId(layer.id); setRenameVal(layer.name); } }}
-                      title={t('drawer.setActiveLayer', lang)}
-                    >
-                      {isActiveLayer && '\u25B8 '}{layer.name}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] text-slate-500 whitespace-nowrap">
-                  {markerCount}m {drawingCount}d
-                </span>
-                {layer.source === 'ai' && (
-                  <span className="text-[10px] px-1 bg-purple-600 rounded text-white">
-                    {t('layers.aiTag', lang)}
-                  </span>
-                )}
-
-                {/* Copy layer */}
-                {canCopy && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setCopyingLayerId(copyingLayerId === layer.id ? null : layer.id)}
-                      className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-cyan-400 hover:bg-cyan-900/30 transition-colors opacity-0 group-hover:opacity-100"
-                      title={t('layers.copy', lang)}
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <rect x="9" y="9" width="13" height="13" rx="2" />
-                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                      </svg>
-                    </button>
-                    {copyingLayerId === layer.id && (
-                      <div className="absolute right-0 top-5 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl py-1 min-w-[140px] text-xs">
-                        <div className="px-2 py-1 text-slate-500 font-medium">{t('layers.copyTo', lang)}</div>
-                        {canEdit && (
-                          <button
-                            onClick={() => handleCopyLayer(layer.id, activeProjectId)}
-                            className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300"
-                          >
-                            {t('layers.sameProject', lang)}
-                          </button>
-                        )}
-                        {writableOthers.map(tp => (
-                          <button
-                            key={tp.id}
-                            onClick={() => handleCopyLayer(layer.id, tp.id)}
-                            className="w-full text-left px-2 py-1 hover:bg-slate-700 text-slate-300 truncate"
-                          >
-                            {tp.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Delete */}
-                {canEdit && (
-                  <button
-                    onClick={() => deleteLayer(layer.id, layer.name)}
-                    className="w-4 h-4 flex-shrink-0 flex items-center justify-center rounded text-slate-600 hover:text-red-400 hover:bg-red-900/30 transition-colors opacity-0 group-hover:opacity-100"
-                    title={t('layers.delete', lang)}
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {/* Active layers */}
+        {activeLayers.map((layer) => renderLayer(layer, false))}
 
         {/* Unassigned items */}
         {(() => {
@@ -234,6 +278,29 @@ export default function LayerManager() {
             </div>
           );
         })()}
+
+        {/* Not in use section */}
+        {notInUseLayers.length > 0 && (
+          <>
+            <div className="border-t border-slate-600 mt-3 pt-2">
+              <button
+                onClick={() => setNotInUseCollapsed(!notInUseCollapsed)}
+                className="flex items-center gap-1.5 w-full text-left text-xs font-medium text-slate-500 hover:text-slate-400 mb-1.5"
+              >
+                <svg className={`w-3 h-3 transition-transform ${notInUseCollapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                {t('layers.notInUse', lang)}
+                <span className="text-slate-600">({notInUseLayers.length})</span>
+              </button>
+              {!notInUseCollapsed && (
+                <div className="space-y-1">
+                  {notInUseLayers.map((layer) => renderLayer(layer, true))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -92,6 +92,12 @@ export function initDb() {
     db.prepare("ALTER TABLE projects_v2 ADD COLUMN org_shared TEXT DEFAULT NULL").run();
   }
 
+  // Add category column to project_layers if not exists
+  const layerCols = db.prepare("PRAGMA table_info(project_layers)").all();
+  if (!layerCols.find(c => c.name === 'category')) {
+    db.prepare("ALTER TABLE project_layers ADD COLUMN category TEXT NOT NULL DEFAULT 'active'").run();
+  }
+
   // Run organizations migration (one-time, idempotent)
   migrateOrgs();
 

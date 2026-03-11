@@ -43,19 +43,36 @@ export const useTacticalStore = create((set, get) => ({
       ? (newVisible[newVisible.length - 1] || null)
       : s.activeProjectId;
     const activeLayerId = wasActive ? null : s.activeLayerId;
-    return { visibleProjectIds: newVisible, activeProjectId, activeLayerId };
+    // Disable all "not_in_use" layers for this project
+    const proj = s.projects[projectId];
+    const newVis = { ...s.layerVisibility };
+    if (proj) {
+      for (const l of proj.layers) {
+        if (l.category === 'not_in_use') newVis[l.id] = false;
+      }
+    }
+    return { visibleProjectIds: newVisible, activeProjectId, activeLayerId, layerVisibility: newVis };
   }),
 
   reorderProjects: (orderedIds) => set({ visibleProjectIds: orderedIds }),
 
   // --- Project state (from server) ---
 
-  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages }) => set((s) => ({
-    projects: {
-      ...s.projects,
-      [projectId]: { markers: markers || [], drawings: drawings || [], layers: layers || [], pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [] },
-    },
-  })),
+  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages }) => set((s) => {
+    const allLayers = layers || [];
+    // Force all "not_in_use" layers to be hidden on load
+    const newVis = { ...s.layerVisibility };
+    for (const l of allLayers) {
+      if (l.category === 'not_in_use') newVis[l.id] = false;
+    }
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [] },
+      },
+      layerVisibility: newVis,
+    };
+  }),
 
   removeProjectData: (projectId) => set((s) => {
     const { [projectId]: _, ...rest } = s.projects;
