@@ -141,7 +141,7 @@ export default function SymbolPicker() {
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder={lang === 'no' ? 'Sok symbol...' : 'Search symbol...'}
+        placeholder={lang === 'no' ? 'Søk symbol...' : 'Search symbol...'}
         className="bg-slate-700 text-sm px-2 py-1.5 rounded border border-slate-600 focus:border-cyan-500 focus:outline-none mb-2"
       />
 
@@ -218,7 +218,7 @@ export default function SymbolPicker() {
             {lang === 'no' ? 'Ingen treff' : 'No matches'}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-2">
+        <div key={isSearching ? 'search' : `${category}-${tab}`} className="grid grid-cols-2 gap-2">
           {symbols.map((sym) => {
             const displaySidc = getEffectiveSidc(sym.sidc);
             const rendered = generateSymbolSvg(displaySidc, { size: 30 });
