@@ -6,17 +6,21 @@ import { generateSymbolSvg, getAffiliation, getEchelonCode, setEchelonCode } fro
 import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { ECHELONS } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
+import { resolveMgrs } from '../../lib/mgrs-utils.js';
+import { t } from '../../lib/i18n.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, declutterOffsets, declutterActive }) {
   const state = useTacticalStore();
   const lang = useMapStore((s) => s.lang);
+  const mapRef = useMapStore((s) => s.mapRef);
   const dragRef = useRef(null);
   const dragEndTimeRef = useRef(0);
   const clickTimerRef = useRef(null);
   const [infoPopup, setInfoPopup] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [echelonMenu, setEchelonMenu] = useState(null);
+  const [moveGrid, setMoveGrid] = useState('');
 
   const visibleMarkers = getAllVisibleMarkers(state);
 
@@ -137,6 +141,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
   const onContextMenu = useCallback((e, marker) => {
     e.preventDefault();
     e.stopPropagation();
+    setMoveGrid('');
     setEchelonMenu({
       marker,
       x: e.clientX,
@@ -152,6 +157,31 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
   };
 
   const currentEchelon = echelonMenu ? getEchelonCode(echelonMenu.marker.sidc) : null;
+
+  // Move to grid validation
+  const moveInput = moveGrid.trim();
+  const moveCandidates = moveInput ? resolveMgrs(moveInput, mapRef?.getCenter() || { lng: 15, lat: 65 }) : [];
+  const moveValid = moveCandidates.length > 0;
+
+  const handleMoveToGrid = (flyTo) => {
+    if (!moveValid || !echelonMenu) return;
+    const { lon, lat } = moveCandidates[0];
+    const marker = echelonMenu.marker;
+    if (marker._local) {
+      if (setLocalMarkers) {
+        setLocalMarkers(prev => prev.map(m => m.id === marker.id ? { ...m, lat, lon } : m));
+      }
+    } else {
+      const projectId = marker._projectId || marker.projectId;
+      useTacticalStore.getState().updateMarker(projectId, { ...marker, lat, lon });
+      socket.emit('client:marker:update', { projectId, id: marker.id, lat, lon });
+    }
+    if (flyTo && mapRef) {
+      mapRef.flyTo({ center: [lon, lat], zoom: mapRef.getZoom(), duration: 2000 });
+    }
+    setEchelonMenu(null);
+    setMoveGrid('');
+  };
 
   return (
     <>
@@ -350,6 +380,51 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
             >
               {lang === 'no' ? 'Laginfo...' : 'Layer info...'}
             </button>
+          </div>
+          {/* Move to grid */}
+          <div className="border-t border-slate-700 pt-2 mt-1">
+            <div className="text-[10px] text-slate-400 px-1 mb-1 font-semibold uppercase tracking-wide">
+              {t('symbol.moveToGrid', lang)}
+            </div>
+            <input
+              type="text"
+              value={moveGrid}
+              onChange={(e) => setMoveGrid(e.target.value)}
+              placeholder="e.g. 32VNM 78787 76938"
+              className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-xs text-white focus:outline-none focus:border-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && moveValid) handleMoveToGrid(false);
+                e.stopPropagation();
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+            {moveInput && !moveValid && (
+              <div className="text-[9px] text-red-400 px-1 mt-0.5">{t('symbol.invalidGrid', lang)}</div>
+            )}
+            <div className="flex gap-1 mt-1.5">
+              <button
+                onClick={() => handleMoveToGrid(false)}
+                disabled={!moveValid}
+                className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  moveValid
+                    ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {t('symbol.move', lang)}
+              </button>
+              <button
+                onClick={() => handleMoveToGrid(true)}
+                disabled={!moveValid}
+                className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  moveValid
+                    ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {t('symbol.moveAndGo', lang)}
+              </button>
+            </div>
           </div>
         </div>
       )}
