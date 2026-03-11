@@ -553,7 +553,6 @@ export default function TacticalMap() {
         preserveDrawingBuffer={true}
         attributionControl={false}
       >
-        {declutterActive && <DeclutterLines lines={declutterLines} />}
         <NatoMarkerLayer localMarkers={localMarkers} setLocalMarkers={setLocalMarkers} declutterOffsets={declutterOffsets} declutterActive={declutterActive} />
         {webcamsVisible && <WebcamLayer />}
         {userLocation && (
@@ -566,7 +565,10 @@ export default function TacticalMap() {
         )}
       </Map>
 
-      {/* Declutter computation (headless — lines rendered inside <Map>) */}
+      {/* Declutter leader lines (rendered outside Map, lines stop at item edges) */}
+      {declutterActive && <DeclutterLines lines={declutterLines} />}
+
+      {/* Declutter computation (headless) */}
       <DeclutterOverlay
         map={mapInstance}
         markers={visibleMarkers}
