@@ -400,7 +400,7 @@ function parseExpiresIn(expiresIn) {
 // Create share token for a project
 router.post('/:id/share-token', (req, res) => {
   const role = getProjectRole(req.user.id, req.params.id);
-  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  if (role !== 'admin' && role !== 'editor') return res.status(403).json({ error: 'Editor access required' });
 
   const db = getDb();
   const id = crypto.randomUUID();
@@ -419,7 +419,7 @@ router.post('/:id/share-token', (req, res) => {
 // List share tokens for a project
 router.get('/:id/share-tokens', (req, res) => {
   const role = getProjectRole(req.user.id, req.params.id);
-  if (role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  if (role !== 'admin' && role !== 'editor') return res.status(403).json({ error: 'Editor access required' });
 
   const db = getDb();
   const tokens = db.prepare(
@@ -437,7 +437,10 @@ router.delete('/share-token/:tokenId', (req, res) => {
   const tokenRow = db.prepare('SELECT * FROM share_tokens WHERE id = ?').get(req.params.tokenId);
   if (!tokenRow) return res.status(404).json({ error: 'Token not found' });
 
-  if (tokenRow.created_by !== req.user.id && req.user.role !== 'admin') {
+  // Allow: token creator, site admin, or project admin/editor
+  const projectRole = tokenRow.resource_type === 'project' ? getProjectRole(req.user.id, tokenRow.resource_id) : null;
+  const canRevoke = tokenRow.created_by === req.user.id || req.user.role === 'admin' || projectRole === 'admin' || projectRole === 'editor';
+  if (!canRevoke) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 

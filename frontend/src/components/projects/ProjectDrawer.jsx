@@ -1301,7 +1301,7 @@ export default function ProjectDrawer() {
                       </button>
 
                       {/* QR Code */}
-                      {p.role === 'admin' && (
+                      {(p.role === 'admin' || p.role === 'editor') && (
                         <button
                           onClick={() => {
                             const projData = projects[p.id];
@@ -1437,8 +1437,8 @@ export default function ProjectDrawer() {
                       </>
                     )}
 
-                    {/* Active share links (admin only) */}
-                    {p.role === 'admin' && (
+                    {/* Active share links (admin/editor) */}
+                    {(p.role === 'admin' || p.role === 'editor') && (
                       <div className="mt-1">
                         {shareTokensProject === p.id ? (
                           <div className="space-y-1">
