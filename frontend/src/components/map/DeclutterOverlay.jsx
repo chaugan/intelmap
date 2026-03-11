@@ -24,12 +24,15 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
 
     const items = [];
 
-    // Markers (~50×40 bounding box)
+    // Markers — NATO symbols are roughly 60×50, with labels/designation they grow taller
     const allMarkers = [...(markers || []), ...(localMarkers || [])];
     for (const m of allMarkers) {
       try {
         const pt = map.project([m.lon, m.lat]);
-        items.push({ id: `marker:${m.id}`, cx: pt.x, cy: pt.y, w: 50, h: 40 });
+        const hasLabel = m.customLabel || m.designation;
+        const w = hasLabel ? Math.max(65, (m.customLabel || m.designation || '').length * 8 + 20) : 60;
+        const h = hasLabel ? 60 : 50;
+        items.push({ id: `marker:${m.id}`, cx: pt.x, cy: pt.y, w, h });
       } catch {}
     }
 
@@ -42,11 +45,11 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
         try {
           const pt = map.project(geom.coordinates);
           const text = d.properties?.text || '';
-          const w = Math.max(40, text.length * 9);
-          items.push({ id: `drawing:${d.id}`, cx: pt.x, cy: pt.y, w, h: 22 });
+          // fontSize 18, bold — approximate character width ~10px
+          const w = Math.max(50, text.length * 10 + 16);
+          items.push({ id: `drawing:${d.id}`, cx: pt.x, cy: pt.y, w, h: 26 });
         } catch {}
       } else if (d.properties?.label) {
-        // Line/arrow/polygon labels
         let cx, cy;
         try {
           if (geom.type === 'LineString') {
@@ -62,8 +65,8 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
           }
           if (cx != null) {
             const label = d.properties.label;
-            const w = Math.max(40, label.length * 9);
-            items.push({ id: `drawing:${d.id}`, cx, cy, w, h: 22 });
+            const w = Math.max(50, label.length * 10 + 16);
+            items.push({ id: `drawing:${d.id}`, cx, cy, w, h: 26 });
           }
         } catch {}
       }
