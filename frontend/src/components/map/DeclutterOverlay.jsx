@@ -157,7 +157,7 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
   }
 
   return (
-    <svg className="absolute inset-0 z-[5]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
+    <svg className="absolute inset-0 z-[3]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
       {lines.map((l) => (
         <g key={l.key}>
           <line
