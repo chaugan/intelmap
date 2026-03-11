@@ -123,6 +123,16 @@ html, body, #root {
   animation: pulse-color 5s ease-in-out infinite;
 }
 
+/* Drawer focus pulse — highlights a row for 5 seconds */
+@keyframes drawer-focus-pulse {
+  0%, 100% { background-color: transparent; }
+  15%, 85% { background-color: rgba(16, 185, 129, 0.2); }
+  50% { background-color: rgba(16, 185, 129, 0.35); }
+}
+.drawer-focus-pulse {
+  animation: drawer-focus-pulse 1s ease-in-out 5;
+}
+
 /* Weather report: 16:10 aspect on large screens only */
 @media (min-width: 1024px) {
   .weather-report-container {

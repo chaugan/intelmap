@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../../stores/useProjectStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
@@ -107,7 +107,7 @@ function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   );
 }
 
-function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true }) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true, focusedItemId }) {
   const copyBtnRefs = useRef({});
 
   if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
@@ -126,7 +126,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const sym = generateSymbolSvg(m.sidc, { size: 16 });
         const isCopying = copyingItemId === m.id;
         return (
-          <div key={m.id} className="relative">
+          <div key={m.id} className={`relative ${focusedItemId === m.id ? 'drawer-focus-pulse' : ''}`}>
             <div className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
               <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
               <span
@@ -185,7 +185,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const color = d.properties?.color || '#3b82f6';
         const isCopying = copyingItemId === d.id;
         return (
-          <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+          <div key={d.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === d.id ? 'drawer-focus-pulse' : ''}`}>
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>
               {d.drawingType === 'grid' ? (
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.5">
@@ -250,7 +250,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
           : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
         const isCopying = copyingItemId === v.id;
         return (
-          <div key={v.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+          <div key={v.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === v.id ? 'drawer-focus-pulse' : ''}`}>
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
               <svg className="w-3.5 h-3.5" fill="none" stroke={isHorizon ? '#a855f7' : '#ef4444'} viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -307,7 +307,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const label = `RF ${c.frequencyMHz || '?'}MHz ${c.txPowerWatts || '?'}W`;
         const isCopying = copyingItemId === c.id;
         return (
-          <div key={c.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
+          <div key={c.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === c.id ? 'drawer-focus-pulse' : ''}`}>
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
               <svg className="w-3.5 h-3.5" fill="none" stroke="#a855f7" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v4m0 12v4m0-12a4 4 0 100-8 4 4 0 000 8zm-6 2l-2 2m16-4l-2 2M6 16l-2 2m16-4l-2 2" />
@@ -416,6 +416,9 @@ export default function ProjectDrawer() {
   const [copyingItemId, setCopyingItemId] = useState(null); // which item's copy dropdown is open
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [focusedItemId, setFocusedItemId] = useState(null);
+  const focusTimerRef = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -697,6 +700,106 @@ export default function ProjectDrawer() {
   const isVisible = (id) => visibleProjectIds.includes(id);
   const isActive = (id) => activeProjectId === id;
 
+  // --- Search logic ---
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    const results = [];
+    for (const p of myProjects) {
+      const projData = projects[p.id];
+      // Match project name
+      if (p.name.toLowerCase().includes(q)) {
+        results.push({ type: 'project', id: p.id, label: p.name, project: p });
+      }
+      if (!projData) continue;
+      // Match layers
+      for (const layer of projData.layers) {
+        if (layer.name.toLowerCase().includes(q)) {
+          results.push({ type: 'layer', id: layer.id, label: layer.name, project: p, layer });
+        }
+      }
+      // Match markers
+      for (const m of projData.markers) {
+        const name = m.designation || m.customLabel || getSymbolName(m.sidc, lang) || '';
+        if (name.toLowerCase().includes(q)) {
+          const layer = projData.layers.find(l => l.id === m.layerId);
+          results.push({ type: 'marker', id: m.id, label: name, project: p, layer, coords: [m.lon, m.lat], item: m });
+        }
+      }
+      // Match drawings
+      for (const d of projData.drawings) {
+        const label = getDrawingLabel(d, lang);
+        if (label.toLowerCase().includes(q)) {
+          const layer = projData.layers.find(l => l.id === d.layerId);
+          const center = getDrawingCenter(d);
+          results.push({ type: 'drawing', id: d.id, label, project: p, layer, coords: center, item: d });
+        }
+      }
+      // Match viewsheds
+      for (const v of (projData.viewsheds || [])) {
+        const label = v.type === 'horizon'
+          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${v.radiusKm || ''}km`
+          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
+        if (label.toLowerCase().includes(q)) {
+          const layer = projData.layers.find(l => l.id === v.layerId);
+          results.push({ type: 'viewshed', id: v.id, label, project: p, layer, coords: [v.longitude, v.latitude], item: v });
+        }
+      }
+      // Match RF coverages
+      for (const c of (projData.rfCoverages || [])) {
+        const label = `RF ${c.frequencyMHz || '?'}MHz ${c.txPowerWatts || '?'}W`;
+        if (label.toLowerCase().includes(q)) {
+          const layer = projData.layers.find(l => l.id === c.layerId);
+          results.push({ type: 'rfcoverage', id: c.id, label, project: p, layer, coords: [c.longitude, c.latitude], item: c });
+        }
+      }
+    }
+    return results;
+  }, [searchQuery, myProjects, projects, lang]);
+
+  const triggerFocus = useCallback((itemId) => {
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    setFocusedItemId(itemId);
+    focusTimerRef.current = setTimeout(() => setFocusedItemId(null), 5000);
+  }, []);
+
+  const handleSearchFlyTo = useCallback((coords) => {
+    if (!mapRef || !coords) return;
+    mapRef.flyTo({ center: coords, zoom: Math.max(mapRef.getZoom(), 14), duration: 1200 });
+  }, [mapRef]);
+
+  const handleSearchNavigate = useCallback((result) => {
+    setSearchQuery('');
+    const p = result.project;
+    if (result.type === 'project') {
+      if (!visibleProjectIds.includes(p.id)) showProject(p.id, myProjects.map(pr => pr.id));
+      setExpandedProject(p.id);
+      triggerFocus(p.id);
+      return;
+    }
+    // Ensure project is visible and expanded
+    if (!visibleProjectIds.includes(p.id)) showProject(p.id, myProjects.map(pr => pr.id));
+    setExpandedProject(p.id);
+    if (result.type === 'layer') {
+      setActiveProject(p.id);
+      setActiveLayer(result.layer.id);
+      triggerFocus(result.layer.id);
+      return;
+    }
+    // Data item: expand project, expand layer, focus item
+    setActiveProject(p.id);
+    if (result.layer) {
+      setActiveLayer(result.layer.id);
+      setExpandedLayerId(result.layer.id);
+    } else {
+      setExpandedUnassigned(p.id);
+    }
+    if (result.coords) {
+      mapRef?.flyTo({ center: result.coords, zoom: Math.max(mapRef.getZoom(), 14), duration: 1200 });
+    }
+    triggerFocus(result.id);
+  }, [visibleProjectIds, showProject, myProjects, setActiveProject, setActiveLayer, mapRef, triggerFocus]);
+
   // Drag-reorder for drawer order (all projects) and z-ordering (visible projects)
   const handleDragStart = (id) => setDraggedId(id);
   const handleDragOver = (e, overId) => {
@@ -752,7 +855,86 @@ export default function ProjectDrawer() {
         {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
       </div>
 
-      {/* Project list */}
+      {/* Search bar */}
+      <div className="px-3 py-1.5 border-b border-slate-700 shrink-0">
+        <div className="relative">
+          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')}
+            placeholder={t('drawer.search', lang)}
+            className="w-full pl-7 pr-6 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-emerald-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-sm"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Search results */}
+      {searchResults ? (
+        <div className="flex-1 overflow-y-auto">
+          {searchResults.length === 0 ? (
+            <p className="text-slate-500 text-sm p-3 italic">{t('drawer.noResults', lang)}</p>
+          ) : (
+            <div className="py-1">
+              {searchResults.map((r) => {
+                const typeIcons = {
+                  project: '\u{1F4C1}',
+                  layer: '\u{1F4CB}',
+                  marker: '\u{1F4CD}',
+                  drawing: '\u{270F}',
+                  viewshed: '\u{1F441}',
+                  rfcoverage: '\u{1F4E1}',
+                };
+                const hasCoords = r.coords && r.type !== 'project' && r.type !== 'layer';
+                return (
+                  <div key={`${r.type}-${r.id}`} className="px-3 py-1 hover:bg-slate-700/40 group/sr">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs shrink-0" style={{ fontSize: '11px' }}>{typeIcons[r.type] || '?'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-200 truncate">{r.label}</div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          {r.project.name}{r.layer ? ` \u203A ${r.layer.name}` : ''}
+                        </div>
+                      </div>
+                      {hasCoords && (
+                        <button
+                          onClick={() => handleSearchFlyTo(r.coords)}
+                          className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors opacity-0 group-hover/sr:opacity-100"
+                          title={lang === 'no' ? 'Fly til' : 'Fly to'}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleSearchNavigate(r)}
+                        className="shrink-0 text-slate-600 hover:text-emerald-400 transition-colors opacity-0 group-hover/sr:opacity-100"
+                        title={lang === 'no' ? 'Naviger til' : 'Navigate to'}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+      /* Project list */
       <div className="flex-1 overflow-y-auto">
         {loading && myProjects.length === 0 && (
           <p className="text-slate-500 text-sm p-3">{t('general.loading', lang)}</p>
@@ -770,7 +952,7 @@ export default function ProjectDrawer() {
           return (
             <div
               key={p.id}
-              className={`border-b border-slate-700/50 ${active ? 'bg-emerald-900/20 border-l-2 border-l-emerald-400' : ''}`}
+              className={`border-b border-slate-700/50 ${active ? 'bg-emerald-900/20 border-l-2 border-l-emerald-400' : ''} ${focusedItemId === p.id ? 'drawer-focus-pulse' : ''}`}
               draggable
               onDragStart={() => handleDragStart(p.id)}
               onDragOver={(e) => handleDragOver(e, p.id)}
@@ -897,7 +1079,7 @@ export default function ProjectDrawer() {
                     const hasItems = mCount + dCount + vCount + rCount > 0;
                     return (
                       <div key={layer.id}>
-                        <div className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
+                        <div className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''} ${focusedItemId === layer.id ? 'drawer-focus-pulse' : ''}`}>
                           <input
                             type="checkbox"
                             checked={vis}
@@ -1020,7 +1202,7 @@ export default function ProjectDrawer() {
                         {/* Expanded item list */}
                         {isLayerExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} />
+                            <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} />
                           </div>
                         )}
                       </div>
@@ -1047,7 +1229,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} />
                           </div>
                         )}
                       </div>
@@ -1334,6 +1516,7 @@ export default function ProjectDrawer() {
           );
         })}
       </div>
+      )}
 
       {/* Active context status bar */}
       {activeProjectId && (() => {
