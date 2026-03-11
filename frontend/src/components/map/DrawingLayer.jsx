@@ -85,17 +85,8 @@ function hitTestDrawing(drawing, clickScreen, map, threshold = 12) {
   return false;
 }
 
-// Generate a 64-point circle polygon from center + radius in km
-function generateCirclePolygon(center, radiusKm) {
-  const coords = [];
-  for (let i = 0; i <= 64; i++) {
-    const angle = (i / 64) * 2 * Math.PI;
-    const dLat = (radiusKm / 111.32) * Math.cos(angle);
-    const dLon = (radiusKm / (111.32 * Math.cos(center[1] * Math.PI / 180))) * Math.sin(angle);
-    coords.push([center[0] + dLon, center[1] + dLat]);
-  }
-  return coords;
-}
+import { generateCirclePolygon } from '../../lib/drawing-utils.js';
+import CsvDrawingImportDialog from './CsvDrawingImportDialog.jsx';
 
 export default function DrawingLayer() {
   const lang = useMapStore((s) => s.lang);
@@ -122,6 +113,7 @@ export default function DrawingLayer() {
   const [drawColor, setDrawColor] = useState('#3b82f6');
   const [drawPoints, setDrawPoints] = useState([]);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [cursorPoint, setCursorPoint] = useState(null);
   const [, forceUpdate] = useState(0);
   const activeModeRef = useRef(activeMode);
@@ -1011,6 +1003,20 @@ export default function DrawingLayer() {
           </div>
         )}
 
+        {/* Import CSV button */}
+        {!selectMode && (
+          <button
+            onClick={() => setCsvImportOpen(true)}
+            className={`w-10 h-10 flex items-center justify-center rounded bg-slate-800 text-slate-300 hover:bg-slate-700 shadow-lg ${noProjectWarning ? 'opacity-40 cursor-not-allowed' : ''}`}
+            title={t('draw.importCsv', lang)}
+            disabled={noProjectWarning}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          </button>
+        )}
+
         {/* Point count indicator */}
         {activeMode && drawPoints.length > 0 && (
           <div className="text-[10px] text-center text-emerald-400 mt-1">
@@ -1353,6 +1359,41 @@ export default function DrawingLayer() {
             return null;
           })}
         </svg>
+      )}
+
+      {/* CSV Import Dialog */}
+      {csvImportOpen && (
+        <CsvDrawingImportDialog
+          open={csvImportOpen}
+          onClose={() => setCsvImportOpen(false)}
+          onImport={(items) => {
+            const { activeProjectId: projId, activeLayerId: layId } = useTacticalStore.getState();
+            const currentUser = useAuthStore.getState().user;
+            for (const d of items) {
+              if (projId) {
+                socket.emit('client:drawing:add', {
+                  projectId: projId,
+                  drawingType: d.drawingType,
+                  geometry: d.geometry,
+                  layerId: layId || null,
+                  properties: d.properties,
+                  source: 'csv-import',
+                  createdBy: socket.id,
+                });
+              } else if (!currentUser) {
+                setLocalDrawings((prev) => [...prev, {
+                  id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  ...d,
+                  _local: true,
+                }]);
+              }
+            }
+            setCsvImportOpen(false);
+          }}
+          defaultColor={drawColor}
+          lang={lang}
+          mapCenter={mapRefValue?.getCenter() || { lng: 15, lat: 65 }}
+        />
       )}
     </>
   );
