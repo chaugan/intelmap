@@ -613,9 +613,9 @@ export default function TacticalMap() {
         }
       >
         {pitch > 5 ? (
-          <span className="font-extrabold text-sm italic bg-gradient-to-br from-cyan-300 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]">3D</span>
+          <span className="font-extrabold text-xl italic bg-gradient-to-br from-cyan-300 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]">3D</span>
         ) : (
-          <span className="font-bold text-sm text-white">2D</span>
+          <span className="font-bold text-xl text-white">2D</span>
         )}
       </button>
 
