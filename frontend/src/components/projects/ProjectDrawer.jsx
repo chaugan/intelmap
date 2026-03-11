@@ -1053,7 +1053,7 @@ export default function ProjectDrawer() {
                       {p.orgShared && (
                         <span className="text-cyan-500">{(p.ownerId !== user?.id || p.sharedGroups?.length > 0) ? ' \u00b7 ' : ''}{t('projects.orgShared', lang)} ({t(`projects.org${p.orgShared === 'viewer' ? 'Viewer' : 'Editor'}`, lang)})</span>
                       )}
-                      {p.role !== 'admin' && <span className="text-slate-600"> \u00b7 {p.role}</span>}
+                      {p.role !== 'admin' && <span className="text-slate-600"> ({p.role})</span>}
                     </div>
                   )}
                 </div>
