@@ -2,29 +2,6 @@ import { useEffect, useRef, useCallback } from 'react';
 import { declutter } from '../../lib/declutter.js';
 
 /**
- * Compute where a line from origin (ox,oy) to center (cx,cy) intersects
- * the bounding box edge (halfW × halfH around cx,cy).
- */
-function lineBoxIntersection(ox, oy, cx, cy, halfW, halfH, gap = 3) {
-  const dx = ox - cx;
-  const dy = oy - cy;
-  if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return { x: cx, y: cy };
-
-  const sx = halfW / Math.abs(dx || 0.001);
-  const sy = halfH / Math.abs(dy || 0.001);
-  const s = Math.min(sx, sy);
-
-  const ex = cx + dx * s;
-  const ey = cy + dy * s;
-
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const gx = (dx / dist) * gap;
-  const gy = (dy / dist) * gap;
-
-  return { x: ex + gx, y: ey + gy };
-}
-
-/**
  * Build item descriptors for the declutter algorithm.
  * Returns { items, meta, sources } where sources maps id → geo info for re-projection.
  */
@@ -126,7 +103,6 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
 
     const offsets = offsetsRef.current;
     const sources = sourcesRef.current;
-    const meta = metaRef.current;
 
     // Build line data
     const lineData = [];
@@ -139,9 +115,7 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
         const oy = pt.y + (source.yOffset || 0);
         const cx = ox + off.dx;
         const cy = oy + off.dy;
-        const m = meta.get(id);
-        const anchor = lineBoxIntersection(ox, oy, cx, cy, (m?.w || 50) / 2, (m?.h || 40) / 2, source.gap || 3);
-        lineData.push({ ox, oy, tx: anchor.x, ty: anchor.y });
+        lineData.push({ ox, oy, tx: cx, ty: cy });
       } catch {}
     }
 
