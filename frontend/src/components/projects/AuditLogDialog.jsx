@@ -35,13 +35,86 @@ function relativeTime(dateStr, lang) {
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return `${mins} ${t('audit.minutesAgo', lang)}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ${t('audit.minutesAgo', lang).replace('min', '').trim() || 'ago'}`;
+  if (hours < 24) return `${hours}t`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d`;
   return dateStr.slice(0, 10);
 }
 
-export default function AuditLogDialog({ projectId, projectName, lang, onClose }) {
+function parseDetails(entry) {
+  if (!entry.details) return null;
+  try {
+    return typeof entry.details === 'string' ? JSON.parse(entry.details) : entry.details;
+  } catch { return null; }
+}
+
+function ChangeDetails({ details, lang }) {
+  if (!details?.changes) return null;
+  const changes = details.changes;
+  const items = [];
+  if (changes.position) {
+    items.push({ key: 'position', label: t('audit.chPosition', lang), from: changes.position.from, to: changes.position.to });
+  }
+  if (changes.designation) {
+    items.push({ key: 'designation', label: t('audit.chDesignation', lang), from: changes.designation.from, to: changes.designation.to });
+  }
+  if (changes.customLabel) {
+    items.push({ key: 'customLabel', label: t('audit.chLabel', lang), from: changes.customLabel.from, to: changes.customLabel.to });
+  }
+  if (changes.sidc) {
+    items.push({ key: 'sidc', label: 'SIDC', from: changes.sidc.from, to: changes.sidc.to });
+  }
+  if (changes.higherFormation) {
+    items.push({ key: 'higherFormation', label: t('audit.chHigherFormation', lang), from: changes.higherFormation.from, to: changes.higherFormation.to });
+  }
+  if (changes.additionalInfo) {
+    items.push({ key: 'additionalInfo', label: t('audit.chAdditionalInfo', lang), from: changes.additionalInfo.from, to: changes.additionalInfo.to });
+  }
+  if (changes.label) {
+    items.push({ key: 'label', label: t('audit.chLabel', lang), from: changes.label.from, to: changes.label.to });
+  }
+  if (changes.color) {
+    items.push({ key: 'color', label: t('audit.chColor', lang), from: changes.color.from, to: changes.color.to });
+  }
+  if (changes.name) {
+    items.push({ key: 'name', label: t('audit.chName', lang), from: changes.name.from, to: changes.name.to });
+  }
+  if (changes.visible !== undefined) {
+    const fromLabel = changes.visible.from ? t('audit.chVisible', lang) : t('audit.chHidden', lang);
+    const toLabel = changes.visible.to ? t('audit.chVisible', lang) : t('audit.chHidden', lang);
+    items.push({ key: 'visible', label: t('audit.chVisibility', lang), from: fromLabel, to: toLabel });
+  }
+  if (changes.geometry) {
+    items.push({ key: 'geometry', label: t('audit.chGeometry', lang), from: null, to: null, simple: t('audit.chGeometryChanged', lang) });
+  }
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-1 space-y-0.5">
+      {items.map((item) => (
+        <div key={item.key} className="text-[10px] text-slate-500 flex items-baseline gap-1 flex-wrap">
+          <span className="text-slate-600 font-medium">{item.label}:</span>
+          {item.simple ? (
+            <span className="italic">{item.simple}</span>
+          ) : (
+            <>
+              {item.from !== undefined && item.from !== '' && (
+                <span className="line-through text-red-400/60">{String(item.from)}</span>
+              )}
+              {item.to !== undefined && item.to !== '' && (
+                <>
+                  <span className="text-slate-600">&rarr;</span>
+                  <span className="text-emerald-400/80">{String(item.to)}</span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function AuditLogDialog({ projectId, projectName, lang, onClose, onNavigate }) {
   const [entries, setEntries] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -74,7 +147,6 @@ export default function AuditLogDialog({ projectId, projectName, lang, onClose }
       setEntries(prev => [entry, ...prev]);
       setTotal(prev => prev + 1);
       setNewIds(prev => new Set(prev).add(entry.id));
-      // Remove highlight after 3s
       setTimeout(() => {
         setNewIds(prev => {
           const next = new Set(prev);
@@ -89,6 +161,14 @@ export default function AuditLogDialog({ projectId, projectName, lang, onClose }
 
   const handleLoadMore = () => {
     fetchEntries(offset, true);
+  };
+
+  const handleLocate = (entry) => {
+    if (!onNavigate) return;
+    const details = parseDetails(entry);
+    if (details?.lat != null && details?.lon != null) {
+      onNavigate(entry.entity_id, details.lat, details.lon, entry.entity_type);
+    }
   };
 
   return createPortal(
@@ -115,53 +195,72 @@ export default function AuditLogDialog({ projectId, projectName, lang, onClose }
           {entries.length === 0 && !loading && (
             <div className="text-center text-slate-500 text-sm py-12">{t('audit.empty', lang)}</div>
           )}
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className={`flex items-start gap-3 px-4 py-2.5 border-b border-slate-700/50 transition-colors duration-1000 ${
-                newIds.has(entry.id) ? 'bg-emerald-900/20' : ''
-              }`}
-            >
-              {/* Action icon */}
-              <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ACTION_BG[entry.action] || 'bg-slate-700'}`}>
-                {entry.action === 'add' && (
-                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path d="M12 5v14m-7-7h14" />
-                  </svg>
-                )}
-                {entry.action === 'update' && (
-                  <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                )}
-                {(entry.action === 'delete' || entry.action === 'delete_all') && (
-                  <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-xs font-semibold text-slate-200">{entry.username}</span>
-                  <span className={`text-xs ${ACTION_COLORS[entry.action] || 'text-slate-400'}`}>
-                    {actionLabel(entry.action, lang)}
-                  </span>
+          {entries.map((entry) => {
+            const details = parseDetails(entry);
+            const hasLocation = details?.lat != null && details?.lon != null;
+            return (
+              <div
+                key={entry.id}
+                className={`flex items-start gap-3 px-4 py-2.5 border-b border-slate-700/50 transition-colors duration-1000 ${
+                  newIds.has(entry.id) ? 'bg-emerald-900/20' : ''
+                }`}
+              >
+                {/* Action icon */}
+                <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ACTION_BG[entry.action] || 'bg-slate-700'}`}>
+                  {entry.action === 'add' && (
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path d="M12 5v14m-7-7h14" />
+                    </svg>
+                  )}
+                  {entry.action === 'update' && (
+                    <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  )}
+                  {(entry.action === 'delete' || entry.action === 'delete_all') && (
+                    <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  )}
                 </div>
-                <div className="text-xs text-slate-400 mt-0.5">{entry.summary}</div>
-              </div>
 
-              {/* Timestamp */}
-              <div className="text-xs text-slate-600 shrink-0 mt-0.5">
-                {newIds.has(entry.id) ? (
-                  <span className="text-emerald-400 font-medium">{t('audit.new', lang)}</span>
-                ) : (
-                  relativeTime(entry.created_at, lang)
-                )}
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-xs font-semibold text-slate-200">{entry.username}</span>
+                    <span className={`text-xs ${ACTION_COLORS[entry.action] || 'text-slate-400'}`}>
+                      {actionLabel(entry.action, lang)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">{entry.summary}</div>
+                  <ChangeDetails details={details} lang={lang} />
+                </div>
+
+                {/* Locate button + Timestamp */}
+                <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                  {hasLocation && (
+                    <button
+                      onClick={() => handleLocate(entry)}
+                      className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-cyan-400 hover:bg-slate-700/50 transition-colors"
+                      title={t('audit.locate', lang)}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v4m0 12v4m10-10h-4M6 12H2" />
+                      </svg>
+                    </button>
+                  )}
+                  <div className="text-xs text-slate-600">
+                    {newIds.has(entry.id) ? (
+                      <span className="text-emerald-400 font-medium">{t('audit.new', lang)}</span>
+                    ) : (
+                      relativeTime(entry.created_at, lang)
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Load more */}
           {entries.length < total && (

@@ -1617,6 +1617,34 @@ export default function ProjectDrawer() {
           projectName={auditProject.name}
           lang={lang}
           onClose={() => setAuditProject(null)}
+          onNavigate={(entityId, lat, lon, entityType) => {
+            // Fly to the object location
+            if (mapRef && lat != null && lon != null) {
+              mapRef.flyTo({ center: [lon, lat], zoom: Math.max(mapRef.getZoom(), 14), duration: 1200 });
+            }
+            // Expand the project and highlight the item in the drawer list
+            if (auditProject) {
+              const pid = auditProject.id;
+              if (!visibleProjectIds.includes(pid)) showProject(pid, myProjects.map(pr => pr.id));
+              setExpandedProject(pid);
+              setActiveProject(pid);
+              // Find which layer this item belongs to and expand it
+              const projData = projects[pid];
+              if (projData && entityId) {
+                const allItems = [...(projData.markers || []), ...(projData.drawings || []), ...(projData.pins || []),
+                                  ...(projData.viewsheds || []), ...(projData.rfCoverages || [])];
+                const item = allItems.find(i => i.id === entityId);
+                if (item?.layerId) {
+                  setActiveLayer(item.layerId);
+                  setExpandedLayerId(item.layerId);
+                } else {
+                  setExpandedUnassigned(pid);
+                }
+              }
+            }
+            // Highlight the item in the project list
+            if (entityId) triggerFocus(entityId);
+          }}
         />
       )}
 
