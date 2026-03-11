@@ -13,7 +13,7 @@ export default function SearchPanel() {
   const clearUnpinnedMgrsMarkers = useMapStore((s) => s.clearUnpinnedMgrsMarkers);
   const [query, setQuery] = useState('');
   const [mgrsResults, setMgrsResults] = useState([]);
-  const { results, loading, search, setResults } = useSearch();
+  const { results, loading, error, search, setResults } = useSearch();
   const inputRef = useRef(null);
 
   // Delayed focus to avoid keyup inserting the trigger character
@@ -130,7 +130,14 @@ export default function SearchPanel() {
 
         {/* Address/place results */}
         {loading && <p className="text-sm text-slate-400">{t('general.loading', lang)}</p>}
-        {!loading && results.length === 0 && mgrsResults.length === 0 && query.length >= 2 && (
+        {error && (
+          <p className="text-sm text-red-400">
+            {error === 'network'
+              ? (lang === 'no' ? 'Nettverksfeil — prøv igjen' : 'Network error — try again')
+              : (lang === 'no' ? `Søkefeil (${error})` : `Search error (${error})`)}
+          </p>
+        )}
+        {!loading && !error && results.length === 0 && mgrsResults.length === 0 && query.length >= 2 && (
           <p className="text-sm text-slate-500">{t('search.noResults', lang)}</p>
         )}
         {results.map((r, i) => (

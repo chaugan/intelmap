@@ -193,7 +193,7 @@ function isOnlySami(entry) {
   return names.every(n => isSami(n.språk));
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) return res.status(400).json({ error: 'Query parameter q required' });
@@ -340,10 +340,22 @@ router.get('/', (req, res) => {
     });
 
     // Places first, then addresses
-    res.json([...placeResults, ...formattedAddresses]);
+    const combined = [...placeResults, ...formattedAddresses];
+
+    // If local search found nothing, fall back to Kartverket
+    if (combined.length === 0 && q.length >= 2) {
+      return await fallbackToKartverket(q, res);
+    }
+
+    res.json(combined);
   } catch (err) {
-    console.error('Search error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('Search error:', err.message, err.stack);
+    // On any error, try Kartverket as last resort
+    try {
+      return await fallbackToKartverket(q, res);
+    } catch {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
