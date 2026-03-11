@@ -178,6 +178,7 @@ router.post('/login', (req, res) => {
     return res.json({ mfaRequired: true, mfaToken, methods });
   }
 
+  db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id);
   const session = createSession(user.id);
   res.cookie('session', session.id, COOKIE_OPTS);
   res.json(buildUserResponse(db, user, org));
@@ -253,6 +254,7 @@ router.post('/change-password', requireAuth, (req, res) => {
 
   // Delete other sessions so only current one remains
   deleteUserSessions(user.id);
+  db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id);
   const session = createSession(user.id);
   res.cookie('session', session.id, COOKIE_OPTS);
 
@@ -318,6 +320,7 @@ router.post('/mfa/verify', (req, res) => {
     org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(user.org_id);
   }
 
+  db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id);
   const session = createSession(user.id);
   res.cookie('session', session.id, COOKIE_OPTS);
   res.json(buildUserResponse(db, user, org));
@@ -428,6 +431,7 @@ router.post('/mfa/webauthn/auth-verify', async (req, res) => {
       org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(user.org_id);
     }
 
+    db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id);
     const session = createSession(user.id);
     res.cookie('session', session.id, COOKIE_OPTS);
     res.json(buildUserResponse(db, user, org));

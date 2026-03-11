@@ -6,7 +6,7 @@ import { hashPassword } from '../auth/passwords.js';
 import { sanitizeUsername, validatePassword } from '../auth/sanitize.js';
 import { deleteUserSessions } from '../auth/sessions.js';
 import { requireAdmin } from '../auth/middleware.js';
-import { disconnectUser } from '../socket/index.js';
+import { disconnectUser, getConnectedUserIds } from '../socket/index.js';
 import { eventLogger } from '../lib/event-logger.js';
 import { monitorService } from '../monitoring/monitor-service.js';
 import { vlmClient } from '../monitoring/vlm-client.js';
@@ -57,8 +57,9 @@ router.get('/users', (req, res) => {
   const db = getDb();
   const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, created_at, updated_at FROM users WHERE org_id = ? ORDER BY username COLLATE NOCASE'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, created_at, updated_at, last_login_at FROM users WHERE org_id = ? ORDER BY username COLLATE NOCASE'
   ).all(orgId);
+  const onlineIds = getConnectedUserIds();
 
   // Calculate storage for each user
   const result = users.map(u => {
@@ -124,6 +125,8 @@ router.get('/users', (req, res) => {
       timelapseBytes,
       detectionBytes: detectionStats.detectionBytes,
       detectionCount: detectionStats.detectionCount,
+      lastLoginAt: u.last_login_at || null,
+      online: onlineIds.has(u.id),
     };
   });
 

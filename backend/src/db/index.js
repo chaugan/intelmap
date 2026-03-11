@@ -98,6 +98,12 @@ export function initDb() {
     db.prepare("ALTER TABLE project_layers ADD COLUMN category TEXT NOT NULL DEFAULT 'active'").run();
   }
 
+  // Add last_login_at column to users if not exists
+  const userCols = db.prepare("PRAGMA table_info(users)").all();
+  if (!userCols.find(c => c.name === 'last_login_at')) {
+    db.prepare("ALTER TABLE users ADD COLUMN last_login_at TEXT").run();
+  }
+
   // Run organizations migration (one-time, idempotent)
   migrateOrgs();
 

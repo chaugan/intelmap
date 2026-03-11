@@ -43,6 +43,13 @@ export function setupSocket(io) {
  * Force-disconnect all sockets for a user.
  * Used by admin actions (delete user, lock, reset password).
  */
+/**
+ * Get the set of currently connected user IDs.
+ */
+export function getConnectedUserIds() {
+  return new Set(connectedUsers.keys());
+}
+
 export function disconnectUser(userId) {
   const sockets = connectedUsers.get(userId);
   if (!sockets) return;

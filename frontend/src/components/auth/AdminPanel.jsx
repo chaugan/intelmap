@@ -224,8 +224,28 @@ function UsersTab({ lang, currentUser }) {
     } catch {}
   }
 
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => !u.locked && !u.mustChangePassword && u.lastLoginAt).length;
+  const onlineUsers = users.filter(u => u.online).length;
+
   return (
     <div className="space-y-4">
+      {/* Stats header */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-slate-700/50 rounded-lg p-3 text-center border border-slate-600">
+          <div className="text-2xl font-bold text-slate-200">{totalUsers}</div>
+          <div className="text-xs text-slate-400">{lang === 'no' ? 'Brukere opprettet' : 'Users created'}</div>
+        </div>
+        <div className="bg-slate-700/50 rounded-lg p-3 text-center border border-slate-600">
+          <div className="text-2xl font-bold text-emerald-400">{activeUsers}</div>
+          <div className="text-xs text-slate-400">{lang === 'no' ? 'Har logget inn' : 'Have logged in'}</div>
+        </div>
+        <div className="bg-slate-700/50 rounded-lg p-3 text-center border border-slate-600">
+          <div className="text-2xl font-bold text-cyan-400">{onlineUsers}</div>
+          <div className="text-xs text-slate-400">{lang === 'no' ? 'Pålogget nå' : 'Online now'}</div>
+        </div>
+      </div>
+
       {currentUser?.orgFeatureMfa && (
         <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded border border-slate-600">
           <svg className="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -338,6 +358,7 @@ function UsersTab({ lang, currentUser }) {
               <th className="pb-2">{t('auth.username', lang)}</th>
               <th className="pb-2">{t('admin.role', lang)}</th>
               <th className="pb-2">{t('admin.status', lang)}</th>
+              <th className="pb-2">{lang === 'no' ? 'Sist innlogget' : 'Last login'}</th>
               {currentUser?.orgFeatureAiChat && <th className="pb-2">AI Chat</th>}
               <th className="pb-2">{lang === 'no' ? 'Tidslapse' : 'Timelapse'}</th>
               {currentUser?.orgFeatureWasos && <th className="pb-2">WaSOS</th>}
@@ -361,7 +382,10 @@ function UsersTab({ lang, currentUser }) {
                 <td className="py-2">
                   {u.locked ? <span className="text-red-400">{t('admin.locked', lang)}</span>
                     : u.mustChangePassword ? <span className="text-amber-400">{t('admin.mustChange', lang)}</span>
-                    : <span className="text-emerald-400">{t('admin.active', lang)}</span>}
+                    : <span className="text-emerald-400">{t('admin.active', lang)}{u.online && <span className="ml-1.5 inline-flex items-center"><span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title={lang === 'no' ? 'Pålogget nå' : 'Online now'} /></span>}</span>}
+                </td>
+                <td className="py-2 text-xs text-slate-400">
+                  {u.lastLoginAt ? new Date(u.lastLoginAt + 'Z').toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : <span className="text-slate-600">{lang === 'no' ? 'Aldri' : 'Never'}</span>}
                 </td>
                 {currentUser?.orgFeatureAiChat && (
                   <td className="py-2">

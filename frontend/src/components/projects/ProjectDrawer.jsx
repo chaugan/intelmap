@@ -1247,8 +1247,8 @@ export default function ProjectDrawer() {
                     return (
                       <>
                         {activeLayers.map(l => renderLayerRow(l, false))}
-                        {niuLayers.length > 0 && (
-                          <div className="border-t border-slate-600 mt-2 pt-1.5">
+                        {canEditProject && (
+                          <div className={`border-t border-slate-600/50 mt-2 pt-1.5 ${niuLayers.length === 0 ? 'opacity-60' : ''}`}>
                             <button
                               onClick={() => setNotInUseCollapsed(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
                               className="flex items-center gap-1.5 w-full text-left text-[11px] font-medium text-slate-500 hover:text-slate-400 mb-1"
@@ -1257,9 +1257,9 @@ export default function ProjectDrawer() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                               </svg>
                               {t('layers.notInUse', lang)}
-                              <span className="text-slate-600">({niuLayers.length})</span>
+                              {niuLayers.length > 0 && <span className="text-slate-600">({niuLayers.length})</span>}
                             </button>
-                            {!notInUseCollapsed[p.id] && (
+                            {!notInUseCollapsed[p.id] && niuLayers.length > 0 && (
                               <div className="space-y-1">
                                 {niuLayers.map(l => renderLayerRow(l, true))}
                               </div>
