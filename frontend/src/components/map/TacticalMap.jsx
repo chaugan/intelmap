@@ -574,137 +574,134 @@ export default function TacticalMap() {
         onOffsetsChange={setDeclutterOffsets}
       />
 
-      {/* Compass rose */}
-      <button
-        onClick={() => {
-          const map = mapRef.current?.getMap();
-          if (map) map.easeTo({ bearing: 0, duration: 300 });
-        }}
-        className="absolute top-4 left-4 z-10 w-12 h-12 rounded-full bg-slate-800/80 hover:bg-slate-700/90 flex items-center justify-center shadow-lg transition-colors"
-        title={lang === 'no' ? 'Tilbakestill til nord' : 'Reset to North'}
-      >
-        <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: `rotate(${-bearing}deg)` }}>
-          <polygon points="16,2 12,16 16,13 20,16" fill="#ef4444" />
-          <polygon points="16,30 12,16 16,19 20,16" fill="#94a3b8" />
-          <text x="16" y="10" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">N</text>
-        </svg>
-      </button>
+      {/* Map control buttons row — compass, 2D/3D, flyaround, declutter */}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+        {/* Compass rose */}
+        <button
+          onClick={() => {
+            const map = mapRef.current?.getMap();
+            if (map) map.easeTo({ bearing: 0, duration: 300 });
+          }}
+          className="w-12 h-12 rounded-full bg-slate-800/80 hover:bg-slate-700/90 flex items-center justify-center shadow-lg transition-colors"
+          title={lang === 'no' ? 'Tilbakestill til nord' : 'Reset to North'}
+        >
+          <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: `rotate(${-bearing}deg)` }}>
+            <polygon points="16,2 12,16 16,13 20,16" fill="#ef4444" />
+            <polygon points="16,30 12,16 16,19 20,16" fill="#94a3b8" />
+            <text x="16" y="10" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">N</text>
+          </svg>
+        </button>
 
-      {/* 2D/3D toggle button — always visible */}
-      <button
-        onClick={() => {
-          const map = mapRef.current?.getMap();
-          if (!map) return;
-          const is3D = pitch > 5;
-          if (is3D) {
-            // Switch to 2D
-            map.easeTo({ pitch: 0, duration: 500 });
-            if (useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
-          } else {
-            // Switch to 3D
-            map.easeTo({ pitch: 45, duration: 500 });
-            if (!useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
+        {/* 2D/3D toggle button — always visible */}
+        <button
+          onClick={() => {
+            const map = mapRef.current?.getMap();
+            if (!map) return;
+            const is3D = pitch > 5;
+            if (is3D) {
+              map.easeTo({ pitch: 0, duration: 500 });
+              if (useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
+            } else {
+              map.easeTo({ pitch: 45, duration: 500 });
+              if (!useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
+            }
+          }}
+          className="w-12 h-12 rounded-full bg-slate-800/80 hover:bg-slate-700/90 flex items-center justify-center shadow-lg transition-colors"
+          title={lang === 'no'
+            ? (pitch > 5 ? 'Bytt til 2D-visning' : 'Bytt til 3D-visning')
+            : (pitch > 5 ? 'Switch to 2D view' : 'Switch to 3D view')
           }
-        }}
-        className="absolute top-4 left-[4.5rem] z-10 w-12 h-12 rounded-full bg-slate-800/80 hover:bg-slate-700/90 flex items-center justify-center shadow-lg transition-colors"
-        title={lang === 'no'
-          ? (pitch > 5 ? 'Bytt til 2D-visning' : 'Bytt til 3D-visning')
-          : (pitch > 5 ? 'Switch to 2D view' : 'Switch to 3D view')
-        }
-      >
-        {pitch > 5 ? (
-          <span className="font-extrabold text-xl italic bg-gradient-to-br from-cyan-300 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]">3D</span>
-        ) : (
-          <span className="font-bold text-xl text-white">2D</span>
-        )}
-      </button>
-
-      {/* Fly-around rotation button and speed controls - visible when pitched */}
-      {pitch > 5 && (
-        <div className="absolute top-4 left-[9rem] z-10 flex items-center gap-3">
-          <button
-            onClick={() => setRotating(!rotating)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
-              rotating
-                ? 'bg-red-600/90 hover:bg-red-500/90'
-                : 'bg-slate-800/80 hover:bg-slate-700/90'
-            }`}
-            title={lang === 'no'
-              ? (rotating ? 'Stopp rotasjon (Esc)' : 'Start flyover-rotasjon')
-              : (rotating ? 'Stop rotation (Esc)' : 'Start fly-around rotation')
-            }
-          >
-            {rotating ? (
-              // Stop icon
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                <rect x="6" y="6" width="12" height="12" rx="2" />
-              </svg>
-            ) : (
-              // Rotation arrow with play button inside
-              <svg width="32" height="32" viewBox="0 0 305.836 305.836" fill="white">
-                <path d="M152.924,300.748c84.319,0,152.912-68.6,152.912-152.918c0-39.476-15.312-77.231-42.346-105.564
-                  c0,0,3.938-8.857,8.814-19.783c4.864-10.926-2.138-18.636-15.648-17.228l-79.125,8.289c-13.511,1.411-17.999,11.467-10.021,22.461
-                  l46.741,64.393c7.986,10.992,17.834,12.31,22.008,2.937l7.56-16.964c12.172,18.012,18.976,39.329,18.976,61.459
-                  c0,60.594-49.288,109.875-109.87,109.875c-60.591,0-109.882-49.287-109.882-109.875c0-19.086,4.96-37.878,14.357-54.337
-                  c5.891-10.325,2.3-23.467-8.025-29.357c-10.328-5.896-23.464-2.3-29.36,8.031C6.923,95.107,0,121.27,0,147.829
-                  C0,232.148,68.602,300.748,152.924,300.748z"/>
-                {/* Green play triangle in center */}
-                <polygon points="115,100 115,210 195,155" fill="#22c55e" />
-              </svg>
-            )}
-          </button>
-
-          {/* Speed controls - only visible when rotating */}
-          {rotating && (
-            <div className="flex flex-col gap-0.5">
-              <button
-                onClick={() => setRotationSpeed(Math.min(32, rotationSpeed + 4))}
-                className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
-                title={lang === 'no' ? 'Raskere' : 'Faster'}
-              >
-                +
-              </button>
-              <button
-                onClick={() => setRotationSpeed(Math.max(2, rotationSpeed - 4))}
-                className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
-                title={lang === 'no' ? 'Saktere' : 'Slower'}
-              >
-                −
-              </button>
-            </div>
+        >
+          {pitch > 5 ? (
+            <span className="font-extrabold text-xl italic bg-gradient-to-br from-cyan-300 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]">3D</span>
+          ) : (
+            <span className="font-bold text-xl text-white">2D</span>
           )}
-        </div>
-      )}
+        </button>
 
-      {/* Declutter button — visible when 2+ markers/text exist */}
-      {(() => {
-        const textDrawingCount = visibleDrawings.filter(d => d.drawingType === 'text' || d.properties?.label).length;
-        const totalItems = visibleMarkers.length + localMarkers.length + textDrawingCount;
-        if (totalItems < 2) return null;
-        return (
-          <button
-            onClick={toggleDeclutter}
-            className={`absolute top-4 z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
-              declutterActive
-                ? 'bg-amber-600/90 hover:bg-amber-500/90'
-                : 'bg-slate-800/80 hover:bg-slate-700/90'
-            }`}
-            style={{ left: pitch > 5 ? '13.5rem' : '9rem' }}
-            title={lang === 'no'
-              ? (declutterActive ? 'Deaktiver opprydding' : 'Rydd opp overlappende symboler')
-              : (declutterActive ? 'Disable declutter' : 'Spread overlapping symbols')
-            }
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="7,7 3,3" />
-              <polyline points="17,7 21,3" />
-              <polyline points="7,17 3,21" />
-              <polyline points="17,17 21,21" />
-              <rect x="8" y="8" width="8" height="8" rx="1" fill={declutterActive ? 'rgba(255,255,255,0.3)' : 'none'} />
-            </svg>
-          </button>
-        );
-      })()}
+        {/* Fly-around rotation button and speed controls - visible when pitched */}
+        {pitch > 5 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setRotating(!rotating)}
+              className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
+                rotating
+                  ? 'bg-red-600/90 hover:bg-red-500/90'
+                  : 'bg-slate-800/80 hover:bg-slate-700/90'
+              }`}
+              title={lang === 'no'
+                ? (rotating ? 'Stopp rotasjon (Esc)' : 'Start flyover-rotasjon')
+                : (rotating ? 'Stop rotation (Esc)' : 'Start fly-around rotation')
+              }
+            >
+              {rotating ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg width="32" height="32" viewBox="0 0 305.836 305.836" fill="white">
+                  <path d="M152.924,300.748c84.319,0,152.912-68.6,152.912-152.918c0-39.476-15.312-77.231-42.346-105.564
+                    c0,0,3.938-8.857,8.814-19.783c4.864-10.926-2.138-18.636-15.648-17.228l-79.125,8.289c-13.511,1.411-17.999,11.467-10.021,22.461
+                    l46.741,64.393c7.986,10.992,17.834,12.31,22.008,2.937l7.56-16.964c12.172,18.012,18.976,39.329,18.976,61.459
+                    c0,60.594-49.288,109.875-109.87,109.875c-60.591,0-109.882-49.287-109.882-109.875c0-19.086,4.96-37.878,14.357-54.337
+                    c5.891-10.325,2.3-23.467-8.025-29.357c-10.328-5.896-23.464-2.3-29.36,8.031C6.923,95.107,0,121.27,0,147.829
+                    C0,232.148,68.602,300.748,152.924,300.748z"/>
+                  <polygon points="115,100 115,210 195,155" fill="#22c55e" />
+                </svg>
+              )}
+            </button>
+
+            {/* Speed controls - only visible when rotating */}
+            {rotating && (
+              <div className="flex flex-col gap-0.5">
+                <button
+                  onClick={() => setRotationSpeed(Math.min(32, rotationSpeed + 4))}
+                  className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
+                  title={lang === 'no' ? 'Raskere' : 'Faster'}
+                >
+                  +
+                </button>
+                <button
+                  onClick={() => setRotationSpeed(Math.max(2, rotationSpeed - 4))}
+                  className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500 flex items-center justify-center shadow-lg transition-colors text-white text-xs font-bold"
+                  title={lang === 'no' ? 'Saktere' : 'Slower'}
+                >
+                  −
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Declutter button — visible when 2+ markers/text exist */}
+        {(() => {
+          const textDrawingCount = visibleDrawings.filter(d => d.drawingType === 'text' || d.properties?.label).length;
+          const totalItems = visibleMarkers.length + localMarkers.length + textDrawingCount;
+          if (totalItems < 2) return null;
+          return (
+            <button
+              onClick={toggleDeclutter}
+              className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
+                declutterActive
+                  ? 'bg-amber-600/90 hover:bg-amber-500/90'
+                  : 'bg-slate-800/80 hover:bg-slate-700/90'
+              }`}
+              title={lang === 'no'
+                ? (declutterActive ? 'Deaktiver opprydding' : 'Rydd opp overlappende symboler')
+                : (declutterActive ? 'Disable declutter' : 'Spread overlapping symbols')
+              }
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="7,7 3,3" />
+                <polyline points="17,7 21,3" />
+                <polyline points="7,17 3,21" />
+                <polyline points="17,17 21,21" />
+                <rect x="8" y="8" width="8" height="8" rx="1" fill={declutterActive ? 'rgba(255,255,255,0.3)' : 'none'} />
+              </svg>
+            </button>
+          );
+        })()}
+      </div>
 
       <DrawingLayer />
 
