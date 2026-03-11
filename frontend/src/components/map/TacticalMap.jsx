@@ -590,9 +590,38 @@ export default function TacticalMap() {
         </svg>
       </button>
 
+      {/* 2D/3D toggle button — always visible */}
+      <button
+        onClick={() => {
+          const map = mapRef.current?.getMap();
+          if (!map) return;
+          const is3D = pitch > 5;
+          if (is3D) {
+            // Switch to 2D
+            map.easeTo({ pitch: 0, duration: 500 });
+            if (useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
+          } else {
+            // Switch to 3D
+            map.easeTo({ pitch: 45, duration: 500 });
+            if (!useMapStore.getState().terrainVisible) useMapStore.getState().toggleTerrain();
+          }
+        }}
+        className="absolute top-4 left-[4.5rem] z-10 w-12 h-12 rounded-full bg-slate-800/80 hover:bg-slate-700/90 flex items-center justify-center shadow-lg transition-colors"
+        title={lang === 'no'
+          ? (pitch > 5 ? 'Bytt til 2D-visning' : 'Bytt til 3D-visning')
+          : (pitch > 5 ? 'Switch to 2D view' : 'Switch to 3D view')
+        }
+      >
+        {pitch > 5 ? (
+          <span className="font-extrabold text-sm italic bg-gradient-to-br from-cyan-300 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]">3D</span>
+        ) : (
+          <span className="font-bold text-sm text-white">2D</span>
+        )}
+      </button>
+
       {/* Fly-around rotation button and speed controls - visible when pitched */}
       {pitch > 5 && (
-        <div className="absolute top-4 left-[4.5rem] z-10 flex items-center gap-3">
+        <div className="absolute top-4 left-[9rem] z-10 flex items-center gap-3">
           <button
             onClick={() => setRotating(!rotating)}
             className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${
@@ -660,7 +689,7 @@ export default function TacticalMap() {
                 ? 'bg-amber-600/90 hover:bg-amber-500/90'
                 : 'bg-slate-800/80 hover:bg-slate-700/90'
             }`}
-            style={{ left: pitch > 5 ? '9rem' : '4.5rem' }}
+            style={{ left: pitch > 5 ? '13.5rem' : '9rem' }}
             title={lang === 'no'
               ? (declutterActive ? 'Deaktiver opprydding' : 'Rydd opp overlappende symboler')
               : (declutterActive ? 'Disable declutter' : 'Spread overlapping symbols')
