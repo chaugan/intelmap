@@ -18,6 +18,7 @@ const DRAWING_ICONS = {
   polygon: '\u2B21',
   circle: '\u25EF',
   text: 'T',
+  needle: '\uD83D\uDCCD',
   grid: 'svg',
 };
 
@@ -30,6 +31,7 @@ function getDrawingLabel(d, lang) {
     polygon: { en: 'Polygon', no: 'Polygon' },
     circle: { en: 'Circle', no: 'Sirkel' },
     text: { en: 'Text', no: 'Tekst' },
+    needle: { en: 'Needle', no: 'Nål' },
     grid: { en: 'Grid', no: 'Rutenett' },
   };
   return typeLabels[d.drawingType]?.[lang] || d.drawingType || 'Drawing';
