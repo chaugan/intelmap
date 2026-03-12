@@ -156,19 +156,19 @@ export const SYMBOL_CATEGORIES = {
     name: { en: 'Armor', no: 'Panser' },
     friendly: [
       { sidc: 'SFGPUCA----D---', name: { en: 'Armor Platoon', no: 'Panserpluton' } },
-      { sidc: 'SFGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadon' } },
+      { sidc: 'SFGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadron' } },
       { sidc: 'SFGPUCA----F---', name: { en: 'Armor Battalion', no: 'Panserbataljon' } },
       { sidc: 'SFGPUCA----G---', name: { en: 'Armor Regiment', no: 'Panserregiment' } },
-      { sidc: 'SFGPUCAW---E---', name: { en: 'Wheeled Armor Squadron', no: 'Hjulpansereskadon' } },
+      { sidc: 'SFGPUCAW---E---', name: { en: 'Wheeled Armor Squadron', no: 'Hjulpansereskadron' } },
     ],
     hostile: [
       { sidc: 'SHGPUCA----D---', name: { en: 'Armor Platoon', no: 'Panserpluton' } },
-      { sidc: 'SHGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadon' } },
+      { sidc: 'SHGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadron' } },
       { sidc: 'SHGPUCA----F---', name: { en: 'Armor Battalion', no: 'Panserbataljon' } },
       { sidc: 'SHGPUCA----G---', name: { en: 'Armor Regiment', no: 'Panserregiment' } },
     ],
     neutral: [
-      { sidc: 'SNGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadon' } },
+      { sidc: 'SNGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadron' } },
       { sidc: 'SNGPUCA----F---', name: { en: 'Armor Battalion', no: 'Panserbataljon' } },
     ],
   },
