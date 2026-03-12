@@ -783,7 +783,7 @@ export default function ProjectDrawer() {
   const triggerFocus = useCallback((itemId) => {
     if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     setFocusedItemId(itemId);
-    focusTimerRef.current = setTimeout(() => setFocusedItemId(null), 5000);
+    focusTimerRef.current = setTimeout(() => setFocusedItemId(null), 20000);
     // Scroll the focused item into view after React renders
     setTimeout(() => {
       const el = document.querySelector(`[data-item-id="${itemId}"]`);
