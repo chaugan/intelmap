@@ -395,6 +395,8 @@ export default function ProjectDrawer() {
   const setActiveLayer = useTacticalStore((s) => s.setActiveLayer);
   const layerVisibility = useTacticalStore((s) => s.layerVisibility);
   const toggleLayerVisibility = useTacticalStore((s) => s.toggleLayerVisibility);
+  const labelVisibility = useTacticalStore((s) => s.labelVisibility);
+  const toggleLabelVisibility = useTacticalStore((s) => s.toggleLabelVisibility);
 
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
@@ -1080,6 +1082,7 @@ export default function ProjectDrawer() {
                     const niuLayers = projData.layers.filter(l => l.category === 'not_in_use');
                     const renderLayerRow = (layer, isNotInUse) => {
                       const vis = layerVisibility[layer.id] !== false;
+                      const labelsOn = labelVisibility[layer.id] !== false;
                       const isActiveLayer = active && activeLayerId === layer.id;
                       const layerMarkers = projData.markers.filter(m => m.layerId === layer.id);
                       const layerDrawings = projData.drawings.filter(d => d.layerId === layer.id);
@@ -1100,6 +1103,16 @@ export default function ProjectDrawer() {
                               onChange={() => toggleLayerVisibility(layer.id)}
                               className="accent-emerald-500 w-3.5 h-3.5"
                             />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleLabelVisibility(layer.id); }}
+                              className={`w-4 h-4 flex-shrink-0 flex items-center justify-center rounded transition-colors ${labelsOn ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-400'}`}
+                              title={labelsOn ? t('layers.hideLabels', lang) : t('layers.showLabels', lang)}
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10" />
+                                {!labelsOn && <path strokeLinecap="round" strokeWidth={2.5} d="M2 2l20 20" stroke="currentColor" opacity="0.7" />}
+                              </svg>
+                            </button>
                             {hasItems ? (
                               <button
                                 onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}

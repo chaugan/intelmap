@@ -85,6 +85,8 @@ const translations = {
     'layers.notInUse': 'Ikke i bruk',
     'layers.moveToActive': 'Flytt til aktive lag',
     'layers.moveToNotInUse': 'Flytt til ikke i bruk',
+    'layers.hideLabels': 'Skjul etiketter',
+    'layers.showLabels': 'Vis etiketter',
 
     // Symbol picker
     'symbols.title': 'NATO-symboler',
@@ -757,6 +759,8 @@ const translations = {
     'layers.notInUse': 'Not in use',
     'layers.moveToActive': 'Move to active layers',
     'layers.moveToNotInUse': 'Move to not in use',
+    'layers.hideLabels': 'Hide labels',
+    'layers.showLabels': 'Show labels',
 
     'symbols.title': 'NATO Symbols',
     'symbols.friendly': 'Friendly',

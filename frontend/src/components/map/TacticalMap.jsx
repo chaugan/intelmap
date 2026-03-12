@@ -102,6 +102,7 @@ export default function TacticalMap() {
   const tacticalProjects = useTacticalStore((s) => s.projects);
   const visibleProjectIds = useTacticalStore((s) => s.visibleProjectIds);
   const tacticalState = useTacticalStore();
+  const labelVisibility = useTacticalStore((s) => s.labelVisibility);
   const visibleDrawings = getAllVisibleDrawings(tacticalState);
   const visiblePins = getAllVisiblePins(tacticalState);
   const contextPins = visiblePins.filter(p => p.pinType === 'context');
@@ -849,7 +850,7 @@ export default function TacticalMap() {
                       />
                     );
                   })()}
-                  {d.properties?.label && (() => {
+                  {d.properties?.label && labelVisibility[d.layerId] !== false && (() => {
                     const mid = pts[Math.floor(pts.length / 2)];
                     const dOff = declutterOffsets?.get(`drawing:${d.id}`);
                     return (
@@ -994,7 +995,7 @@ export default function TacticalMap() {
                     );
                   })()}
 
-                  {d.properties?.label && (() => {
+                  {d.properties?.label && labelVisibility[d.layerId] !== false && (() => {
                     const cx = (pSW.x + pNE.x) / 2;
                     const cy = (pSW.y + pNE.y) / 2;
                     return (
@@ -1031,7 +1032,7 @@ export default function TacticalMap() {
                     stroke={color}
                     strokeWidth={sw}
                   />
-                  {d.properties?.label && (() => {
+                  {d.properties?.label && labelVisibility[d.layerId] !== false && (() => {
                     const dOff = declutterOffsets?.get(`drawing:${d.id}`);
                     return (
                       <text x={centroid.x + (dOff?.dx || 0)} y={centroid.y + (dOff?.dy || 0)} textAnchor="middle" dominantBaseline="central"
@@ -1069,7 +1070,7 @@ export default function TacticalMap() {
                   {/* Inner circle */}
                   <circle cx={nx} cy={centerY} r={pinR * 0.5} fill="#ffffff" opacity="0.9" />
                   {/* Label below pin */}
-                  {d.properties?.label && (
+                  {d.properties?.label && labelVisibility[d.layerId] !== false && (
                     <text x={nx} y={tipY + 14} textAnchor="middle" dominantBaseline="central"
                       fill="#ffffff" fontSize="13" fontWeight="700"
                       stroke="#000000" strokeWidth="3" paintOrder="stroke">{d.properties.label}</text>
@@ -1079,6 +1080,7 @@ export default function TacticalMap() {
             }
 
             if (geom.type === 'Point' && d.drawingType === 'text') {
+              if (labelVisibility[d.layerId] === false) return null;
               const pt = projectCoord(geom.coordinates);
               if (!pt) return null;
               const dOff = declutterOffsets?.get(`drawing:${d.id}`);

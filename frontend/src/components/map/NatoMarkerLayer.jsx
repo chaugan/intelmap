@@ -12,6 +12,7 @@ import ItemInfoPopup from './ItemInfoPopup.jsx';
 
 export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, declutterOffsets, declutterActive }) {
   const state = useTacticalStore();
+  const labelVisibility = useTacticalStore((s) => s.labelVisibility);
   const lang = useMapStore((s) => s.lang);
   const mapRef = useMapStore((s) => s.mapRef);
   const dragRef = useRef(null);
@@ -241,7 +242,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
                 <div className="absolute inset-0 -m-2 rounded-lg border-2 border-cyan-400 bg-cyan-400/10 pointer-events-none symbol-selected" />
               )}
               <div dangerouslySetInnerHTML={{ __html: sym.svg }} />
-              {marker.customLabel && (
+              {marker.customLabel && (labelVisibility[marker.layerId] !== false) && (
                 <div className="text-[10px] text-center font-semibold text-white bg-slate-900/80 rounded px-1 -mt-1 whitespace-nowrap">
                   {marker.customLabel}
                 </div>

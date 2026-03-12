@@ -8,6 +8,7 @@ export const useTacticalStore = create((set, get) => ({
   activeLayerId: null,      // default layer for new markers/drawings
   visibleProjectIds: [],    // ordered: first = bottom z-layer, last = top
   layerVisibility: {},      // layerId → bool (client-local overrides)
+  labelVisibility: {},      // layerId → bool (client-local, default true; controls label display)
   itemVisibility: {},       // viewshedId/rfCoverageId → bool (client-local per-item toggle)
 
   // --- Project management ---
@@ -43,15 +44,17 @@ export const useTacticalStore = create((set, get) => ({
       ? (newVisible[newVisible.length - 1] || null)
       : s.activeProjectId;
     const activeLayerId = wasActive ? null : s.activeLayerId;
-    // Disable all "not_in_use" layers for this project
+    // Disable all "not_in_use" layers for this project and reset label visibility
     const proj = s.projects[projectId];
     const newVis = { ...s.layerVisibility };
+    const newLabelVis = { ...s.labelVisibility };
     if (proj) {
       for (const l of proj.layers) {
         if (l.category === 'not_in_use') newVis[l.id] = false;
+        delete newLabelVis[l.id]; // reset labels to default (on)
       }
     }
-    return { visibleProjectIds: newVisible, activeProjectId, activeLayerId, layerVisibility: newVis };
+    return { visibleProjectIds: newVisible, activeProjectId, activeLayerId, layerVisibility: newVis, labelVisibility: newLabelVis };
   }),
 
   reorderProjects: (orderedIds) => set({ visibleProjectIds: orderedIds }),
@@ -322,6 +325,13 @@ export const useTacticalStore = create((set, get) => ({
     layerVisibility: {
       ...s.layerVisibility,
       [layerId]: s.layerVisibility[layerId] === false ? true : false,
+    },
+  })),
+
+  toggleLabelVisibility: (layerId) => set((s) => ({
+    labelVisibility: {
+      ...s.labelVisibility,
+      [layerId]: s.labelVisibility[layerId] === false ? true : false,
     },
   })),
 
