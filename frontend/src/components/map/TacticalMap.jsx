@@ -730,6 +730,12 @@ export default function TacticalMap() {
 
             const handleClick = (e) => {
               const { drawingToolsVisible, drawingActiveMode, gridToolVisible, setSelectedDrawingId } = useMapStore.getState();
+              // Allow deselecting a drawing that was selected from the drawer
+              if (isSelected && !drawingToolsVisible) {
+                e.stopPropagation();
+                setSelectedDrawingId(null);
+                return;
+              }
               // Allow selecting grids when grid tool is active
               const canSelect = d.drawingType === 'grid'
                 ? (drawingToolsVisible || gridToolVisible) && !drawingActiveMode
@@ -806,7 +812,7 @@ export default function TacticalMap() {
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
-                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -966,7 +972,7 @@ export default function TacticalMap() {
               const useQuadrants = cols > 26;
 
               return (
-                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {isSelected && renderSelectionBBox([pSW, pSE, pNE, pNW], 10)}
 
                   {!useQuadrants && renderQuadrant(sw0, se0, ne0, nw0, cols, cols, color, 'g')}
@@ -1017,7 +1023,7 @@ export default function TacticalMap() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -1055,7 +1061,7 @@ export default function TacticalMap() {
               const h = 36; // total height from top of circle to tip
               const cy = ny - h + r; // center of the circle head
               return (
-                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {isSelected && renderSelectionBBox([{ x: nx - r - 4, y: cy - r - 4 }, { x: nx + r + 4, y: ny + 4 }], 6)}
                   {/* Drop shadow */}
                   <ellipse cx={nx} cy={ny + 2} rx={5} ry={2.5} fill="rgba(0,0,0,0.35)" />
@@ -1087,7 +1093,7 @@ export default function TacticalMap() {
               const tx = pt.x + (dOff?.dx || 0);
               const ty = pt.y + (dOff?.dy || 0);
               return (
-                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
                   {isSelected && renderSelectionBBox([{ x: tx - 30, y: ty - 12 }, { x: tx + 30, y: ty + 12 }], 8)}
                   <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
