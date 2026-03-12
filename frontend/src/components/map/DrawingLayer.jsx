@@ -1293,7 +1293,14 @@ export default function DrawingLayer() {
       )}
 
       {/* Local drawings SVG overlay (not saved - non-logged-in users) */}
-      {mapRefValue && localDrawings.length > 0 && (
+      {mapRefValue && localDrawings.length > 0 && (() => {
+        const forwardTouchToMap = (e) => {
+          if (e.nativeEvent.pointerType !== 'touch') return;
+          const canvas = mapRefValue.getCanvas();
+          if (!canvas) return;
+          canvas.dispatchEvent(new PointerEvent(e.nativeEvent.type, e.nativeEvent));
+        };
+        return (
         <svg className="absolute inset-0 z-[5]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {localDrawings.map(d => {
             const color = d.properties?.color || '#3b82f6';
@@ -1313,7 +1320,7 @@ export default function DrawingLayer() {
               if (pts.length < 2) return null;
               const midPt = pts[Math.floor(pts.length / 2)];
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {/* Selection highlight */}
@@ -1371,7 +1378,7 @@ export default function DrawingLayer() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {/* Selection highlight */}
@@ -1405,7 +1412,7 @@ export default function DrawingLayer() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
+                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
                   {/* Local indicator dot */}
                   <circle cx={pt.x - 10} cy={pt.y - 10} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {isSelected && (
@@ -1421,7 +1428,8 @@ export default function DrawingLayer() {
             return null;
           })}
         </svg>
-      )}
+        );
+      })()}
 
       {/* CSV Import Dialog */}
       {csvImportOpen && (
