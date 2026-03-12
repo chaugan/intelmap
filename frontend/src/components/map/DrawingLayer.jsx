@@ -395,6 +395,33 @@ export default function DrawingLayer() {
 
     const canvas = mapRefValue.getCanvas();
 
+    let touchHoldTimer = null;
+    let touchHoldPending = null;
+
+    const startBodyDrag = (e, drawing, clickScreen) => {
+      e.preventDefault();
+      e.stopPropagation();
+      movedRef.current = false;
+      const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
+      const ds = {
+        type: 'move',
+        drawingId: drawing.id,
+        startLngLat: [startLngLat.lng, startLngLat.lat],
+        originalGeometry: JSON.parse(JSON.stringify(drawing.geometry)),
+        isLocal: !!drawing._local,
+        projectId: drawing._projectId,
+        drawingType: drawing.drawingType,
+      };
+      dragStateRef.current = ds;
+      setDragState(ds);
+      mapRefValue.dragPan.disable();
+    };
+
+    const cancelTouchHold = () => {
+      if (touchHoldTimer) { clearTimeout(touchHoldTimer); touchHoldTimer = null; }
+      touchHoldPending = null;
+    };
+
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
       const selId = selectedDrawingIdRef.current;
@@ -405,8 +432,9 @@ export default function DrawingLayer() {
 
       const rect = canvas.getBoundingClientRect();
       const clickScreen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const isTouch = e.pointerType === 'touch';
 
-      // Check vertex handles first (resize)
+      // Check vertex handles first (resize) — immediate for both mouse and touch
       const vertices = getVertices(drawing);
       for (let i = 0; i < vertices.length; i++) {
         try {
@@ -436,26 +464,25 @@ export default function DrawingLayer() {
 
       // Check if click is on the drawing body (move)
       if (hitTestDrawing(drawing, clickScreen, mapRefValue, 12)) {
-        e.preventDefault();
-        e.stopPropagation();
-        movedRef.current = false;
-        const startLngLat = mapRefValue.unproject([clickScreen.x, clickScreen.y]);
-        const ds = {
-          type: 'move',
-          drawingId: drawing.id,
-          startLngLat: [startLngLat.lng, startLngLat.lat],
-          originalGeometry: JSON.parse(JSON.stringify(drawing.geometry)),
-          isLocal: !!drawing._local,
-          projectId: drawing._projectId,
-          drawingType: drawing.drawingType,
-        };
-        dragStateRef.current = ds;
-        setDragState(ds);
-        mapRefValue.dragPan.disable();
+        if (isTouch) {
+          // On touch: delay move activation so the user can pan the map normally.
+          // A brief hold (~250ms) without moving commits to drawing move.
+          touchHoldPending = { drawing, clickScreen, event: e };
+          touchHoldTimer = setTimeout(() => {
+            if (touchHoldPending) {
+              startBodyDrag(touchHoldPending.event, touchHoldPending.drawing, touchHoldPending.clickScreen);
+              touchHoldPending = null;
+            }
+          }, 250);
+        } else {
+          startBodyDrag(e, drawing, clickScreen);
+        }
       }
     };
 
     const onPointerMove = (e) => {
+      // Cancel pending touch hold if the user starts moving (they want to pan)
+      if (touchHoldPending) { cancelTouchHold(); return; }
       const ds = dragStateRef.current;
       if (!ds) return;
       movedRef.current = true;
@@ -511,6 +538,8 @@ export default function DrawingLayer() {
     };
 
     const onPointerUp = () => {
+      // Cancel pending touch hold if the user lifts finger before the delay
+      cancelTouchHold();
       const ds = dragStateRef.current;
       if (!ds) return;
       mapRefValue.dragPan.enable();
@@ -535,6 +564,7 @@ export default function DrawingLayer() {
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     return () => {
+      cancelTouchHold();
       canvas.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);

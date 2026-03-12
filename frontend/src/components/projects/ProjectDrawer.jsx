@@ -10,6 +10,7 @@ import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { generateSymbolSvg } from '../../lib/milsymbol-utils.js';
 import QRCodeOverlay from '../common/QRCodeOverlay.jsx';
 import AuditLogDialog from './AuditLogDialog.jsx';
+import LayerTableView from './LayerTableView.jsx';
 
 // Drawing type icons for the item list
 const DRAWING_ICONS = {
@@ -427,6 +428,7 @@ export default function ProjectDrawer() {
   const [copyingLayerId, setCopyingLayerId] = useState(null); // which layer's copy dropdown is open
   const [copyingItemId, setCopyingItemId] = useState(null); // which item's copy dropdown is open
   const [notInUseCollapsed, setNotInUseCollapsed] = useState({}); // { projectId: bool }
+  const [tableViewLayer, setTableViewLayer] = useState(null); // { projectId, layerId, layerName } or null
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
   const selectedMarkerId = useMapStore((s) => s.selectedMarkerId);
@@ -1177,14 +1179,25 @@ export default function ProjectDrawer() {
                               </svg>
                             </button>
                             {hasItems ? (
-                              <button
-                                onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
-                                className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
-                              >
-                                <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M6 4l8 6-8 6V4z" />
-                                </svg>
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                                  className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+                                >
+                                  <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M6 4l8 6-8 6V4z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setTableViewLayer({ projectId: p.id, layerId: layer.id, layerName: layer.name }); }}
+                                  className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-slate-600 hover:text-cyan-400 transition-colors"
+                                  title={t('drawer.tableView', lang)}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path d="M3 10h18M3 14h18M3 6h18M3 18h18M8 6v12M16 6v12" />
+                                  </svg>
+                                </button>
+                              </>
                             ) : (
                               <span className="w-3 h-3 flex-shrink-0" />
                             )}
@@ -1360,6 +1373,15 @@ export default function ProjectDrawer() {
                             <path d="M6 4l8 6-8 6V4z" />
                           </svg>
                           {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d{unViewsheds.length > 0 ? ` ${unViewsheds.length}v` : ''}{unRFCoverages.length > 0 ? ` ${unRFCoverages.length}r` : ''}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTableViewLayer({ projectId: p.id, layerId: null, layerName: t('drawer.unassigned', lang) }); }}
+                            className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-slate-600 hover:text-cyan-400 transition-colors ml-auto"
+                            title={t('drawer.tableView', lang)}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path d="M3 10h18M3 14h18M3 6h18M3 18h18M8 6v12M16 6v12" />
+                            </svg>
+                          </button>
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
@@ -1735,6 +1757,29 @@ export default function ProjectDrawer() {
           onClose={() => { setQrProject(null); setQrLayerId(null); }}
         />
       )}
+
+      {/* Layer Table View */}
+      {tableViewLayer && (() => {
+        const tvProjData = projects[tableViewLayer.projectId];
+        if (!tvProjData) return null;
+        const filterByLayer = (items) => tableViewLayer.layerId
+          ? items.filter(i => i.layerId === tableViewLayer.layerId)
+          : items.filter(i => !i.layerId);
+        return (
+          <LayerTableView
+            markers={filterByLayer(tvProjData.markers)}
+            drawings={filterByLayer(tvProjData.drawings)}
+            viewsheds={filterByLayer(tvProjData.viewsheds || [])}
+            rfCoverages={filterByLayer(tvProjData.rfCoverages || [])}
+            lang={lang}
+            mapRef={mapRef}
+            layerName={tableViewLayer.layerName}
+            onClose={() => setTableViewLayer(null)}
+            onSelectMarker={setSelectedMarkerId}
+            onSelectDrawing={setSelectedDrawingId}
+          />
+        );
+      })()}
     </div>
   );
 }
