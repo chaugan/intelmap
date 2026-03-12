@@ -320,9 +320,6 @@ function MapApp({ user }) {
     fetch(`/api/share/${shareToken}`)
       .then((res) => res.json())
       .then((data) => {
-        // Clear URL parameter
-        window.history.replaceState({}, '', window.location.pathname);
-
         if (data.valid && data.resourceType === 'theme' && data.theme) {
           pendingThemeRef.current = data.theme.state;
           if (useMapStore.getState().mapRef) {
@@ -338,7 +335,6 @@ function MapApp({ user }) {
         }
       })
       .catch(() => {
-        window.history.replaceState({}, '', window.location.pathname);
         setThemeError('notFound');
       });
   }, [applyTheme, openProjectWithView]);
