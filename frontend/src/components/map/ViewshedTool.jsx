@@ -297,6 +297,8 @@ export default function ViewshedTool() {
   const toolModeRef = useRef(toolMode);
   const horizonResultRef = useRef(horizonResult);
   const domeHeightScaleRef = useRef(domeHeightScale);
+  const observerHeightRef = useRef(observerHeight);
+  const horizonRadiusRef = useRef(horizonRadiusKm);
   modeRef.current = mode;
   observerRef.current = observer;
   resultRef.current = result;
@@ -304,6 +306,8 @@ export default function ViewshedTool() {
   toolModeRef.current = toolMode;
   horizonResultRef.current = horizonResult;
   domeHeightScaleRef.current = domeHeightScale;
+  observerHeightRef.current = observerHeight;
+  horizonRadiusRef.current = horizonRadiusKm;
 
   // Collect saved viewsheds from visible projects
   const savedItems = [];
@@ -449,6 +453,55 @@ export default function ViewshedTool() {
   useEffect(() => {
     if (!visible || !mapRef) return;
     const handleClick = (e) => {
+      // Re-place mode: click sets new location and auto-recalculates
+      if (modeRef.current === 'replacing') {
+        const { lng, lat } = e.lngLat;
+        setObserver({ lng, lat });
+        mapRef.getCanvas().style.cursor = '';
+        const obsSrc = mapRef.getSource(SOURCE_OBSERVER);
+        if (obsSrc) obsSrc.setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] } });
+        // Auto-recalculate with existing settings
+        if (toolModeRef.current === 'horizon') {
+          const hRadius = horizonRadiusRef.current || 15;
+          setMode('calculating');
+          setError(null);
+          fetch('/api/viewshed/calculate-horizon', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ longitude: lng, latitude: lat, radiusKm: hRadius }),
+          }).then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.error || 'Failed'); }))
+            .then(data => {
+              const domeGeoJSON = buildHorizonGeoJSON(data.horizonProfile, [lng, lat], hRadius, domeHeightScaleRef.current);
+              setHorizonResult({ ...data, domeGeoJSON });
+              setMode('result');
+              const domeSrc = mapRef?.getSource(SOURCE_HORIZON_DOME);
+              if (domeSrc) domeSrc.setData(domeGeoJSON);
+              const centerSrc = mapRef?.getSource(SOURCE_HORIZON_CENTER);
+              if (centerSrc) centerSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }] });
+            })
+            .catch(err => { setError(err.message); setMode('result'); });
+        } else {
+          setMode('calculating');
+          setError(null);
+          fetch('/api/viewshed/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ longitude: lng, latitude: lat, observerHeight: observerHeightRef.current, radiusKm: radiusRef.current }),
+          }).then(r => r.ok ? r.json() : r.json().then(d => { throw new Error(d.error || 'Failed'); }))
+            .then(data => {
+              setResult(data);
+              setMode('result');
+              const resSrc = mapRef?.getSource(SOURCE_RESULT);
+              if (resSrc && data.geojson) resSrc.setData(data.geojson);
+              const circleSrc = mapRef?.getSource(SOURCE_CIRCLE);
+              if (circleSrc) circleSrc.setData(circlePolygon([lng, lat], radiusRef.current));
+            })
+            .catch(err => { setError(err.message); setMode('result'); });
+        }
+        e.preventDefault();
+        return;
+      }
+
       if (toolModeRef.current === 'horizon') {
         if (modeRef.current === 'placing') {
           const { lng, lat } = e.lngLat;
@@ -503,6 +556,12 @@ export default function ViewshedTool() {
   }, [visible, mapRef]);
 
   useEffect(() => { if (!visible) { reset(); setConfigTarget(null); } }, [visible, reset]);
+
+  const startReplacing = () => {
+    setMode('replacing');
+    setError(null);
+    if (mapRef) mapRef.getCanvas().style.cursor = 'crosshair';
+  };
 
   const startPlacing = () => {
     setMode('placing');
@@ -730,6 +789,12 @@ export default function ViewshedTool() {
                     <span className="text-slate-300">{t('viewshed.calculating', lang)}</span>
                   </div>
                 )}
+                {mode === 'replacing' && (
+                  <div className="text-center text-blue-300 text-xs py-2">
+                    {t('viewshed.replacing', lang)}
+                    <button onClick={() => { setMode('result'); if (mapRef) mapRef.getCanvas().style.cursor = ''; }} className="block mx-auto mt-1 text-slate-400 hover:text-white text-[10px]">{isNo ? 'Avbryt' : 'Cancel'}</button>
+                  </div>
+                )}
                 {mode === 'result' && result && (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -777,8 +842,8 @@ export default function ViewshedTool() {
                           {t('viewshed.saveToProject', lang)}
                         </button>
                       )}
-                      <button onClick={startPlacing} className="flex-1 py-1.5 rounded bg-blue-600 hover:bg-blue-500 transition-colors text-xs font-medium">
-                        {t('viewshed.newAnalysis', lang)}
+                      <button onClick={startReplacing} className="flex-1 py-1.5 rounded bg-blue-600 hover:bg-blue-500 transition-colors text-xs font-medium">
+                        {t('viewshed.rePlace', lang)}
                       </button>
                       <button onClick={reset} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 transition-colors text-xs">
                         {t('viewshed.clear', lang)}
@@ -824,6 +889,12 @@ export default function ViewshedTool() {
                       <button onClick={reset} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 transition-colors">{t('viewshed.reset', lang)}</button>
                     </div>
                     {error && <div className="text-red-400 text-xs">{error}</div>}
+                  </div>
+                )}
+                {mode === 'replacing' && (
+                  <div className="text-center text-purple-300 text-xs py-2">
+                    {t('viewshed.replacing', lang)}
+                    <button onClick={() => { setMode('result'); if (mapRef) mapRef.getCanvas().style.cursor = ''; }} className="block mx-auto mt-1 text-slate-400 hover:text-white text-[10px]">{isNo ? 'Avbryt' : 'Cancel'}</button>
                   </div>
                 )}
                 {mode === 'calculating' && (
@@ -892,8 +963,8 @@ export default function ViewshedTool() {
                           {t('viewshed.saveToProject', lang)}
                         </button>
                       )}
-                      <button onClick={startPlacing} className="flex-1 py-1.5 rounded bg-purple-600 hover:bg-purple-500 transition-colors text-xs font-medium">
-                        {t('viewshed.newAnalysis', lang)}
+                      <button onClick={startReplacing} className="flex-1 py-1.5 rounded bg-purple-600 hover:bg-purple-500 transition-colors text-xs font-medium">
+                        {t('viewshed.rePlace', lang)}
                       </button>
                       <button onClick={reset} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 transition-colors text-xs">
                         {t('viewshed.clear', lang)}
