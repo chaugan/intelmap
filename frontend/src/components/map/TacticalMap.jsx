@@ -1050,28 +1050,28 @@ export default function TacticalMap() {
               const dOff = declutterOffsets?.get(`drawing:${d.id}`);
               const nx = pt.x + (dOff?.dx || 0);
               const ny = pt.y + (dOff?.dy || 0);
-              // Classic map pin: teardrop shape, 40px tall, tip at (nx, ny)
-              const pinH = 40, pinR = 12;
-              const tipY = ny;
-              const centerY = tipY - pinH + pinR;
+              // Pin icon matching 📍 style: round top, pointed bottom, tip at (nx, ny)
+              const r = 11; // radius of round head
+              const h = 36; // total height from top of circle to tip
+              const cy = ny - h + r; // center of the circle head
               return (
                 <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
-                  {isSelected && renderSelectionBBox([{ x: nx - pinR - 4, y: centerY - pinR - 4 }, { x: nx + pinR + 4, y: tipY + 4 }], 6)}
+                  {isSelected && renderSelectionBBox([{ x: nx - r - 4, y: cy - r - 4 }, { x: nx + r + 4, y: ny + 4 }], 6)}
                   {/* Drop shadow */}
-                  <ellipse cx={nx} cy={tipY + 2} rx={6} ry={3} fill="rgba(0,0,0,0.3)" />
-                  {/* Pin body — teardrop via path */}
+                  <ellipse cx={nx} cy={ny + 2} rx={5} ry={2.5} fill="rgba(0,0,0,0.35)" />
+                  {/* Pin body: semicircle top + two lines to tip */}
                   <path
-                    d={`M ${nx} ${tipY} C ${nx - pinR * 1.2} ${tipY - pinH * 0.45} ${nx - pinR} ${centerY - pinR * 0.2} ${nx} ${centerY - pinR} C ${nx + pinR} ${centerY - pinR * 0.2} ${nx + pinR * 1.2} ${tipY - pinH * 0.45} ${nx} ${tipY} Z`}
+                    d={`M ${nx} ${ny} L ${nx - r * 0.7} ${cy + r * 0.55} A ${r} ${r} 0 1 1 ${nx + r * 0.7} ${cy + r * 0.55} Z`}
                     fill={color}
                     stroke="#000000"
-                    strokeWidth="1.5"
-                    opacity="0.95"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
                   />
-                  {/* Inner circle */}
-                  <circle cx={nx} cy={centerY} r={pinR * 0.5} fill="#ffffff" opacity="0.9" />
+                  {/* Inner dot */}
+                  <circle cx={nx} cy={cy} r={r * 0.42} fill="#ffffff" opacity="0.92" />
                   {/* Label below pin */}
                   {d.properties?.label && labelVisibility[d.layerId] !== false && (
-                    <text x={nx} y={tipY + 14} textAnchor="middle" dominantBaseline="central"
+                    <text x={nx} y={ny + 14} textAnchor="middle" dominantBaseline="central"
                       fill="#ffffff" fontSize="13" fontWeight="700"
                       stroke="#000000" strokeWidth="3" paintOrder="stroke">{d.properties.label}</text>
                   )}
