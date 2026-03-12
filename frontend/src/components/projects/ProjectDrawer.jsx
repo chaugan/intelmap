@@ -164,6 +164,8 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
               {canEdit && (
                 <button
                   onClick={() => {
+                    const msg = lang === 'no' ? `Slett "${name}"?` : `Delete "${name}"?`;
+                    if (!confirm(msg)) return;
                     socket.emit('client:marker:delete', { projectId, id: m.id });
                   }}
                   className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
@@ -230,6 +232,8 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
             {canEdit && (
               <button
                 onClick={() => {
+                  const msg = lang === 'no' ? `Slett "${label}"?` : `Delete "${label}"?`;
+                  if (!confirm(msg)) return;
                   socket.emit('client:drawing:delete-batch', { projectId, ids: [d.id] });
                 }}
                 className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
@@ -291,7 +295,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
             )}
             {canEdit && (
               <button
-                onClick={() => socket.emit('client:viewshed:delete', { projectId, id: v.id })}
+                onClick={() => { const msg = lang === 'no' ? `Slett "${label}"?` : `Delete "${label}"?`; if (!confirm(msg)) return; socket.emit('client:viewshed:delete', { projectId, id: v.id }); }}
                 className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
                 title={lang === 'no' ? 'Slett' : 'Delete'}
               >
@@ -347,7 +351,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
             )}
             {canEdit && (
               <button
-                onClick={() => socket.emit('client:rfcoverage:delete', { projectId, id: c.id })}
+                onClick={() => { const msg = lang === 'no' ? `Slett "${label}"?` : `Delete "${label}"?`; if (!confirm(msg)) return; socket.emit('client:rfcoverage:delete', { projectId, id: c.id }); }}
                 className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
                 title={lang === 'no' ? 'Slett' : 'Delete'}
               >
