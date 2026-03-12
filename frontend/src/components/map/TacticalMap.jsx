@@ -1043,6 +1043,41 @@ export default function TacticalMap() {
               );
             }
 
+            if (geom.type === 'Point' && d.drawingType === 'needle') {
+              const pt = projectCoord(geom.coordinates);
+              if (!pt) return null;
+              const dOff = declutterOffsets?.get(`drawing:${d.id}`);
+              const nx = pt.x + (dOff?.dx || 0);
+              const ny = pt.y + (dOff?.dy || 0);
+              // Classic map pin: teardrop shape, 40px tall, tip at (nx, ny)
+              const pinH = 40, pinR = 12;
+              const tipY = ny;
+              const centerY = tipY - pinH + pinR;
+              return (
+                <g key={key} style={{ pointerEvents: isSelected ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu}>
+                  {isSelected && renderSelectionBBox([{ x: nx - pinR - 4, y: centerY - pinR - 4 }, { x: nx + pinR + 4, y: tipY + 4 }], 6)}
+                  {/* Drop shadow */}
+                  <ellipse cx={nx} cy={tipY + 2} rx={6} ry={3} fill="rgba(0,0,0,0.3)" />
+                  {/* Pin body — teardrop via path */}
+                  <path
+                    d={`M ${nx} ${tipY} C ${nx - pinR * 1.2} ${tipY - pinH * 0.45} ${nx - pinR} ${centerY - pinR * 0.2} ${nx} ${centerY - pinR} C ${nx + pinR} ${centerY - pinR * 0.2} ${nx + pinR * 1.2} ${tipY - pinH * 0.45} ${nx} ${tipY} Z`}
+                    fill={color}
+                    stroke="#000000"
+                    strokeWidth="1.5"
+                    opacity="0.95"
+                  />
+                  {/* Inner circle */}
+                  <circle cx={nx} cy={centerY} r={pinR * 0.5} fill="#ffffff" opacity="0.9" />
+                  {/* Label below pin */}
+                  {d.properties?.label && (
+                    <text x={nx} y={tipY + 14} textAnchor="middle" dominantBaseline="central"
+                      fill="#ffffff" fontSize="13" fontWeight="700"
+                      stroke="#000000" strokeWidth="3" paintOrder="stroke">{d.properties.label}</text>
+                  )}
+                </g>
+              );
+            }
+
             if (geom.type === 'Point' && d.drawingType === 'text') {
               const pt = projectCoord(geom.coordinates);
               if (!pt) return null;

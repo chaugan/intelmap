@@ -105,6 +105,7 @@ const translations = {
     'draw.arrow': 'Pil',
     'draw.freehand': 'Frihånd',
     'draw.text': 'Tekst',
+    'draw.needle': 'Nål',
     'draw.delete': 'Slett',
     'draw.deleteAll': 'Slett alle tegninger',
     'draw.deleteSelected': 'Slett valgte',
@@ -128,7 +129,7 @@ const translations = {
     'draw.csvSelectAll': 'Velg alle gyldige',
     'draw.csvDeselectAll': 'Fjern alle valg',
     'draw.csvInvalidCoord': 'Ugyldig koordinat',
-    'draw.csvInvalidType': 'Ugyldig type (bruk: circle, line, arrow)',
+    'draw.csvInvalidType': 'Ugyldig type (bruk: circle, line, arrow, needle)',
     'draw.csvNeedsTwoCoords': 'Krever to koordinater',
     'draw.csvNeedsSize': 'Sirkel krever størrelse (meter)',
 
@@ -774,6 +775,7 @@ const translations = {
     'draw.arrow': 'Arrow',
     'draw.freehand': 'Freehand',
     'draw.text': 'Text',
+    'draw.needle': 'Needle',
     'draw.delete': 'Delete',
     'draw.deleteAll': 'Delete all drawings',
     'draw.deleteSelected': 'Delete selected',
@@ -797,7 +799,7 @@ const translations = {
     'draw.csvSelectAll': 'Select all valid',
     'draw.csvDeselectAll': 'Deselect all',
     'draw.csvInvalidCoord': 'Invalid coordinate',
-    'draw.csvInvalidType': 'Invalid type (use: circle, line, arrow)',
+    'draw.csvInvalidType': 'Invalid type (use: circle, line, arrow, needle)',
     'draw.csvNeedsTwoCoords': 'Requires two coordinates',
     'draw.csvNeedsSize': 'Circle requires size (meters)',
 

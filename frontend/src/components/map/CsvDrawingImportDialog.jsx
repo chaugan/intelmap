@@ -3,7 +3,7 @@ import { resolveMgrs } from '../../lib/mgrs-utils.js';
 import { generateCirclePolygon } from '../../lib/drawing-utils.js';
 import { t } from '../../lib/i18n.js';
 
-const VALID_TYPES = ['circle', 'line', 'arrow'];
+const VALID_TYPES = ['circle', 'line', 'arrow', 'needle'];
 
 function normalizeColor(color, defaultColor) {
   if (!color || !color.trim()) return defaultColor;
@@ -144,6 +144,17 @@ function buildDrawing(row) {
         color: row.color,
         lineType: 'solid',
         fillOpacity: 0.15,
+        label: row.label || undefined,
+        strokeWidth: 3,
+      },
+    };
+  }
+  if (row.type === 'needle') {
+    return {
+      drawingType: 'needle',
+      geometry: { type: 'Point', coordinates: [row.lon1, row.lat1] },
+      properties: {
+        color: row.color,
         label: row.label || undefined,
         strokeWidth: 3,
       },

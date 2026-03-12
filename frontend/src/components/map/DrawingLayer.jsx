@@ -160,7 +160,7 @@ export default function DrawingLayer() {
     const pts = drawPointsRef.current;
     const mode = activeModeRef.current;
     const color = drawColorRef.current;
-    if (pts.length < 2 && mode !== 'text') return;
+    if (pts.length < 2 && mode !== 'text' && mode !== 'needle') return;
 
     const label = prompt(lang === 'no' ? 'Legg til etikett (valgfritt):' : 'Add label (optional):');
 
@@ -266,6 +266,35 @@ export default function DrawingLayer() {
                 _local: true,
               }]);
             }
+          }
+          setActiveMode(null);
+          return;
+        }
+
+        if (activeModeRef.current === 'needle') {
+          const label = prompt(lang === 'no' ? 'Legg til etikett (valgfritt):' : 'Add label (optional):');
+          const needleState = useTacticalStore.getState();
+          const currentPid = needleState.activeProjectId;
+          const currentLid = needleState.activeLayerId;
+          const currentUser = useAuthStore.getState().user;
+          if (currentPid) {
+            socket.emit('client:drawing:add', {
+              projectId: currentPid,
+              drawingType: 'needle',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              layerId: currentLid || null,
+              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: 3 },
+              source: 'user',
+              createdBy: socket.id,
+            });
+          } else if (!currentUser) {
+            setLocalDrawings((prev) => [...prev, {
+              id: `local-${Date.now()}`,
+              drawingType: 'needle',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: 3 },
+              _local: true,
+            }]);
           }
           setActiveMode(null);
           return;
@@ -757,7 +786,7 @@ export default function DrawingLayer() {
       }
 
       if (activeMode) {
-        if (e.key === 'Enter' && activeModeRef.current && activeModeRef.current !== 'text' && drawPointsRef.current.length >= 2) {
+        if (e.key === 'Enter' && activeModeRef.current && activeModeRef.current !== 'text' && activeModeRef.current !== 'needle' && drawPointsRef.current.length >= 2) {
           e.preventDefault();
           finishDrawing();
         }
@@ -781,6 +810,7 @@ export default function DrawingLayer() {
     { id: 'circle', icon: '\u25EF', shortcut: 'O' },
     { id: 'arrow', icon: '\u2192', shortcut: 'A' },
     { id: 'text', icon: 'T', shortcut: 'T' },
+    { id: 'needle', icon: '\uD83D\uDCCD', shortcut: 'N' },
   ];
 
   // No-project warning for logged-in users
@@ -832,7 +862,7 @@ export default function DrawingLayer() {
         {/* Finish / Cancel buttons */}
         {activeMode && (
           <div className="flex flex-col gap-3 mt-2">
-            {activeMode !== 'text' && drawPoints.length >= 2 && (
+            {activeMode !== 'text' && activeMode !== 'needle' && drawPoints.length >= 2 && (
               <button
                 onClick={finishDrawing}
                 className="w-10 h-10 flex items-center justify-center rounded bg-emerald-600 text-white text-sm font-bold shadow-lg hover:bg-emerald-500"
@@ -1029,6 +1059,8 @@ export default function DrawingLayer() {
           <div className="bg-slate-800/90 rounded px-2 py-1 mt-1 text-[10px] text-slate-300 max-w-[120px]">
             {activeMode === 'text'
               ? (lang === 'no' ? 'Klikk for tekst' : 'Click to place text')
+              : activeMode === 'needle'
+              ? (lang === 'no' ? 'Klikk for å plassere nål' : 'Click to place needle')
               : (lang === 'no' ? 'Klikk for punkter, \u2713 for \u00e5 fullf\u00f8re' : 'Click to add points, \u2713 to finish')
             }
           </div>
