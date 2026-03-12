@@ -6,6 +6,7 @@ import { useProjectStore } from '../../stores/useProjectStore.js';
 import { socket } from '../../lib/socket.js';
 import { DRAW_COLORS } from '../../lib/constants.js';
 import { t } from '../../lib/i18n.js';
+import { screenDist, hitTestDrawing } from '../../lib/drawing-hit-test.js';
 
 // Check if any coordinate of a drawing falls inside a geo bounding box
 function drawingIntersectsBox(drawing, box) {
@@ -25,62 +26,6 @@ function drawingIntersectsBox(drawing, box) {
   }
   if (geom.type === 'Polygon') {
     return geom.coordinates[0].some(pointInBox);
-  }
-  return false;
-}
-
-// ── Hit-testing helpers ──
-
-function screenDist(a, b) {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-}
-
-function distToSegment(p, a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) return screenDist(p, a);
-  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  return screenDist(p, { x: a.x + t * dx, y: a.y + t * dy });
-}
-
-function pointInPolygonScreen(pt, ring) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i].x, yi = ring[i].y;
-    const xj = ring[j].x, yj = ring[j].y;
-    if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi)) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-function hitTestDrawing(drawing, clickScreen, map, threshold = 12) {
-  if (drawing.geometry.type === 'Point') {
-    try {
-      const pt = map.project(drawing.geometry.coordinates);
-      return screenDist(clickScreen, pt) <= threshold;
-    } catch { return false; }
-  }
-
-  if (drawing.geometry.type === 'LineString') {
-    const pts = drawing.geometry.coordinates.map(c => { try { return map.project(c); } catch { return null; } }).filter(Boolean);
-    for (let i = 0; i < pts.length - 1; i++) {
-      if (distToSegment(clickScreen, pts[i], pts[i + 1]) <= threshold) return true;
-    }
-    return false;
-  }
-
-  if (drawing.geometry.type === 'Polygon') {
-    const ring = drawing.geometry.coordinates[0].map(c => { try { return map.project(c); } catch { return null; } }).filter(Boolean);
-    if (pointInPolygonScreen(clickScreen, ring)) return true;
-    // Also check near edges
-    for (let i = 0; i < ring.length - 1; i++) {
-      if (distToSegment(clickScreen, ring[i], ring[i + 1]) <= threshold) return true;
-    }
-    return false;
   }
   return false;
 }
@@ -1293,14 +1238,7 @@ export default function DrawingLayer() {
       )}
 
       {/* Local drawings SVG overlay (not saved - non-logged-in users) */}
-      {mapRefValue && localDrawings.length > 0 && (() => {
-        const forwardTouchToMap = (e) => {
-          if (e.nativeEvent.pointerType !== 'touch') return;
-          const canvas = mapRefValue.getCanvas();
-          if (!canvas) return;
-          canvas.dispatchEvent(new PointerEvent(e.nativeEvent.type, e.nativeEvent));
-        };
-        return (
+      {mapRefValue && localDrawings.length > 0 && (
         <svg className="absolute inset-0 z-[5]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {localDrawings.map(d => {
             const color = d.properties?.color || '#3b82f6';
@@ -1320,7 +1258,7 @@ export default function DrawingLayer() {
               if (pts.length < 2) return null;
               const midPt = pts[Math.floor(pts.length / 2)];
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
+                <g key={key}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {/* Selection highlight */}
@@ -1378,7 +1316,7 @@ export default function DrawingLayer() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
+                <g key={key}>
                   {/* Local indicator dot */}
                   <circle cx={pts[0].x} cy={pts[0].y} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {/* Selection highlight */}
@@ -1412,7 +1350,7 @@ export default function DrawingLayer() {
               const pt = projectCoord(d.geometry.coordinates);
               if (!pt) return null;
               return (
-                <g key={key} style={{ pointerEvents: 'auto', cursor: 'pointer' }} onPointerDown={forwardTouchToMap}>
+                <g key={key}>
                   {/* Local indicator dot */}
                   <circle cx={pt.x - 10} cy={pt.y - 10} r="6" fill="#f59e0b" stroke="white" strokeWidth="2" />
                   {isSelected && (
@@ -1428,8 +1366,7 @@ export default function DrawingLayer() {
             return null;
           })}
         </svg>
-        );
-      })()}
+      )}
 
       {/* CSV Import Dialog */}
       {csvImportOpen && (

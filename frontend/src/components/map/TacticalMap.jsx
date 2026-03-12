@@ -48,6 +48,7 @@ import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
 import WmsOverlayToggles from './WmsOverlayToggles.jsx';
 import DeclutterOverlay from './DeclutterOverlay.jsx';
+import { hitTestDrawing } from '../../lib/drawing-hit-test.js';
 
 let nextMenuId = 1;
 
@@ -517,6 +518,91 @@ export default function TacticalMap() {
     };
   }, [activePanel, avalancheWarningsVisible, mapInstance]);
 
+  // ── Drawing click/dblclick/contextmenu via MapLibre events (SVG overlay is pointer-events:none) ──
+  const visibleDrawingsRef = useRef(visibleDrawings);
+  visibleDrawingsRef.current = visibleDrawings;
+
+  useEffect(() => {
+    const m = mapRef.current?.getMap();
+    if (!m) return;
+
+    const findDrawingAtEvent = (e) => {
+      const clickScreen = m.project(e.lngLat);
+      const all = visibleDrawingsRef.current;
+      for (let i = all.length - 1; i >= 0; i--) {
+        if (hitTestDrawing(all[i], clickScreen, m)) return all[i];
+      }
+      return null;
+    };
+
+    const onClick = (e) => {
+      const d = findDrawingAtEvent(e);
+      if (!d) return;
+      const { drawingToolsVisible, drawingActiveMode, gridToolVisible, selectedDrawingId, setSelectedDrawingId } = useMapStore.getState();
+      const isSelected = selectedDrawingId === d.id;
+      // Deselect when drawing tools are closed
+      if (isSelected && !drawingToolsVisible) {
+        setSelectedDrawingId(null);
+        return;
+      }
+      const canSelect = d.drawingType === 'grid'
+        ? (drawingToolsVisible || gridToolVisible) && !drawingActiveMode
+        : drawingToolsVisible && !drawingActiveMode;
+      if (!canSelect) return;
+      window.__gridClickConsumed = Date.now();
+      setSelectedDrawingId(isSelected ? null : d.id);
+      if (d.drawingType === 'grid' && gridToolVisible && !isSelected) {
+        useMapStore.getState().toggleGridTool();
+        if (!drawingToolsVisible) useMapStore.getState().toggleDrawingTools();
+      }
+    };
+
+    const onDblClick = (e) => {
+      const d = findDrawingAtEvent(e);
+      if (!d) return;
+      const { drawingToolsVisible, drawingActiveMode } = useMapStore.getState();
+      if (!drawingToolsVisible || drawingActiveMode) return;
+      e.preventDefault();
+      if (d.drawingType === 'text') {
+        const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', d.properties?.text || '');
+        if (newText === null) return;
+        socket.emit('client:drawing:update', {
+          projectId: d._projectId, id: d.id,
+          properties: { ...d.properties, text: newText },
+        });
+      } else {
+        const newLabel = prompt(lang === 'no' ? 'Rediger etikett:' : 'Edit label:', d.properties?.label || '');
+        if (newLabel === null) return;
+        socket.emit('client:drawing:update', {
+          projectId: d._projectId, id: d.id,
+          properties: { ...d.properties, label: newLabel || undefined },
+        });
+      }
+    };
+
+    const onContextMenu = (e) => {
+      const d = findDrawingAtEvent(e);
+      if (!d) return;
+      e.preventDefault();
+      suppressMapContextMenu.current = true;
+      setDrawingInfoPopup({
+        projectId: d._projectId,
+        layerId: d.layerId,
+        x: e.point.x + m.getCanvas().getBoundingClientRect().left,
+        y: e.point.y + m.getCanvas().getBoundingClientRect().top,
+      });
+    };
+
+    m.on('click', onClick);
+    m.on('dblclick', onDblClick);
+    m.on('contextmenu', onContextMenu);
+    return () => {
+      m.off('click', onClick);
+      m.off('dblclick', onDblClick);
+      m.off('contextmenu', onContextMenu);
+    };
+  }, [mapInstance, lang]);
+
   // Project to screen coordinates for SVG rendering
   const map = mapRef.current?.getMap();
 
@@ -706,15 +792,8 @@ export default function TacticalMap() {
 
       <DrawingLayer />
 
-      {/* SVG overlay for committed drawings */}
+      {/* SVG overlay for committed drawings — purely visual, interaction via MapLibre events */}
       {map && visibleDrawings.length > 0 && (() => {
-        // Forward touch pointer events to the map canvas so MapLibre can still pan
-        const forwardTouchToMap = (e) => {
-          if (e.nativeEvent.pointerType !== 'touch') return;
-          const canvas = map.getCanvas();
-          if (!canvas) return;
-          canvas.dispatchEvent(new PointerEvent(e.nativeEvent.type, e.nativeEvent));
-        };
         return (
         <svg className="absolute inset-0 z-[4]" style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
           {visibleDrawings.map(d => {
@@ -724,65 +803,6 @@ export default function TacticalMap() {
             const sw = d.properties?.strokeWidth || 3;
             const key = d.id;
             const isSelected = selectedDrawingId === d.id;
-            const handleContextMenu = (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              suppressMapContextMenu.current = true;
-              setDrawingInfoPopup({
-                projectId: d._projectId,
-                layerId: d.layerId,
-                x: e.clientX,
-                y: e.clientY,
-              });
-            };
-
-            const handleClick = (e) => {
-              const { drawingToolsVisible, drawingActiveMode, gridToolVisible, setSelectedDrawingId } = useMapStore.getState();
-              // Allow deselecting a drawing that was selected from the drawer
-              if (isSelected && !drawingToolsVisible) {
-                e.stopPropagation();
-                setSelectedDrawingId(null);
-                return;
-              }
-              // Allow selecting grids when grid tool is active
-              const canSelect = d.drawingType === 'grid'
-                ? (drawingToolsVisible || gridToolVisible) && !drawingActiveMode
-                : drawingToolsVisible && !drawingActiveMode;
-              if (!canSelect) return;
-              e.stopPropagation();
-              // Signal to GridTool that this click was consumed by an existing grid
-              window.__gridClickConsumed = Date.now();
-              setSelectedDrawingId(isSelected ? null : d.id);
-              // When selecting a grid via grid tool, switch to drawing tools mode
-              if (d.drawingType === 'grid' && gridToolVisible && !isSelected) {
-                useMapStore.getState().toggleGridTool();
-                if (!drawingToolsVisible) useMapStore.getState().toggleDrawingTools();
-              }
-            };
-
-            const handleDblClick = (e) => {
-              const { drawingToolsVisible, drawingActiveMode } = useMapStore.getState();
-              if (!drawingToolsVisible || drawingActiveMode) return;
-              e.stopPropagation();
-              e.preventDefault();
-              if (d.drawingType === 'text') {
-                const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', d.properties?.text || '');
-                if (newText === null) return;
-                socket.emit('client:drawing:update', {
-                  projectId: d._projectId,
-                  id: d.id,
-                  properties: { ...d.properties, text: newText },
-                });
-              } else {
-                const newLabel = prompt(lang === 'no' ? 'Rediger etikett:' : 'Edit label:', d.properties?.label || '');
-                if (newLabel === null) return;
-                socket.emit('client:drawing:update', {
-                  projectId: d._projectId,
-                  id: d.id,
-                  properties: { ...d.properties, label: newLabel || undefined },
-                });
-              }
-            };
 
             // Helper: compute bounding box with padding from screen points
             const getBBox = (pts, pad = 8) => {
@@ -820,7 +840,7 @@ export default function TacticalMap() {
               if (pts.length < 2) return null;
               const isArrow = d.properties?.lineType === 'arrow' || d.drawingType === 'arrow';
               return (
-                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu} onPointerDown={forwardTouchToMap}>
+                <g key={key} style={{ pointerEvents: 'none' }}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -980,7 +1000,7 @@ export default function TacticalMap() {
               const useQuadrants = cols > 26;
 
               return (
-                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu} onPointerDown={forwardTouchToMap}>
+                <g key={key} style={{ pointerEvents: 'none' }}>
                   {isSelected && renderSelectionBBox([pSW, pSE, pNE, pNW], 10)}
 
                   {!useQuadrants && renderQuadrant(sw0, se0, ne0, nw0, cols, cols, color, 'g')}
@@ -1031,7 +1051,7 @@ export default function TacticalMap() {
                 y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
               };
               return (
-                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu} onPointerDown={forwardTouchToMap}>
+                <g key={key} style={{ pointerEvents: 'none' }}>
                   {/* Selection bounding box + glow */}
                   {isSelected && (
                     <>
@@ -1069,7 +1089,7 @@ export default function TacticalMap() {
               const h = 36; // total height from top of circle to tip
               const cy = ny - h + r; // center of the circle head
               return (
-                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu} onPointerDown={forwardTouchToMap}>
+                <g key={key} style={{ pointerEvents: 'none' }}>
                   {isSelected && renderSelectionBBox([{ x: nx - r - 4, y: cy - r - 4 }, { x: nx + r + 4, y: ny + 4 }], 6)}
                   {/* Drop shadow */}
                   <ellipse cx={nx} cy={ny + 2} rx={5} ry={2.5} fill="rgba(0,0,0,0.35)" />
@@ -1101,7 +1121,7 @@ export default function TacticalMap() {
               const tx = pt.x + (dOff?.dx || 0);
               const ty = pt.y + (dOff?.dy || 0);
               return (
-                <g key={key} style={{ pointerEvents: (isSelected && drawingToolsVisible) ? 'none' : 'auto', cursor: isSelected ? 'move' : 'pointer' }} onClick={handleClick} onDoubleClick={handleDblClick} onContextMenu={handleContextMenu} onPointerDown={forwardTouchToMap}>
+                <g key={key} style={{ pointerEvents: 'none' }}>
                   {isSelected && renderSelectionBBox([{ x: tx - 30, y: ty - 12 }, { x: tx + 30, y: ty + 12 }], 8)}
                   <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
                     fill="#ffffff" fontSize="18" fontWeight="700"
