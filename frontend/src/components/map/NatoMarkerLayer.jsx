@@ -19,7 +19,8 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
   const dragEndTimeRef = useRef(0);
   const clickTimerRef = useRef(null);
   const [infoPopup, setInfoPopup] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const selectedId = useMapStore((s) => s.selectedMarkerId);
+  const setSelectedId = useMapStore((s) => s.setSelectedMarkerId);
   const [echelonMenu, setEchelonMenu] = useState(null);
   const [moveGrid, setMoveGrid] = useState('');
   const [createdBy, setCreatedBy] = useState(null); // { username, created_at } or 'loading' or null

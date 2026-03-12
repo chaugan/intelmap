@@ -110,7 +110,7 @@ function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   );
 }
 
-function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true, focusedItemId }) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true, focusedItemId, onSelectMarker, onSelectDrawing }) {
   const copyBtnRefs = useRef({});
 
   if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
@@ -129,12 +129,12 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const sym = generateSymbolSvg(m.sidc, { size: 16 });
         const isCopying = copyingItemId === m.id;
         return (
-          <div key={m.id} className={`relative ${focusedItemId === m.id ? 'drawer-focus-pulse' : ''}`}>
+          <div key={m.id} data-item-id={m.id} className={`relative ${focusedItemId === m.id ? 'drawer-focus-pulse' : ''}`}>
             <div className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
               <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: sym.svg }} />
               <span
                 className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-                onClick={() => flyTo([m.lon, m.lat])}
+                onClick={() => { flyTo([m.lon, m.lat]); if (onSelectMarker) onSelectMarker(m.id); }}
                 title={name}
               >
                 {name}
@@ -188,7 +188,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
         const color = d.properties?.color || '#3b82f6';
         const isCopying = copyingItemId === d.id;
         return (
-          <div key={d.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === d.id ? 'drawer-focus-pulse' : ''}`}>
+          <div key={d.id} data-item-id={d.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === d.id ? 'drawer-focus-pulse' : ''}`}>
             <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>
               {d.drawingType === 'grid' ? (
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.5">
@@ -200,7 +200,7 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
             </span>
             <span
               className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
-              onClick={() => flyTo(center)}
+              onClick={() => { flyTo(center); if (onSelectDrawing) onSelectDrawing(d.id); }}
               title={label}
             >
               {label}
@@ -423,6 +423,10 @@ export default function ProjectDrawer() {
   const [notInUseCollapsed, setNotInUseCollapsed] = useState({}); // { projectId: bool }
   const updateProjectSettings = useProjectStore((s) => s.updateProjectSettings);
   const mapRef = useMapStore((s) => s.mapRef);
+  const selectedMarkerId = useMapStore((s) => s.selectedMarkerId);
+  const selectedDrawingId = useMapStore((s) => s.selectedDrawingId);
+  const setSelectedMarkerId = useMapStore((s) => s.setSelectedMarkerId);
+  const setSelectedDrawingId = useMapStore((s) => s.setSelectedDrawingId);
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedItemId, setFocusedItemId] = useState(null);
   const focusTimerRef = useRef(null);
@@ -776,7 +780,52 @@ export default function ProjectDrawer() {
     if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     setFocusedItemId(itemId);
     focusTimerRef.current = setTimeout(() => setFocusedItemId(null), 5000);
+    // Scroll the focused item into view after React renders
+    setTimeout(() => {
+      const el = document.querySelector(`[data-item-id="${itemId}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 80);
   }, []);
+
+  // Sync map selection → drawer: expand project/layer and focus item
+  const revealItemInDrawer = useCallback((itemId) => {
+    if (!itemId) return;
+    // Find which project and layer this item belongs to
+    for (const pid of visibleProjectIds) {
+      const proj = projects[pid];
+      if (!proj) continue;
+      const marker = proj.markers.find(m => m.id === itemId);
+      if (marker) {
+        setExpandedProject(pid);
+        if (marker.layerId) {
+          setExpandedLayerId(marker.layerId);
+        } else {
+          setExpandedUnassigned(pid);
+        }
+        triggerFocus(itemId);
+        return;
+      }
+      const drawing = proj.drawings.find(d => d.id === itemId);
+      if (drawing) {
+        setExpandedProject(pid);
+        if (drawing.layerId) {
+          setExpandedLayerId(drawing.layerId);
+        } else {
+          setExpandedUnassigned(pid);
+        }
+        triggerFocus(itemId);
+        return;
+      }
+    }
+  }, [visibleProjectIds, projects, triggerFocus]);
+
+  useEffect(() => {
+    if (selectedMarkerId) revealItemInDrawer(selectedMarkerId);
+  }, [selectedMarkerId, revealItemInDrawer]);
+
+  useEffect(() => {
+    if (selectedDrawingId) revealItemInDrawer(selectedDrawingId);
+  }, [selectedDrawingId, revealItemInDrawer]);
 
   const handleSearchFlyTo = useCallback((coords) => {
     if (!mapRef || !coords) return;
@@ -1250,7 +1299,7 @@ export default function ProjectDrawer() {
                           </div>
                           {isLayerExpanded && (
                             <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                              <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} />
+                              <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
                             </div>
                           )}
                         </div>
@@ -1302,7 +1351,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
                           </div>
                         )}
                       </div>

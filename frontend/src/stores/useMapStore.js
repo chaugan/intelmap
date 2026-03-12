@@ -61,6 +61,7 @@ export const useMapStore = create((set) => ({
   drawingToolsVisible: false,
   drawingActiveMode: null, // shared so MeasuringTool can yield to active drawing
   selectedDrawingId: null,
+  selectedMarkerId: null,
   dragPreview: null, // { drawingId, geometry } — live geometry during drag
   sunlightVisible: false,
   sunlightOpacity: 0.5,
@@ -313,7 +314,8 @@ export const useMapStore = create((set) => ({
   toggleSunlightAnimation: () => set((s) => ({ sunlightAnimating: !s.sunlightAnimating })),
   setSunlightAnimationSpeed: (sunlightAnimationSpeed) => set({ sunlightAnimationSpeed }),
   toggleDrawingTools: () => set((s) => ({ drawingToolsVisible: !s.drawingToolsVisible, ...(!s.drawingToolsVisible ? {} : { selectedDrawingId: null }) })),
-  setSelectedDrawingId: (id) => set({ selectedDrawingId: id }),
+  setSelectedDrawingId: (id) => set({ selectedDrawingId: id, selectedMarkerId: null }),
+  setSelectedMarkerId: (id) => set({ selectedMarkerId: id, selectedDrawingId: null }),
   setLang: (lang) => set({ lang }),
   setMapRef: (mapRef) => set({ mapRef }),
   setActivePanel: (panel) => set((s) => ({
