@@ -109,8 +109,8 @@ export const COMMON_SIDCS = {
 export const ECHELONS = [
   { code: '-', name: { en: 'Unknown', no: 'Ukjent' }, symbol: '?' },
   { code: 'A', name: { en: 'Team/Crew', no: 'Lag' }, symbol: '\u00d8' },
-  { code: 'B', name: { en: 'Squad', no: 'Tropp' }, symbol: '\u2022\u2022' },
-  { code: 'D', name: { en: 'Platoon', no: 'Pluton' }, symbol: '\u2022\u2022\u2022' },
+  { code: 'B', name: { en: 'Squad', no: 'Tropp' }, symbol: '\u2022' },
+  { code: 'D', name: { en: 'Platoon', no: 'Pluton' }, symbol: '\u2022\u2022' },
   { code: 'E', name: { en: 'Company/Battery', no: 'Kompani/Batteri' }, symbol: '|' },
   { code: 'F', name: { en: 'Battalion', no: 'Bataljon' }, symbol: '||' },
   { code: 'G', name: { en: 'Regiment/Group', no: 'Regiment' }, symbol: '|||' },
