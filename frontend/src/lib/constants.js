@@ -127,7 +127,6 @@ export const SYMBOL_CATEGORIES = {
     friendly: [
       { sidc: 'SFGPUCI----A---', name: { en: 'Infantry Team', no: 'Infanterilag' } },
       { sidc: 'SFGPUCI----B---', name: { en: 'Infantry Squad', no: 'Infanteritropp' } },
-      { sidc: 'SFGPUCI----D---', name: { en: 'Infantry Platoon', no: 'Infanteripluton' } },
       { sidc: 'SFGPUCI----E---', name: { en: 'Infantry Company', no: 'Infanterikompani' } },
       { sidc: 'SFGPUCI----F---', name: { en: 'Infantry Battalion', no: 'Infanteribataljon' } },
       { sidc: 'SFGPUCI----G---', name: { en: 'Infantry Regiment', no: 'Infanteriregiment' } },
@@ -138,7 +137,6 @@ export const SYMBOL_CATEGORIES = {
     ],
     hostile: [
       { sidc: 'SHGPUCI----B---', name: { en: 'Infantry Squad', no: 'Infanteritropp' } },
-      { sidc: 'SHGPUCI----D---', name: { en: 'Infantry Platoon', no: 'Infanteripluton' } },
       { sidc: 'SHGPUCI----E---', name: { en: 'Infantry Company', no: 'Infanterikompani' } },
       { sidc: 'SHGPUCI----F---', name: { en: 'Infantry Battalion', no: 'Infanteribataljon' } },
       { sidc: 'SHGPUCI----G---', name: { en: 'Infantry Regiment', no: 'Infanteriregiment' } },
@@ -155,14 +153,14 @@ export const SYMBOL_CATEGORIES = {
   armor: {
     name: { en: 'Armor', no: 'Panser' },
     friendly: [
-      { sidc: 'SFGPUCA----D---', name: { en: 'Armor Platoon', no: 'Panserpluton' } },
+      { sidc: 'SFGPUCA----B---', name: { en: 'Armor Squad', no: 'Pansertropp' } },
       { sidc: 'SFGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadron' } },
       { sidc: 'SFGPUCA----F---', name: { en: 'Armor Battalion', no: 'Panserbataljon' } },
       { sidc: 'SFGPUCA----G---', name: { en: 'Armor Regiment', no: 'Panserregiment' } },
       { sidc: 'SFGPUCAW---E---', name: { en: 'Wheeled Armor Squadron', no: 'Hjulpansereskadron' } },
     ],
     hostile: [
-      { sidc: 'SHGPUCA----D---', name: { en: 'Armor Platoon', no: 'Panserpluton' } },
+      { sidc: 'SHGPUCA----B---', name: { en: 'Armor Squad', no: 'Pansertropp' } },
       { sidc: 'SHGPUCA----E---', name: { en: 'Armor Squadron', no: 'Pansereskadron' } },
       { sidc: 'SHGPUCA----F---', name: { en: 'Armor Battalion', no: 'Panserbataljon' } },
       { sidc: 'SHGPUCA----G---', name: { en: 'Armor Regiment', no: 'Panserregiment' } },
@@ -175,12 +173,12 @@ export const SYMBOL_CATEGORIES = {
   artillery: {
     name: { en: 'Artillery', no: 'Artilleri' },
     friendly: [
-      { sidc: 'SFGPUCF----D---', name: { en: 'Artillery Platoon', no: 'Artilleripluton' } },
+      { sidc: 'SFGPUCF----B---', name: { en: 'Artillery Squad', no: 'Artilleritropp' } },
       { sidc: 'SFGPUCF----E---', name: { en: 'Artillery Battery', no: 'Artilleribatteri' } },
       { sidc: 'SFGPUCF----F---', name: { en: 'Artillery Battalion', no: 'Artilleribataljon' } },
       { sidc: 'SFGPUCFR---E---', name: { en: 'Rocket Artillery Battery', no: 'Rakettartilleribatteri' } },
       { sidc: 'SFGPUCFM---E---', name: { en: 'Mortar Battery', no: 'Bombekasterbatteri' } },
-      { sidc: 'SFGPUCFM---D---', name: { en: 'Mortar Platoon', no: 'Bombekasterpluton' } },
+      { sidc: 'SFGPUCFM---B---', name: { en: 'Mortar Squad', no: 'Bombekastertropp' } },
       { sidc: 'SFGPUCFS---E---', name: { en: 'SP Artillery Battery', no: 'Selvdrevet artilleribatteri' } },
     ],
     hostile: [
@@ -197,7 +195,7 @@ export const SYMBOL_CATEGORIES = {
   airDefense: {
     name: { en: 'Air Defense', no: 'Luftvern' },
     friendly: [
-      { sidc: 'SFGPUCAA---D---', name: { en: 'AD Platoon', no: 'Luftvernpluton' } },
+      { sidc: 'SFGPUCAA---B---', name: { en: 'AD Squad', no: 'Luftverntropp' } },
       { sidc: 'SFGPUCAA---E---', name: { en: 'AD Battery', no: 'Luftvernbatteri' } },
       { sidc: 'SFGPUCAA---F---', name: { en: 'AD Battalion', no: 'Luftvernbataljon' } },
       { sidc: 'SFGPUCAAM--E---', name: { en: 'AD Missile Battery', no: 'Luftvern missilbatteri' } },
@@ -232,7 +230,7 @@ export const SYMBOL_CATEGORIES = {
   engineer: {
     name: { en: 'Engineer', no: 'Ingeniør' },
     friendly: [
-      { sidc: 'SFGPUCE----D---', name: { en: 'Engineer Platoon', no: 'Ingeniørpluton' } },
+      { sidc: 'SFGPUCE----B---', name: { en: 'Engineer Squad', no: 'Ingeniørtropp' } },
       { sidc: 'SFGPUCE----E---', name: { en: 'Engineer Company', no: 'Ingeniørkompani' } },
       { sidc: 'SFGPUCE----F---', name: { en: 'Engineer Battalion', no: 'Ingeniørbataljon' } },
       { sidc: 'SFGPUCEC---E---', name: { en: 'Combat Engineer Company', no: 'Stridsingeniørkompani' } },
@@ -249,13 +247,13 @@ export const SYMBOL_CATEGORIES = {
   recon: {
     name: { en: 'Reconnaissance', no: 'Oppklaring' },
     friendly: [
-      { sidc: 'SFGPUCRR---D---', name: { en: 'Recon Platoon', no: 'Oppklaringspluton' } },
+      { sidc: 'SFGPUCRR---B---', name: { en: 'Recon Squad', no: 'Oppklaringstropp' } },
       { sidc: 'SFGPUCRR---E---', name: { en: 'Recon Company', no: 'Oppklaringskompani' } },
       { sidc: 'SFGPUCRR---F---', name: { en: 'Recon Battalion', no: 'Oppklaringsbataljon' } },
       { sidc: 'SFGPUCRRA--E---', name: { en: 'Armored Recon Company', no: 'Pansret oppklaringskompani' } },
     ],
     hostile: [
-      { sidc: 'SHGPUCRR---D---', name: { en: 'Recon Platoon', no: 'Oppklaringspluton' } },
+      { sidc: 'SHGPUCRR---B---', name: { en: 'Recon Squad', no: 'Oppklaringstropp' } },
       { sidc: 'SHGPUCRR---E---', name: { en: 'Recon Company', no: 'Oppklaringskompani' } },
       { sidc: 'SHGPUCRR---F---', name: { en: 'Recon Battalion', no: 'Oppklaringsbataljon' } },
     ],
@@ -285,7 +283,7 @@ export const SYMBOL_CATEGORIES = {
   medical: {
     name: { en: 'Medical', no: 'Sanitet' },
     friendly: [
-      { sidc: 'SFGPUSM----D---', name: { en: 'Medical Platoon', no: 'Sanitetspluton' } },
+      { sidc: 'SFGPUSM----B---', name: { en: 'Medical Squad', no: 'Sanitetstropp' } },
       { sidc: 'SFGPUSM----E---', name: { en: 'Medical Company', no: 'Sanitetskompani' } },
       { sidc: 'SFGPUSM----F---', name: { en: 'Medical Battalion', no: 'Sanitetsbataljon' } },
     ],
@@ -316,7 +314,7 @@ export const SYMBOL_CATEGORIES = {
   signalComms: {
     name: { en: 'Signal / Comms', no: 'Samband' },
     friendly: [
-      { sidc: 'SFGPUUS----D---', name: { en: 'Signal Platoon', no: 'Sambandspluton' } },
+      { sidc: 'SFGPUUS----B---', name: { en: 'Signal Squad', no: 'Sambandstropp' } },
       { sidc: 'SFGPUUS----E---', name: { en: 'Signal Company', no: 'Sambandskompani' } },
       { sidc: 'SFGPUUS----F---', name: { en: 'Signal Battalion', no: 'Sambandsbataljon' } },
     ],
@@ -332,7 +330,6 @@ export const SYMBOL_CATEGORIES = {
     name: { en: 'Special Forces', no: 'Spesialstyrker' },
     friendly: [
       { sidc: 'SFGPUCSM---B---', name: { en: 'SF Team', no: 'Spesialstyrketeam' } },
-      { sidc: 'SFGPUCSM---D---', name: { en: 'SF Platoon', no: 'Spesialstyrketropp' } },
       { sidc: 'SFGPUCSM---E---', name: { en: 'SF Company', no: 'Spesialstyrkeenhet' } },
     ],
     hostile: [
@@ -346,11 +343,11 @@ export const SYMBOL_CATEGORIES = {
   militaryPolice: {
     name: { en: 'Military Police', no: 'Militærpoliti' },
     friendly: [
-      { sidc: 'SFGPUCMP---D---', name: { en: 'MP Platoon', no: 'Militærpolitipluton' } },
+      { sidc: 'SFGPUCMP---B---', name: { en: 'MP Squad', no: 'Militærpolititropp' } },
       { sidc: 'SFGPUCMP---E---', name: { en: 'MP Company', no: 'Militærpolitikompani' } },
     ],
     hostile: [
-      { sidc: 'SHGPUCMP---D---', name: { en: 'MP Platoon', no: 'Militærpolitipluton' } },
+      { sidc: 'SHGPUCMP---B---', name: { en: 'MP Squad', no: 'Militærpolititropp' } },
       { sidc: 'SHGPUCMP---E---', name: { en: 'MP Company', no: 'Militærpolitikompani' } },
     ],
     neutral: [
@@ -360,11 +357,11 @@ export const SYMBOL_CATEGORIES = {
   electronicWarfare: {
     name: { en: 'Electronic Warfare', no: 'Elektronisk krigføring' },
     friendly: [
-      { sidc: 'SFGPUEW----D---', name: { en: 'EW Platoon', no: 'EK-pluton' } },
+      { sidc: 'SFGPUEW----B---', name: { en: 'EW Squad', no: 'EK-tropp' } },
       { sidc: 'SFGPUEW----E---', name: { en: 'EW Company', no: 'EK-kompani' } },
     ],
     hostile: [
-      { sidc: 'SHGPUEW----D---', name: { en: 'EW Platoon', no: 'EK-pluton' } },
+      { sidc: 'SHGPUEW----B---', name: { en: 'EW Squad', no: 'EK-tropp' } },
       { sidc: 'SHGPUEW----E---', name: { en: 'EW Company', no: 'EK-kompani' } },
     ],
     neutral: [
@@ -374,11 +371,11 @@ export const SYMBOL_CATEGORIES = {
   antiArmor: {
     name: { en: 'Anti-Armor', no: 'Panservern' },
     friendly: [
-      { sidc: 'SFGPUCIA---D---', name: { en: 'Anti-Armor Platoon', no: 'Panservernpluton' } },
+      { sidc: 'SFGPUCIA---B---', name: { en: 'Anti-Armor Squad', no: 'Panserverntropp' } },
       { sidc: 'SFGPUCIA---E---', name: { en: 'Anti-Armor Company', no: 'Panservernkompani' } },
     ],
     hostile: [
-      { sidc: 'SHGPUCIA---D---', name: { en: 'Anti-Armor Platoon', no: 'Panservernpluton' } },
+      { sidc: 'SHGPUCIA---B---', name: { en: 'Anti-Armor Squad', no: 'Panserverntropp' } },
       { sidc: 'SHGPUCIA---E---', name: { en: 'Anti-Armor Company', no: 'Panservernkompani' } },
     ],
     neutral: [
@@ -407,11 +404,11 @@ export const SYMBOL_CATEGORIES = {
   radarSensor: {
     name: { en: 'Radar / Sensor', no: 'Radar / Sensor' },
     friendly: [
-      { sidc: 'SFGPUSR----D---', name: { en: 'Radar Platoon', no: 'Radarpluton' } },
+      { sidc: 'SFGPUSR----B---', name: { en: 'Radar Squad', no: 'Radartropp' } },
       { sidc: 'SFGPUSR----E---', name: { en: 'Radar Company', no: 'Radarkompani' } },
     ],
     hostile: [
-      { sidc: 'SHGPUSR----D---', name: { en: 'Radar Platoon', no: 'Radarpluton' } },
+      { sidc: 'SHGPUSR----B---', name: { en: 'Radar Squad', no: 'Radartropp' } },
       { sidc: 'SHGPUSR----E---', name: { en: 'Radar Company', no: 'Radarkompani' } },
     ],
     neutral: [
@@ -471,7 +468,7 @@ export const SYMBOL_CATEGORIES = {
   cbrn: {
     name: { en: 'CBRN', no: 'CBRN' },
     friendly: [
-      { sidc: 'SFGPUCR----D---', name: { en: 'CBRN Platoon', no: 'CBRN-pluton' } },
+      { sidc: 'SFGPUCR----B---', name: { en: 'CBRN Squad', no: 'CBRN-tropp' } },
       { sidc: 'SFGPUCR----E---', name: { en: 'CBRN Company', no: 'CBRN-kompani' } },
     ],
     hostile: [
