@@ -448,7 +448,7 @@ router.delete('/share-token/:tokenId', (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/projects/:id/audit-log?limit=50&offset=0
+// GET /api/projects/:id/audit-log?limit=50&offset=0&entity_id=xxx&action=add
 router.get('/:id/audit-log', (req, res) => {
   const role = getProjectRole(req.user.id, req.params.id);
   if (role !== 'admin' && role !== 'editor') {
@@ -457,10 +457,20 @@ router.get('/:id/audit-log', (req, res) => {
   const db = getDb();
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   const offset = parseInt(req.query.offset) || 0;
+  let where = 'project_id = ?';
+  const params = [req.params.id];
+  if (req.query.entity_id) {
+    where += ' AND entity_id = ?';
+    params.push(req.query.entity_id);
+  }
+  if (req.query.action) {
+    where += ' AND action = ?';
+    params.push(req.query.action);
+  }
   const entries = db.prepare(
-    'SELECT * FROM project_audit_log WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?'
-  ).all(req.params.id, limit, offset);
-  const { c: total } = db.prepare('SELECT COUNT(*) as c FROM project_audit_log WHERE project_id = ?').get(req.params.id);
+    `SELECT * FROM project_audit_log WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset);
+  const { c: total } = db.prepare(`SELECT COUNT(*) as c FROM project_audit_log WHERE ${where}`).get(...params);
   res.json({ entries, total, limit, offset });
 });
 

@@ -22,6 +22,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
   const [selectedId, setSelectedId] = useState(null);
   const [echelonMenu, setEchelonMenu] = useState(null);
   const [moveGrid, setMoveGrid] = useState('');
+  const [createdBy, setCreatedBy] = useState(null); // { username, created_at } or 'loading' or null
 
   const visibleMarkers = getAllVisibleMarkers(state);
 
@@ -143,11 +144,29 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
     e.preventDefault();
     e.stopPropagation();
     setMoveGrid('');
+    setCreatedBy('loading');
     setEchelonMenu({
       marker,
       x: e.clientX,
       y: e.clientY,
     });
+    // Fetch "added by" from audit log
+    const projectId = marker._projectId || marker.projectId;
+    if (projectId && marker.id) {
+      fetch(`/api/projects/${projectId}/audit-log?entity_id=${marker.id}&action=add&limit=1`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.entries?.length > 0) {
+            const entry = data.entries[0];
+            setCreatedBy({ username: entry.username, created_at: entry.created_at });
+          } else {
+            setCreatedBy(null);
+          }
+        })
+        .catch(() => setCreatedBy(null));
+    } else {
+      setCreatedBy(null);
+    }
   }, []);
 
   const affiliationLabels = {
@@ -366,6 +385,26 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
               </button>
             ))}
           </div>
+          {/* Added by info */}
+          {createdBy && createdBy !== 'loading' && (
+            <div className="border-t border-slate-700 mt-2 pt-1.5 px-1">
+              <div className="text-[10px] text-slate-400">
+                {lang === 'no' ? 'Lagt til av' : 'Added by'}{' '}
+                <span className="text-slate-200 font-medium">{createdBy.username}</span>
+              </div>
+              <div className="text-[9px] text-slate-500">
+                {new Date(createdBy.created_at + 'Z').toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', {
+                  day: '2-digit', month: 'short', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })}
+              </div>
+            </div>
+          )}
+          {createdBy === 'loading' && (
+            <div className="border-t border-slate-700 mt-2 pt-1.5 px-1">
+              <div className="text-[9px] text-slate-500 italic">{lang === 'no' ? 'Laster...' : 'Loading...'}</div>
+            </div>
+          )}
           <div className="flex gap-1 mt-2 border-t border-slate-700 pt-2">
             <button
               onClick={() => {
