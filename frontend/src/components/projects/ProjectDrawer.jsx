@@ -252,9 +252,11 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
       })}
       {viewsheds.map((v) => {
         const isHorizon = v.type === 'horizon';
-        const label = isHorizon
-          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${v.radiusKm || ''}km`
-          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
+        const radiusStr = v.radiusKm ? `${Math.round(v.radiusKm * 10) / 10}km` : '';
+        const typeLabel = isHorizon
+          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${radiusStr}`
+          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${radiusStr}`;
+        const label = v.label ? `${v.label} (${radiusStr})` : typeLabel;
         const isCopying = copyingItemId === v.id;
         return (
           <div key={v.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === v.id ? 'drawer-focus-pulse' : ''}`}>
@@ -521,6 +523,10 @@ export default function ProjectDrawer() {
 
   const handleSaveView = async (project) => {
     if (!mapRef) return;
+    const confirmMsg = lang === 'no'
+      ? `Lagre nåværende kartvisning for "${project.name}"?`
+      : `Save current map view for "${project.name}"?`;
+    if (!confirm(confirmMsg)) return;
     const ms = useMapStore.getState();
     const savedView = {
       // Camera
@@ -760,9 +766,11 @@ export default function ProjectDrawer() {
       }
       // Match viewsheds
       for (const v of (projData.viewsheds || [])) {
-        const label = v.type === 'horizon'
-          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${v.radiusKm || ''}km`
-          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${v.radiusKm || ''}km`;
+        const radiusStr = v.radiusKm ? `${Math.round(v.radiusKm * 10) / 10}km` : '';
+        const typeLabel = v.type === 'horizon'
+          ? `${lang === 'no' ? 'Horisont' : 'Horizon'} ${radiusStr}`
+          : `${lang === 'no' ? 'Siktanalyse' : 'Viewshed'} ${radiusStr}`;
+        const label = v.label ? `${v.label} (${radiusStr})` : typeLabel;
         if (label.toLowerCase().includes(q)) {
           const layer = projData.layers.find(l => l.id === v.layerId);
           results.push({ type: 'viewshed', id: v.id, label, project: p, layer, coords: [v.longitude, v.latitude], item: v });

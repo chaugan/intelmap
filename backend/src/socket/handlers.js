@@ -1,7 +1,7 @@
 import { EVENTS } from './events.js';
 import { projectStore } from '../store/project-store.js';
 import { getProjectRole, canMutateProject } from '../auth/project-access.js';
-import { addViewshed, deleteViewshed, deleteAllViewsheds } from '../store/viewshed-store.js';
+import { addViewshed, updateViewshed, deleteViewshed, deleteAllViewsheds } from '../store/viewshed-store.js';
 import { addRFCoverage, deleteRFCoverage, deleteAllRFCoverages } from '../store/rfcoverage-store.js';
 import { logAudit } from '../lib/audit-logger.js';
 import { getDb } from '../db/index.js';
@@ -300,6 +300,16 @@ export function registerHandlers(socket, io) {
     io.to(`project:${projectId}`).emit(EVENTS.SERVER_VIEWSHED_ADDED, viewshed);
     logAudit(io, projectId, userId, socket.user.username, 'add', 'viewshed', viewshed.id,
       'Added viewshed', { lat: data.latitude, lon: data.longitude });
+  });
+
+  socket.on(EVENTS.CLIENT_VIEWSHED_UPDATE, ({ projectId, id, ...updates }) => {
+    if (!projectId || !id || !canMutateProject(userId, projectId)) return;
+    const updated = updateViewshed(id, projectId, updates);
+    if (updated) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_VIEWSHED_UPDATED, updated);
+      logAudit(io, projectId, userId, socket.user.username, 'update', 'viewshed', id,
+        'Updated viewshed', { lat: updated.latitude, lon: updated.longitude });
+    }
   });
 
   socket.on(EVENTS.CLIENT_VIEWSHED_DELETE, ({ projectId, id }) => {

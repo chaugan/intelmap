@@ -13,11 +13,15 @@ const SOURCE_SAVED_HORIZONS = 'viewshed-saved-horizons';
 const LAYER_SAVED_FILL = 'viewshed-saved-fill';
 const LAYER_SAVED_LINE = 'viewshed-saved-line';
 const LAYER_SAVED_OBSERVERS = 'viewshed-saved-observers';
+const LAYER_SAVED_LABELS = 'viewshed-saved-labels';
 const LAYER_SAVED_BOUNDARIES = 'viewshed-saved-boundaries-line';
 const LAYER_SAVED_HORIZON_FILL = 'viewshed-saved-horizon-fill';
 const LAYER_SAVED_HORIZON_EXTRUSION = 'viewshed-saved-horizon-extrusion';
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+const DEFAULT_VIEWSHED_COLOR = '#ef4444';
+const DEFAULT_HORIZON_COLOR = '#a855f7';
 
 function destinationPoint(lat, lon, bearingRad, distKm) {
   const R = 6371;
@@ -93,6 +97,10 @@ function buildHorizonGeoJSON(horizonProfile, center, radiusKm, heightScale) {
   return { type: 'FeatureCollection', features };
 }
 
+function featureColor(v) {
+  return v.color || (v.type === 'horizon' ? DEFAULT_HORIZON_COLOR : DEFAULT_VIEWSHED_COLOR);
+}
+
 function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, itemVisibility, heightScale = 0.05) {
   const polygons = [];
   const observers = [];
@@ -107,6 +115,8 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
     for (const v of proj.viewsheds) {
       if (v.layerId && !visLayerIds.has(v.layerId)) continue;
       if (itemVisibility[v.id] === false) continue;
+
+      const color = featureColor(v);
 
       if (v.type === 'horizon') {
         const profile = v.geojson?.properties?.horizonProfile;
@@ -124,7 +134,7 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
           polygons.push({
             type: 'Feature',
             geometry: v.geojson.geometry,
-            properties: { id: v.id, projectId: pid },
+            properties: { id: v.id, projectId: pid, color },
           });
         }
       }
@@ -145,7 +155,7 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
         boundaries.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: coords },
-          properties: { id: v.id, projectId: pid, type: v.type || 'viewshed' },
+          properties: { id: v.id, projectId: pid, type: v.type || 'viewshed', color },
         });
       }
 
@@ -153,7 +163,10 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
         observers.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
-          properties: { id: v.id, projectId: pid, type: v.type || 'viewshed' },
+          properties: {
+            id: v.id, projectId: pid, type: v.type || 'viewshed', color,
+            label: v.label || '', observerHeight: v.observerHeight, radiusKm: v.radiusKm,
+          },
         });
       }
     }
@@ -166,8 +179,21 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
   };
 }
 
-const ALL_LAYERS = [LAYER_SAVED_FILL, LAYER_SAVED_LINE, LAYER_SAVED_OBSERVERS, LAYER_SAVED_BOUNDARIES, LAYER_SAVED_HORIZON_FILL, LAYER_SAVED_HORIZON_EXTRUSION];
+const ALL_LAYERS = [LAYER_SAVED_FILL, LAYER_SAVED_LINE, LAYER_SAVED_OBSERVERS, LAYER_SAVED_LABELS, LAYER_SAVED_BOUNDARIES, LAYER_SAVED_HORIZON_FILL, LAYER_SAVED_HORIZON_EXTRUSION];
 const ALL_SOURCES = [SOURCE_SAVED, SOURCE_SAVED_OBSERVERS, SOURCE_SAVED_BOUNDARIES, SOURCE_SAVED_HORIZONS];
+
+function addViewshedLayers(map) {
+  const defaultColor = DEFAULT_VIEWSHED_COLOR;
+  const defaultHorizonColor = DEFAULT_HORIZON_COLOR;
+
+  if (!map.getLayer(LAYER_SAVED_FILL)) map.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': ['coalesce', ['get', 'color'], defaultColor], 'fill-opacity': 0.25 } });
+  if (!map.getLayer(LAYER_SAVED_LINE)) map.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': ['coalesce', ['get', 'color'], defaultColor], 'line-opacity': 0.5, 'line-width': 1 } });
+  if (!map.getLayer(LAYER_SAVED_OBSERVERS)) map.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': ['coalesce', ['get', 'color'], ['match', ['get', 'type'], 'horizon', defaultHorizonColor, defaultColor]], 'circle-stroke-width': 3 } });
+  if (!map.getLayer(LAYER_SAVED_LABELS)) map.addLayer({ id: LAYER_SAVED_LABELS, type: 'symbol', source: SOURCE_SAVED_OBSERVERS, filter: ['!=', ['get', 'label'], ''], layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#1e293b', 'text-halo-width': 1.5 } });
+  if (!map.getLayer(LAYER_SAVED_BOUNDARIES)) map.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['coalesce', ['get', 'color'], ['match', ['get', 'type'], 'horizon', defaultHorizonColor, defaultColor]], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
+  if (!map.getLayer(LAYER_SAVED_HORIZON_FILL)) map.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
+  if (!map.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) map.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
+}
 
 export default function ViewshedOverlay() {
   const mapRef = useMapStore((s) => s.mapRef);
@@ -207,13 +233,7 @@ export default function ViewshedOverlay() {
     ensureSource(SOURCE_SAVED_BOUNDARIES, data.boundaries);
     ensureSource(SOURCE_SAVED_HORIZONS, data.horizons);
 
-    // Ensure layers exist
-    if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.25 } });
-    if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
-    if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-    if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
-    if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
-    if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
+    addViewshedLayers(mapRef);
 
     // Re-add after base map style changes
     const onStyleData = () => {
@@ -223,16 +243,46 @@ export default function ViewshedOverlay() {
       if (!mapRef.getSource(SOURCE_SAVED_OBSERVERS)) mapRef.addSource(SOURCE_SAVED_OBSERVERS, { type: 'geojson', data: d.observers });
       if (!mapRef.getSource(SOURCE_SAVED_BOUNDARIES)) mapRef.addSource(SOURCE_SAVED_BOUNDARIES, { type: 'geojson', data: d.boundaries });
       if (!mapRef.getSource(SOURCE_SAVED_HORIZONS)) mapRef.addSource(SOURCE_SAVED_HORIZONS, { type: 'geojson', data: d.horizons });
-      if (!mapRef.getLayer(LAYER_SAVED_FILL)) mapRef.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.25 } });
-      if (!mapRef.getLayer(LAYER_SAVED_LINE)) mapRef.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': '#f59e0b', 'line-opacity': 0.5, 'line-width': 1 } });
-      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) mapRef.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 5, 'circle-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-      if (!mapRef.getLayer(LAYER_SAVED_BOUNDARIES)) mapRef.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['match', ['get', 'type'], 'horizon', '#a855f7', '#f59e0b'], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
-      if (!mapRef.getLayer(LAYER_SAVED_HORIZON_FILL)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
-      if (!mapRef.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) mapRef.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
+      addViewshedLayers(mapRef);
     };
     mapRef.on('styledata', onStyleData);
     return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
   }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
+
+  // Click handler on observer points
+  useEffect(() => {
+    if (!mapRef) return;
+
+    const onClick = (e) => {
+      const feature = e.features?.[0];
+      if (!feature) return;
+      const { id, projectId } = feature.properties;
+      window.dispatchEvent(new CustomEvent('viewshed:config-open', {
+        detail: { id, projectId, lngLat: e.lngLat },
+      }));
+    };
+    const onEnter = () => { mapRef.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { mapRef.getCanvas().style.cursor = ''; };
+
+    // Delay slightly so layer exists
+    const setup = () => {
+      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) return;
+      mapRef.on('click', LAYER_SAVED_OBSERVERS, onClick);
+      mapRef.on('mouseenter', LAYER_SAVED_OBSERVERS, onEnter);
+      mapRef.on('mouseleave', LAYER_SAVED_OBSERVERS, onLeave);
+    };
+    setup();
+    mapRef.on('styledata', setup);
+
+    return () => {
+      mapRef.off('styledata', setup);
+      if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) {
+        mapRef.off('click', LAYER_SAVED_OBSERVERS, onClick);
+        mapRef.off('mouseenter', LAYER_SAVED_OBSERVERS, onEnter);
+        mapRef.off('mouseleave', LAYER_SAVED_OBSERVERS, onLeave);
+      }
+    };
+  }, [mapRef]);
 
   return null;
 }

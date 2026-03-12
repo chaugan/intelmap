@@ -250,6 +250,20 @@ export const useTacticalStore = create((set, get) => ({
     };
   }),
 
+  updateViewshed: (projectId, updated) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: {
+          ...proj,
+          viewsheds: (proj.viewsheds || []).map(v => v.id === updated.id ? { ...v, ...updated } : v),
+        },
+      },
+    };
+  }),
+
   deleteViewshed: (projectId, id) => set((s) => {
     const proj = s.projects[projectId];
     if (!proj) return {};

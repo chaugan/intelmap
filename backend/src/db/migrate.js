@@ -252,6 +252,16 @@ export function runMigration() {
     console.log('Added show_label column to project_rf_coverages table');
   }
 
+  // Add color and label columns to project_viewsheds
+  if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'color')) {
+    db.prepare("ALTER TABLE project_viewsheds ADD COLUMN color TEXT").run();
+    console.log('Added color column to project_viewsheds table');
+  }
+  if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'label')) {
+    db.prepare("ALTER TABLE project_viewsheds ADD COLUMN label TEXT").run();
+    console.log('Added label column to project_viewsheds table');
+  }
+
   // Add type column to project_viewsheds (viewshed | horizon)
   if (viewshedCols.length > 0 && !viewshedCols.some(c => c.name === 'type')) {
     db.prepare("ALTER TABLE project_viewsheds ADD COLUMN type TEXT DEFAULT 'viewshed'").run();

@@ -588,6 +588,11 @@ const translations = {
     'viewshed.protected': 'Beskyttet',
     'viewshed.exposed': 'Eksponert',
     'viewshed.scanRadius': 'Skanneradius',
+    'viewshed.config': 'Innstillinger',
+    'viewshed.labelInput': 'Etikett',
+    'viewshed.color': 'Farge',
+    'viewshed.rePlace': 'Flytt',
+    'viewshed.replacing': 'Klikk for å plassere på nytt',
 
     // RF Coverage
     'rfcoverage.title': 'Radiosamband',
@@ -1257,6 +1262,11 @@ const translations = {
     'viewshed.protected': 'Protected',
     'viewshed.exposed': 'Exposed',
     'viewshed.scanRadius': 'Scan radius',
+    'viewshed.config': 'Settings',
+    'viewshed.labelInput': 'Label',
+    'viewshed.color': 'Color',
+    'viewshed.rePlace': 'Re-place',
+    'viewshed.replacing': 'Click to re-place',
 
     // RF Coverage
     'rfcoverage.title': 'RF Coverage',

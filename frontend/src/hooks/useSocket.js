@@ -70,6 +70,9 @@ export function useSocket() {
     const onViewshedAdded = (data) => {
       useTacticalStore.getState().addViewshed(data.projectId, data);
     };
+    const onViewshedUpdated = (data) => {
+      useTacticalStore.getState().updateViewshed(data.projectId, data);
+    };
     const onViewshedDeleted = ({ projectId, id }) => {
       useTacticalStore.getState().deleteViewshed(projectId, id);
     };
@@ -111,6 +114,7 @@ export function useSocket() {
     socket.on('server:pin:updated', onPinUpdated);
     socket.on('server:pin:deleted', onPinDeleted);
     socket.on('server:viewshed:added', onViewshedAdded);
+    socket.on('server:viewshed:updated', onViewshedUpdated);
     socket.on('server:viewshed:deleted', onViewshedDeleted);
     socket.on('server:viewshed:all-deleted', onViewshedAllDeleted);
     socket.on('server:rfcoverage:added', onRFCoverageAdded);
@@ -136,6 +140,7 @@ export function useSocket() {
       socket.off('server:pin:updated', onPinUpdated);
       socket.off('server:pin:deleted', onPinDeleted);
       socket.off('server:viewshed:added', onViewshedAdded);
+      socket.off('server:viewshed:updated', onViewshedUpdated);
       socket.off('server:viewshed:deleted', onViewshedDeleted);
       socket.off('server:viewshed:all-deleted', onViewshedAllDeleted);
       socket.off('server:rfcoverage:added', onRFCoverageAdded);
