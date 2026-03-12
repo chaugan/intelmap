@@ -662,11 +662,16 @@ export default function ViewshedTool() {
                         <span className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white" onClick={() => flyTo(v.longitude, v.latitude)}>
                           {label}
                         </span>
-                        <button onClick={() => flyTo(v.longitude, v.latitude)} className="shrink-0 text-slate-600 hover:text-cyan-400">
+                        <button onClick={() => flyTo(v.longitude, v.latitude)} className="shrink-0 text-slate-600 hover:text-cyan-400" title={isNo ? 'Fly til' : 'Fly to'}>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path d="M12 19V5M5 12l7-7 7 7" /></svg>
                         </button>
                         {editableProjectIds.has(v._projectId) && (
-                          <button onClick={() => socket.emit('client:viewshed:delete', { projectId: v._projectId, id: v.id })} className="shrink-0 text-slate-600 hover:text-red-400">
+                          <button onClick={() => setConfigTarget({ id: v.id, projectId: v._projectId })} className="shrink-0 text-slate-600 hover:text-amber-400" title={t('viewshed.config', lang)}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                          </button>
+                        )}
+                        {editableProjectIds.has(v._projectId) && (
+                          <button onClick={() => socket.emit('client:viewshed:delete', { projectId: v._projectId, id: v.id })} className="shrink-0 text-slate-600 hover:text-red-400" title={isNo ? 'Slett' : 'Delete'}>
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
                         )}

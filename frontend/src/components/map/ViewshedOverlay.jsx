@@ -2,7 +2,7 @@
  * ViewshedOverlay — always mounted, renders saved viewsheds on the map
  * regardless of whether the ViewshedTool panel is open.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { useTacticalStore } from '../../stores/useTacticalStore.js';
 
@@ -188,11 +188,12 @@ function addViewshedLayers(map) {
 
   if (!map.getLayer(LAYER_SAVED_FILL)) map.addLayer({ id: LAYER_SAVED_FILL, type: 'fill', source: SOURCE_SAVED, paint: { 'fill-color': ['coalesce', ['get', 'color'], defaultColor], 'fill-opacity': 0.25 } });
   if (!map.getLayer(LAYER_SAVED_LINE)) map.addLayer({ id: LAYER_SAVED_LINE, type: 'line', source: SOURCE_SAVED, paint: { 'line-color': ['coalesce', ['get', 'color'], defaultColor], 'line-opacity': 0.5, 'line-width': 1 } });
-  if (!map.getLayer(LAYER_SAVED_OBSERVERS)) map.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': ['coalesce', ['get', 'color'], ['match', ['get', 'type'], 'horizon', defaultHorizonColor, defaultColor]], 'circle-stroke-width': 3 } });
-  if (!map.getLayer(LAYER_SAVED_LABELS)) map.addLayer({ id: LAYER_SAVED_LABELS, type: 'symbol', source: SOURCE_SAVED_OBSERVERS, filter: ['!=', ['get', 'label'], ''], layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#1e293b', 'text-halo-width': 1.5 } });
   if (!map.getLayer(LAYER_SAVED_BOUNDARIES)) map.addLayer({ id: LAYER_SAVED_BOUNDARIES, type: 'line', source: SOURCE_SAVED_BOUNDARIES, paint: { 'line-color': ['coalesce', ['get', 'color'], ['match', ['get', 'type'], 'horizon', defaultHorizonColor, defaultColor]], 'line-width': 3, 'line-opacity': 0.8, 'line-dasharray': [4, 2] } });
   if (!map.getLayer(LAYER_SAVED_HORIZON_FILL)) map.addLayer({ id: LAYER_SAVED_HORIZON_FILL, type: 'fill', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.4 } });
   if (!map.getLayer(LAYER_SAVED_HORIZON_EXTRUSION)) map.addLayer({ id: LAYER_SAVED_HORIZON_EXTRUSION, type: 'fill-extrusion', source: SOURCE_SAVED_HORIZONS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.5 } });
+  // Observer circles — larger for easier clicking (8px visible + 12px hit area via stroke)
+  if (!map.getLayer(LAYER_SAVED_OBSERVERS)) map.addLayer({ id: LAYER_SAVED_OBSERVERS, type: 'circle', source: SOURCE_SAVED_OBSERVERS, paint: { 'circle-radius': 7, 'circle-color': '#ffffff', 'circle-stroke-color': ['coalesce', ['get', 'color'], ['match', ['get', 'type'], 'horizon', defaultHorizonColor, defaultColor]], 'circle-stroke-width': 3 } });
+  if (!map.getLayer(LAYER_SAVED_LABELS)) map.addLayer({ id: LAYER_SAVED_LABELS, type: 'symbol', source: SOURCE_SAVED_OBSERVERS, filter: ['!=', ['get', 'label'], ''], layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#1e293b', 'text-halo-width': 1.5 } });
 }
 
 export default function ViewshedOverlay() {
@@ -202,20 +203,21 @@ export default function ViewshedOverlay() {
   const layerVisibility = useTacticalStore((s) => s.layerVisibility);
   const itemVisibility = useTacticalStore((s) => s.itemVisibility);
   const dataRef = useRef(null);
+  const clickBoundRef = useRef(false);
+
+  const removeLayers = useCallback((map) => {
+    for (const l of ALL_LAYERS) { if (map.getLayer(l)) map.removeLayer(l); }
+    for (const s of ALL_SOURCES) { if (map.getSource(s)) map.removeSource(s); }
+  }, []);
 
   // Single effect: create/update/remove sources+layers whenever state changes
   useEffect(() => {
     if (!mapRef) return;
 
-    const removeLayers = () => {
-      for (const l of ALL_LAYERS) { if (mapRef.getLayer(l)) mapRef.removeLayer(l); }
-      for (const s of ALL_SOURCES) { if (mapRef.getSource(s)) mapRef.removeSource(s); }
-    };
-
     const hasData = visibleProjectIds.some(pid => projects[pid]?.viewsheds?.length > 0);
 
     if (!hasData) {
-      removeLayers();
+      removeLayers(mapRef);
       dataRef.current = null;
       return;
     }
@@ -246,41 +248,53 @@ export default function ViewshedOverlay() {
       addViewshedLayers(mapRef);
     };
     mapRef.on('styledata', onStyleData);
-    return () => { mapRef.off('styledata', onStyleData); removeLayers(); };
-  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility]);
+    return () => { mapRef.off('styledata', onStyleData); removeLayers(mapRef); };
+  }, [mapRef, visibleProjectIds, projects, layerVisibility, itemVisibility, removeLayers]);
 
-  // Click handler on observer points
+  // Click handler on observer points — separate stable effect
   useEffect(() => {
     if (!mapRef) return;
+    // Use a single set of handlers, bind/unbind via generic click with manual hit-test
+    // This avoids the layer-specific binding issue where handlers are lost when layers are recreated
 
     const onClick = (e) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
+      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) return;
+      // Query features at click point with some tolerance
+      const bbox = [[e.point.x - 10, e.point.y - 10], [e.point.x + 10, e.point.y + 10]];
+      const features = mapRef.queryRenderedFeatures(bbox, { layers: [LAYER_SAVED_OBSERVERS] });
+      if (!features.length) return;
+      const feature = features[0];
       const { id, projectId } = feature.properties;
       window.dispatchEvent(new CustomEvent('viewshed:config-open', {
         detail: { id, projectId, lngLat: e.lngLat },
       }));
     };
-    const onEnter = () => { mapRef.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { mapRef.getCanvas().style.cursor = ''; };
 
-    // Delay slightly so layer exists
-    const setup = () => {
-      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) return;
-      mapRef.on('click', LAYER_SAVED_OBSERVERS, onClick);
-      mapRef.on('mouseenter', LAYER_SAVED_OBSERVERS, onEnter);
-      mapRef.on('mouseleave', LAYER_SAVED_OBSERVERS, onLeave);
+    let hovering = false;
+    const onMouseMove = (e) => {
+      if (!mapRef.getLayer(LAYER_SAVED_OBSERVERS)) {
+        if (hovering) { hovering = false; mapRef.getCanvas().style.cursor = ''; }
+        return;
+      }
+      const features = mapRef.queryRenderedFeatures(e.point, { layers: [LAYER_SAVED_OBSERVERS] });
+      if (features.length > 0 && !hovering) {
+        hovering = true;
+        mapRef.getCanvas().style.cursor = 'pointer';
+      } else if (features.length === 0 && hovering) {
+        hovering = false;
+        mapRef.getCanvas().style.cursor = '';
+      }
     };
-    setup();
-    mapRef.on('styledata', setup);
+
+    mapRef.on('click', onClick);
+    mapRef.on('mousemove', onMouseMove);
+    clickBoundRef.current = true;
 
     return () => {
-      mapRef.off('styledata', setup);
-      if (mapRef.getLayer(LAYER_SAVED_OBSERVERS)) {
-        mapRef.off('click', LAYER_SAVED_OBSERVERS, onClick);
-        mapRef.off('mouseenter', LAYER_SAVED_OBSERVERS, onEnter);
-        mapRef.off('mouseleave', LAYER_SAVED_OBSERVERS, onLeave);
-      }
+      mapRef.off('click', onClick);
+      mapRef.off('mousemove', onMouseMove);
+      if (hovering) mapRef.getCanvas().style.cursor = '';
+      clickBoundRef.current = false;
     };
   }, [mapRef]);
 
