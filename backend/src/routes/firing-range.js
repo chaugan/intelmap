@@ -99,8 +99,8 @@ router.post('/calculate', async (req, res) => {
         const lowValid = thetaLow >= minElRad && thetaLow <= maxElRad;
 
         if (!highValid && !lowValid) {
-          // Both outside limits — dead zone if too close (low angle > max elevation)
-          if (thetaLow > maxElRad) {
+          // Dead zone: too close — low angle below min elevation, high angle above max elevation
+          if (thetaLow < minElRad && thetaHigh > maxElRad) {
             grid[r][s - 1] = 2; // dead zone
           } else {
             grid[r][s - 1] = 0; // unreachable
