@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo, lazy, Suspense } from 'react';
 import { useSocket } from './hooks/useSocket.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import TacticalMap from './components/map/TacticalMap.jsx';
@@ -24,8 +24,9 @@ import { useAuthStore } from './stores/useAuthStore.js';
 import { useTimelapseStore } from './stores/useTimelapseStore.js';
 import { useProjectStore } from './stores/useProjectStore.js';
 import { useTacticalStore } from './stores/useTacticalStore.js';
-import FireReportDrawer from './components/fire-report/FireReportDrawer.jsx';
 import { t } from './lib/i18n.js';
+
+const FireReportDrawer = lazy(() => import('./components/fire-report/FireReportDrawer.jsx'));
 import { VERSION } from './version.js';
 
 export default function App() {
@@ -522,7 +523,7 @@ function MapApp({ user }) {
           </div>
           {showFireReport && isNarrow && (
             <div className="h-1/2 bg-slate-800 border-t border-slate-700 overflow-y-auto shrink-0">
-              <FireReportDrawer />
+              <Suspense fallback={null}><FireReportDrawer /></Suspense>
             </div>
           )}
         </div>
@@ -546,7 +547,7 @@ function MapApp({ user }) {
         {showFireReport && !isNarrow && (
           <div className="bg-slate-800 border-l border-slate-700 flex flex-col shrink-0 overflow-hidden"
                style={{ width: 380 }}>
-            <FireReportDrawer />
+            <Suspense fallback={null}><FireReportDrawer /></Suspense>
           </div>
         )}
 
