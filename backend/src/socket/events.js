@@ -24,6 +24,10 @@ export const EVENTS = {
   CLIENT_RFCOVERAGE_SAVE: 'client:rfcoverage:save',
   CLIENT_RFCOVERAGE_DELETE: 'client:rfcoverage:delete',
   CLIENT_RFCOVERAGE_DELETE_ALL: 'client:rfcoverage:delete-all',
+  CLIENT_FIRINGRANGE_SAVE: 'client:firing-range:save',
+  CLIENT_FIRINGRANGE_UPDATE: 'client:firing-range:update',
+  CLIENT_FIRINGRANGE_DELETE: 'client:firing-range:delete',
+  CLIENT_FIRINGRANGE_DELETE_ALL: 'client:firing-range:delete-all',
 
   // Server → Client
   SERVER_PROJECT_STATE: 'server:project:state',
@@ -46,5 +50,9 @@ export const EVENTS = {
   SERVER_RFCOVERAGE_ADDED: 'server:rfcoverage:added',
   SERVER_RFCOVERAGE_DELETED: 'server:rfcoverage:deleted',
   SERVER_RFCOVERAGE_ALL_DELETED: 'server:rfcoverage:all-deleted',
+  SERVER_FIRINGRANGE_ADDED: 'server:firing-range:added',
+  SERVER_FIRINGRANGE_UPDATED: 'server:firing-range:updated',
+  SERVER_FIRINGRANGE_DELETED: 'server:firing-range:deleted',
+  SERVER_FIRINGRANGE_ALL_DELETED: 'server:firing-range:all-deleted',
   SERVER_AUDIT_ENTRY: 'server:audit:entry',
 };

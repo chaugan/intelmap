@@ -205,6 +205,7 @@ export default function MapControls() {
       {user && <GridButton lang={lang} />}
       {user && <ViewshedButton lang={lang} />}
       {user && <RFCoverageButton lang={lang} />}
+      {user && <FiringRangeButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
@@ -402,6 +403,25 @@ function RFCoverageButton({ lang }) {
         <circle cx="12" cy="10" r="1" fill="currentColor" />
       </svg>
       {t('rfcoverage.title', lang)}
+    </button>
+  );
+}
+
+function FiringRangeButton({ lang }) {
+  const active = useMapStore((s) => s.firingRangeToolVisible);
+  const toggle = useMapStore((s) => s.toggleFiringRangeTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('firingRange.title', lang)} (Shift+K)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+      </svg>
+      {t('firingRange.title', lang)}
     </button>
   );
 }

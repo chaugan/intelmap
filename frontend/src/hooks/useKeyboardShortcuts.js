@@ -21,6 +21,7 @@ export function useKeyboardShortcuts() {
   const toggleGridTool = useMapStore((s) => s.toggleGridTool);
   const toggleRFCoverageTool = useMapStore((s) => s.toggleRFCoverageTool);
   const toggleFireReportTool = useMapStore((s) => s.toggleFireReportTool);
+  const toggleFiringRangeTool = useMapStore((s) => s.toggleFiringRangeTool);
   const toggleSunlight = useMapStore((s) => s.toggleSunlight);
   const toggleHillshade = useMapStore((s) => s.toggleHillshade);
   const toggleTerrain = useMapStore((s) => s.toggleTerrain);
@@ -128,6 +129,12 @@ export function useKeyboardShortcuts() {
           break;
         }
 
+        // Firing Range tool (shift+K, only if logged in)
+        case 'K': {
+          if (useAuthStore.getState().user) toggleFiringRangeTool();
+          break;
+        }
+
         // Fire Report tool (shift+F, only if enabled)
         case 'F': {
           const user = useAuthStore.getState().user;
@@ -148,5 +155,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleGridTool, toggleRFCoverageTool, toggleFireReportTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleGridTool, toggleRFCoverageTool, toggleFiringRangeTool, toggleFireReportTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }

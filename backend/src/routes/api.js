@@ -28,6 +28,7 @@ import upscaleRouter from './upscale.js';
 import signalRouter from './signal.js';
 import viewshedRouter from './viewshed.js';
 import rfcoverageRouter from './rfcoverage.js';
+import firingRangeRouter from './firing-range.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -59,4 +60,5 @@ router.use('/upscale', upscaleRouter);
 router.use('/signal', signalRouter);
 router.use('/viewshed', viewshedRouter);
 router.use('/rfcoverage', rfcoverageRouter);
+router.use('/firing-range', firingRangeRouter);
 export default router;

@@ -3,6 +3,7 @@ import { projectStore } from '../store/project-store.js';
 import { getProjectRole, canMutateProject } from '../auth/project-access.js';
 import { addViewshed, updateViewshed, deleteViewshed, deleteAllViewsheds } from '../store/viewshed-store.js';
 import { addRFCoverage, deleteRFCoverage, deleteAllRFCoverages } from '../store/rfcoverage-store.js';
+import { addFiringRange, updateFiringRange, deleteFiringRange, deleteAllFiringRanges } from '../store/firing-range-store.js';
 import { logAudit } from '../lib/audit-logger.js';
 import { getDb } from '../db/index.js';
 
@@ -359,6 +360,46 @@ export function registerHandlers(socket, io) {
     if (count > 0) {
       io.to(`project:${projectId}`).emit(EVENTS.SERVER_RFCOVERAGE_ALL_DELETED, { projectId });
       logAudit(io, projectId, userId, socket.user.username, 'delete_all', 'rfcoverage', null, 'Deleted all RF coverages');
+    }
+  });
+
+  // --- Firing Ranges ---
+  socket.on(EVENTS.CLIENT_FIRINGRANGE_SAVE, (data) => {
+    const { projectId } = data;
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const firingRange = addFiringRange(projectId, { ...data, createdBy: userId });
+    io.to(`project:${projectId}`).emit(EVENTS.SERVER_FIRINGRANGE_ADDED, firingRange);
+    logAudit(io, projectId, userId, socket.user.username, 'add', 'firing-range', firingRange.id,
+      'Added firing range', { lat: data.latitude, lon: data.longitude });
+  });
+
+  socket.on(EVENTS.CLIENT_FIRINGRANGE_UPDATE, ({ projectId, id, ...updates }) => {
+    if (!projectId || !id || !canMutateProject(userId, projectId)) return;
+    const updated = updateFiringRange(id, projectId, updates);
+    if (updated) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_FIRINGRANGE_UPDATED, updated);
+      logAudit(io, projectId, userId, socket.user.username, 'update', 'firing-range', id,
+        'Updated firing range', { lat: updated.latitude, lon: updated.longitude });
+    }
+  });
+
+  socket.on(EVENTS.CLIENT_FIRINGRANGE_DELETE, ({ projectId, id }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const db = getDb();
+    const oldRow = db.prepare('SELECT * FROM project_firing_ranges WHERE id = ? AND project_id = ?').get(id, projectId);
+    if (deleteFiringRange(id, projectId)) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_FIRINGRANGE_DELETED, { projectId, id });
+      logAudit(io, projectId, userId, socket.user.username, 'delete', 'firing-range', id,
+        'Deleted firing range', { lat: oldRow?.latitude, lon: oldRow?.longitude });
+    }
+  });
+
+  socket.on(EVENTS.CLIENT_FIRINGRANGE_DELETE_ALL, ({ projectId }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const count = deleteAllFiringRanges(projectId);
+    if (count > 0) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_FIRINGRANGE_ALL_DELETED, { projectId });
+      logAudit(io, projectId, userId, socket.user.username, 'delete_all', 'firing-range', null, 'Deleted all firing ranges');
     }
   });
 }

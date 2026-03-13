@@ -23,8 +23,8 @@ export function useSocket() {
     };
 
     // --- Project-scoped events ---
-    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds, rfCoverages }) => {
-      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages });
+    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges }) => {
+      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges });
     };
 
     const onMarkerAdded = (data) => {
@@ -93,6 +93,19 @@ export function useSocket() {
       useTacticalStore.getState().updateRFCoverageLabel(projectId, id, showLabel);
     };
 
+    const onFiringRangeAdded = (data) => {
+      useTacticalStore.getState().addFiringRange(data.projectId, data);
+    };
+    const onFiringRangeUpdated = (data) => {
+      useTacticalStore.getState().updateFiringRange(data.projectId, data);
+    };
+    const onFiringRangeDeleted = ({ projectId, id }) => {
+      useTacticalStore.getState().deleteFiringRange(projectId, id);
+    };
+    const onFiringRangeAllDeleted = ({ projectId }) => {
+      useTacticalStore.getState().clearFiringRanges(projectId);
+    };
+
     const onAuditEntry = (entry) => {
       window.dispatchEvent(new CustomEvent('audit-entry', { detail: entry }));
     };
@@ -121,6 +134,10 @@ export function useSocket() {
     socket.on('server:rfcoverage:deleted', onRFCoverageDeleted);
     socket.on('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
     socket.on('server:rfcoverage:label-updated', onRFCoverageLabelUpdated);
+    socket.on('server:firing-range:added', onFiringRangeAdded);
+    socket.on('server:firing-range:updated', onFiringRangeUpdated);
+    socket.on('server:firing-range:deleted', onFiringRangeDeleted);
+    socket.on('server:firing-range:all-deleted', onFiringRangeAllDeleted);
 
     return () => {
       socket.off('server:audit:entry', onAuditEntry);
@@ -147,6 +164,10 @@ export function useSocket() {
       socket.off('server:rfcoverage:deleted', onRFCoverageDeleted);
       socket.off('server:rfcoverage:all-deleted', onRFCoverageAllDeleted);
       socket.off('server:rfcoverage:label-updated', onRFCoverageLabelUpdated);
+      socket.off('server:firing-range:added', onFiringRangeAdded);
+      socket.off('server:firing-range:updated', onFiringRangeUpdated);
+      socket.off('server:firing-range:deleted', onFiringRangeDeleted);
+      socket.off('server:firing-range:all-deleted', onFiringRangeAllDeleted);
     };
   }, []);
 }

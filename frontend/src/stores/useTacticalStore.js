@@ -69,7 +69,7 @@ export const useTacticalStore = create((set, get) => ({
 
   // --- Project state (from server) ---
 
-  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages }) => set((s) => {
+  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges }) => set((s) => {
     const allLayers = layers || [];
     // Restore saved layer visibility from localStorage
     const saved = loadTacticalLayerVisibility(projectId);
@@ -89,7 +89,7 @@ export const useTacticalStore = create((set, get) => ({
     return {
       projects: {
         ...s.projects,
-        [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [] },
+        [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [], firingRanges: firingRanges || [] },
       },
       layerVisibility: newVis,
       labelVisibility: newLabelVis,
@@ -350,6 +350,55 @@ export const useTacticalStore = create((set, get) => ({
       projects: {
         ...s.projects,
         [projectId]: { ...proj, rfCoverages: [] },
+      },
+    };
+  }),
+
+  addFiringRange: (projectId, firingRange) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    const existing = proj.firingRanges || [];
+    if (existing.some(f => f.id === firingRange.id)) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, firingRanges: [...existing, firingRange] },
+      },
+    };
+  }),
+
+  updateFiringRange: (projectId, updated) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: {
+          ...proj,
+          firingRanges: (proj.firingRanges || []).map(f => f.id === updated.id ? { ...f, ...updated } : f),
+        },
+      },
+    };
+  }),
+
+  deleteFiringRange: (projectId, id) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, firingRanges: (proj.firingRanges || []).filter(f => f.id !== id) },
+      },
+    };
+  }),
+
+  clearFiringRanges: (projectId) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, firingRanges: [] },
       },
     };
   }),

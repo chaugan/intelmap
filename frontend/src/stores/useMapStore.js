@@ -174,6 +174,9 @@ export const useMapStore = create((set) => ({
   activeRFCoverageId: null, // ID of coverage currently loaded in the tool
   sessionRFCoverages: [], // unsaved coverages that persist when tool closes
 
+  // Firing Range tool
+  firingRangeToolVisible: false,
+
   // Fire Report tool
   fireReportToolVisible: false,
   fireReportTarget: null,   // { lng, lat, mgrs } — selected coordinate
@@ -365,11 +368,15 @@ export const useMapStore = create((set) => ({
   toggleGridTool: () => set((s) => ({ gridToolVisible: !s.gridToolVisible })),
   toggleViewshedTool: () => set((s) => ({
     viewshedToolVisible: !s.viewshedToolVisible,
-    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, rfCoverageToolVisible: false } : {}),
+    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, rfCoverageToolVisible: false, firingRangeToolVisible: false } : {}),
   })),
   toggleRFCoverageTool: () => set((s) => ({
     rfCoverageToolVisible: !s.rfCoverageToolVisible,
-    ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false } : {}),
+    ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, firingRangeToolVisible: false } : {}),
+  })),
+  toggleFiringRangeTool: () => set((s) => ({
+    firingRangeToolVisible: !s.firingRangeToolVisible,
+    ...(!s.firingRangeToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, rfCoverageToolVisible: false } : {}),
   })),
   toggleFireReportTool: () => set((s) => ({
     fireReportToolVisible: !s.fireReportToolVisible,
