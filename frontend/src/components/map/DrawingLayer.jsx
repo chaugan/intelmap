@@ -755,10 +755,11 @@ export default function DrawingLayer() {
     }
   }, [selectedDrawing, activeMode]);
 
-  // Adjust font size of selected text drawing or draw-mode default
+  // Adjust font size of selected drawing (text or any with label) or draw-mode default
   const adjustFontSize = useCallback((delta) => {
-    if (selectedDrawing && !activeMode && (selectedDrawing.drawingType === 'text')) {
-      const current = selectedDrawing.properties?.fontSize || 18;
+    if (selectedDrawing && !activeMode && (selectedDrawing.drawingType === 'text' || selectedDrawing.properties?.label)) {
+      const defaultSize = selectedDrawing.drawingType === 'text' ? 18 : selectedDrawing.drawingType === 'needle' ? 13 : 16;
+      const current = selectedDrawing.properties?.fontSize || defaultSize;
       const newSize = Math.max(10, Math.min(40, current + delta));
       if (selectedDrawing._local) {
         setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
@@ -923,19 +924,19 @@ export default function DrawingLayer() {
 
         {/* Line width controls during draw mode */}
         {activeMode && activeMode !== 'text' && activeMode !== 'needle' && (
-          <div className="flex flex-col items-center gap-0.5 mt-1">
-            <span className="text-[9px] text-slate-400">{t('draw.lineWidth', lang)}</span>
-            <div className="flex gap-1">
+          <div className="flex flex-col items-center gap-0.5 mt-1 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
+            <span className="text-[9px] text-slate-300 font-medium">{t('draw.lineWidth', lang)}</span>
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => adjustLineWidth(-1)}
-                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
               >
                 −
               </button>
-              <span className="text-[11px] text-white w-4 text-center">{drawStrokeWidth}</span>
+              <span className="text-[12px] text-white w-5 text-center font-bold">{drawStrokeWidth}</span>
               <button
                 onClick={() => adjustLineWidth(1)}
-                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
               >
                 +
               </button>
@@ -945,19 +946,19 @@ export default function DrawingLayer() {
 
         {/* Font size controls during text draw mode */}
         {activeMode === 'text' && (
-          <div className="flex flex-col items-center gap-0.5 mt-1">
-            <span className="text-[9px] text-slate-400">{t('draw.fontSize', lang)}</span>
-            <div className="flex gap-1">
+          <div className="flex flex-col items-center gap-0.5 mt-1 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
+            <span className="text-[9px] text-slate-300 font-medium">{t('draw.fontSize', lang)}</span>
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => adjustFontSize(-2)}
-                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
               >
                 −
               </button>
-              <span className="text-[11px] text-white w-4 text-center">{drawFontSize}</span>
+              <span className="text-[12px] text-white w-5 text-center font-bold">{drawFontSize}</span>
               <button
                 onClick={() => adjustFontSize(2)}
-                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
               >
                 +
               </button>
@@ -1057,19 +1058,19 @@ export default function DrawingLayer() {
 
             {/* Line width controls */}
             {selectedDrawing.geometry.type !== 'Point' && (
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="text-[9px] text-slate-400">{t('draw.lineWidth', lang)}</span>
-                <div className="flex gap-1">
+              <div className="flex flex-col items-center gap-0.5 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
+                <span className="text-[9px] text-slate-300 font-medium">{t('draw.lineWidth', lang)}</span>
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => adjustLineWidth(-1)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
                   >
                     −
                   </button>
-                  <span className="text-[11px] text-white w-4 text-center">{selectedDrawing.properties?.strokeWidth || 3}</span>
+                  <span className="text-[12px] text-white w-5 text-center font-bold">{selectedDrawing.properties?.strokeWidth || 3}</span>
                   <button
                     onClick={() => adjustLineWidth(1)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
                   >
                     +
                   </button>
@@ -1077,21 +1078,21 @@ export default function DrawingLayer() {
               </div>
             )}
 
-            {/* Font size controls for selected text */}
-            {selectedDrawing.drawingType === 'text' && (
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="text-[9px] text-slate-400">{t('draw.fontSize', lang)}</span>
-                <div className="flex gap-1">
+            {/* Font size controls for selected text or any drawing with a label */}
+            {(selectedDrawing.drawingType === 'text' || selectedDrawing.properties?.label) && (
+              <div className="flex flex-col items-center gap-0.5 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
+                <span className="text-[9px] text-slate-300 font-medium">{t('draw.fontSize', lang)}</span>
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => adjustFontSize(-2)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
                   >
                     −
                   </button>
-                  <span className="text-[11px] text-white w-4 text-center">{selectedDrawing.properties?.fontSize || 18}</span>
+                  <span className="text-[12px] text-white w-5 text-center font-bold">{selectedDrawing.properties?.fontSize || (selectedDrawing.drawingType === 'text' ? 18 : selectedDrawing.drawingType === 'needle' ? 13 : 16)}</span>
                   <button
                     onClick={() => adjustFontSize(2)}
-                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
                   >
                     +
                   </button>
