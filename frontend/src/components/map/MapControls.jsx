@@ -238,6 +238,13 @@ export default function MapControls() {
         </>
       )}
 
+      {user?.fireReportEnabled && (
+        <>
+          <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
+          <FireReportButton lang={lang} />
+        </>
+      )}
+
       {canTimelapse && (
         <>
           <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
@@ -395,6 +402,25 @@ function RFCoverageButton({ lang }) {
         <circle cx="12" cy="10" r="1" fill="currentColor" />
       </svg>
       {t('rfcoverage.title', lang)}
+    </button>
+  );
+}
+
+function FireReportButton({ lang }) {
+  const active = useMapStore((s) => s.fireReportToolVisible);
+  const toggle = useMapStore((s) => s.toggleFireReportTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-red-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('fireReport.title', lang)} (F)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+      </svg>
+      {t('fireReport.title', lang)}
     </button>
   );
 }

@@ -4,7 +4,7 @@ import { useWeather } from '../../hooks/useWeather.js';
 import { getWeatherLabel } from '../../lib/weather-symbols.js';
 import { calcWindChill } from '../../lib/weather-utils.js';
 import { t } from '../../lib/i18n.js';
-import { forward as mgrsForward } from 'mgrs';
+import { toMGRS } from '../../lib/mgrs-utils.js';
 import MoonPhaseIcon from './MoonPhaseIcon.jsx';
 import StreetViewOverlay from './StreetViewOverlay.jsx';
 
@@ -15,22 +15,6 @@ const DANGER_COLORS = {
   4: '#E81700',
   5: '#1B1B1B',
 };
-
-function toMGRS(lat, lon) {
-  try {
-    const mgrs = mgrsForward([lon, lat], 5);
-    // Format: "32VKM1234567890" → "32V KM 12345 67890"
-    const m = mgrs.match(/^(\d{1,2})([A-Z])([A-Z]{2})(\d+)$/);
-    if (m) {
-      const [, zone, band, sq, digits] = m;
-      const half = digits.length / 2;
-      return `${zone}${band} ${sq} ${digits.slice(0, half)} ${digits.slice(half)}`;
-    }
-    return mgrs;
-  } catch {
-    return '—';
-  }
-}
 
 export default function ContextMenu({ lng, lat, x, y, onClose, pinned: externalPinned, onPin }) {
   const lang = useMapStore((s) => s.lang);

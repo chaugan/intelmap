@@ -191,6 +191,11 @@ function UsersTab({ lang, currentUser }) {
     fetchUsers();
   }
 
+  async function toggleFireReport(id) {
+    await fetch(`${API}/users/${id}/toggle-fire-report`, { method: 'POST', credentials: 'include' });
+    fetchUsers();
+  }
+
   async function unlockUser(id) {
     await fetch(`${API}/users/${id}/unlock`, { method: 'POST', credentials: 'include' });
     fetchUsers();
@@ -365,6 +370,7 @@ function UsersTab({ lang, currentUser }) {
               {currentUser?.orgFeatureSignal && <th className="pb-2">Signal</th>}
               {currentUser?.orgFeatureInfraview && <th className="pb-2">InfraView</th>}
               {currentUser?.orgFeatureUpscale && <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>}
+              {currentUser?.orgFeatureFireReport && <th className="pb-2">{lang === 'no' ? 'Ildrapport' : 'Fire Report'}</th>}
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
@@ -430,6 +436,14 @@ function UsersTab({ lang, currentUser }) {
                     <button onClick={() => toggleUpscale(u.id)}
                       className={`px-2 py-0.5 rounded text-xs transition-colors ${u.upscaleEnabled ? 'bg-orange-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {u.upscaleEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
+                {currentUser?.orgFeatureFireReport && (
+                  <td className="py-2">
+                    <button onClick={() => toggleFireReport(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.fireReportEnabled ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.fireReportEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                     </button>
                   </td>
                 )}

@@ -9,6 +9,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
 import { useWeatherStore } from '../../stores/useWeatherStore.js';
 import { t } from '../../lib/i18n.js';
+import { toMGRS } from '../../lib/mgrs-utils.js';
 import NatoMarkerLayer from './NatoMarkerLayer.jsx';
 import WebcamLayer from './WebcamLayer.jsx';
 import WindOverlay, { WindLegend } from './WindOverlay.jsx';
@@ -92,6 +93,7 @@ export default function TacticalMap() {
   const windLoading = useWeatherStore((s) => s.windLoading);
   const placementMode = useMapStore((s) => s.placementMode);
   const setPlacementMode = useMapStore((s) => s.setPlacementMode);
+  const fireReportToolVisible = useMapStore((s) => s.fireReportToolVisible);
   const activePanel = useMapStore((s) => s.activePanel);
   const setAvalancheWarningRegion = useMapStore((s) => s.setAvalancheWarningRegion);
   const vesselDeepAnalysis = useMapStore((s) => s.vesselDeepAnalysis);
@@ -232,6 +234,19 @@ export default function TacticalMap() {
   const onClick = useCallback((evt) => {
     setContextMenus((prev) => prev.filter((m) => m.pinned));
 
+    // Fire Report tool — intercept click to set target
+    if (useMapStore.getState().fireReportToolVisible) {
+      const { lng, lat } = evt.lngLat;
+      const mgrs = toMGRS(lat, lng);
+      const state = useMapStore.getState();
+      state.setFireReportTarget({ lng, lat, mgrs });
+      // If already in form phase, just update target (don't reset to select)
+      if (state.fireReportPhase !== 'form') {
+        state.setFireReportPhase('select');
+      }
+      return;
+    }
+
     if (placementMode) {
       const { lng, lat } = evt.lngLat;
 
@@ -315,6 +330,19 @@ export default function TacticalMap() {
         e.originalEvent.preventDefault();
         const { lng, lat } = touchStartLngLat;
         const { x, y } = touchStartPoint;
+
+        // Fire Report tool — intercept long-press to set target
+        if (useMapStore.getState().fireReportToolVisible) {
+          const mgrs = toMGRS(lat, lng);
+          const state = useMapStore.getState();
+          state.setFireReportTarget({ lng, lat, mgrs });
+          if (state.fireReportPhase !== 'form') {
+            state.setFireReportPhase('select');
+          }
+          if (navigator.vibrate) navigator.vibrate(50);
+          return;
+        }
+
         if (suppressMapContextMenu.current) {
           suppressMapContextMenu.current = false;
           return;
@@ -635,7 +663,7 @@ export default function TacticalMap() {
         onMove={onMove}
         onMoveEnd={onMoveEnd}
         onClick={onClick}
-        cursor={placementMode ? 'crosshair' : 'grab'}
+        cursor={placementMode || fireReportToolVisible ? 'crosshair' : 'grab'}
         preserveDrawingBuffer={true}
         attributionControl={false}
       >
@@ -649,6 +677,8 @@ export default function TacticalMap() {
             </div>
           </Marker>
         )}
+        {/* Fire Report target marker */}
+        <FireReportTargetMarker lang={lang} />
       </Map>
 
       {/* Declutter: algorithm + leader lines SVG (direct DOM, no per-frame re-renders) */}
@@ -1407,5 +1437,42 @@ export default function TacticalMap() {
         />
       )}
     </div>
+  );
+}
+
+function FireReportTargetMarker({ lang }) {
+  const target = useMapStore((s) => s.fireReportTarget);
+  const phase = useMapStore((s) => s.fireReportPhase);
+  const visible = useMapStore((s) => s.fireReportToolVisible);
+  const setPhase = useMapStore((s) => s.setFireReportPhase);
+
+  if (!visible || !target) return null;
+
+  return (
+    <Marker longitude={target.lng} latitude={target.lat} anchor="center">
+      <div className="flex flex-col items-center">
+        {/* Crosshair target marker */}
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="12" fill="none" stroke="#ef4444" strokeWidth="2" opacity="0.8" />
+          <circle cx="16" cy="16" r="3" fill="#ef4444" />
+          <line x1="16" y1="0" x2="16" y2="10" stroke="#ef4444" strokeWidth="2" />
+          <line x1="16" y1="22" x2="16" y2="32" stroke="#ef4444" strokeWidth="2" />
+          <line x1="0" y1="16" x2="10" y2="16" stroke="#ef4444" strokeWidth="2" />
+          <line x1="22" y1="16" x2="32" y2="16" stroke="#ef4444" strokeWidth="2" />
+        </svg>
+        {/* MGRS label + Fire button */}
+        {phase === 'select' && (
+          <div className="mt-1 bg-slate-800/90 rounded px-2 py-1 text-center shadow-lg border border-slate-600">
+            <div className="text-xs font-mono text-emerald-400">{target.mgrs}</div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setPhase('form'); }}
+              className="mt-1 px-4 py-1 bg-red-700 hover:bg-red-600 text-white font-bold rounded text-sm transition-colors"
+            >
+              {lang === 'no' ? 'Ild!' : 'Fire!'}
+            </button>
+          </div>
+        )}
+      </div>
+    </Marker>
   );
 }

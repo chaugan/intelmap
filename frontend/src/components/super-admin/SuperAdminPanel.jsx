@@ -327,6 +327,7 @@ function OrganizationsTab() {
                 <th className="text-center px-2 py-2 font-medium text-xs">Infra</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">Upscale</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">MFA</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Fire</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">MFA Req</th>
                 <th className="text-right px-4 py-2 font-medium">Actions</th>
               </tr>
@@ -375,6 +376,7 @@ function OrganizationsTab() {
                   <FeatureToggleCell on={org.featureInfraview} onClick={() => toggleFeature(org.id, 'infraview')} />
                   <FeatureToggleCell on={org.featureUpscale} onClick={() => toggleFeature(org.id, 'upscale')} />
                   <FeatureToggleCell on={org.featureMfa} onClick={() => toggleFeature(org.id, 'mfa')} />
+                  <FeatureToggleCell on={org.featureFireReport} onClick={() => toggleFeature(org.id, 'fire_report')} />
                   <td className="px-2 py-2 text-center">
                     {org.featureMfa ? (
                       <button

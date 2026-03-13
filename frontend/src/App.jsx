@@ -24,6 +24,7 @@ import { useAuthStore } from './stores/useAuthStore.js';
 import { useTimelapseStore } from './stores/useTimelapseStore.js';
 import { useProjectStore } from './stores/useProjectStore.js';
 import { useTacticalStore } from './stores/useTacticalStore.js';
+import FireReportDrawer from './components/fire-report/FireReportDrawer.jsx';
 import { t } from './lib/i18n.js';
 import { VERSION } from './version.js';
 
@@ -311,6 +312,13 @@ function MapApp({ user }) {
     }
   }, [mapRef]);
 
+  // Resize map when fire report panel opens/closes on narrow screens
+  useEffect(() => {
+    if (isNarrow && mapRef) {
+      setTimeout(() => mapRef.resize(), 50);
+    }
+  }, [fireReportToolVisible, isNarrow, mapRef]);
+
   // Handle share token deep linking via URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -453,9 +461,20 @@ function MapApp({ user }) {
 
   const isImpersonating = useAuthStore((s) => s.isImpersonating);
   const rfCoverageToolVisible = useMapStore((s) => s.rfCoverageToolVisible);
+  const fireReportToolVisible = useMapStore((s) => s.fireReportToolVisible);
   const showChat = chatDrawerOpen && user?.aiChatEnabled;
   const showTimelapse = timelapseDrawerOpen && (user?.timelapseEnabled || user?.role === 'admin');
+  const showFireReport = fireReportToolVisible && user?.fireReportEnabled;
   const isDragging = isDraggingChat || isDraggingTimelapse || isDraggingProject;
+
+  // Responsive detection for mobile layout
+  const [isNarrow, setIsNarrow] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e) => setIsNarrow(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
@@ -496,9 +515,16 @@ function MapApp({ user }) {
           )}
         </div>
 
-        {/* Map */}
-        <div className="flex-1 relative overflow-hidden">
-          <TacticalMap />
+        {/* Map + narrow fire report */}
+        <div className={`flex-1 relative overflow-hidden ${showFireReport && isNarrow ? 'flex flex-col' : ''}`}>
+          <div className={showFireReport && isNarrow ? 'flex-1 min-h-0 relative' : 'h-full relative'}>
+            <TacticalMap />
+          </div>
+          {showFireReport && isNarrow && (
+            <div className="h-1/2 bg-slate-800 border-t border-slate-700 overflow-y-auto shrink-0">
+              <FireReportDrawer />
+            </div>
+          )}
         </div>
 
         {/* Right panels */}
@@ -515,6 +541,14 @@ function MapApp({ user }) {
         >
           <div id="rf-coverage-drawer" className="flex flex-col h-full w-[320px]" />
         </div>
+
+        {/* Fire Report Drawer — right side on wide screens */}
+        {showFireReport && !isNarrow && (
+          <div className="bg-slate-800 border-l border-slate-700 flex flex-col shrink-0 overflow-hidden"
+               style={{ width: 380 }}>
+            <FireReportDrawer />
+          </div>
+        )}
 
         {/* AI Chat Drawer */}
         <div

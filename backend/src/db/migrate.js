@@ -91,6 +91,12 @@ export function runMigration() {
     console.log('Added feature_signal column to organizations table');
   }
 
+  // Fire Report feature flag on organizations
+  if (!orgCols.some(c => c.name === 'feature_fire_report')) {
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_fire_report INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added feature_fire_report column to organizations table');
+  }
+
   // Upscale column
   if (!userCols.some(c => c.name === 'upscale_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN upscale_enabled INTEGER NOT NULL DEFAULT 0").run();
@@ -109,6 +115,12 @@ export function runMigration() {
     db.prepare("ALTER TABLE users ADD COLUMN signal_phone TEXT").run();
     db.prepare("ALTER TABLE users ADD COLUMN signal_linked_at TEXT").run();
     console.log('Added Signal columns to users table');
+  }
+
+  // Fire Report column on users
+  if (!userCols.some(c => c.name === 'fire_report_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN fire_report_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added fire_report_enabled column to users table');
   }
 
   // WaSOS integration columns

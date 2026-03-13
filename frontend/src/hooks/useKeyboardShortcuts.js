@@ -20,6 +20,7 @@ export function useKeyboardShortcuts() {
   const toggleViewshedTool = useMapStore((s) => s.toggleViewshedTool);
   const toggleGridTool = useMapStore((s) => s.toggleGridTool);
   const toggleRFCoverageTool = useMapStore((s) => s.toggleRFCoverageTool);
+  const toggleFireReportTool = useMapStore((s) => s.toggleFireReportTool);
   const toggleSunlight = useMapStore((s) => s.toggleSunlight);
   const toggleHillshade = useMapStore((s) => s.toggleHillshade);
   const toggleTerrain = useMapStore((s) => s.toggleTerrain);
@@ -127,6 +128,13 @@ export function useKeyboardShortcuts() {
           break;
         }
 
+        // Fire Report tool (shift+F, only if enabled)
+        case 'F': {
+          const user = useAuthStore.getState().user;
+          if (user?.fireReportEnabled) toggleFireReportTool();
+          break;
+        }
+
         // Timelapse drawer (only if enabled)
         case 'y': {
           const user = useAuthStore.getState().user;
@@ -140,5 +148,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleGridTool, toggleRFCoverageTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
+  }, [toggleWind, toggleWebcams, toggleAvalanche, toggleAvalancheWarnings, toggleSnowDepth, toggleAircraft, toggleVessels, toggleTrafficFlow, toggleTrafficInfo, toggleAurora, toggleRoadRestrictions, toggleDrawingTools, toggleMeasuringTool, toggleViewshedTool, toggleGridTool, toggleRFCoverageTool, toggleFireReportTool, toggleSunlight, toggleHillshade, toggleTerrain, toggleInfra, setActivePanel, setPlacementMode, toggleChatDrawer, toggleProjectDrawer, toggleDataLayersDrawer]);
 }

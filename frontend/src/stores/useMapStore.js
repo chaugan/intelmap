@@ -140,6 +140,11 @@ export const useMapStore = create((set) => ({
   activeRFCoverageId: null, // ID of coverage currently loaded in the tool
   sessionRFCoverages: [], // unsaved coverages that persist when tool closes
 
+  // Fire Report tool
+  fireReportToolVisible: false,
+  fireReportTarget: null,   // { lng, lat, mgrs } — selected coordinate
+  fireReportPhase: 'select', // 'select' | 'form'
+
   // User geolocation
   userLocation: null, // { longitude, latitude }
 
@@ -332,6 +337,13 @@ export const useMapStore = create((set) => ({
     rfCoverageToolVisible: !s.rfCoverageToolVisible,
     ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false } : {}),
   })),
+  toggleFireReportTool: () => set((s) => ({
+    fireReportToolVisible: !s.fireReportToolVisible,
+    fireReportTarget: null,
+    fireReportPhase: 'select',
+  })),
+  setFireReportTarget: (target) => set({ fireReportTarget: target }),
+  setFireReportPhase: (phase) => set({ fireReportPhase: phase }),
   setUserLocation: (userLocation) => set({ userLocation }),
   clearUserLocation: () => set({ userLocation: null }),
   addMgrsMarker: (marker) => set((s) => ({

@@ -1,6 +1,24 @@
 import { forward, toPoint } from 'mgrs';
 
 /**
+ * Convert lat/lon to formatted MGRS string: "32V KM 12345 67890"
+ */
+export function toMGRS(lat, lon) {
+  try {
+    const mgrs = forward([lon, lat], 5);
+    const m = mgrs.match(/^(\d{1,2})([A-Z])([A-Z]{2})(\d+)$/);
+    if (m) {
+      const [, zone, band, sq, digits] = m;
+      const half = digits.length / 2;
+      return `${zone}${band} ${sq} ${digits.slice(0, half)} ${digits.slice(half)}`;
+    }
+    return mgrs;
+  } catch {
+    return '—';
+  }
+}
+
+/**
  * Parse raw easting/northing digit input (e.g. "123 456" or "12345 67890").
  * Both groups must have equal length (2-5 digits).
  * Returns { easting, northing } padded to 5 digits, or null.

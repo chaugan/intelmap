@@ -40,6 +40,7 @@ router.get('/orgs', (req, res) => {
     featureInfraview: !!o.feature_infraview,
     featureUpscale: !!o.feature_upscale,
     featureMfa: !!o.feature_mfa,
+    featureFireReport: !!o.feature_fire_report,
     mfaRequired: !!o.mfa_required,
   })));
 });
@@ -337,7 +338,7 @@ router.get('/orgs/:id/settings', (req, res) => {
 
 // --- Feature Gating ---
 
-const VALID_FEATURES = ['ai_chat', 'wasos', 'signal', 'infraview', 'upscale', 'mfa'];
+const VALID_FEATURES = ['ai_chat', 'wasos', 'signal', 'infraview', 'upscale', 'mfa', 'fire_report'];
 
 router.post('/orgs/:id/toggle-feature', (req, res) => {
   const { feature } = req.body;
@@ -364,6 +365,7 @@ router.post('/orgs/:id/toggle-feature', (req, res) => {
       signal: 'signal_enabled',
       infraview: 'infraview_enabled',
       upscale: 'upscale_enabled',
+      fire_report: 'fire_report_enabled',
     };
     const userCol = featureToUserCol[feature];
     if (userCol) {
