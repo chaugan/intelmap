@@ -298,6 +298,43 @@ export default function TacticalMap() {
     }
   }, [placementMode, setPlacementMode, activeProjectId, activeLayerId, activePanel, setAvalancheWarningRegion]);
 
+  // Pinch-zoom: forward touch events from marker elements to the map canvas so
+  // MapLibre receives all touch points for pinch gestures. Without this, a finger
+  // landing on a marker HTML element is "owned" by that element and the canvas
+  // never sees it, breaking pinch-zoom.
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const container = map.getContainer();
+    const canvas = map.getCanvas();
+
+    const forwardToCanvas = (e) => {
+      // Only forward touch events that originate from marker elements
+      const marker = e.target.closest('.maplibregl-marker');
+      if (!marker) return;
+      // Create and dispatch a copy of the touch event on the canvas
+      const copy = new TouchEvent(e.type, {
+        touches: e.touches,
+        targetTouches: e.targetTouches,
+        changedTouches: e.changedTouches,
+        bubbles: true,
+        cancelable: true,
+      });
+      canvas.dispatchEvent(copy);
+    };
+
+    container.addEventListener('touchstart', forwardToCanvas, { capture: true, passive: true });
+    container.addEventListener('touchmove', forwardToCanvas, { capture: true, passive: true });
+    container.addEventListener('touchend', forwardToCanvas, { capture: true, passive: true });
+    container.addEventListener('touchcancel', forwardToCanvas, { capture: true, passive: true });
+    return () => {
+      container.removeEventListener('touchstart', forwardToCanvas, { capture: true });
+      container.removeEventListener('touchmove', forwardToCanvas, { capture: true });
+      container.removeEventListener('touchend', forwardToCanvas, { capture: true });
+      container.removeEventListener('touchcancel', forwardToCanvas, { capture: true });
+    };
+  }, [useMapStore.getState().mapRef]);
+
   // Right-click context menu + long-press for touch devices
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -586,30 +623,7 @@ export default function TacticalMap() {
       }
     };
 
-    const onDblClick = (e) => {
-      const d = findDrawingAtEvent(e);
-      if (!d) return;
-      const { drawingToolsVisible, drawingActiveMode } = useMapStore.getState();
-      if (!drawingToolsVisible || drawingActiveMode) return;
-      e.preventDefault();
-      // Notes handle double-click editing in DrawingLayer
-      if (d.drawingType === 'note') return;
-      if (d.drawingType === 'text') {
-        const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', d.properties?.text || '');
-        if (newText === null) return;
-        socket.emit('client:drawing:update', {
-          projectId: d._projectId, id: d.id,
-          properties: { ...d.properties, text: newText },
-        });
-      } else {
-        const newLabel = prompt(lang === 'no' ? 'Rediger etikett:' : 'Edit label:', d.properties?.label || '');
-        if (newLabel === null) return;
-        socket.emit('client:drawing:update', {
-          projectId: d._projectId, id: d.id,
-          properties: { ...d.properties, label: newLabel || undefined },
-        });
-      }
-    };
+    // Double-click label editing is handled by DrawingLayer — no duplicate handler here
 
     const onContextMenu = (e) => {
       const d = findDrawingAtEvent(e);
@@ -625,11 +639,9 @@ export default function TacticalMap() {
     };
 
     m.on('click', onClick);
-    m.on('dblclick', onDblClick);
     m.on('contextmenu', onContextMenu);
     return () => {
       m.off('click', onClick);
-      m.off('dblclick', onDblClick);
       m.off('contextmenu', onContextMenu);
     };
   }, [mapInstance, lang]);
