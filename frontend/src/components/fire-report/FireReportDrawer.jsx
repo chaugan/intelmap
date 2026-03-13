@@ -50,7 +50,9 @@ export default function FireReportDrawer() {
   const [fieldD, setFieldD] = useState('');
   const [fieldE, setFieldE] = useState(loadSaved('E'));
   const [fieldF, setFieldF] = useState(loadSaved('F') || 'point');
-  const [fieldFCustom, setFieldFCustom] = useState(loadSaved('F_custom'));
+  const [fieldFCustom, setFieldFCustom] = useState(() => {
+    try { return localStorage.getItem('fireReport_F_custom_value') || ''; } catch { return ''; }
+  });
   const [fieldG, setFieldG] = useState(loadSaved('G') || 'ASAP');
   const [fieldH, setFieldH] = useState(loadSaved('H'));
 
@@ -62,6 +64,14 @@ export default function FireReportDrawer() {
   const [saveF, setSaveF] = useState(loadSaveChecked('F'));
   const [saveG, setSaveG] = useState(loadSaveChecked('G'));
   const [saveH, setSaveH] = useState(loadSaveChecked('H'));
+
+  // Fire report language — independent from app language, default English
+  const [reportLang, setReportLang] = useState(() => {
+    try { return localStorage.getItem('fireReport_lang') || 'en'; } catch { return 'en'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('fireReport_lang', reportLang); } catch {}
+  }, [reportLang]);
 
   const [copied, setCopied] = useState(false);
 
@@ -118,13 +128,13 @@ export default function FireReportDrawer() {
 
   const getGeometryLabel = (val) => {
     const key = `fireReport.${val}`;
-    return t(key, lang);
+    return t(key, reportLang);
   };
 
   const formatReport = () => {
     const geoVal = fieldF === 'custom' ? fieldFCustom : getGeometryLabel(fieldF);
     return [
-      lang === 'no' ? 'ILDRAPPORT (F1)' : 'FIRE REPORT (F1)',
+      reportLang === 'no' ? 'ILDRAPPORT (F1)' : 'FIRE REPORT (F1)',
       `A: ${fieldA}`,
       `B: ${fieldB}`,
       `C: ${fieldC}`,
@@ -165,17 +175,26 @@ export default function FireReportDrawer() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-red-900/50 border-b border-slate-700 shrink-0">
         <h2 className="font-bold text-sm text-red-300">{t('fireReport.title', lang)}</h2>
-        <button onClick={toggleTool} className="text-slate-400 hover:text-white transition-colors" title="Close">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setReportLang(reportLang === 'en' ? 'no' : 'en')}
+            className="px-1.5 py-0.5 rounded text-xs font-bold bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+            title={reportLang === 'en' ? 'Switch to Norwegian' : 'Bytt til engelsk'}
+          >
+            {reportLang === 'en' ? 'EN' : 'NO'}
+          </button>
+          <button onClick={toggleTool} className="text-slate-400 hover:text-white transition-colors" title="Close">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {phase === 'select' && (
           <SelectPhase
-            lang={lang}
+            lang={reportLang}
             searchInput={searchInput}
             setSearchInput={setSearchInput}
             handleSearch={handleSearch}
@@ -188,7 +207,7 @@ export default function FireReportDrawer() {
 
         {phase === 'form' && (
           <FormPhase
-            lang={lang}
+            lang={reportLang}
             fieldA={fieldA} setFieldA={setFieldA} saveA={saveA} setSaveA={setSaveA}
             fieldB={fieldB} setFieldB={setFieldB} saveB={saveB} setSaveB={setSaveB}
             fieldC={fieldC} setFieldC={setFieldC} saveC={saveC} setSaveC={setSaveC}
