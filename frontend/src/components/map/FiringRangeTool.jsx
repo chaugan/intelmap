@@ -448,7 +448,7 @@ export default function FiringRangeTool() {
           <div>
             <label className="text-xs text-slate-400 block mb-1">{t('firingRange.maxRange', lang)}</label>
             <div className="flex items-center gap-2">
-              <input type="range" min={1} max={50} step={0.5} value={maxRangeKm} onChange={(e) => setMaxRangeKm(Number(e.target.value))} className="flex-1 accent-emerald-500" disabled={mode === 'calculating' || !isCustom} />
+              <input type="range" min={1} max={maxRangeKm > 50 ? 500 : 50} step={maxRangeKm > 50 ? 5 : 0.5} value={maxRangeKm} onChange={(e) => setMaxRangeKm(Number(e.target.value))} className="flex-1 accent-emerald-500" disabled={mode === 'calculating'} />
               <span className="text-sm font-mono w-14 text-right">{maxRangeKm} km</span>
             </div>
           </div>
