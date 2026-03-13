@@ -28,6 +28,10 @@ export const EVENTS = {
   CLIENT_FIRINGRANGE_UPDATE: 'client:firing-range:update',
   CLIENT_FIRINGRANGE_DELETE: 'client:firing-range:delete',
   CLIENT_FIRINGRANGE_DELETE_ALL: 'client:firing-range:delete-all',
+  CLIENT_VULNERABILITY_SAVE: 'client:vulnerability:save',
+  CLIENT_VULNERABILITY_UPDATE: 'client:vulnerability:update',
+  CLIENT_VULNERABILITY_DELETE: 'client:vulnerability:delete',
+  CLIENT_VULNERABILITY_DELETE_ALL: 'client:vulnerability:delete-all',
 
   // Server → Client
   SERVER_PROJECT_STATE: 'server:project:state',
@@ -54,5 +58,9 @@ export const EVENTS = {
   SERVER_FIRINGRANGE_UPDATED: 'server:firing-range:updated',
   SERVER_FIRINGRANGE_DELETED: 'server:firing-range:deleted',
   SERVER_FIRINGRANGE_ALL_DELETED: 'server:firing-range:all-deleted',
+  SERVER_VULNERABILITY_ADDED: 'server:vulnerability:added',
+  SERVER_VULNERABILITY_UPDATED: 'server:vulnerability:updated',
+  SERVER_VULNERABILITY_DELETED: 'server:vulnerability:deleted',
+  SERVER_VULNERABILITY_ALL_DELETED: 'server:vulnerability:all-deleted',
   SERVER_AUDIT_ENTRY: 'server:audit:entry',
 };

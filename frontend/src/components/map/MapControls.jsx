@@ -206,6 +206,7 @@ export default function MapControls() {
       {user && <ViewshedButton lang={lang} />}
       {user && <RFCoverageButton lang={lang} />}
       {user?.firingRangeEnabled && <FiringRangeButton lang={lang} />}
+      {user?.firingRangeEnabled && <VulnerabilityButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
@@ -422,6 +423,23 @@ function FiringRangeButton({ lang }) {
         <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
       </svg>
       {t('firingRange.title', lang)}
+    </button>
+  );
+}
+
+function VulnerabilityButton({ lang }) {
+  const active = useMapStore((s) => s.vulnerabilityToolVisible);
+  const toggle = useMapStore((s) => s.toggleVulnerabilityTool);
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 rounded transition-colors flex items-center gap-1 ${active ? 'bg-red-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+      title={`${t('vulnerability.title', lang)} (Shift+V)`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path d="M12 9v4m0 4h.01M3.262 17.094l7.464-12.93a1.5 1.5 0 012.548 0l7.464 12.93A1.5 1.5 0 0119.464 19H4.536a1.5 1.5 0 01-1.274-2.294z" />
+      </svg>
+      {t('vulnerability.title', lang)}
     </button>
   );
 }

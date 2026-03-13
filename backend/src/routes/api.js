@@ -29,6 +29,7 @@ import signalRouter from './signal.js';
 import viewshedRouter from './viewshed.js';
 import rfcoverageRouter from './rfcoverage.js';
 import firingRangeRouter from './firing-range.js';
+import vulnerabilityRouter from './vulnerability.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -61,4 +62,5 @@ router.use('/signal', signalRouter);
 router.use('/viewshed', viewshedRouter);
 router.use('/rfcoverage', rfcoverageRouter);
 router.use('/firing-range', firingRangeRouter);
+router.use('/vulnerability', vulnerabilityRouter);
 export default router;

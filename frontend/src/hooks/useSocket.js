@@ -23,8 +23,8 @@ export function useSocket() {
     };
 
     // --- Project-scoped events ---
-    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges }) => {
-      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges });
+    const onProjectState = ({ projectId, markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges, vulnerabilityAreas }) => {
+      useTacticalStore.getState().setProjectState(projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges, vulnerabilityAreas });
     };
 
     const onMarkerAdded = (data) => {
@@ -106,6 +106,19 @@ export function useSocket() {
       useTacticalStore.getState().clearFiringRanges(projectId);
     };
 
+    const onVulnerabilityAdded = (data) => {
+      useTacticalStore.getState().addVulnerabilityArea(data.projectId, data);
+    };
+    const onVulnerabilityUpdated = (data) => {
+      useTacticalStore.getState().updateVulnerabilityArea(data.projectId, data);
+    };
+    const onVulnerabilityDeleted = ({ projectId, id }) => {
+      useTacticalStore.getState().deleteVulnerabilityArea(projectId, id);
+    };
+    const onVulnerabilityAllDeleted = ({ projectId }) => {
+      useTacticalStore.getState().clearVulnerabilityAreas(projectId);
+    };
+
     const onAuditEntry = (entry) => {
       window.dispatchEvent(new CustomEvent('audit-entry', { detail: entry }));
     };
@@ -138,6 +151,10 @@ export function useSocket() {
     socket.on('server:firing-range:updated', onFiringRangeUpdated);
     socket.on('server:firing-range:deleted', onFiringRangeDeleted);
     socket.on('server:firing-range:all-deleted', onFiringRangeAllDeleted);
+    socket.on('server:vulnerability:added', onVulnerabilityAdded);
+    socket.on('server:vulnerability:updated', onVulnerabilityUpdated);
+    socket.on('server:vulnerability:deleted', onVulnerabilityDeleted);
+    socket.on('server:vulnerability:all-deleted', onVulnerabilityAllDeleted);
 
     return () => {
       socket.off('server:audit:entry', onAuditEntry);
@@ -168,6 +185,10 @@ export function useSocket() {
       socket.off('server:firing-range:updated', onFiringRangeUpdated);
       socket.off('server:firing-range:deleted', onFiringRangeDeleted);
       socket.off('server:firing-range:all-deleted', onFiringRangeAllDeleted);
+      socket.off('server:vulnerability:added', onVulnerabilityAdded);
+      socket.off('server:vulnerability:updated', onVulnerabilityUpdated);
+      socket.off('server:vulnerability:deleted', onVulnerabilityDeleted);
+      socket.off('server:vulnerability:all-deleted', onVulnerabilityAllDeleted);
     };
   }, []);
 }

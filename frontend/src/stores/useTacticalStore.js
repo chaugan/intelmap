@@ -69,7 +69,7 @@ export const useTacticalStore = create((set, get) => ({
 
   // --- Project state (from server) ---
 
-  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges }) => set((s) => {
+  setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges, vulnerabilityAreas }) => set((s) => {
     const allLayers = layers || [];
     // Restore saved layer visibility from localStorage
     const saved = loadTacticalLayerVisibility(projectId);
@@ -89,7 +89,7 @@ export const useTacticalStore = create((set, get) => ({
     return {
       projects: {
         ...s.projects,
-        [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [], firingRanges: firingRanges || [] },
+        [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [], firingRanges: firingRanges || [], vulnerabilityAreas: vulnerabilityAreas || [] },
       },
       layerVisibility: newVis,
       labelVisibility: newLabelVis,
@@ -399,6 +399,55 @@ export const useTacticalStore = create((set, get) => ({
       projects: {
         ...s.projects,
         [projectId]: { ...proj, firingRanges: [] },
+      },
+    };
+  }),
+
+  addVulnerabilityArea: (projectId, area) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    const existing = proj.vulnerabilityAreas || [];
+    if (existing.some(v => v.id === area.id)) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, vulnerabilityAreas: [...existing, area] },
+      },
+    };
+  }),
+
+  updateVulnerabilityArea: (projectId, updated) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: {
+          ...proj,
+          vulnerabilityAreas: (proj.vulnerabilityAreas || []).map(v => v.id === updated.id ? { ...v, ...updated } : v),
+        },
+      },
+    };
+  }),
+
+  deleteVulnerabilityArea: (projectId, id) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, vulnerabilityAreas: (proj.vulnerabilityAreas || []).filter(v => v.id !== id) },
+      },
+    };
+  }),
+
+  clearVulnerabilityAreas: (projectId) => set((s) => {
+    const proj = s.projects[projectId];
+    if (!proj) return {};
+    return {
+      projects: {
+        ...s.projects,
+        [projectId]: { ...proj, vulnerabilityAreas: [] },
       },
     };
   }),

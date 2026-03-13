@@ -3,6 +3,7 @@ import { getDb } from '../db/index.js';
 import { getViewsheds } from './viewshed-store.js';
 import { getRFCoverages } from './rfcoverage-store.js';
 import { getFiringRanges } from './firing-range-store.js';
+import { getVulnerabilityAreas } from './vulnerability-store.js';
 
 /**
  * Per-project SQLite-backed store for tactical data.
@@ -20,7 +21,8 @@ export class ProjectStoreManager {
     const viewsheds = getViewsheds(projectId);
     const rfCoverages = getRFCoverages(projectId);
     const firingRanges = getFiringRanges(projectId);
-    return { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges };
+    const vulnerabilityAreas = getVulnerabilityAreas(projectId);
+    return { markers, drawings, layers, pins, viewsheds, rfCoverages, firingRanges, vulnerabilityAreas };
   }
 
   // --- Markers ---

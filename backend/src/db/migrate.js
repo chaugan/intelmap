@@ -315,6 +315,29 @@ export function runMigration() {
     )
   `);
 
+  // Create project_vulnerability_areas table (if not exists)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_vulnerability_areas (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      layer_id TEXT,
+      longitude REAL,
+      latitude REAL,
+      target_altitude REAL,
+      weapon_preset TEXT,
+      max_range_km REAL,
+      min_elevation_mils REAL,
+      max_elevation_mils REAL,
+      muzzle_velocity REAL,
+      geojson TEXT,
+      stats TEXT,
+      color TEXT,
+      label TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Create project_audit_log table (if not exists)
   db.exec(`
     CREATE TABLE IF NOT EXISTS project_audit_log (

@@ -4,6 +4,7 @@ import { getProjectRole, canMutateProject } from '../auth/project-access.js';
 import { addViewshed, updateViewshed, deleteViewshed, deleteAllViewsheds } from '../store/viewshed-store.js';
 import { addRFCoverage, deleteRFCoverage, deleteAllRFCoverages } from '../store/rfcoverage-store.js';
 import { addFiringRange, updateFiringRange, deleteFiringRange, deleteAllFiringRanges } from '../store/firing-range-store.js';
+import { addVulnerabilityArea, updateVulnerabilityArea, deleteVulnerabilityArea, deleteAllVulnerabilityAreas } from '../store/vulnerability-store.js';
 import { logAudit } from '../lib/audit-logger.js';
 import { getDb } from '../db/index.js';
 
@@ -400,6 +401,46 @@ export function registerHandlers(socket, io) {
     if (count > 0) {
       io.to(`project:${projectId}`).emit(EVENTS.SERVER_FIRINGRANGE_ALL_DELETED, { projectId });
       logAudit(io, projectId, userId, socket.user.username, 'delete_all', 'firing-range', null, 'Deleted all firing ranges');
+    }
+  });
+
+  // --- Vulnerability Areas ---
+  socket.on(EVENTS.CLIENT_VULNERABILITY_SAVE, (data) => {
+    const { projectId } = data;
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const area = addVulnerabilityArea(projectId, { ...data, createdBy: userId });
+    io.to(`project:${projectId}`).emit(EVENTS.SERVER_VULNERABILITY_ADDED, area);
+    logAudit(io, projectId, userId, socket.user.username, 'add', 'vulnerability', area.id,
+      'Added vulnerability analysis', { lat: data.latitude, lon: data.longitude });
+  });
+
+  socket.on(EVENTS.CLIENT_VULNERABILITY_UPDATE, ({ projectId, id, ...updates }) => {
+    if (!projectId || !id || !canMutateProject(userId, projectId)) return;
+    const updated = updateVulnerabilityArea(id, projectId, updates);
+    if (updated) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_VULNERABILITY_UPDATED, updated);
+      logAudit(io, projectId, userId, socket.user.username, 'update', 'vulnerability', id,
+        'Updated vulnerability analysis', { lat: updated.latitude, lon: updated.longitude });
+    }
+  });
+
+  socket.on(EVENTS.CLIENT_VULNERABILITY_DELETE, ({ projectId, id }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const db = getDb();
+    const oldRow = db.prepare('SELECT * FROM project_vulnerability_areas WHERE id = ? AND project_id = ?').get(id, projectId);
+    if (deleteVulnerabilityArea(id, projectId)) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_VULNERABILITY_DELETED, { projectId, id });
+      logAudit(io, projectId, userId, socket.user.username, 'delete', 'vulnerability', id,
+        'Deleted vulnerability analysis', { lat: oldRow?.latitude, lon: oldRow?.longitude });
+    }
+  });
+
+  socket.on(EVENTS.CLIENT_VULNERABILITY_DELETE_ALL, ({ projectId }) => {
+    if (!projectId || !canMutateProject(userId, projectId)) return;
+    const count = deleteAllVulnerabilityAreas(projectId);
+    if (count > 0) {
+      io.to(`project:${projectId}`).emit(EVENTS.SERVER_VULNERABILITY_ALL_DELETED, { projectId });
+      logAudit(io, projectId, userId, socket.user.username, 'delete_all', 'vulnerability', null, 'Deleted all vulnerability analyses');
     }
   });
 }

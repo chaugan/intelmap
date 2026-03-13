@@ -177,6 +177,9 @@ export const useMapStore = create((set) => ({
   // Firing Range tool
   firingRangeToolVisible: false,
 
+  // Vulnerability tool
+  vulnerabilityToolVisible: false,
+
   // Fire Report tool
   fireReportToolVisible: false,
   fireReportTarget: null,   // { lng, lat, mgrs } — selected coordinate
@@ -368,15 +371,19 @@ export const useMapStore = create((set) => ({
   toggleGridTool: () => set((s) => ({ gridToolVisible: !s.gridToolVisible })),
   toggleViewshedTool: () => set((s) => ({
     viewshedToolVisible: !s.viewshedToolVisible,
-    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, rfCoverageToolVisible: false, firingRangeToolVisible: false } : {}),
+    ...(!s.viewshedToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, rfCoverageToolVisible: false, firingRangeToolVisible: false, vulnerabilityToolVisible: false } : {}),
   })),
   toggleRFCoverageTool: () => set((s) => ({
     rfCoverageToolVisible: !s.rfCoverageToolVisible,
-    ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, firingRangeToolVisible: false } : {}),
+    ...(!s.rfCoverageToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, firingRangeToolVisible: false, vulnerabilityToolVisible: false } : {}),
   })),
   toggleFiringRangeTool: () => set((s) => ({
     firingRangeToolVisible: !s.firingRangeToolVisible,
-    ...(!s.firingRangeToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, rfCoverageToolVisible: false } : {}),
+    ...(!s.firingRangeToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, rfCoverageToolVisible: false, vulnerabilityToolVisible: false } : {}),
+  })),
+  toggleVulnerabilityTool: () => set((s) => ({
+    vulnerabilityToolVisible: !s.vulnerabilityToolVisible,
+    ...(!s.vulnerabilityToolVisible ? { measuringToolVisible: false, drawingToolsVisible: false, viewshedToolVisible: false, rfCoverageToolVisible: false, firingRangeToolVisible: false } : {}),
   })),
   toggleFireReportTool: () => set((s) => ({
     fireReportToolVisible: !s.fireReportToolVisible,

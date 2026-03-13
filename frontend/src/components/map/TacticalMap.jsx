@@ -47,6 +47,8 @@ import RFCoverageTool from './RFCoverageTool.jsx';
 import RFCoverageOverlay from './RFCoverageOverlay.jsx';
 import FiringRangeTool from './FiringRangeTool.jsx';
 import FiringRangeOverlay from './FiringRangeOverlay.jsx';
+import VulnerabilityTool from './VulnerabilityTool.jsx';
+import VulnerabilityOverlay from './VulnerabilityOverlay.jsx';
 import GridTool from './GridTool.jsx';
 import GridSettingsPanel from './GridSettingsPanel.jsx';
 import SatelliteInfo from './SatelliteInfo.jsx';
@@ -1460,9 +1462,11 @@ export default function TacticalMap() {
       <ViewshedOverlay />
       <RFCoverageOverlay />
       <FiringRangeOverlay />
+      <VulnerabilityOverlay />
       <ViewshedTool />
       <RFCoverageTool />
       <FiringRangeTool />
+      <VulnerabilityTool />
       <GridTool />
       <GridSettingsPanel visibleDrawings={visibleDrawings} />
       {/* Vessel Activity Box Drawing */}
