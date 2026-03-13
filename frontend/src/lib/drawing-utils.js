@@ -11,9 +11,9 @@ export function generateCirclePolygon(center, radiusKm) {
 }
 
 // Generate a 64-point ellipse polygon from center [lng, lat] + edge point [lng, lat]
-// Uses screen-space radii: rx/ry are defined relative to screen distances, then
-// the latitude correction factor is applied so the shape matches what the user drew.
-// rotationDeg = clockwise rotation in degrees (optional)
+// rxDeg/ryDeg define the semi-axes in degree-space (longitude/latitude).
+// Rotation is performed in a uniform (metric-corrected) coordinate system so the
+// ellipse maintains its visual shape at any angle, even at high latitudes.
 export function generateEllipsePolygon(center, edgePoint, rotationDeg = 0) {
   const dLng = Math.abs(edgePoint[0] - center[0]);
   const dLat = Math.abs(edgePoint[1] - center[1]);
@@ -22,23 +22,36 @@ export function generateEllipsePolygon(center, edgePoint, rotationDeg = 0) {
   const rotRad = (rotationDeg * Math.PI) / 180;
   const cosR = Math.cos(rotRad);
   const sinR = Math.sin(rotRad);
+
+  // Latitude correction: at this latitude, 1° lng is cos(lat) times shorter than 1° lat
+  const latFactor = Math.cos(center[1] * Math.PI / 180);
+
+  // Convert degree-space radii to uniform (metric-equivalent) space
+  const rxUniform = rxDeg * latFactor;
+  const ryUniform = ryDeg;
+
   const coords = [];
   for (let i = 0; i <= 64; i++) {
     const angle = (i / 64) * 2 * Math.PI;
-    const x = rxDeg * Math.cos(angle);
-    const y = ryDeg * Math.sin(angle);
+    // Parametric ellipse point in uniform space
+    const xu = rxUniform * Math.cos(angle);
+    const yu = ryUniform * Math.sin(angle);
+    // Rotate in uniform space (preserves visual shape)
+    const xRot = xu * cosR - yu * sinR;
+    const yRot = xu * sinR + yu * cosR;
+    // Convert back to degree-space
     coords.push([
-      center[0] + x * cosR - y * sinR,
-      center[1] + x * sinR + y * cosR,
+      center[0] + xRot / latFactor,
+      center[1] + yRot,
     ]);
   }
   return coords;
 }
 
 // Extract ellipse parameters (center, rx, ry, rotation) from a 64-point ring
+// Returns rx/ry in degree-space and rotation in the uniform (metric-corrected) space
 export function getEllipseParams(ring) {
   // Use only the 64 unique points (exclude the duplicate closing point)
-  // to get an accurate centroid that doesn't drift on repeated rotations
   const n = ring.length - 1;
   let sumX = 0, sumY = 0;
   for (let i = 0; i < n; i++) {
@@ -48,12 +61,26 @@ export function getEllipseParams(ring) {
   const cx = sumX / n;
   const cy = sumY / n;
 
-  // ring[0] is at angle=0 (along the major/rx axis after rotation)
-  // ring[16] is at angle=π/2 (along the minor/ry axis after rotation)
+  const latFactor = Math.cos(cy * Math.PI / 180);
+
+  // ring[0] is at angle=0 (along the rx axis after rotation)
+  // ring[16] is at angle=π/2 (along the ry axis after rotation)
   const dx0 = ring[0][0] - cx, dy0 = ring[0][1] - cy;
   const dx16 = ring[16][0] - cx, dy16 = ring[16][1] - cy;
-  const rx = Math.sqrt(dx0 * dx0 + dy0 * dy0);
-  const ry = Math.sqrt(dx16 * dx16 + dy16 * dy16);
-  const rotationDeg = Math.atan2(dy0, dx0) * 180 / Math.PI;
+
+  // Convert to uniform space to extract correct radii and rotation
+  const dx0u = dx0 * latFactor;
+  const dx16u = dx16 * latFactor;
+
+  // rx in uniform space, then convert back to degree-space
+  const rxUniform = Math.sqrt(dx0u * dx0u + dy0 * dy0);
+  const rx = rxUniform / latFactor;
+
+  // ry is already in latitude-degree scale
+  const ry = Math.sqrt(dx16u * dx16u + dy16 * dy16);
+
+  // Rotation angle from uniform-space direction of ring[0]
+  const rotationDeg = Math.atan2(dy0, dx0u) * 180 / Math.PI;
+
   return { cx, cy, rx, ry, rotationDeg };
 }

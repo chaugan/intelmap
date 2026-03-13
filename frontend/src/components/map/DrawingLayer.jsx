@@ -557,26 +557,30 @@ export default function DrawingLayer() {
           newGeom.coordinates = [coords];
         } else if (ds.drawingType === 'ellipse') {
           // For ellipse: derive params from ring, adjust rx/ry or rotation
+          // All angle/projection math in uniform (metric-corrected) space
           const ring = newGeom.coordinates[0];
           const params = getEllipseParams(ring);
           let { cx, cy, rx, ry, rotationDeg } = params;
+          const latFactor = Math.cos(cy * Math.PI / 180);
 
           if (ds.vertexIndex === 2) {
-            // Rotation handle: compute angle from center to cursor
+            // Rotation handle: compute angle in uniform space
             const cdx = cursorLngLat.lng - cx;
             const cdy = cursorLngLat.lat - cy;
-            rotationDeg = Math.atan2(cdy, cdx) * 180 / Math.PI;
+            rotationDeg = Math.atan2(cdy, cdx * latFactor) * 180 / Math.PI;
           } else {
             const rotRad = (rotationDeg * Math.PI) / 180;
-            // Project cursor offset onto the rotated axes
             const cdx = cursorLngLat.lng - cx;
             const cdy = cursorLngLat.lat - cy;
+            // Convert cursor offset to uniform space
+            const cdxU = cdx * latFactor;
             if (ds.vertexIndex === 0) {
-              // Dragging rx handle: project onto major axis
-              rx = Math.max(0.00001, Math.abs(cdx * Math.cos(rotRad) + cdy * Math.sin(rotRad)));
+              // Dragging rx handle: project onto major axis in uniform space
+              const rxU = Math.max(0.00001, Math.abs(cdxU * Math.cos(rotRad) + cdy * Math.sin(rotRad)));
+              rx = rxU / latFactor; // convert back to degree-space
             } else {
-              // Dragging ry handle: project onto minor axis
-              ry = Math.max(0.00001, Math.abs(-cdx * Math.sin(rotRad) + cdy * Math.cos(rotRad)));
+              // Dragging ry handle: project onto minor axis in uniform space
+              ry = Math.max(0.00001, Math.abs(-cdxU * Math.sin(rotRad) + cdy * Math.cos(rotRad)));
             }
           }
           const edgePt = [cx + rx, cy + ry];
@@ -671,13 +675,10 @@ export default function DrawingLayer() {
       const handles = [];
       if (ring.length > 0) handles.push(ring[0]);   // index 0: east (rx)
       if (ring.length > 16) handles.push(ring[16]);  // index 1: north (ry)
-      // index 2: rotation handle — offset beyond the rx handle along the major axis
-      const rotRad = (params.rotationDeg * Math.PI) / 180;
-      const offset = params.rx * 0.35;
-      handles.push([
-        ring[0][0] + offset * Math.cos(rotRad),
-        ring[0][1] + offset * Math.sin(rotRad),
-      ]);
+      // index 2: rotation handle — extend 35% beyond ring[0] in the same direction
+      const dx = ring[0][0] - params.cx;
+      const dy = ring[0][1] - params.cy;
+      handles.push([ring[0][0] + dx * 0.35, ring[0][1] + dy * 0.35]);
       return handles;
     }
     if (drawing.geometry.type === 'LineString') {
