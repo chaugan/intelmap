@@ -32,6 +32,7 @@ function drawingIntersectsBox(drawing, box) {
 
 import { generateCirclePolygon, generateEllipsePolygon, getEllipseParams } from '../../lib/drawing-utils.js';
 import CsvDrawingImportDialog from './CsvDrawingImportDialog.jsx';
+import MarkdownNoteOverlay from './MarkdownNoteOverlay.jsx';
 
 export default function DrawingLayer() {
   const lang = useMapStore((s) => s.lang);
@@ -62,6 +63,8 @@ export default function DrawingLayer() {
   const [cursorPoint, setCursorPoint] = useState(null);
   const [drawStrokeWidth, setDrawStrokeWidth] = useState(3);
   const [drawFontSize, setDrawFontSize] = useState(18);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const pendingNoteEditRef = useRef(false);
   const [, forceUpdate] = useState(0);
   const activeModeRef = useRef(activeMode);
   const drawColorRef = useRef(drawColor);
@@ -101,6 +104,22 @@ export default function DrawingLayer() {
     ? drawings.find(d => d.id === selectedDrawingId) || localDrawings.find(d => d.id === selectedDrawingId)
     : null;
 
+  // Pick up newly-created note from server to open editor
+  useEffect(() => {
+    if (!pendingNoteEditRef.current) return;
+    const note = drawings.find(d => d.drawingType === 'note' && !editingNoteId);
+    if (note) {
+      // Find the newest note (last in array)
+      const notes = drawings.filter(d => d.drawingType === 'note');
+      const newest = notes[notes.length - 1];
+      if (newest) {
+        setEditingNoteId(newest.id);
+        setSelectedDrawingId(newest.id);
+      }
+      pendingNoteEditRef.current = false;
+    }
+  }, [drawings]);
+
   // Share active drawing mode with store so MeasuringTool can yield
   useEffect(() => {
     useMapStore.setState({ drawingActiveMode: activeMode });
@@ -111,7 +130,7 @@ export default function DrawingLayer() {
     const pts = drawPointsRef.current;
     const mode = activeModeRef.current;
     const color = drawColorRef.current;
-    if (pts.length < 2 && mode !== 'text' && mode !== 'needle') return;
+    if (pts.length < 2 && mode !== 'text' && mode !== 'needle' && mode !== 'note') return;
 
     const label = prompt(lang === 'no' ? 'Legg til etikett (valgfritt):' : 'Add label (optional):');
 
@@ -254,6 +273,61 @@ export default function DrawingLayer() {
           return;
         }
 
+        if (activeModeRef.current === 'note') {
+          const pts = drawPointsRef.current;
+          if (pts.length === 0) {
+            setDrawPoints([[lng, lat]]);
+            return;
+          }
+          // Second click — build rectangle
+          const c1 = pts[0], c2 = [lng, lat];
+          const ring = [
+            [Math.min(c1[0],c2[0]), Math.max(c1[1],c2[1])],
+            [Math.max(c1[0],c2[0]), Math.max(c1[1],c2[1])],
+            [Math.max(c1[0],c2[0]), Math.min(c1[1],c2[1])],
+            [Math.min(c1[0],c2[0]), Math.min(c1[1],c2[1])],
+            [Math.min(c1[0],c2[0]), Math.max(c1[1],c2[1])],
+          ];
+          const geometry = { type: 'Polygon', coordinates: [ring] };
+          const noteState = useTacticalStore.getState();
+          const currentPid = noteState.activeProjectId;
+          const currentLid = noteState.activeLayerId;
+          const currentUser = useAuthStore.getState().user;
+          const noteProps = {
+            color: drawColorRef.current,
+            markdown: '',
+            fontSize: drawFontSizeRef.current,
+            strokeWidth: drawStrokeWidthRef.current,
+            fillOpacity: 0.92,
+          };
+          if (currentPid) {
+            pendingNoteEditRef.current = true;
+            socket.emit('client:drawing:add', {
+              projectId: currentPid,
+              drawingType: 'note',
+              geometry,
+              layerId: currentLid || null,
+              properties: noteProps,
+              source: 'user',
+              createdBy: socket.id,
+            });
+          } else if (!currentUser) {
+            const localId = `local-${Date.now()}`;
+            setLocalDrawings((prev) => [...prev, {
+              id: localId,
+              drawingType: 'note',
+              geometry,
+              properties: noteProps,
+              _local: true,
+            }]);
+            setEditingNoteId(localId);
+          }
+          setDrawPoints([]);
+          setCursorPoint(null);
+          setActiveMode(null);
+          return;
+        }
+
         if ((activeModeRef.current === 'circle' || activeModeRef.current === 'ellipse') && drawPointsRef.current.length === 1) {
           setDrawPoints(prev => [...prev, [lng, lat]]);
           setCursorPoint(null);
@@ -310,6 +384,12 @@ export default function DrawingLayer() {
 
       if (!found) return;
       e.preventDefault();
+
+      if (found.drawingType === 'note') {
+        setEditingNoteId(found.id);
+        setSelectedDrawingId(found.id);
+        return;
+      }
 
       if (found.drawingType === 'text') {
         const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', found.properties?.text || '');
@@ -600,6 +680,8 @@ export default function DrawingLayer() {
         setCursorPoint([lng, lat]);
       } else if ((mode === 'line' || mode === 'arrow' || mode === 'polygon') && pts.length > 0) {
         setCursorPoint([lng, lat]);
+      } else if (mode === 'note' && pts.length === 1) {
+        setCursorPoint([lng, lat]);
       }
     };
     mapRefValue.on('mousemove', handler);
@@ -754,7 +836,7 @@ export default function DrawingLayer() {
 
   // Adjust font size of selected drawing (text or any with label) or draw-mode default
   const adjustFontSize = useCallback((delta) => {
-    if (selectedDrawing && !activeMode && (selectedDrawing.drawingType === 'text' || selectedDrawing.properties?.label)) {
+    if (selectedDrawing && !activeMode && (selectedDrawing.drawingType === 'text' || selectedDrawing.drawingType === 'note' || selectedDrawing.properties?.label)) {
       const defaultSize = selectedDrawing.drawingType === 'text' ? 18 : selectedDrawing.drawingType === 'needle' ? 13 : 16;
       const current = selectedDrawing.properties?.fontSize || defaultSize;
       const newSize = Math.max(10, Math.min(40, current + delta));
@@ -803,12 +885,13 @@ export default function DrawingLayer() {
   // Force re-render on map move so preview SVG stays in sync with map
   useEffect(() => {
     if (!mapRefValue) return;
-    const needsSync = drawPoints.length > 0 || selectedDrawingId || dragState;
+    const hasNotes = drawings.some(d => d.drawingType === 'note') || localDrawings.some(d => d.drawingType === 'note');
+    const needsSync = drawPoints.length > 0 || selectedDrawingId || dragState || hasNotes;
     if (!needsSync) return;
     const onMove = () => forceUpdate((n) => n + 1);
     mapRefValue.on('move', onMove);
     return () => mapRefValue.off('move', onMove);
-  }, [mapRefValue, drawPoints.length > 0, selectedDrawingId, !!dragState]);
+  }, [mapRefValue, drawPoints.length > 0, selectedDrawingId, !!dragState, drawings, localDrawings]);
 
   // Project draw points to screen coordinates for SVG preview
   const screenPoints = [];
@@ -838,6 +921,7 @@ export default function DrawingLayer() {
   useEffect(() => {
     if (!drawingToolsVisible) return;
     const onKeyDown = (e) => {
+      if (editingNoteId) return;
       // Delete/Backspace deletes selected drawing
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDrawingId && !activeMode) {
         // Don't delete if user is in an input
@@ -864,7 +948,7 @@ export default function DrawingLayer() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [drawingToolsVisible, activeMode, selectedDrawingId, deleteSingleSelected, setSelectedDrawingId]);
+  }, [drawingToolsVisible, activeMode, selectedDrawingId, deleteSingleSelected, setSelectedDrawingId, editingNoteId]);
 
   const tools = [
     { id: 'line', icon: '/', shortcut: 'L' },
@@ -874,6 +958,7 @@ export default function DrawingLayer() {
     { id: 'arrow', icon: '\u2192', shortcut: 'A' },
     { id: 'text', icon: 'T', shortcut: 'T' },
     { id: 'needle', icon: '\uD83D\uDCCD', shortcut: 'N' },
+    { id: 'note', icon: '\uD83D\uDCDD', shortcut: 'M' },
   ];
 
   // No-project warning for logged-in users
@@ -925,7 +1010,7 @@ export default function DrawingLayer() {
         {/* Finish / Cancel buttons */}
         {activeMode && (
           <div className="flex flex-col gap-3 mt-2">
-            {activeMode !== 'text' && activeMode !== 'needle' && drawPoints.length >= 2 && (
+            {activeMode !== 'text' && activeMode !== 'needle' && activeMode !== 'note' && drawPoints.length >= 2 && (
               <button
                 onClick={finishDrawing}
                 className="w-10 h-10 flex items-center justify-center rounded bg-emerald-600 text-white text-sm font-bold shadow-lg hover:bg-emerald-500"
@@ -945,7 +1030,7 @@ export default function DrawingLayer() {
         )}
 
         {/* Line width controls during draw mode */}
-        {activeMode && activeMode !== 'text' && activeMode !== 'needle' && (
+        {activeMode && activeMode !== 'text' && activeMode !== 'needle' && activeMode !== 'note' && (
           <div className="flex flex-col items-center gap-0.5 mt-1 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
             <span className="text-[9px] text-slate-300 font-medium">{t('draw.lineWidth', lang)}</span>
             <div className="flex items-center gap-1">
@@ -1101,7 +1186,7 @@ export default function DrawingLayer() {
             )}
 
             {/* Font size controls for selected text or any drawing with a label */}
-            {(selectedDrawing.drawingType === 'text' || selectedDrawing.properties?.label) && (
+            {(selectedDrawing.drawingType === 'text' || selectedDrawing.drawingType === 'note' || selectedDrawing.properties?.label) && (
               <div className="flex flex-col items-center gap-0.5 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
                 <span className="text-[9px] text-slate-300 font-medium">{t('draw.fontSize', lang)}</span>
                 <div className="flex items-center gap-1">
@@ -1214,6 +1299,8 @@ export default function DrawingLayer() {
               ? (lang === 'no' ? 'Klikk for tekst' : 'Click to place text')
               : activeMode === 'needle'
               ? (lang === 'no' ? 'Klikk for å plassere nål' : 'Click to place needle')
+              : activeMode === 'note'
+              ? (lang === 'no' ? 'Klikk to hjørner for notat' : 'Click two corners for note')
               : (lang === 'no' ? 'Klikk for punkter, \u2713 for \u00e5 fullf\u00f8re' : 'Click to add points, \u2713 to finish')
             }
           </div>
@@ -1261,7 +1348,7 @@ export default function DrawingLayer() {
 
 
       {/* Drawing preview — SVG overlay on top of the map */}
-      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'ellipse' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon') && drawPoints.length >= 1 && cursorPoint)) && (
+      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'ellipse' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon' || activeMode === 'note') && drawPoints.length >= 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
           {/* Circle preview — follows cursor after center is placed */}
           {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
@@ -1297,6 +1384,19 @@ export default function DrawingLayer() {
                 <line x1={cx} y1={cy} x2={ep.x} y2={ep.y} stroke={drawColor} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
               </>
             );
+          })()}
+          {/* Note rectangle preview */}
+          {activeMode === 'note' && screenPoints.length >= 1 && cursorPoint && (() => {
+            try {
+              const cp = mapRefValue.project(cursorPoint);
+              const x = Math.min(screenPoints[0].x, cp.x);
+              const y = Math.min(screenPoints[0].y, cp.y);
+              const w = Math.abs(cp.x - screenPoints[0].x);
+              const h = Math.abs(cp.y - screenPoints[0].y);
+              return <rect x={x} y={y} width={w} height={h}
+                fill="rgba(15,23,42,0.3)" stroke="#000000"
+                strokeWidth="2" strokeDasharray="8 4" opacity="0.8" />;
+            } catch { return null; }
           })()}
           {/* Polygon preview */}
           {activeMode === 'polygon' && screenPoints.length >= 2 && (
@@ -1505,6 +1605,25 @@ export default function DrawingLayer() {
             }
 
             if (d.geometry.type === 'Polygon') {
+              // Notes are rendered as HTML overlays, not SVG
+              if (d.drawingType === 'note') {
+                if (!isSelected) return null;
+                const ring = d.geometry.coordinates[0];
+                const pts = projectCoordsLocal(ring);
+                if (pts.length < 3) return null;
+                return (
+                  <g key={key}>
+                    <polygon
+                      points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke="#06b6d4"
+                      strokeWidth={sw + 4}
+                      strokeDasharray="6 4"
+                      opacity="0.6"
+                    />
+                  </g>
+                );
+              }
               const ring = d.geometry.coordinates[0];
               const pts = projectCoordsLocal(ring);
               if (pts.length < 3) return null;
@@ -1564,6 +1683,36 @@ export default function DrawingLayer() {
           })}
         </svg>
       )}
+
+      {/* Markdown note HTML overlays */}
+      {mapRefValue && [...drawings, ...localDrawings]
+        .filter(d => d.drawingType === 'note')
+        .map(d => (
+          <MarkdownNoteOverlay
+            key={`note-${d.id}`}
+            drawing={d}
+            mapRef={mapRefValue}
+            isEditing={editingNoteId === d.id}
+            onSave={(md) => {
+              if (d._local) {
+                setLocalDrawings(prev => prev.map(ld => ld.id === d.id
+                  ? { ...ld, properties: { ...ld.properties, markdown: md } }
+                  : ld
+                ));
+              } else {
+                socket.emit('client:drawing:update', {
+                  projectId: d._projectId,
+                  id: d.id,
+                  properties: { ...d.properties, markdown: md },
+                });
+              }
+              setEditingNoteId(null);
+            }}
+            onCancel={() => setEditingNoteId(null)}
+            lang={lang}
+          />
+        ))
+      }
 
       {/* CSV Import Dialog */}
       {csvImportOpen && (

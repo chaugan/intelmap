@@ -15,6 +15,7 @@ import WebcamLayer from './WebcamLayer.jsx';
 import WindOverlay, { WindLegend } from './WindOverlay.jsx';
 import SunlightOverlay, { SunlightLegend } from './SunlightOverlay.jsx';
 import DrawingLayer from './DrawingLayer.jsx';
+import MarkdownNoteOverlay from './MarkdownNoteOverlay.jsx';
 import BuildingsLayer from './BuildingsLayer.jsx';
 import TerrainLayer from './TerrainLayer.jsx';
 import ContextMenu from './ContextMenu.jsx';
@@ -591,6 +592,8 @@ export default function TacticalMap() {
       const { drawingToolsVisible, drawingActiveMode } = useMapStore.getState();
       if (!drawingToolsVisible || drawingActiveMode) return;
       e.preventDefault();
+      // Notes handle double-click editing in DrawingLayer
+      if (d.drawingType === 'note') return;
       if (d.drawingType === 'text') {
         const newText = prompt(lang === 'no' ? 'Rediger tekst:' : 'Edit text:', d.properties?.text || '');
         if (newText === null) return;
@@ -1073,6 +1076,29 @@ export default function TacticalMap() {
             }
 
             if (geom.type === 'Polygon') {
+              // Notes are rendered as HTML overlays below
+              if (d.drawingType === 'note') {
+                const ring = geom.coordinates[0];
+                const pts = projectCoords(ring);
+                if (pts.length < 3) return null;
+                return (
+                  <g key={key} style={{ pointerEvents: 'none' }}>
+                    {isSelected && (
+                      <>
+                        {renderSelectionBBox(pts, 10)}
+                        <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#06b6d4" strokeWidth={sw + 6} opacity="0.3" strokeLinejoin="round" />
+                      </>
+                    )}
+                    {/* Transparent hit area for selection */}
+                    <polygon
+                      points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="transparent"
+                      stroke="transparent"
+                      strokeWidth="1"
+                    />
+                  </g>
+                );
+              }
               const ring = geom.coordinates[0];
               const pts = projectCoords(ring);
               if (pts.length < 3) return null;
@@ -1165,6 +1191,22 @@ export default function TacticalMap() {
         </svg>
         );
       })()}
+
+      {/* Markdown note HTML overlays for server drawings */}
+      {map && visibleDrawings
+        .filter(d => d.drawingType === 'note')
+        .map(d => (
+          <MarkdownNoteOverlay
+            key={`note-${d.id}`}
+            drawing={d}
+            mapRef={map}
+            isEditing={false}
+            onSave={() => {}}
+            onCancel={() => {}}
+            lang={lang}
+          />
+        ))
+      }
 
       <BuildingsLayer />
       <TerrainLayer />
