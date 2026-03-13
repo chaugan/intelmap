@@ -298,40 +298,23 @@ export default function TacticalMap() {
     }
   }, [placementMode, setPlacementMode, activeProjectId, activeLayerId, activePanel, setAvalancheWarningRegion]);
 
-  // Pinch-zoom: forward touch events from marker elements to the map canvas so
-  // MapLibre receives all touch points for pinch gestures. Without this, a finger
-  // landing on a marker HTML element is "owned" by that element and the canvas
-  // never sees it, breaking pinch-zoom.
+  // Pinch-zoom fix: on touch devices, marker HTML elements sit above the canvas
+  // and capture touch events. MapLibre never sees those touch points, breaking
+  // pinch-zoom. Fix: make markers touch-transparent via CSS. Marker taps are
+  // handled via MapLibre's 'click' event + coordinate hit-testing instead.
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     const container = map.getContainer();
-    const canvas = map.getCanvas();
 
-    const forwardToCanvas = (e) => {
-      // Only forward touch events that originate from marker elements
-      const marker = e.target.closest('.maplibregl-marker');
-      if (!marker) return;
-      // Create and dispatch a copy of the touch event on the canvas
-      const copy = new TouchEvent(e.type, {
-        touches: e.touches,
-        targetTouches: e.targetTouches,
-        changedTouches: e.changedTouches,
-        bubbles: true,
-        cancelable: true,
-      });
-      canvas.dispatchEvent(copy);
+    // Detect touch device and add class for CSS touch-transparency
+    const onFirstTouch = () => {
+      container.classList.add('touch-device');
+      container.removeEventListener('touchstart', onFirstTouch);
     };
-
-    container.addEventListener('touchstart', forwardToCanvas, { capture: true, passive: true });
-    container.addEventListener('touchmove', forwardToCanvas, { capture: true, passive: true });
-    container.addEventListener('touchend', forwardToCanvas, { capture: true, passive: true });
-    container.addEventListener('touchcancel', forwardToCanvas, { capture: true, passive: true });
+    container.addEventListener('touchstart', onFirstTouch, { passive: true, once: true });
     return () => {
-      container.removeEventListener('touchstart', forwardToCanvas, { capture: true });
-      container.removeEventListener('touchmove', forwardToCanvas, { capture: true });
-      container.removeEventListener('touchend', forwardToCanvas, { capture: true });
-      container.removeEventListener('touchcancel', forwardToCanvas, { capture: true });
+      container.removeEventListener('touchstart', onFirstTouch);
     };
   }, [useMapStore.getState().mapRef]);
 

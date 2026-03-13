@@ -49,14 +49,50 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, visibleMarkers, localMarkers, setLocalMarkers]);
 
-  // Deselect when clicking on map (not on a marker)
+  // Handle marker tap on touch devices (markers have pointer-events:none on touch,
+  // so we detect taps via MapLibre click + proximity hit-testing) and deselect
+  // when clicking empty space
+  const touchMarkerHitRef = useRef(false);
   useEffect(() => {
     const map = useMapStore.getState().mapRef;
-    if (!map || !selectedId) return;
-    const handler = () => { setSelectedId(null); setEchelonMenu(null); };
-    map.on('click', handler);
-    return () => map.off('click', handler);
-  }, [selectedId]);
+    if (!map) return;
+
+    const allMarkers = [...visibleMarkers, ...localMarkers];
+    const hitTest = (e) => {
+      const clickPx = e.point;
+      const hitRadius = 25; // px
+      let closest = null;
+      let closestDist = Infinity;
+      for (const m of allMarkers) {
+        const pt = map.project([m.lon, m.lat]);
+        const dx = pt.x - clickPx.x;
+        const dy = pt.y - clickPx.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < hitRadius && dist < closestDist) {
+          closest = m;
+          closestDist = dist;
+        }
+      }
+      if (closest) {
+        touchMarkerHitRef.current = true;
+        const isSelected = useMapStore.getState().selectedMarkerId === closest.id;
+        setSelectedId(isSelected ? null : closest.id);
+      } else {
+        touchMarkerHitRef.current = false;
+      }
+    };
+    // Deselect on click only if no marker was hit
+    const deselect = () => {
+      if (touchMarkerHitRef.current) { touchMarkerHitRef.current = false; return; }
+      if (useMapStore.getState().selectedMarkerId) {
+        setSelectedId(null);
+        setEchelonMenu(null);
+      }
+    };
+    map.on('click', hitTest);
+    map.on('click', deselect);
+    return () => { map.off('click', hitTest); map.off('click', deselect); };
+  }, [mapRef, visibleMarkers, localMarkers]);
 
   // Close echelon menu on outside click
   useEffect(() => {

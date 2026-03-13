@@ -22,6 +22,18 @@ html, body, #root {
   border-radius: 3px;
 }
 
+/* On touch devices, make markers transparent to touch so pinch-zoom works.
+   Marker taps are handled via MapLibre click events + hit-testing instead. */
+.touch-device .maplibregl-marker {
+  pointer-events: none;
+}
+/* Re-enable pointer-events for mouse (hover/click still work on desktop) */
+@media (hover: hover) and (pointer: fine) {
+  .touch-device .maplibregl-marker {
+    pointer-events: auto;
+  }
+}
+
 /* Map marker styles */
 .nato-marker {
   cursor: pointer;
