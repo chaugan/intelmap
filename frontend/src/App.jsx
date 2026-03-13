@@ -313,13 +313,6 @@ function MapApp({ user }) {
     }
   }, [mapRef]);
 
-  // Resize map when fire report panel opens/closes on narrow screens
-  useEffect(() => {
-    if (isNarrow && mapRef) {
-      setTimeout(() => mapRef.resize(), 50);
-    }
-  }, [fireReportToolVisible, isNarrow, mapRef]);
-
   // Handle share token deep linking via URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -476,6 +469,13 @@ function MapApp({ user }) {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Resize map when fire report panel opens/closes on narrow screens
+  useEffect(() => {
+    if (isNarrow && mapRef) {
+      setTimeout(() => mapRef.resize(), 50);
+    }
+  }, [fireReportToolVisible, isNarrow, mapRef]);
 
   return (
     <div className="h-full flex flex-col bg-slate-900 text-slate-100">
