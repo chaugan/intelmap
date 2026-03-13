@@ -146,7 +146,11 @@ export default function FireReportDrawer() {
     ].join('\n');
   };
 
+  const allFieldsFilled = fieldA.trim() && fieldB && fieldC.trim() && fieldD.trim() && fieldE.trim() &&
+    (fieldF !== 'custom' ? !!fieldF : fieldFCustom.trim()) && fieldG.trim() && fieldH.trim();
+
   const handleCopy = async () => {
+    if (!allFieldsFilled) return;
     try {
       await navigator.clipboard.writeText(formatReport());
       setCopied(true);
@@ -218,6 +222,7 @@ export default function FireReportDrawer() {
             fieldG={fieldG} setFieldG={setFieldG} saveG={saveG} setSaveG={setSaveG}
             fieldH={fieldH} setFieldH={setFieldH} saveH={saveH} setSaveH={setSaveH}
             copied={copied}
+            allFieldsFilled={allFieldsFilled}
             handleCopy={handleCopy}
             handleRepick={handleRepick}
             handleSaveToProject={handleSaveToProject}
@@ -297,7 +302,7 @@ function FormPhase({
   fieldFCustom, setFieldFCustom,
   fieldG, setFieldG, saveG, setSaveG,
   fieldH, setFieldH, saveH, setSaveH,
-  copied, handleCopy, handleRepick, handleSaveToProject,
+  copied, allFieldsFilled, handleCopy, handleRepick, handleSaveToProject,
   activeProjectId, getGeometryLabel,
 }) {
   const inputClass = "w-full px-2 py-1.5 bg-slate-900 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500";
@@ -367,9 +372,9 @@ function FormPhase({
 
       {/* Buttons */}
       <div className="space-y-2 pt-2">
-        <button onClick={handleCopy}
+        <button onClick={handleCopy} disabled={!allFieldsFilled}
           className={`w-full py-2 rounded font-bold text-sm transition-colors ${
-            copied ? 'bg-emerald-700 text-white' : 'bg-red-700 hover:bg-red-600 text-white'
+            copied ? 'bg-emerald-700 text-white' : allFieldsFilled ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'
           }`}>
           {copied ? t('fireReport.copied', lang) : t('fireReport.copy', lang)}
         </button>
