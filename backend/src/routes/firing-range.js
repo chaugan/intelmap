@@ -18,17 +18,17 @@ router.post('/calculate', async (req, res) => {
     if (!isFinite(longitude) || !isFinite(latitude)) {
       return res.status(400).json({ error: 'Invalid coordinates' });
     }
-    const maxRangeKm = Math.max(1, Math.min(50, Number(rawRange) || 20));
+    const maxRangeKm = Math.max(1, Math.min(500, Number(rawRange) || 20));
     const maxRangeM = maxRangeKm * 1000;
-    const v0 = Math.max(50, Math.min(1500, Number(muzzleVelocity) || 563));
+    const v0 = Math.max(50, Math.min(3000, Number(muzzleVelocity) || 563));
     const minElRad = milsToRad(Math.max(-200, Number(minElevationMils) || 53));
     const maxElRad = milsToRad(Math.min(1600, Number(maxElevationMils) || 1200));
 
     // Rocket parameters
     const isRocket = !!req.body.isRocket;
-    const burnTime = isRocket ? Math.max(0.1, Math.min(10, Number(req.body.burnTime) || 1.5)) : 0;
+    const burnTime = isRocket ? Math.max(0.1, Math.min(60, Number(req.body.burnTime) || 1.5)) : 0;
     const launchVelocity = isRocket ? Math.max(0, Math.min(500, Number(req.body.launchVelocity) || 30)) : 0;
-    const burnoutVelocity = isRocket ? Math.max(50, Math.min(2000, Number(req.body.burnoutVelocity) || 500)) : 0;
+    const burnoutVelocity = isRocket ? Math.max(50, Math.min(3000, Number(req.body.burnoutVelocity) || 500)) : 0;
     const thrustAccel = isRocket ? (burnoutVelocity - launchVelocity) / burnTime : 0;
 
     const { tileMap, getElevation } = await buildTileMap(latitude, longitude, maxRangeKm);
@@ -41,15 +41,16 @@ router.post('/calculate', async (req, res) => {
       ? Number(gunAltitudeOverride)
       : getElevation(longitude, latitude);
 
-    const numRays = 720;
-    const sampleStep = maxRangeKm > 20 ? 100 : maxRangeKm > 5 ? 50 : 30;
+    const numRays = maxRangeKm > 100 ? 360 : 720;
+    const angleStep = 360 / numRays;
+    const sampleStep = maxRangeKm > 100 ? 1000 : maxRangeKm > 20 ? 100 : maxRangeKm > 5 ? 50 : 30;
     const numSamples = Math.ceil(maxRangeM / sampleStep);
 
     // 0=unreachable, 1=reachable, 2=dead-zone, 3=terrain-masked
     const grid = new Array(numRays);
 
     for (let r = 0; r < numRays; r++) {
-      const bearingDeg = r * 0.5;
+      const bearingDeg = r * angleStep;
       const bearingRad = bearingDeg * Math.PI / 180;
       grid[r] = new Uint8Array(numSamples);
 
@@ -113,7 +114,6 @@ router.post('/calculate', async (req, res) => {
 
     // Convert to GeoJSON FeatureCollection with zone polygons
     const features = [];
-    const angleStep = 0.5;
 
     for (let r = 0; r < numRays; r++) {
       let startSample = -1;
