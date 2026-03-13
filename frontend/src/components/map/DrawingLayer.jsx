@@ -589,12 +589,31 @@ export default function DrawingLayer() {
         } else if (newGeom.type === 'LineString') {
           newGeom.coordinates[ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
         } else if (newGeom.type === 'Polygon') {
-          newGeom.coordinates[0][ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
-          // If first/last vertex, keep ring closed
-          if (ds.vertexIndex === 0) {
-            newGeom.coordinates[0][newGeom.coordinates[0].length - 1] = [cursorLngLat.lng, cursorLngLat.lat];
-          } else if (ds.vertexIndex === newGeom.coordinates[0].length - 1) {
-            newGeom.coordinates[0][0] = [cursorLngLat.lng, cursorLngLat.lat];
+          if (ds.drawingType === 'note') {
+            // Note rectangles: dragging a corner reshapes the rectangle
+            // Ring: [NW, NE, SE, SW, NW(close)] — indices 0,1,2,3,4(=0)
+            const ring = newGeom.coordinates[0];
+            const vi = ds.vertexIndex;
+            const lng = cursorLngLat.lng;
+            const lat = cursorLngLat.lat;
+            // Each corner shares one coordinate with each neighbor
+            if (vi === 0) {        // NW: shares lng with SW(3), lat with NE(1)
+              ring[0] = [lng, lat]; ring[3][0] = lng; ring[1][1] = lat; ring[4] = [lng, lat];
+            } else if (vi === 1) { // NE: shares lng with SE(2), lat with NW(0)
+              ring[1] = [lng, lat]; ring[2][0] = lng; ring[0][1] = lat; ring[4] = [...ring[0]];
+            } else if (vi === 2) { // SE: shares lng with NE(1), lat with SW(3)
+              ring[2] = [lng, lat]; ring[1][0] = lng; ring[3][1] = lat;
+            } else if (vi === 3) { // SW: shares lng with NW(0), lat with SE(2)
+              ring[3] = [lng, lat]; ring[0][0] = lng; ring[2][1] = lat; ring[4] = [...ring[0]];
+            }
+          } else {
+            newGeom.coordinates[0][ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
+            // If first/last vertex, keep ring closed
+            if (ds.vertexIndex === 0) {
+              newGeom.coordinates[0][newGeom.coordinates[0].length - 1] = [cursorLngLat.lng, cursorLngLat.lat];
+            } else if (ds.vertexIndex === newGeom.coordinates[0].length - 1) {
+              newGeom.coordinates[0][0] = [cursorLngLat.lng, cursorLngLat.lat];
+            }
           }
         }
 
@@ -1208,13 +1227,6 @@ export default function DrawingLayer() {
               </div>
             )}
 
-            {/* Rotation indicator for selected ellipse */}
-            {selectedDrawing.drawingType === 'ellipse' && (
-              <div className="flex flex-col items-center gap-0.5 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
-                <span className="text-[9px] text-slate-300 font-medium">{t('draw.rotation', lang)}</span>
-                <span className="text-[11px] text-white font-bold">{Math.round(getEllipseParams(selectedDrawing.geometry.coordinates[0]).rotationDeg % 360)}°</span>
-              </div>
-            )}
           </div>
         )}
 
@@ -1490,39 +1502,45 @@ export default function DrawingLayer() {
                 // Draw a line from the rx handle (index 0) to the rotation handle
                 const rxCoord = getVertices(selectedDrawing)[0];
                 const rxPt = mapRefValue.project(rxCoord);
+                const startDrag = (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const startLngLat = mapRefValue.unproject([pt.x, pt.y]);
+                  const ds = {
+                    type: 'vertex',
+                    vertexIndex: i,
+                    drawingId: selectedDrawing.id,
+                    startLngLat: [startLngLat.lng, startLngLat.lat],
+                    originalGeometry: JSON.parse(JSON.stringify(selectedDrawing.geometry)),
+                    isLocal: !!selectedDrawing._local,
+                    projectId: selectedDrawing._projectId,
+                    drawingType: selectedDrawing.drawingType,
+                  };
+                  dragStateRef.current = ds;
+                  setDragState(ds);
+                  mapRefValue.dragPan.disable();
+                };
                 return (
                   <g key={i}>
                     <line
                       x1={rxPt.x} y1={rxPt.y} x2={pt.x} y2={pt.y}
                       stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"
                     />
-                    <circle
-                      cx={pt.x} cy={pt.y} r="9"
-                      fill="#06b6d4" stroke="white" strokeWidth="2"
-                      style={{ cursor: 'crosshair', pointerEvents: 'auto' }}
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const startLngLat = mapRefValue.unproject([pt.x, pt.y]);
-                        const ds = {
-                          type: 'vertex',
-                          vertexIndex: i,
-                          drawingId: selectedDrawing.id,
-                          startLngLat: [startLngLat.lng, startLngLat.lat],
-                          originalGeometry: JSON.parse(JSON.stringify(selectedDrawing.geometry)),
-                          isLocal: !!selectedDrawing._local,
-                          projectId: selectedDrawing._projectId,
-                          drawingType: selectedDrawing.drawingType,
-                        };
-                        dragStateRef.current = ds;
-                        setDragState(ds);
-                        mapRefValue.dragPan.disable();
-                      }}
-                    />
-                    {/* Rotation icon: ↻ */}
-                    <text x={pt.x} y={pt.y + 1} textAnchor="middle" dominantBaseline="central"
-                      fill="white" fontSize="12" fontWeight="bold"
-                      style={{ pointerEvents: 'none' }}>↻</text>
+                    {/* Rotation handle: circular arrow icon */}
+                    <g
+                      style={{ cursor: 'grab', pointerEvents: 'auto' }}
+                      onPointerDown={startDrag}
+                    >
+                      <circle cx={pt.x} cy={pt.y} r="11" fill="#0e7490" stroke="white" strokeWidth="2" />
+                      <path
+                        d={`M ${pt.x - 4} ${pt.y - 4} A 5.5 5.5 0 1 1 ${pt.x + 4} ${pt.y - 2.5}`}
+                        fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round"
+                      />
+                      <path
+                        d={`M ${pt.x + 2} ${pt.y - 5.5} L ${pt.x + 4.5} ${pt.y - 2.5} L ${pt.x + 1} ${pt.y - 2}`}
+                        fill="white" stroke="none"
+                      />
+                    </g>
                   </g>
                 );
               }
