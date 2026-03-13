@@ -22,6 +22,11 @@ html, body, #root {
   border-radius: 3px;
 }
 
+/* Allow pinch-zoom through map markers on touch devices */
+.maplibregl-marker {
+  touch-action: manipulation;
+}
+
 /* Map marker styles */
 .nato-marker {
   cursor: pointer;
