@@ -1739,17 +1739,18 @@ export default function DrawingLayer() {
             drawing={d}
             mapRef={mapRefValue}
             isEditing={editingNoteId === d.id}
-            onSave={(md) => {
+            onSave={(md, label) => {
+              const updatedProps = { ...d.properties, markdown: md, label: label || undefined };
               if (d._local) {
                 setLocalDrawings(prev => prev.map(ld => ld.id === d.id
-                  ? { ...ld, properties: { ...ld.properties, markdown: md } }
+                  ? { ...ld, properties: updatedProps }
                   : ld
                 ));
               } else {
                 socket.emit('client:drawing:update', {
                   projectId: d._projectId,
                   id: d.id,
-                  properties: { ...d.properties, markdown: md },
+                  properties: updatedProps,
                 });
               }
               setEditingNoteId(null);

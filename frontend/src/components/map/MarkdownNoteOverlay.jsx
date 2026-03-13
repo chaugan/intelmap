@@ -5,6 +5,7 @@ import { t } from '../../lib/i18n.js';
 
 export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave, onCancel, lang }) {
   const [editText, setEditText] = useState(drawing.properties?.markdown || '');
+  const [editLabel, setEditLabel] = useState(drawing.properties?.label || '');
   const contentRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -39,6 +40,7 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
   useEffect(() => {
     if (isEditing) {
       setEditText(drawing.properties?.markdown || '');
+      setEditLabel(drawing.properties?.label || '');
     }
   }, [isEditing, drawing.id]);
 
@@ -69,7 +71,7 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
   if (!box) return null;
 
   const { minX, minY, w: boxW, h: boxH } = box;
-  const toolbarH = isEditing ? 32 : 0;
+  const toolbarH = isEditing ? 58 : 0;
 
   return (
     <div
@@ -95,54 +97,73 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
           <div
             style={{
               height: toolbarH,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 8px',
               background: '#334155',
               borderBottom: '1px solid #64748b',
             }}
           >
-            <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 700 }}>{t('draw.note', lang)}</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => { onSave(editText); }}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', height: 28 }}>
+              <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 700 }}>{t('draw.note', lang)}</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => { onSave(editText, editLabel); }}
+                  style={{
+                    background: '#22c55e',
+                    color: '#ffffff',
+                    border: '1px solid #4ade80',
+                    borderRadius: 4,
+                    width: 30,
+                    height: 22,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    lineHeight: '22px',
+                    fontWeight: 800,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                  }}
+                  title="Save"
+                >
+                  &#x2713;
+                </button>
+                <button
+                  onClick={() => { onCancel(); }}
+                  style={{
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    border: '1px solid #f87171',
+                    borderRadius: 4,
+                    width: 30,
+                    height: 22,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    lineHeight: '22px',
+                    fontWeight: 800,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                  }}
+                  title="Cancel"
+                >
+                  &#x2715;
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', height: 26 }}>
+              <input
+                type="text"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                placeholder={lang === 'no' ? 'Navn (valgfritt)' : 'Name (optional)'}
                 style={{
-                  background: '#22c55e',
+                  flex: 1,
+                  background: 'rgba(15, 23, 42, 0.5)',
                   color: '#ffffff',
-                  border: '1px solid #4ade80',
-                  borderRadius: 4,
-                  width: 30,
-                  height: 26,
-                  cursor: 'pointer',
-                  fontSize: 16,
-                  lineHeight: '26px',
-                  fontWeight: 800,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                  border: '1px solid #64748b',
+                  borderRadius: 3,
+                  padding: '2px 6px',
+                  fontSize: 12,
+                  outline: 'none',
+                  height: 22,
                 }}
-                title="Save"
-              >
-                &#x2713;
-              </button>
-              <button
-                onClick={() => { onCancel(); }}
-                style={{
-                  background: '#ef4444',
-                  color: '#ffffff',
-                  border: '1px solid #f87171',
-                  borderRadius: 4,
-                  width: 30,
-                  height: 26,
-                  cursor: 'pointer',
-                  fontSize: 16,
-                  lineHeight: '26px',
-                  fontWeight: 800,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                }}
-                title="Cancel"
-              >
-                &#x2715;
-              </button>
+              />
             </div>
           </div>
           {/* Textarea */}

@@ -49,18 +49,28 @@ const DRAWING_ICONS = {
   arrow: '\u2192',
   polygon: '\u2B21',
   circle: '\u25EF',
+  ellipse: '\u2B2D',
   text: 'T',
+  needle: '\uD83D\uDCCD',
+  note: '\uD83D\uDCDD',
 };
 
 function getDrawingLabel(d, lang) {
   if (d.drawingType === 'text' && d.properties?.text) return d.properties.text;
   if (d.properties?.label) return d.properties.label;
+  if (d.drawingType === 'note' && d.properties?.markdown) {
+    const preview = d.properties.markdown.replace(/[#*_~`>\-|]/g, '').trim();
+    return preview.length > 30 ? preview.slice(0, 30) + '…' : preview;
+  }
   const typeLabels = {
     line: { en: 'Line', no: 'Linje' },
     arrow: { en: 'Arrow', no: 'Pil' },
     polygon: { en: 'Polygon', no: 'Polygon' },
     circle: { en: 'Circle', no: 'Sirkel' },
+    ellipse: { en: 'Ellipse', no: 'Ellipse' },
     text: { en: 'Text', no: 'Tekst' },
+    needle: { en: 'Pin', no: 'Nål' },
+    note: { en: 'Note', no: 'Notat' },
   };
   return typeLabels[d.drawingType]?.[lang] || d.drawingType || 'Drawing';
 }
