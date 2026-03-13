@@ -53,6 +53,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
   // so we detect taps via MapLibre click + proximity hit-testing) and deselect
   // when clicking empty space
   const touchMarkerHitRef = useRef(false);
+  const onRenameLabelRef = useRef(null);
   useEffect(() => {
     const map = useMapStore.getState().mapRef;
     if (!map) return;
@@ -99,14 +100,14 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
       if (closest) {
         e.preventDefault(); // prevent MapLibre double-tap zoom
         setSelectedId(closest.id);
-        onRenameLabel(closest);
+        if (onRenameLabelRef.current) onRenameLabelRef.current(closest);
       }
     };
     map.on('click', hitTest);
     map.on('click', deselect);
     map.on('dblclick', onDblClick);
     return () => { map.off('click', hitTest); map.off('click', deselect); map.off('dblclick', onDblClick); };
-  }, [mapRef, visibleMarkers, localMarkers, onRenameLabel]);
+  }, [mapRef, visibleMarkers, localMarkers]);
 
   // Close echelon menu on outside click
   useEffect(() => {
@@ -148,6 +149,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
       socket.emit('client:marker:update', { projectId, id: marker.id, customLabel: label });
     }
   }, [lang]);
+  onRenameLabelRef.current = onRenameLabel;
 
   const onChangeEchelon = useCallback((marker, echelonCode) => {
     const newSidc = setEchelonCode(marker.sidc, echelonCode);
