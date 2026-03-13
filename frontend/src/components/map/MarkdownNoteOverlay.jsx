@@ -78,11 +78,11 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
         top: minY,
         width: boxW,
         height: boxH,
-        border: `${strokeWidth}px solid ${color}`,
-        background: 'rgba(30, 41, 59, 0.95)',
+        border: `${Math.max(strokeWidth, 2)}px solid ${color}`,
+        background: isEditing ? 'rgba(30, 41, 59, 1)' : 'rgba(30, 41, 59, 0.95)',
         borderRadius: 6,
         overflow: 'hidden',
-        zIndex: 6,
+        zIndex: isEditing ? 50 : 6,
         pointerEvents: isEditing ? 'auto' : 'none',
       }}
       onPointerDown={isEditing ? (e) => e.stopPropagation() : undefined}
@@ -98,25 +98,26 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '0 8px',
-              background: 'rgba(51, 65, 85, 0.98)',
-              borderBottom: '1px solid rgba(148, 163, 184, 0.3)',
+              background: '#334155',
+              borderBottom: '1px solid #64748b',
             }}
           >
-            <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>{t('draw.note', lang)}</span>
+            <span style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 700 }}>{t('draw.note', lang)}</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { onSave(editText); }}
                 style={{
-                  background: '#10b981',
-                  color: '#fff',
-                  border: 'none',
+                  background: '#22c55e',
+                  color: '#ffffff',
+                  border: '1px solid #4ade80',
                   borderRadius: 4,
-                  width: 28,
-                  height: 24,
+                  width: 30,
+                  height: 26,
                   cursor: 'pointer',
-                  fontSize: 15,
-                  lineHeight: '24px',
-                  fontWeight: 700,
+                  fontSize: 16,
+                  lineHeight: '26px',
+                  fontWeight: 800,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                 }}
                 title="Save"
               >
@@ -126,15 +127,16 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
                 onClick={() => { onCancel(); }}
                 style={{
                   background: '#ef4444',
-                  color: '#fff',
-                  border: 'none',
+                  color: '#ffffff',
+                  border: '1px solid #f87171',
                   borderRadius: 4,
-                  width: 28,
-                  height: 24,
+                  width: 30,
+                  height: 26,
                   cursor: 'pointer',
-                  fontSize: 15,
-                  lineHeight: '24px',
-                  fontWeight: 700,
+                  fontSize: 16,
+                  lineHeight: '26px',
+                  fontWeight: 800,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                 }}
                 title="Cancel"
               >
@@ -154,12 +156,12 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
               width: '100%',
               height: `calc(100% - ${toolbarH}px)`,
               background: 'transparent',
-              color: '#f1f5f9',
+              color: '#ffffff',
               border: 'none',
               outline: 'none',
               resize: 'none',
               padding: '8px 10px',
-              fontSize: Math.max(12, fontSize - 1),
+              fontSize: Math.max(13, fontSize),
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
               lineHeight: 1.5,
             }}
