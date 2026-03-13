@@ -104,21 +104,18 @@ export default function DrawingLayer() {
     ? drawings.find(d => d.id === selectedDrawingId) || localDrawings.find(d => d.id === selectedDrawingId)
     : null;
 
-  // Pick up newly-created note from server to open editor
+  // Pick up newly-created note from server to open editor (one-shot listener)
   useEffect(() => {
-    if (!pendingNoteEditRef.current) return;
-    const note = drawings.find(d => d.drawingType === 'note' && !editingNoteId);
-    if (note) {
-      // Find the newest note (last in array)
-      const notes = drawings.filter(d => d.drawingType === 'note');
-      const newest = notes[notes.length - 1];
-      if (newest) {
-        setEditingNoteId(newest.id);
-        setSelectedDrawingId(newest.id);
+    const handler = (drawing) => {
+      if (pendingNoteEditRef.current && drawing.drawingType === 'note') {
+        pendingNoteEditRef.current = false;
+        setEditingNoteId(drawing.id);
+        setSelectedDrawingId(drawing.id);
       }
-      pendingNoteEditRef.current = false;
-    }
-  }, [drawings]);
+    };
+    socket.on('server:drawing:added', handler);
+    return () => socket.off('server:drawing:added', handler);
+  }, []);
 
   // Share active drawing mode with store so MeasuringTool can yield
   useEffect(() => {
