@@ -30,7 +30,7 @@ function drawingIntersectsBox(drawing, box) {
   return false;
 }
 
-import { generateCirclePolygon } from '../../lib/drawing-utils.js';
+import { generateCirclePolygon, generateEllipsePolygon } from '../../lib/drawing-utils.js';
 import CsvDrawingImportDialog from './CsvDrawingImportDialog.jsx';
 
 export default function DrawingLayer() {
@@ -60,10 +60,14 @@ export default function DrawingLayer() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [cursorPoint, setCursorPoint] = useState(null);
+  const [drawStrokeWidth, setDrawStrokeWidth] = useState(3);
+  const [drawFontSize, setDrawFontSize] = useState(18);
   const [, forceUpdate] = useState(0);
   const activeModeRef = useRef(activeMode);
   const drawColorRef = useRef(drawColor);
   const drawPointsRef = useRef(drawPoints);
+  const drawStrokeWidthRef = useRef(drawStrokeWidth);
+  const drawFontSizeRef = useRef(drawFontSize);
 
   // Selection state (rectangle batch select)
   const [selectMode, setSelectMode] = useState(false);
@@ -85,6 +89,8 @@ export default function DrawingLayer() {
   activeModeRef.current = activeMode;
   drawColorRef.current = drawColor;
   drawPointsRef.current = drawPoints;
+  drawStrokeWidthRef.current = drawStrokeWidth;
+  drawFontSizeRef.current = drawFontSize;
   dragStateRef.current = dragState;
   drawingsRef.current = drawings;
   localDrawingsRef.current = localDrawings;
@@ -127,6 +133,10 @@ export default function DrawingLayer() {
       const coords = generateCirclePolygon(c, radiusKm);
       geometry = { type: 'Polygon', coordinates: [coords] };
       drawingType = 'circle';
+    } else if (mode === 'ellipse' && pts.length >= 2) {
+      const coords = generateEllipsePolygon(pts[0], pts[1]);
+      geometry = { type: 'Polygon', coordinates: [coords] };
+      drawingType = 'ellipse';
     }
 
     const currentState = useTacticalStore.getState();
@@ -135,6 +145,7 @@ export default function DrawingLayer() {
     const currentUser = useAuthStore.getState().user;
 
     if (geometry) {
+      const sw = drawStrokeWidthRef.current;
       if (currentProjectId) {
         socket.emit('client:drawing:add', {
           projectId: currentProjectId,
@@ -146,7 +157,7 @@ export default function DrawingLayer() {
             lineType: mode === 'arrow' ? 'arrow' : 'solid',
             fillOpacity: 0.15,
             label: label || undefined,
-            strokeWidth: 3,
+            strokeWidth: sw,
           },
           source: 'user',
           createdBy: socket.id,
@@ -161,7 +172,7 @@ export default function DrawingLayer() {
             lineType: mode === 'arrow' ? 'arrow' : 'solid',
             fillOpacity: 0.15,
             label: label || undefined,
-            strokeWidth: 3,
+            strokeWidth: sw,
           },
           _local: true,
         }]);
@@ -192,13 +203,14 @@ export default function DrawingLayer() {
           const currentLid = textState.activeLayerId;
           const currentUser = useAuthStore.getState().user;
           if (text) {
+            const fs = drawFontSizeRef.current;
             if (currentPid) {
               socket.emit('client:drawing:add', {
                 projectId: currentPid,
                 drawingType: 'text',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
                 layerId: currentLid || null,
-                properties: { text, color: drawColorRef.current, strokeWidth: 3 },
+                properties: { text, color: drawColorRef.current, strokeWidth: 3, fontSize: fs },
                 source: 'user',
                 createdBy: socket.id,
               });
@@ -207,7 +219,7 @@ export default function DrawingLayer() {
                 id: `local-${Date.now()}`,
                 drawingType: 'text',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
-                properties: { text, color: drawColorRef.current, strokeWidth: 3 },
+                properties: { text, color: drawColorRef.current, strokeWidth: 3, fontSize: fs },
                 _local: true,
               }]);
             }
@@ -222,13 +234,14 @@ export default function DrawingLayer() {
           const currentPid = needleState.activeProjectId;
           const currentLid = needleState.activeLayerId;
           const currentUser = useAuthStore.getState().user;
+          const nsw = drawStrokeWidthRef.current;
           if (currentPid) {
             socket.emit('client:drawing:add', {
               projectId: currentPid,
               drawingType: 'needle',
               geometry: { type: 'Point', coordinates: [lng, lat] },
               layerId: currentLid || null,
-              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: 3 },
+              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: nsw },
               source: 'user',
               createdBy: socket.id,
             });
@@ -237,7 +250,7 @@ export default function DrawingLayer() {
               id: `local-${Date.now()}`,
               drawingType: 'needle',
               geometry: { type: 'Point', coordinates: [lng, lat] },
-              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: 3 },
+              properties: { color: drawColorRef.current, label: label || undefined, strokeWidth: nsw },
               _local: true,
             }]);
           }
@@ -245,7 +258,7 @@ export default function DrawingLayer() {
           return;
         }
 
-        if (activeModeRef.current === 'circle' && drawPointsRef.current.length === 1) {
+        if ((activeModeRef.current === 'circle' || activeModeRef.current === 'ellipse') && drawPointsRef.current.length === 1) {
           setDrawPoints(prev => [...prev, [lng, lat]]);
           setCursorPoint(null);
           setTimeout(() => finishDrawing(), 0);
@@ -466,6 +479,24 @@ export default function DrawingLayer() {
           const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
           const coords = generateCirclePolygon([cx, cy], Math.max(0.01, radiusKm));
           newGeom.coordinates = [coords];
+        } else if (ds.drawingType === 'ellipse') {
+          // For ellipse: recalculate from center with adjusted rx/ry
+          const ring = newGeom.coordinates[0];
+          const cx = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+          const cy = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+          // Compute current rx/ry from the original ring (index 0 = east = rx, index 16 = north = ry)
+          let rx = Math.abs(ring[0][0] - cx);
+          let ry = ring.length > 16 ? Math.abs(ring[16][1] - cy) : Math.abs(ring[0][1] - cy);
+          if (ds.vertexIndex === 0) {
+            // Dragging east handle → adjust rx
+            rx = Math.max(0.00001, Math.abs(cursorLngLat.lng - cx));
+          } else {
+            // Dragging north handle → adjust ry
+            ry = Math.max(0.00001, Math.abs(cursorLngLat.lat - cy));
+          }
+          const edgePt = [cx + rx, cy + ry];
+          const coords = generateEllipsePolygon([cx, cy], edgePt);
+          newGeom.coordinates = [coords];
         } else if (newGeom.type === 'LineString') {
           newGeom.coordinates[ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
         } else if (newGeom.type === 'Polygon') {
@@ -539,6 +570,14 @@ export default function DrawingLayer() {
       if (ring.length > 16) return [ring[16]];
       return [ring[0]];
     }
+    if (drawing.drawingType === 'ellipse' && drawing.geometry.type === 'Polygon') {
+      // Show two handles: east (index 0 = 0°) and north (index 16 = 90°)
+      const ring = drawing.geometry.coordinates[0];
+      const handles = [];
+      if (ring.length > 0) handles.push(ring[0]);   // east (rx)
+      if (ring.length > 16) handles.push(ring[16]);  // north (ry)
+      return handles;
+    }
     if (drawing.geometry.type === 'LineString') {
       return drawing.geometry.coordinates;
     }
@@ -560,7 +599,7 @@ export default function DrawingLayer() {
       if (!mode) return;
       const pts = drawPointsRef.current;
       const { lng, lat } = e.lngLat;
-      if (mode === 'circle' && pts.length === 1) {
+      if ((mode === 'circle' || mode === 'ellipse') && pts.length === 1) {
         setCursorPoint([lng, lat]);
       } else if ((mode === 'line' || mode === 'arrow' || mode === 'polygon') && pts.length > 0) {
         setCursorPoint([lng, lat]);
@@ -694,24 +733,49 @@ export default function DrawingLayer() {
     setSelectedDrawingId(null);
   }, [selectedDrawingId, drawings, localDrawings, setSelectedDrawingId]);
 
-  // Adjust line width of selected drawing
+  // Adjust line width of selected drawing or draw-mode default
   const adjustLineWidth = useCallback((delta) => {
-    if (!selectedDrawing) return;
-    const current = selectedDrawing.properties?.strokeWidth || 3;
-    const newWidth = Math.max(1, Math.min(20, current + delta));
-    if (selectedDrawing._local) {
-      setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
-        ? { ...d, properties: { ...d.properties, strokeWidth: newWidth } }
-        : d
-      ));
+    if (selectedDrawing && !activeMode) {
+      const current = selectedDrawing.properties?.strokeWidth || 3;
+      const newWidth = Math.max(1, Math.min(20, current + delta));
+      if (selectedDrawing._local) {
+        setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
+          ? { ...d, properties: { ...d.properties, strokeWidth: newWidth } }
+          : d
+        ));
+      } else {
+        socket.emit('client:drawing:update', {
+          projectId: selectedDrawing._projectId,
+          id: selectedDrawing.id,
+          properties: { ...selectedDrawing.properties, strokeWidth: newWidth },
+        });
+      }
     } else {
-      socket.emit('client:drawing:update', {
-        projectId: selectedDrawing._projectId,
-        id: selectedDrawing.id,
-        properties: { ...selectedDrawing.properties, strokeWidth: newWidth },
-      });
+      setDrawStrokeWidth(prev => Math.max(1, Math.min(20, prev + delta)));
     }
-  }, [selectedDrawing]);
+  }, [selectedDrawing, activeMode]);
+
+  // Adjust font size of selected text drawing or draw-mode default
+  const adjustFontSize = useCallback((delta) => {
+    if (selectedDrawing && !activeMode && (selectedDrawing.drawingType === 'text')) {
+      const current = selectedDrawing.properties?.fontSize || 18;
+      const newSize = Math.max(10, Math.min(40, current + delta));
+      if (selectedDrawing._local) {
+        setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
+          ? { ...d, properties: { ...d.properties, fontSize: newSize } }
+          : d
+        ));
+      } else {
+        socket.emit('client:drawing:update', {
+          projectId: selectedDrawing._projectId,
+          id: selectedDrawing.id,
+          properties: { ...selectedDrawing.properties, fontSize: newSize },
+        });
+      }
+    } else {
+      setDrawFontSize(prev => Math.max(10, Math.min(40, prev + delta)));
+    }
+  }, [selectedDrawing, activeMode]);
 
   // Force re-render on map move so preview SVG stays in sync with map
   useEffect(() => {
@@ -783,6 +847,7 @@ export default function DrawingLayer() {
     { id: 'line', icon: '/', shortcut: 'L' },
     { id: 'polygon', icon: '\u2B21', shortcut: 'P' },
     { id: 'circle', icon: '\u25EF', shortcut: 'O' },
+    { id: 'ellipse', icon: '\u2B2D', shortcut: 'E' },
     { id: 'arrow', icon: '\u2192', shortcut: 'A' },
     { id: 'text', icon: 'T', shortcut: 'T' },
     { id: 'needle', icon: '\uD83D\uDCCD', shortcut: 'N' },
@@ -853,6 +918,50 @@ export default function DrawingLayer() {
             >
               {'\u2715'}
             </button>
+          </div>
+        )}
+
+        {/* Line width controls during draw mode */}
+        {activeMode && activeMode !== 'text' && activeMode !== 'needle' && (
+          <div className="flex flex-col items-center gap-0.5 mt-1">
+            <span className="text-[9px] text-slate-400">{t('draw.lineWidth', lang)}</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => adjustLineWidth(-1)}
+                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+              >
+                −
+              </button>
+              <span className="text-[11px] text-white w-4 text-center">{drawStrokeWidth}</span>
+              <button
+                onClick={() => adjustLineWidth(1)}
+                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Font size controls during text draw mode */}
+        {activeMode === 'text' && (
+          <div className="flex flex-col items-center gap-0.5 mt-1">
+            <span className="text-[9px] text-slate-400">{t('draw.fontSize', lang)}</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => adjustFontSize(-2)}
+                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+              >
+                −
+              </button>
+              <span className="text-[11px] text-white w-4 text-center">{drawFontSize}</span>
+              <button
+                onClick={() => adjustFontSize(2)}
+                className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+              >
+                +
+              </button>
+            </div>
           </div>
         )}
 
@@ -960,6 +1069,28 @@ export default function DrawingLayer() {
                   <span className="text-[11px] text-white w-4 text-center">{selectedDrawing.properties?.strokeWidth || 3}</span>
                   <button
                     onClick={() => adjustLineWidth(1)}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Font size controls for selected text */}
+            {selectedDrawing.drawingType === 'text' && (
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-slate-400">{t('draw.fontSize', lang)}</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => adjustFontSize(-2)}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
+                  >
+                    −
+                  </button>
+                  <span className="text-[11px] text-white w-4 text-center">{selectedDrawing.properties?.fontSize || 18}</span>
+                  <button
+                    onClick={() => adjustFontSize(2)}
                     className="w-5 h-5 flex items-center justify-center rounded bg-slate-700 text-white text-xs font-bold hover:bg-slate-600"
                   >
                     +
@@ -1083,7 +1214,7 @@ export default function DrawingLayer() {
 
 
       {/* Drawing preview — SVG overlay on top of the map */}
-      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon') && drawPoints.length >= 1 && cursorPoint)) && (
+      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'ellipse' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon') && drawPoints.length >= 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
           {/* Circle preview — follows cursor after center is placed */}
           {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
@@ -1097,7 +1228,25 @@ export default function DrawingLayer() {
             const r = Math.sqrt((ep.x - cx) ** 2 + (ep.y - cy) ** 2);
             return (
               <>
-                <circle cx={cx} cy={cy} r={r} fill={drawColor} fillOpacity="0.12" stroke={drawColor} strokeWidth="3" strokeDasharray="8 4" opacity="0.8" />
+                <circle cx={cx} cy={cy} r={r} fill={drawColor} fillOpacity="0.12" stroke={drawColor} strokeWidth={drawStrokeWidth} strokeDasharray="8 4" opacity="0.8" />
+                <line x1={cx} y1={cy} x2={ep.x} y2={ep.y} stroke={drawColor} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
+              </>
+            );
+          })()}
+          {/* Ellipse preview — follows cursor after center is placed */}
+          {activeMode === 'ellipse' && screenPoints.length >= 1 && (() => {
+            const cx = screenPoints[0].x;
+            const cy = screenPoints[0].y;
+            let ep = screenPoints.length >= 2 ? screenPoints[1] : null;
+            if (!ep && cursorPoint && mapRefValue) {
+              try { const p = mapRefValue.project(cursorPoint); ep = { x: p.x, y: p.y }; } catch {}
+            }
+            if (!ep) return null;
+            const rx = Math.abs(ep.x - cx);
+            const ry = Math.abs(ep.y - cy);
+            return (
+              <>
+                <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={drawColor} fillOpacity="0.12" stroke={drawColor} strokeWidth={drawStrokeWidth} strokeDasharray="8 4" opacity="0.8" />
                 <line x1={cx} y1={cy} x2={ep.x} y2={ep.y} stroke={drawColor} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
               </>
             );
@@ -1109,7 +1258,7 @@ export default function DrawingLayer() {
               fill={drawColor}
               fillOpacity="0.12"
               stroke={drawColor}
-              strokeWidth="3"
+              strokeWidth={drawStrokeWidth}
               strokeDasharray="8 4"
               opacity="0.8"
             />
@@ -1121,7 +1270,7 @@ export default function DrawingLayer() {
                 points={screenPoints.map(p => `${p.x},${p.y}`).join(' ')}
                 fill="none"
                 stroke={drawColor}
-                strokeWidth="3"
+                strokeWidth={drawStrokeWidth}
                 strokeDasharray="8 4"
                 opacity="0.8"
               />
@@ -1129,8 +1278,9 @@ export default function DrawingLayer() {
                 const p1 = screenPoints[screenPoints.length - 2];
                 const p2 = screenPoints[screenPoints.length - 1];
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                const size = 18;
-                const halfW = 10;
+                const arrowScale = Math.max(1, drawStrokeWidth / 3);
+                const size = 18 * arrowScale;
+                const halfW = 10 * arrowScale;
                 const tip = p2;
                 const leftX = tip.x - size * Math.cos(angle) + halfW * Math.sin(angle);
                 const leftY = tip.y - size * Math.sin(angle) - halfW * Math.cos(angle);
@@ -1300,7 +1450,7 @@ export default function DrawingLayer() {
                     );
                   })()}
                   {d.properties?.label && (
-                    <text x={midPt.x} y={midPt.y - 10} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
+                    <text x={midPt.x} y={midPt.y - 10} textAnchor="middle" fill="#ffffff" fontSize={d.properties?.fontSize || 16} fontWeight="700"
                       stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                   )}
                 </g>
@@ -1339,7 +1489,7 @@ export default function DrawingLayer() {
                   />
                   {d.properties?.label && (
                     <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="central"
-                      fill="#ffffff" fontSize="16" fontWeight="700"
+                      fill="#ffffff" fontSize={d.properties?.fontSize || 16} fontWeight="700"
                       stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                   )}
                 </g>
@@ -1357,7 +1507,7 @@ export default function DrawingLayer() {
                     <rect x={pt.x - 30} y={pt.y - 14} width="60" height="28" fill="#06b6d4" fillOpacity="0.2" stroke="#06b6d4" strokeWidth="2" strokeDasharray="4 3" rx="3" />
                   )}
                   <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
-                    fill="#ffffff" fontSize="18" fontWeight="700"
+                    fill="#ffffff" fontSize={d.properties?.fontSize || 18} fontWeight="700"
                     stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>
                 </g>
               );

@@ -918,7 +918,7 @@ export default function TacticalMap() {
                     const mid = pts[Math.floor(pts.length / 2)];
                     const dOff = declutterOffsets?.get(`drawing:${d.id}`);
                     return (
-                      <text x={mid.x + (dOff?.dx || 0)} y={mid.y - 10 + (dOff?.dy || 0)} textAnchor="middle" fill="#ffffff" fontSize="16" fontWeight="700"
+                      <text x={mid.x + (dOff?.dx || 0)} y={mid.y - 10 + (dOff?.dy || 0)} textAnchor="middle" fill="#ffffff" fontSize={d.properties?.fontSize || 16} fontWeight="700"
                         stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                     );
                   })()}
@@ -1100,7 +1100,7 @@ export default function TacticalMap() {
                     const dOff = declutterOffsets?.get(`drawing:${d.id}`);
                     return (
                       <text x={centroid.x + (dOff?.dx || 0)} y={centroid.y + (dOff?.dy || 0)} textAnchor="middle" dominantBaseline="central"
-                        fill="#ffffff" fontSize="16" fontWeight="700"
+                        fill="#ffffff" fontSize={d.properties?.fontSize || 16} fontWeight="700"
                         stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties.label}</text>
                     );
                   })()}
@@ -1136,7 +1136,7 @@ export default function TacticalMap() {
                   {/* Label below pin */}
                   {d.properties?.label && labelVisibility[d.layerId] !== false && (
                     <text x={nx} y={ny + 14} textAnchor="middle" dominantBaseline="central"
-                      fill="#ffffff" fontSize="13" fontWeight="700"
+                      fill="#ffffff" fontSize={d.properties?.fontSize || 13} fontWeight="700"
                       stroke="#000000" strokeWidth="3" paintOrder="stroke">{d.properties.label}</text>
                   )}
                 </g>
@@ -1154,7 +1154,7 @@ export default function TacticalMap() {
                 <g key={key} style={{ pointerEvents: 'none' }}>
                   {isSelected && renderSelectionBBox([{ x: tx - 30, y: ty - 12 }, { x: tx + 30, y: ty + 12 }], 8)}
                   <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
-                    fill="#ffffff" fontSize="18" fontWeight="700"
+                    fill="#ffffff" fontSize={d.properties?.fontSize || 18} fontWeight="700"
                     stroke="#000000" strokeWidth="4" paintOrder="stroke">{d.properties?.text || ''}</text>
                 </g>
               );
