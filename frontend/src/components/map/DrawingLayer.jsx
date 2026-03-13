@@ -1394,7 +1394,7 @@ export default function DrawingLayer() {
               const w = Math.abs(cp.x - screenPoints[0].x);
               const h = Math.abs(cp.y - screenPoints[0].y);
               return <rect x={x} y={y} width={w} height={h}
-                fill="rgba(15,23,42,0.3)" stroke="#000000"
+                fill="rgba(30,41,59,0.4)" stroke={drawColor}
                 strokeWidth="2" strokeDasharray="8 4" opacity="0.8" />;
             } catch { return null; }
           })()}

@@ -9,7 +9,7 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
   const [scale, setScale] = useState(1);
   const textareaRef = useRef(null);
 
-  const color = drawing.properties?.color || '#000000';
+  const color = drawing.properties?.color || '#3b82f6';
   const strokeWidth = drawing.properties?.strokeWidth || 2;
   const fontSize = drawing.properties?.fontSize || 14;
   const markdown = drawing.properties?.markdown || '';
@@ -68,7 +68,7 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
   if (!box) return null;
 
   const { minX, minY, w: boxW, h: boxH } = box;
-  const toolbarH = isEditing ? 28 : 0;
+  const toolbarH = isEditing ? 32 : 0;
 
   return (
     <div
@@ -79,8 +79,8 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
         width: boxW,
         height: boxH,
         border: `${strokeWidth}px solid ${color}`,
-        background: 'rgba(15, 23, 42, 0.92)',
-        borderRadius: 4,
+        background: 'rgba(30, 41, 59, 0.95)',
+        borderRadius: 6,
         overflow: 'hidden',
         zIndex: 6,
         pointerEvents: isEditing ? 'auto' : 'none',
@@ -92,20 +92,50 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
         <>
           {/* Toolbar */}
           <div
-            style={{ height: toolbarH, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px', background: 'rgba(30,41,59,0.95)', borderBottom: '1px solid rgba(100,116,139,0.4)' }}
+            style={{
+              height: toolbarH,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 8px',
+              background: 'rgba(51, 65, 85, 0.98)',
+              borderBottom: '1px solid rgba(148, 163, 184, 0.3)',
+            }}
           >
-            <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{t('draw.note', lang)}</span>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600 }}>{t('draw.note', lang)}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { onSave(editText); }}
-                style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: 3, width: 22, height: 20, cursor: 'pointer', fontSize: 13, lineHeight: '20px', fontWeight: 700 }}
+                style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  width: 28,
+                  height: 24,
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  lineHeight: '24px',
+                  fontWeight: 700,
+                }}
                 title="Save"
               >
                 &#x2713;
               </button>
               <button
                 onClick={() => { onCancel(); }}
-                style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 3, width: 22, height: 20, cursor: 'pointer', fontSize: 13, lineHeight: '20px', fontWeight: 700 }}
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  width: 28,
+                  height: 24,
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  lineHeight: '24px',
+                  fontWeight: 700,
+                }}
                 title="Cancel"
               >
                 &#x2715;
@@ -124,14 +154,14 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
               width: '100%',
               height: `calc(100% - ${toolbarH}px)`,
               background: 'transparent',
-              color: '#e2e8f0',
+              color: '#f1f5f9',
               border: 'none',
               outline: 'none',
               resize: 'none',
-              padding: '6px 8px',
-              fontSize: Math.max(11, fontSize - 2),
+              padding: '8px 10px',
+              fontSize: Math.max(12, fontSize - 1),
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              lineHeight: 1.4,
+              lineHeight: 1.5,
             }}
           />
         </>
@@ -144,9 +174,9 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
             overflow: 'hidden',
-            padding: '6px 8px',
+            padding: '8px 10px',
             fontSize,
-            color: '#e2e8f0',
+            color: '#f1f5f9',
             lineHeight: 1.5,
           }}
         >
@@ -154,22 +184,22 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                h1: ({ children }) => <h1 style={{ fontSize: '1.25em', fontWeight: 700, margin: '0.5em 0 0.25em' }}>{children}</h1>,
-                h2: ({ children }) => <h2 style={{ fontSize: '1.1em', fontWeight: 700, margin: '0.4em 0 0.2em' }}>{children}</h2>,
-                h3: ({ children }) => <h3 style={{ fontSize: '1em', fontWeight: 700, margin: '0.3em 0 0.15em' }}>{children}</h3>,
-                p: ({ children }) => <p style={{ margin: '0 0 0.4em' }}>{children}</p>,
-                ul: ({ children }) => <ul style={{ listStyleType: 'disc', paddingLeft: '1.2em', margin: '0 0 0.4em' }}>{children}</ul>,
-                ol: ({ children }) => <ol style={{ listStyleType: 'decimal', paddingLeft: '1.2em', margin: '0 0 0.4em' }}>{children}</ol>,
+                h1: ({ children }) => <h1 style={{ fontSize: '1.25em', fontWeight: 700, margin: '0.5em 0 0.25em', color: '#f8fafc' }}>{children}</h1>,
+                h2: ({ children }) => <h2 style={{ fontSize: '1.1em', fontWeight: 700, margin: '0.4em 0 0.2em', color: '#f8fafc' }}>{children}</h2>,
+                h3: ({ children }) => <h3 style={{ fontSize: '1em', fontWeight: 700, margin: '0.3em 0 0.15em', color: '#f1f5f9' }}>{children}</h3>,
+                p: ({ children }) => <p style={{ margin: '0 0 0.4em', color: '#e2e8f0' }}>{children}</p>,
+                ul: ({ children }) => <ul style={{ listStyleType: 'disc', paddingLeft: '1.2em', margin: '0 0 0.4em', color: '#e2e8f0' }}>{children}</ul>,
+                ol: ({ children }) => <ol style={{ listStyleType: 'decimal', paddingLeft: '1.2em', margin: '0 0 0.4em', color: '#e2e8f0' }}>{children}</ol>,
                 li: ({ children }) => <li style={{ margin: '0.1em 0' }}>{children}</li>,
-                strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+                strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#f8fafc' }}>{children}</strong>,
                 em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
                 code: ({ inline, children }) => {
                   if (inline) {
-                    return <code style={{ background: 'rgba(15,23,42,0.6)', color: '#6ee7b7', padding: '1px 4px', borderRadius: 3, fontSize: '0.85em', fontFamily: 'monospace' }}>{children}</code>;
+                    return <code style={{ background: 'rgba(71, 85, 105, 0.6)', color: '#6ee7b7', padding: '1px 4px', borderRadius: 3, fontSize: '0.85em', fontFamily: 'monospace' }}>{children}</code>;
                   }
                   return (
-                    <pre style={{ background: 'rgba(15,23,42,0.8)', borderRadius: 4, padding: '4px 6px', margin: '0.3em 0', overflowX: 'auto' }}>
-                      <code style={{ fontSize: '0.85em', fontFamily: 'monospace', color: '#cbd5e1' }}>{children}</code>
+                    <pre style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: 4, padding: '4px 6px', margin: '0.3em 0', overflowX: 'auto' }}>
+                      <code style={{ fontSize: '0.85em', fontFamily: 'monospace', color: '#e2e8f0' }}>{children}</code>
                     </pre>
                   );
                 },
@@ -177,20 +207,20 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
                 a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#6ee7b7', textDecoration: 'underline' }}>{children}</a>,
                 table: ({ children }) => (
                   <div style={{ overflowX: 'auto', margin: '0.3em 0' }}>
-                    <table style={{ fontSize: '0.85em', borderCollapse: 'collapse', border: '1px solid #475569' }}>{children}</table>
+                    <table style={{ fontSize: '0.85em', borderCollapse: 'collapse', border: '1px solid #64748b' }}>{children}</table>
                   </div>
                 ),
-                thead: ({ children }) => <thead style={{ background: 'rgba(30,41,59,0.8)' }}>{children}</thead>,
-                th: ({ children }) => <th style={{ border: '1px solid #475569', padding: '2px 6px', textAlign: 'left', fontWeight: 600 }}>{children}</th>,
-                td: ({ children }) => <td style={{ border: '1px solid #475569', padding: '2px 6px' }}>{children}</td>,
-                blockquote: ({ children }) => <blockquote style={{ borderLeft: '2px solid #6ee7b7', paddingLeft: 8, margin: '0.3em 0', color: '#94a3b8', fontStyle: 'italic' }}>{children}</blockquote>,
-                hr: () => <hr style={{ border: 'none', borderTop: '1px solid #475569', margin: '0.4em 0' }} />,
+                thead: ({ children }) => <thead style={{ background: 'rgba(51, 65, 85, 0.8)' }}>{children}</thead>,
+                th: ({ children }) => <th style={{ border: '1px solid #64748b', padding: '2px 6px', textAlign: 'left', fontWeight: 600, color: '#f1f5f9' }}>{children}</th>,
+                td: ({ children }) => <td style={{ border: '1px solid #64748b', padding: '2px 6px', color: '#e2e8f0' }}>{children}</td>,
+                blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid #6ee7b7', paddingLeft: 8, margin: '0.3em 0', color: '#94a3b8', fontStyle: 'italic' }}>{children}</blockquote>,
+                hr: () => <hr style={{ border: 'none', borderTop: '1px solid #64748b', margin: '0.4em 0' }} />,
               }}
             >
               {markdown}
             </ReactMarkdown>
           ) : (
-            <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.9em' }}>
+            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.9em' }}>
               {t('draw.noteEmpty', lang)}
             </span>
           )}
