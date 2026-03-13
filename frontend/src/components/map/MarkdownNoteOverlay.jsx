@@ -6,7 +6,6 @@ import { t } from '../../lib/i18n.js';
 export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave, onCancel, lang }) {
   const [editText, setEditText] = useState(drawing.properties?.markdown || '');
   const contentRef = useRef(null);
-  const [scale, setScale] = useState(1);
   const textareaRef = useRef(null);
 
   const color = drawing.properties?.color || '#3b82f6';
@@ -50,20 +49,22 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
     }
   }, [isEditing]);
 
-  // Auto-scale in display mode
+  // Auto-scale in display mode — use ref to avoid re-render loop
   useLayoutEffect(() => {
     if (isEditing || !contentRef.current || !box) return;
     const el = contentRef.current;
+    // Temporarily reset transform to measure natural content size
+    el.style.transform = 'none';
     const sw = el.scrollWidth;
     const sh = el.scrollHeight;
-    const cw = el.clientWidth;
-    const ch = el.clientHeight;
+    const cw = box.w - 20; // account for padding (10px each side)
+    const ch = box.h - 16; // account for padding (8px top+bottom)
+    let s = 1;
     if (sw > cw || sh > ch) {
-      setScale(Math.max(0.3, Math.min(1, cw / sw, ch / sh)));
-    } else {
-      setScale(1);
+      s = Math.max(0.3, Math.min(1, cw / sw, ch / sh));
     }
-  }, [isEditing, markdown, box, fontSize]);
+    el.style.transform = `scale(${s})`;
+  });
 
   if (!box) return null;
 
@@ -171,9 +172,8 @@ export default function MarkdownNoteOverlay({ drawing, mapRef, isEditing, onSave
         <div
           ref={contentRef}
           style={{
-            width: boxW / scale,
-            height: boxH / scale,
-            transform: `scale(${scale})`,
+            width: boxW,
+            height: boxH,
             transformOrigin: 'top left',
             overflow: 'hidden',
             padding: '8px 10px',
