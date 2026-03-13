@@ -1449,9 +1449,9 @@ function FireReportTargetMarker({ lang }) {
   if (!visible || !target) return null;
 
   return (
-    <Marker longitude={target.lng} latitude={target.lat} anchor="center">
-      <div className="flex flex-col items-center">
-        {/* Crosshair target marker */}
+    <Marker longitude={target.lng} latitude={target.lat} anchor="center" style={{ pointerEvents: 'none' }}>
+      <div className="relative" style={{ width: 32, height: 32 }}>
+        {/* Crosshair target marker — anchored exactly at center */}
         <svg width="32" height="32" viewBox="0 0 32 32">
           <circle cx="16" cy="16" r="12" fill="none" stroke="#ef4444" strokeWidth="2" opacity="0.8" />
           <circle cx="16" cy="16" r="3" fill="#ef4444" />
@@ -1460,9 +1460,9 @@ function FireReportTargetMarker({ lang }) {
           <line x1="0" y1="16" x2="10" y2="16" stroke="#ef4444" strokeWidth="2" />
           <line x1="22" y1="16" x2="32" y2="16" stroke="#ef4444" strokeWidth="2" />
         </svg>
-        {/* MGRS label + Fire button */}
+        {/* MGRS label + Fire button — positioned below crosshair, outside the anchor box */}
         {phase === 'select' && (
-          <div className="mt-1 bg-slate-800/90 rounded px-2 py-1 text-center shadow-lg border border-slate-600">
+          <div className="absolute left-1/2 -translate-x-1/2 mt-1 bg-slate-800/90 rounded px-2 py-1 text-center shadow-lg border border-slate-600 whitespace-nowrap" style={{ top: 32, pointerEvents: 'auto' }}>
             <div className="text-xs font-mono text-emerald-400">{target.mgrs}</div>
             <button
               onClick={(e) => { e.stopPropagation(); setPhase('form'); }}
