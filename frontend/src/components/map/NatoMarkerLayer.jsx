@@ -58,8 +58,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
     if (!map) return;
 
     const allMarkers = [...visibleMarkers, ...localMarkers];
-    const hitTest = (e) => {
-      const clickPx = e.point;
+    const findClosestMarker = (clickPx) => {
       const hitRadius = 25; // px
       let closest = null;
       let closestDist = Infinity;
@@ -73,6 +72,11 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
           closestDist = dist;
         }
       }
+      return closest;
+    };
+
+    const hitTest = (e) => {
+      const closest = findClosestMarker(e.point);
       if (closest) {
         touchMarkerHitRef.current = true;
         const isSelected = useMapStore.getState().selectedMarkerId === closest.id;
@@ -89,10 +93,20 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
         setEchelonMenu(null);
       }
     };
+    // Double-tap to rename: detect via MapLibre dblclick + proximity hit-test
+    const onDblClick = (e) => {
+      const closest = findClosestMarker(e.point);
+      if (closest) {
+        e.preventDefault(); // prevent MapLibre double-tap zoom
+        setSelectedId(closest.id);
+        onRenameLabel(closest);
+      }
+    };
     map.on('click', hitTest);
     map.on('click', deselect);
-    return () => { map.off('click', hitTest); map.off('click', deselect); };
-  }, [mapRef, visibleMarkers, localMarkers]);
+    map.on('dblclick', onDblClick);
+    return () => { map.off('click', hitTest); map.off('click', deselect); map.off('dblclick', onDblClick); };
+  }, [mapRef, visibleMarkers, localMarkers, onRenameLabel]);
 
   // Close echelon menu on outside click
   useEffect(() => {
