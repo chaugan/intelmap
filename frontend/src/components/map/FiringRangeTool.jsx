@@ -38,6 +38,8 @@ const WEAPON_PRESETS = [
   { id: 'bm21',      name: 'BM-21 Grad 122mm',      maxRangeKm: 20,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 1.1, launchVelocity: 30,  burnoutVelocity: 460 },
   { id: 'bm27',      name: 'BM-27 Uragan 220mm',    maxRangeKm: 35,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 1.5, launchVelocity: 30,  burnoutVelocity: 600 },
   { id: 'bm30',      name: 'BM-30 Smerch 300mm',    maxRangeKm: 50,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 2.5, launchVelocity: 30,  burnoutVelocity: 750 },
+  // Tactical ballistic missiles
+  { id: 'ss26',      name: 'SS-26 Iskander 9K720',  maxRangeKm: 500,  minElMils: 800,  maxElMils: 1422, isRocket: true, burnTime: 25,  launchVelocity: 0,   burnoutVelocity: 2100 },
   // Mortars
   { id: 'mortar120', name: '120mm Mortar',           maxRangeKm: 7.2,  minElMils: 800,  maxElMils: 1511, muzzleVelocity: 325 },
   { id: 'mortar81',  name: '81mm Mortar',            maxRangeKm: 5.6,  minElMils: 800,  maxElMils: 1511, muzzleVelocity: 250 },
@@ -86,6 +88,12 @@ export default function FiringRangeTool() {
   const dragStartRef = useRef(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const resultRef = useRef(null);
+  const gunRef = useRef(null);
+
+  // Keep refs in sync for styledata restore
+  resultRef.current = result;
+  gunRef.current = gun;
 
   const isNo = lang === 'no';
   const isCustom = weaponPreset === 'custom';
@@ -169,8 +177,14 @@ export default function FiringRangeTool() {
   useEffect(() => {
     if (!visible || !mapRef) return;
     const initLayers = () => {
-      if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: EMPTY_FC });
-      if (!mapRef.getSource(SOURCE_GUN)) mapRef.addSource(SOURCE_GUN, { type: 'geojson', data: EMPTY_FC });
+      const resultData = resultRef.current?.geojson || EMPTY_FC;
+      const gunData = gunRef.current
+        ? { type: 'Feature', geometry: { type: 'Point', coordinates: [gunRef.current.lng, gunRef.current.lat] } }
+        : EMPTY_FC;
+      if (!mapRef.getSource(SOURCE_RESULT)) mapRef.addSource(SOURCE_RESULT, { type: 'geojson', data: resultData });
+      else mapRef.getSource(SOURCE_RESULT).setData(resultData);
+      if (!mapRef.getSource(SOURCE_GUN)) mapRef.addSource(SOURCE_GUN, { type: 'geojson', data: gunData });
+      else mapRef.getSource(SOURCE_GUN).setData(gunData);
 
       if (!mapRef.getLayer(LAYER_REACHABLE)) mapRef.addLayer({ id: LAYER_REACHABLE, type: 'fill', source: SOURCE_RESULT, filter: ['==', ['get', 'zone'], 'reachable'], paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.25 } });
       if (!mapRef.getLayer(LAYER_DEAD)) mapRef.addLayer({ id: LAYER_DEAD, type: 'fill', source: SOURCE_RESULT, filter: ['==', ['get', 'zone'], 'dead'], paint: { 'fill-color': '#ef4444', 'fill-opacity': 0.3 } });
@@ -406,6 +420,11 @@ export default function FiringRangeTool() {
             </optgroup>
             <optgroup label={isNo ? 'Russisk rakettartilleri' : 'Russian Rocket Artillery'}>
               {WEAPON_PRESETS.filter(p => ['bm21','bm27','bm30'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label={isNo ? 'Taktiske ballistiske missiler' : 'Tactical Ballistic Missiles'}>
+              {WEAPON_PRESETS.filter(p => ['ss26'].includes(p.id)).map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </optgroup>
