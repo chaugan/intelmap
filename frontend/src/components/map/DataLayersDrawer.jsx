@@ -44,16 +44,20 @@ const OVERLAY_LABELS = {
 };
 
 // Drawing type icons for the tactical item list
-const DRAWING_ICONS = {
-  line: '/',
-  arrow: '\u2192',
-  polygon: '\u2B21',
-  circle: '\u25EF',
-  ellipse: '\u2B2D',
-  text: 'T',
-  needle: '\uD83D\uDCCD',
-  note: '\uD83D\uDCDD',
-};
+function DrawingIcon({ type, color }) {
+  const size = 14;
+  if (type === 'ellipse') {
+    return (<svg width={size} height={size} viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="7" ry="4.5" fill="none" stroke={color} strokeWidth="1.5" /></svg>);
+  }
+  if (type === 'note') {
+    return (<svg width={size} height={size} viewBox="0 0 16 16"><rect x="2" y="1" width="12" height="14" rx="1.5" fill="none" stroke={color} strokeWidth="1.3" /><line x1="5" y1="5" x2="11" y2="5" stroke={color} strokeWidth="1" /><line x1="5" y1="8" x2="11" y2="8" stroke={color} strokeWidth="1" /><line x1="5" y1="11" x2="9" y2="11" stroke={color} strokeWidth="1" /></svg>);
+  }
+  if (type === 'needle') {
+    return (<svg width={size} height={size} viewBox="0 0 16 16"><path d="M8 1C5.5 1 3.5 3 3.5 5.5C3.5 9 8 15 8 15s4.5-6 4.5-9.5C12.5 3 10.5 1 8 1z" fill="none" stroke={color} strokeWidth="1.3" /><circle cx="8" cy="5.5" r="1.5" fill={color} /></svg>);
+  }
+  const TEXT_ICONS = { line: '/', arrow: '→', polygon: '⬡', circle: '◯', text: 'T' };
+  return <span style={{ color }}>{TEXT_ICONS[type] || '?'}</span>;
+}
 
 function getDrawingLabel(d, lang) {
   if (d.drawingType === 'text' && d.properties?.text) return d.properties.text;
@@ -354,12 +358,11 @@ function TacticalItemList({ markers, drawings, lang, projectId, flyTo, copyTarge
       })}
       {drawings.map((d) => {
         const label = getDrawingLabel(d, lang);
-        const icon = DRAWING_ICONS[d.drawingType] || '?';
         const center = getDrawingCenter(d);
         const color = d.properties?.color || '#3b82f6';
         return (
           <div key={d.id} className="flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50">
-            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded" style={{ color }}>{icon}</span>
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-xs font-bold rounded"><DrawingIcon type={d.drawingType} color={color} /></span>
             <span
               className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
               onClick={() => flyTo(center)}
