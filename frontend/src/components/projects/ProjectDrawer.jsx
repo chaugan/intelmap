@@ -125,10 +125,10 @@ function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   );
 }
 
-function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true, focusedItemId, onSelectMarker, onSelectDrawing }) {
+function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], firingRanges = [], lang, mapRef, projectId, copyTargets, copyingItemId, setCopyingItemId, onCopyItem, canEdit = true, focusedItemId, onSelectMarker, onSelectDrawing }) {
   const copyBtnRefs = useRef({});
 
-  if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0) {
+  if (markers.length === 0 && drawings.length === 0 && viewsheds.length === 0 && rfCoverages.length === 0 && firingRanges.length === 0) {
     return <div className="text-[10px] text-slate-600 italic pl-2 py-0.5">{lang === 'no' ? 'Tomt' : 'Empty'}</div>;
   }
 
@@ -372,6 +372,69 @@ function ItemList({ markers, drawings, viewsheds = [], rfCoverages = [], lang, m
             )}
             {isCopying && copyTargets && (
               <CopyDropdown anchorRef={{ current: copyBtnRefs.current[c.id] }} copyTargets={copyTargets} item={{ ...c, _type: 'rfcoverage' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
+            )}
+          </div>
+        );
+      })}
+      {firingRanges.map((fr) => {
+        const presetLabel = fr.weaponPreset && fr.weaponPreset !== 'custom' ? fr.weaponPreset.toUpperCase() : '';
+        const rangeStr = fr.maxRangeKm ? `${Math.round(fr.maxRangeKm * 10) / 10}km` : '';
+        const typeLabel = `${lang === 'no' ? 'Artilleri' : 'Artillery'} ${presetLabel} ${rangeStr}`.trim();
+        const label = fr.label ? `${fr.label} (${rangeStr})` : typeLabel;
+        const isCopying = copyingItemId === fr.id;
+        return (
+          <div key={fr.id} className={`flex items-center gap-1.5 text-[11px] group/item rounded px-1 py-0.5 hover:bg-slate-700/50 ${focusedItemId === fr.id ? 'drawer-focus-pulse' : ''}`}>
+            <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5" fill="none" stroke={fr.color || '#22c55e'} viewBox="0 0 24 24" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="2" x2="12" y2="6" />
+                <line x1="12" y1="18" x2="12" y2="22" />
+                <line x1="2" y1="12" x2="6" y2="12" />
+                <line x1="18" y1="12" x2="22" y2="12" />
+              </svg>
+            </span>
+            <span
+              className="flex-1 truncate text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => flyTo([fr.longitude, fr.latitude])}
+              title={label}
+            >
+              {label}
+            </span>
+            <button
+              onClick={() => flyTo([fr.longitude, fr.latitude])}
+              className="shrink-0 text-slate-600 hover:text-cyan-400 transition-colors"
+              title={lang === 'no' ? 'Fly til' : 'Fly to'}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+            {canEdit && copyTargets && onCopyItem && (
+              <button
+                ref={(el) => { copyBtnRefs.current[fr.id] = el; }}
+                onClick={(e) => { e.stopPropagation(); setCopyingItemId(isCopying ? null : fr.id); }}
+                className="shrink-0 text-slate-600 hover:text-amber-400 transition-colors"
+                title={lang === 'no' ? 'Kopier til lag' : 'Copy to layer'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => { const msg = lang === 'no' ? `Slett "${label}"?` : `Delete "${label}"?`; if (!confirm(msg)) return; socket.emit('client:firing-range:delete', { projectId, id: fr.id }); }}
+                className="shrink-0 text-slate-600 hover:text-red-400 transition-colors"
+                title={lang === 'no' ? 'Slett' : 'Delete'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {isCopying && copyTargets && (
+              <CopyDropdown anchorRef={{ current: copyBtnRefs.current[fr.id] }} copyTargets={copyTargets} item={{ ...fr, _type: 'firingrange' }} lang={lang} onCopy={onCopyItem} onClose={() => setCopyingItemId(null)} />
             )}
           </div>
         );
@@ -722,6 +785,23 @@ export default function ProjectDrawer() {
           stats: typeof item.stats === 'string' ? item.stats : JSON.stringify(item.stats || {}),
         }),
       }).catch(err => console.error('RF coverage copy error:', err));
+    } else if (type === 'firingrange') {
+      socket.emit('client:firing-range:save', {
+        projectId: targetProjectId,
+        layerId: targetLayerId || null,
+        longitude: item.longitude,
+        latitude: item.latitude,
+        gunAltitude: item.gunAltitude,
+        weaponPreset: item.weaponPreset,
+        maxRangeKm: item.maxRangeKm,
+        minElevationMils: item.minElevationMils,
+        maxElevationMils: item.maxElevationMils,
+        muzzleVelocity: item.muzzleVelocity,
+        geojson: typeof item.geojson === 'string' ? item.geojson : JSON.stringify(item.geojson),
+        stats: typeof item.stats === 'string' ? item.stats : JSON.stringify(item.stats || {}),
+        color: item.color,
+        label: item.label || '',
+      });
     }
     setCopyingItemId(null);
   }, []);
@@ -1160,12 +1240,14 @@ export default function ProjectDrawer() {
                       const layerDrawings = projData.drawings.filter(d => d.layerId === layer.id);
                       const layerViewsheds = (projData.viewsheds || []).filter(v => v.layerId === layer.id);
                       const layerRFCoverages = (projData.rfCoverages || []).filter(c => c.layerId === layer.id);
+                      const layerFiringRanges = (projData.firingRanges || []).filter(fr => fr.layerId === layer.id);
                       const mCount = layerMarkers.length;
                       const dCount = layerDrawings.length;
                       const vCount = layerViewsheds.length;
                       const rCount = layerRFCoverages.length;
+                      const frCount = layerFiringRanges.length;
                       const isLayerExpanded = expandedLayerId === layer.id;
-                      const hasItems = mCount + dCount + vCount + rCount > 0;
+                      const hasItems = mCount + dCount + vCount + rCount + frCount > 0;
                       return (
                         <div key={layer.id}>
                           <div className={`flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''} ${focusedItemId === layer.id ? 'drawer-focus-pulse' : ''}`}>
@@ -1242,7 +1324,7 @@ export default function ProjectDrawer() {
                               onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
                               title={hasItems ? (lang === 'no' ? 'Vis innhold' : 'Show contents') : ''}
                             >
-                              {mCount}m {dCount}d{vCount > 0 ? ` ${vCount}v` : ''}{rCount > 0 ? ` ${rCount}r` : ''}
+                              {mCount}m {dCount}d{vCount > 0 ? ` ${vCount}v` : ''}{rCount > 0 ? ` ${rCount}r` : ''}{frCount > 0 ? ` ${frCount}a` : ''}
                             </span>
                             {/* Move to Not in use / Active */}
                             {canEditProject && (
@@ -1331,7 +1413,7 @@ export default function ProjectDrawer() {
                           </div>
                           {isLayerExpanded && (
                             <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                              <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
+                              <ItemList markers={layerMarkers} drawings={layerDrawings} viewsheds={layerViewsheds} rfCoverages={layerRFCoverages} firingRanges={layerFiringRanges} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
                             </div>
                           )}
                         </div>
@@ -1368,7 +1450,8 @@ export default function ProjectDrawer() {
                     const unDrawings = projData.drawings.filter(d => !d.layerId);
                     const unViewsheds = (projData.viewsheds || []).filter(v => !v.layerId);
                     const unRFCoverages = (projData.rfCoverages || []).filter(c => !c.layerId);
-                    if (unMarkers.length + unDrawings.length + unViewsheds.length + unRFCoverages.length === 0) return null;
+                    const unFiringRanges = (projData.firingRanges || []).filter(fr => !fr.layerId);
+                    if (unMarkers.length + unDrawings.length + unViewsheds.length + unRFCoverages.length + unFiringRanges.length === 0) return null;
                     const isUnExpanded = expandedUnassigned === p.id;
                     return (
                       <div>
@@ -1379,7 +1462,7 @@ export default function ProjectDrawer() {
                           <svg className={`w-2.5 h-2.5 transition-transform flex-shrink-0 ${isUnExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                             <path d="M6 4l8 6-8 6V4z" />
                           </svg>
-                          {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d{unViewsheds.length > 0 ? ` ${unViewsheds.length}v` : ''}{unRFCoverages.length > 0 ? ` ${unRFCoverages.length}r` : ''}
+                          {t('drawer.unassigned', lang)}: {unMarkers.length}m {unDrawings.length}d{unViewsheds.length > 0 ? ` ${unViewsheds.length}v` : ''}{unRFCoverages.length > 0 ? ` ${unRFCoverages.length}r` : ''}{unFiringRanges.length > 0 ? ` ${unFiringRanges.length}a` : ''}
                           <button
                             onClick={(e) => { e.stopPropagation(); setTableViewLayer({ projectId: p.id, layerId: null, layerName: t('drawer.unassigned', lang) }); }}
                             className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-slate-600 hover:text-cyan-400 transition-colors ml-auto"
@@ -1392,7 +1475,7 @@ export default function ProjectDrawer() {
                         </div>
                         {isUnExpanded && (
                           <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
+                            <ItemList markers={unMarkers} drawings={unDrawings} viewsheds={unViewsheds} rfCoverages={unRFCoverages} firingRanges={unFiringRanges} lang={lang} mapRef={mapRef} projectId={p.id} copyTargets={copyTargets} copyingItemId={copyingItemId} setCopyingItemId={setCopyingItemId} onCopyItem={handleCopyItem} canEdit={canEditProject} focusedItemId={focusedItemId} onSelectMarker={setSelectedMarkerId} onSelectDrawing={setSelectedDrawingId} />
                           </div>
                         )}
                       </div>

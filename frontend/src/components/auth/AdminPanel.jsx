@@ -196,6 +196,11 @@ function UsersTab({ lang, currentUser }) {
     fetchUsers();
   }
 
+  async function toggleFiringRange(id) {
+    await fetch(`${API}/users/${id}/toggle-firing-range`, { method: 'POST', credentials: 'include' });
+    fetchUsers();
+  }
+
   async function unlockUser(id) {
     await fetch(`${API}/users/${id}/unlock`, { method: 'POST', credentials: 'include' });
     fetchUsers();
@@ -371,6 +376,7 @@ function UsersTab({ lang, currentUser }) {
               {currentUser?.orgFeatureInfraview && <th className="pb-2">InfraView</th>}
               {currentUser?.orgFeatureUpscale && <th className="pb-2">{lang === 'no' ? 'Oppskaler' : 'Upscale'}</th>}
               {currentUser?.orgFeatureFireReport && <th className="pb-2">{lang === 'no' ? 'Ildrapport' : 'Fire Report'}</th>}
+              {currentUser?.orgFeatureFiringRange && <th className="pb-2">{lang === 'no' ? 'Artilleri' : 'Artillery'}</th>}
               <th className="pb-2">{lang === 'no' ? 'Lagring' : 'Storage'}</th>
               <th className="pb-2">{t('admin.actions', lang)}</th>
             </tr>
@@ -444,6 +450,14 @@ function UsersTab({ lang, currentUser }) {
                     <button onClick={() => toggleFireReport(u.id)}
                       className={`px-2 py-0.5 rounded text-xs transition-colors ${u.fireReportEnabled ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {u.fireReportEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
+                    </button>
+                  </td>
+                )}
+                {currentUser?.orgFeatureFiringRange && (
+                  <td className="py-2">
+                    <button onClick={() => toggleFiringRange(u.id)}
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${u.firingRangeEnabled ? 'bg-amber-700 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {u.firingRangeEnabled ? t('admin.enabled', lang) : t('admin.disabled', lang)}
                     </button>
                   </td>
                 )}

@@ -19,12 +19,29 @@ const LAYER_GUN = 'firing-range-gun';
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 const WEAPON_PRESETS = [
+  // NATO tube artillery
   { id: 'm109',      name: 'M109A3 155mm',          maxRangeKm: 18,   minElMils: 53,   maxElMils: 1200, muzzleVelocity: 563 },
   { id: 'm109a6',    name: 'M109A6 Paladin 155mm',  maxRangeKm: 30,   minElMils: 53,   maxElMils: 1333, muzzleVelocity: 684 },
   { id: 'm777',      name: 'M777 155mm',            maxRangeKm: 24.7, minElMils: 36,   maxElMils: 1280, muzzleVelocity: 684 },
   { id: 'k9',        name: 'K9 Thunder 155mm',      maxRangeKm: 40,   minElMils: 53,   maxElMils: 1200, muzzleVelocity: 900 },
+  { id: 'pzh2000',   name: 'PzH 2000 155mm',        maxRangeKm: 30,   minElMils: 44,   maxElMils: 1200, muzzleVelocity: 827 },
+  // Russian tube artillery
+  { id: '2s19',      name: '2S19 Msta 152mm',       maxRangeKm: 24.7, minElMils: 0,    maxElMils: 1067, muzzleVelocity: 810 },
+  { id: '2s3',       name: '2S3 Akatsiya 152mm',    maxRangeKm: 18.5, minElMils: 0,    maxElMils: 1067, muzzleVelocity: 655 },
+  { id: 'd30',       name: 'D-30 122mm',            maxRangeKm: 15.3, minElMils: -120,  maxElMils: 1244, muzzleVelocity: 690 },
+  { id: '2s1',       name: '2S1 Gvozdika 122mm',    maxRangeKm: 15.3, minElMils: -53,   maxElMils: 1244, muzzleVelocity: 690 },
+  // NATO rocket artillery (thrust + ballistic model)
+  { id: 'mlrs',      name: 'M270 MLRS 227mm',       maxRangeKm: 32,   minElMils: 0,    maxElMils: 1067, isRocket: true, burnTime: 1.5, launchVelocity: 40,  burnoutVelocity: 570 },
+  { id: 'himars',    name: 'M142 HIMARS 227mm',     maxRangeKm: 32,   minElMils: 0,    maxElMils: 1067, isRocket: true, burnTime: 1.5, launchVelocity: 40,  burnoutVelocity: 570 },
+  { id: 'gmlrs',     name: 'GMLRS (guided) 227mm',  maxRangeKm: 50,   minElMils: 0,    maxElMils: 1067, isRocket: true, burnTime: 3.0, launchVelocity: 40,  burnoutVelocity: 750 },
+  // Russian rocket artillery (thrust + ballistic model)
+  { id: 'bm21',      name: 'BM-21 Grad 122mm',      maxRangeKm: 20,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 1.1, launchVelocity: 30,  burnoutVelocity: 460 },
+  { id: 'bm27',      name: 'BM-27 Uragan 220mm',    maxRangeKm: 35,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 1.5, launchVelocity: 30,  burnoutVelocity: 600 },
+  { id: 'bm30',      name: 'BM-30 Smerch 300mm',    maxRangeKm: 50,   minElMils: 0,    maxElMils: 978,  isRocket: true, burnTime: 2.5, launchVelocity: 30,  burnoutVelocity: 750 },
+  // Mortars
   { id: 'mortar120', name: '120mm Mortar',           maxRangeKm: 7.2,  minElMils: 800,  maxElMils: 1511, muzzleVelocity: 325 },
   { id: 'mortar81',  name: '81mm Mortar',            maxRangeKm: 5.6,  minElMils: 800,  maxElMils: 1511, muzzleVelocity: 250 },
+  // Custom
   { id: 'custom',    name: 'Custom',                 maxRangeKm: 20,   minElMils: 53,   maxElMils: 1200, muzzleVelocity: 563 },
 ];
 
@@ -53,9 +70,14 @@ export default function FiringRangeTool() {
   const [minElMils, setMinElMils] = useState(53);
   const [maxElMils, setMaxElMils] = useState(1200);
   const [muzzleVelocity, setMuzzleVelocity] = useState(563);
+  const [isRocket, setIsRocket] = useState(false);
+  const [burnTime, setBurnTime] = useState(1.5);
+  const [launchVelocity, setLaunchVelocity] = useState(30);
+  const [burnoutVelocity, setBurnoutVelocity] = useState(500);
   const [gunAltitude, setGunAltitude] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [elevUnit, setElevUnit] = useState('mil'); // 'mil' | 'deg'
   const [activeColor, setActiveColor] = useState('#22c55e');
   const [activeLabel, setActiveLabel] = useState('');
   const [panelPos, setPanelPos] = useState({ x: null, y: null });
@@ -76,14 +98,26 @@ export default function FiringRangeTool() {
     for (const f of proj.firingRanges) savedItems.push({ ...f, _projectId: pid });
   }
 
+  const milToDeg = (m) => Math.round(m * 180 / 3200 * 100) / 100;
+  const degToMil = (d) => Math.round(d * 3200 / 180);
+
   const selectPreset = (id) => {
     setWeaponPreset(id);
     const preset = WEAPON_PRESETS.find(p => p.id === id);
     if (preset) {
       setMaxRangeKm(preset.maxRangeKm);
-      setMinElMils(preset.minElMils);
-      setMaxElMils(preset.maxElMils);
-      setMuzzleVelocity(preset.muzzleVelocity);
+      setMinElMils(elevUnit === 'deg' ? milToDeg(preset.minElMils) : preset.minElMils);
+      setMaxElMils(elevUnit === 'deg' ? milToDeg(preset.maxElMils) : preset.maxElMils);
+      if (preset.isRocket) {
+        setIsRocket(true);
+        setBurnTime(preset.burnTime);
+        setLaunchVelocity(preset.launchVelocity);
+        setBurnoutVelocity(preset.burnoutVelocity);
+        setMuzzleVelocity(0);
+      } else {
+        setIsRocket(false);
+        setMuzzleVelocity(preset.muzzleVelocity);
+      }
     }
   };
 
@@ -231,14 +265,25 @@ export default function FiringRangeTool() {
     setMode('calculating');
     setError(null);
     try {
+      const payload = {
+        longitude: gun.lng, latitude: gun.lat,
+        maxRangeKm,
+        minElevationMils: elevUnit === 'deg' ? degToMil(minElMils) : minElMils,
+        maxElevationMils: elevUnit === 'deg' ? degToMil(maxElMils) : maxElMils,
+        gunAltitudeOverride: gunAltitude,
+      };
+      if (isRocket) {
+        payload.isRocket = true;
+        payload.burnTime = burnTime;
+        payload.launchVelocity = launchVelocity;
+        payload.burnoutVelocity = burnoutVelocity;
+      } else {
+        payload.muzzleVelocity = muzzleVelocity;
+      }
       const res = await fetch('/api/firing-range/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          longitude: gun.lng, latitude: gun.lat,
-          maxRangeKm, minElevationMils: minElMils, maxElevationMils: maxElMils,
-          muzzleVelocity, gunAltitudeOverride: gunAltitude,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Calculation failed'); }
       const data = await res.json();
@@ -258,7 +303,9 @@ export default function FiringRangeTool() {
       longitude: gun.lng, latitude: gun.lat,
       gunAltitude: gunAltitude || 0,
       weaponPreset,
-      maxRangeKm, minElevationMils: minElMils, maxElevationMils: maxElMils,
+      maxRangeKm,
+      minElevationMils: elevUnit === 'deg' ? degToMil(minElMils) : minElMils,
+      maxElevationMils: elevUnit === 'deg' ? degToMil(maxElMils) : maxElMils,
       muzzleVelocity,
       geojson: result.geojson,
       stats: result.stats,
@@ -342,10 +389,39 @@ export default function FiringRangeTool() {
             className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
             disabled={mode === 'calculating'}
           >
-            {WEAPON_PRESETS.map(p => (
-              <option key={p.id} value={p.id}>{p.id === 'custom' ? t('firingRange.custom', lang) : p.name}</option>
-            ))}
+            <optgroup label={isNo ? 'NATO kanonartilleri' : 'NATO Tube Artillery'}>
+              {WEAPON_PRESETS.filter(p => ['m109','m109a6','m777','k9','pzh2000'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label={isNo ? 'Russisk kanonartilleri' : 'Russian Tube Artillery'}>
+              {WEAPON_PRESETS.filter(p => ['2s19','2s3','d30','2s1'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label={isNo ? 'NATO rakettartilleri' : 'NATO Rocket Artillery'}>
+              {WEAPON_PRESETS.filter(p => ['mlrs','himars','gmlrs'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label={isNo ? 'Russisk rakettartilleri' : 'Russian Rocket Artillery'}>
+              {WEAPON_PRESETS.filter(p => ['bm21','bm27','bm30'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label={isNo ? 'Bombekastere' : 'Mortars'}>
+              {WEAPON_PRESETS.filter(p => ['mortar120','mortar81'].includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </optgroup>
+            <option value="custom">{t('firingRange.custom', lang)}</option>
           </select>
+          {isCustom && (
+            <label className="flex items-center gap-2 mt-1 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" checked={isRocket} onChange={(e) => setIsRocket(e.target.checked)} className="accent-emerald-500" />
+              {isNo ? 'Rakettmodell (drevet fase + ballistisk)' : 'Rocket model (thrust + ballistic)'}
+            </label>
+          )}
         </div>
 
         {/* Parameters */}
@@ -357,38 +433,79 @@ export default function FiringRangeTool() {
               <span className="text-sm font-mono w-14 text-right">{maxRangeKm} km</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">{t('firingRange.minElevation', lang)}</label>
-              <div className="flex items-center gap-1">
-                <input type="number" value={minElMils} onChange={(e) => setMinElMils(Math.max(0, Math.min(1600, Number(e.target.value) || 0)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
-                <span className="text-[10px] text-slate-500">mil</span>
-              </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">{t('firingRange.minElevation', lang)} / {t('firingRange.maxElevation', lang)}</span>
+              <button
+                onClick={() => setElevUnit(u => u === 'mil' ? 'deg' : 'mil')}
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-600 hover:bg-slate-500 transition-colors"
+                title={elevUnit === 'mil' ? 'Switch to degrees' : 'Switch to mils'}
+              >
+                {elevUnit === 'mil' ? 'mil' : 'deg'}
+              </button>
             </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">{t('firingRange.maxElevation', lang)}</label>
+            <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center gap-1">
-                <input type="number" value={maxElMils} onChange={(e) => setMaxElMils(Math.max(0, Math.min(1600, Number(e.target.value) || 0)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
-                <span className="text-[10px] text-slate-500">mil</span>
+                <input type="number" value={minElMils} onChange={(e) => setMinElMils(Math.max(0, Number(e.target.value) || 0))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                <span className="text-[10px] text-slate-500">{elevUnit === 'mil' ? 'mil' : '°'}</span>
               </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">{t('firingRange.muzzleVelocity', lang)}</label>
               <div className="flex items-center gap-1">
-                <input type="number" value={muzzleVelocity} onChange={(e) => setMuzzleVelocity(Math.max(50, Math.min(1500, Number(e.target.value) || 100)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
-                <span className="text-[10px] text-slate-500">m/s</span>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">{t('firingRange.gunAltitude', lang)}</label>
-              <div className="flex items-center gap-1">
-                <input type="number" value={gunAltitude ?? ''} onChange={(e) => setGunAltitude(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating'} placeholder="auto" />
-                <span className="text-[10px] text-slate-500">m</span>
+                <input type="number" value={maxElMils} onChange={(e) => setMaxElMils(Math.max(0, Number(e.target.value) || 0))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                <span className="text-[10px] text-slate-500">{elevUnit === 'mil' ? 'mil' : '°'}</span>
               </div>
             </div>
           </div>
+          {isRocket ? (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">{isNo ? 'Brenntid' : 'Burn time'}</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" step="0.1" value={burnTime} onChange={(e) => setBurnTime(Math.max(0.1, Math.min(10, Number(e.target.value) || 1)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                    <span className="text-[10px] text-slate-500">s</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">{isNo ? 'Starthast.' : 'Launch v'}</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" value={launchVelocity} onChange={(e) => setLaunchVelocity(Math.max(0, Math.min(500, Number(e.target.value) || 0)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                    <span className="text-[10px] text-slate-500">m/s</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">{isNo ? 'Slutthast.' : 'Burnout v'}</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" value={burnoutVelocity} onChange={(e) => setBurnoutVelocity(Math.max(50, Math.min(2000, Number(e.target.value) || 100)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                    <span className="text-[10px] text-slate-500">m/s</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">{t('firingRange.gunAltitude', lang)}</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" value={gunAltitude ?? ''} onChange={(e) => setGunAltitude(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating'} placeholder="auto" />
+                  <span className="text-[10px] text-slate-500">m</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">{t('firingRange.muzzleVelocity', lang)}</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" value={muzzleVelocity} onChange={(e) => setMuzzleVelocity(Math.max(50, Math.min(1500, Number(e.target.value) || 100)))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating' || !isCustom} />
+                  <span className="text-[10px] text-slate-500">m/s</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">{t('firingRange.gunAltitude', lang)}</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" value={gunAltitude ?? ''} onChange={(e) => setGunAltitude(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs" disabled={mode === 'calculating'} placeholder="auto" />
+                  <span className="text-[10px] text-slate-500">m</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* State machine UI */}

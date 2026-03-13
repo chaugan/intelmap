@@ -129,9 +129,9 @@ export function useKeyboardShortcuts() {
           break;
         }
 
-        // Firing Range tool (shift+K, only if logged in)
+        // Firing Range tool (shift+K, only if enabled)
         case 'K': {
-          if (useAuthStore.getState().user) toggleFiringRangeTool();
+          if (useAuthStore.getState().user?.firingRangeEnabled) toggleFiringRangeTool();
           break;
         }
 

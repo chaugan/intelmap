@@ -205,7 +205,7 @@ export default function MapControls() {
       {user && <GridButton lang={lang} />}
       {user && <ViewshedButton lang={lang} />}
       {user && <RFCoverageButton lang={lang} />}
-      {user && <FiringRangeButton lang={lang} />}
+      {user?.firingRangeEnabled && <FiringRangeButton lang={lang} />}
 
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 

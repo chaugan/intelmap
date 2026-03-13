@@ -123,6 +123,18 @@ export function runMigration() {
     console.log('Added fire_report_enabled column to users table');
   }
 
+  // Firing Range feature flag on organizations
+  if (!orgCols.some(c => c.name === 'feature_firing_range')) {
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_firing_range INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added feature_firing_range column to organizations table');
+  }
+
+  // Firing Range column on users
+  if (!userCols.some(c => c.name === 'firing_range_enabled')) {
+    db.prepare("ALTER TABLE users ADD COLUMN firing_range_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added firing_range_enabled column to users table');
+  }
+
   // WaSOS integration columns
   if (!userCols.some(c => c.name === 'wasos_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN wasos_enabled INTEGER NOT NULL DEFAULT 0").run();

@@ -10,6 +10,8 @@ function milsToRad(mils) {
   return mils * (Math.PI / 3200);
 }
 
+// ---- Tube Artillery (parabolic trajectory) ----
+
 // Required elevation angles to hit target at horizontal distance d with altitude diff dh
 function requiredElevations(v0, d, dh, g = 9.81) {
   const v2 = v0 * v0;
@@ -28,7 +30,7 @@ function trajectoryHeight(x, theta, v0, gunAlt, g = 9.81) {
   return gunAlt + x * Math.tan(theta) - (g * x * x) / (2 * v0 * v0 * cosT * cosT);
 }
 
-// Check if a trajectory at angle theta clears all intermediate terrain
+// Check if a trajectory clears all intermediate terrain
 function clearsTerrain(theta, v0, gunAlt, gunLat, gunLon, bearingRad, totalDist, getElevation, traceStep = 200) {
   const numChecks = Math.floor(totalDist / traceStep);
   for (let i = 1; i <= numChecks; i++) {
@@ -42,6 +44,111 @@ function clearsTerrain(theta, v0, gunAlt, gunLat, gunLon, bearingRad, totalDist,
   return true;
 }
 
+// ---- Rocket Artillery (thrust + ballistic trajectory) ----
+
+// Rocket altitude at horizontal distance x
+// During thrust phase: constant acceleration along launch angle θ
+// After burnout: standard ballistic trajectory
+function rocketHeightAtDist(x, theta, launchVel, thrustAccel, burnTime, gunAlt, g = 9.81) {
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+
+  // Horizontal distance covered during thrust phase
+  const xBurn = launchVel * cosT * burnTime + 0.5 * thrustAccel * cosT * burnTime * burnTime;
+
+  if (x <= xBurn && xBurn > 0) {
+    // Still in thrust phase — find time t when horizontal dist = x
+    // 0.5*thrustAccel*cosT*t² + launchVel*cosT*t - x = 0
+    const a = 0.5 * thrustAccel * cosT;
+    const b = launchVel * cosT;
+    if (a === 0 && b === 0) return gunAlt;
+    let t;
+    if (a === 0) {
+      t = x / b;
+    } else {
+      const disc = b * b + 4 * a * x;
+      if (disc < 0) return gunAlt;
+      t = (-b + Math.sqrt(disc)) / (2 * a);
+    }
+    return gunAlt + launchVel * sinT * t + 0.5 * (thrustAccel * sinT - g) * t * t;
+  }
+
+  // Ballistic phase after burnout
+  const vxBo = (launchVel + thrustAccel * burnTime) * cosT;
+  const vyBo = (launchVel + thrustAccel * burnTime) * sinT - g * burnTime;
+  const yBurn = gunAlt + launchVel * sinT * burnTime + 0.5 * (thrustAccel * sinT - g) * burnTime * burnTime;
+
+  if (vxBo <= 0) return gunAlt;
+  const dx = x - xBurn;
+  const dt = dx / vxBo;
+
+  return yBurn + vyBo * dt - 0.5 * g * dt * dt;
+}
+
+// Find required elevation angle(s) for rocket to hit target at distance d with altitude diff dh
+// Uses scan + bisection since no closed-form solution exists for two-phase trajectory
+function rocketRequiredElevations(launchVel, thrustAccel, burnTime, d, dh, minElRad, maxElRad, g = 9.81) {
+  const steps = 360;
+  const step = (maxElRad - minElRad) / steps;
+  if (step <= 0) return null;
+
+  const solutions = [];
+  let prevVal = null;
+
+  for (let i = 0; i <= steps; i++) {
+    const theta = minElRad + i * step;
+    const h = rocketHeightAtDist(d, theta, launchVel, thrustAccel, burnTime, 0, g);
+    const val = h - dh;
+
+    if (prevVal !== null && !isNaN(val) && !isNaN(prevVal) && prevVal * val < 0) {
+      // Sign change — bisect to find exact angle
+      let lo = minElRad + (i - 1) * step;
+      let hi = theta;
+      let loVal = prevVal;
+      for (let j = 0; j < 30; j++) {
+        const mid = (lo + hi) / 2;
+        const midH = rocketHeightAtDist(d, mid, launchVel, thrustAccel, burnTime, 0, g);
+        const midVal = midH - dh;
+        if (isNaN(midVal)) break;
+        if (midVal * loVal < 0) {
+          hi = mid;
+        } else {
+          lo = mid;
+          loVal = midVal;
+        }
+      }
+      solutions.push((lo + hi) / 2);
+    }
+    if (!isNaN(val)) prevVal = val;
+  }
+
+  if (solutions.length === 0) return null;
+
+  if (solutions.length === 1) {
+    return { thetaLow: solutions[0], thetaHigh: solutions[0] };
+  }
+  return {
+    thetaLow: Math.min(...solutions),
+    thetaHigh: Math.max(...solutions),
+  };
+}
+
+// Check if a rocket trajectory clears all intermediate terrain
+function rocketClearsTerrain(theta, launchVel, thrustAccel, burnTime, gunAlt, gunLat, gunLon, bearingRad, totalDist, getElevation, traceStep = 200) {
+  const numChecks = Math.floor(totalDist / traceStep);
+  for (let i = 1; i <= numChecks; i++) {
+    const x = i * traceStep;
+    if (x >= totalDist) break;
+    const rocketAlt = rocketHeightAtDist(x, theta, launchVel, thrustAccel, burnTime, gunAlt);
+    const pt = destination(gunLat, gunLon, bearingRad, x);
+    const terrainElev = getElevation(pt.lon, pt.lat);
+    if (terrainElev > rocketAlt) return false;
+  }
+  return true;
+}
+
+// ---- Main calculation endpoint ----
+
 router.post('/calculate', async (req, res) => {
   try {
     const { longitude, latitude, maxRangeKm: rawRange, minElevationMils, maxElevationMils, muzzleVelocity, gunAltitudeOverride } = req.body;
@@ -52,8 +159,15 @@ router.post('/calculate', async (req, res) => {
     const maxRangeKm = Math.max(1, Math.min(50, Number(rawRange) || 20));
     const maxRangeM = maxRangeKm * 1000;
     const v0 = Math.max(50, Math.min(1500, Number(muzzleVelocity) || 563));
-    const minElRad = milsToRad(Math.max(0, Number(minElevationMils) || 53));
+    const minElRad = milsToRad(Math.max(-200, Number(minElevationMils) || 53));
     const maxElRad = milsToRad(Math.min(1600, Number(maxElevationMils) || 1200));
+
+    // Rocket parameters
+    const isRocket = !!req.body.isRocket;
+    const burnTime = isRocket ? Math.max(0.1, Math.min(10, Number(req.body.burnTime) || 1.5)) : 0;
+    const launchVelocity = isRocket ? Math.max(0, Math.min(500, Number(req.body.launchVelocity) || 30)) : 0;
+    const burnoutVelocity = isRocket ? Math.max(50, Math.min(2000, Number(req.body.burnoutVelocity) || 500)) : 0;
+    const thrustAccel = isRocket ? (burnoutVelocity - launchVelocity) / burnTime : 0;
 
     const { tileMap, getElevation } = await buildTileMap(latitude, longitude, maxRangeKm);
 
@@ -85,9 +199,14 @@ router.post('/calculate', async (req, res) => {
         const targetElev = getElevation(pt.lon, pt.lat);
         const dh = targetElev - gunAlt;
 
-        const elev = requiredElevations(v0, dist, dh);
+        let elev;
+        if (isRocket) {
+          elev = rocketRequiredElevations(launchVelocity, thrustAccel, burnTime, dist, dh, minElRad, maxElRad);
+        } else {
+          elev = requiredElevations(v0, dist, dh);
+        }
+
         if (!elev) {
-          // Beyond ballistic range
           grid[r][s - 1] = 0;
           continue;
         }
@@ -99,7 +218,6 @@ router.post('/calculate', async (req, res) => {
         const lowValid = thetaLow >= minElRad && thetaLow <= maxElRad;
 
         if (!highValid && !lowValid) {
-          // Dead zone: too close — low angle below min elevation, high angle above max elevation
           if (thetaLow < minElRad && thetaHigh > maxElRad) {
             grid[r][s - 1] = 2; // dead zone
           } else {
@@ -111,11 +229,20 @@ router.post('/calculate', async (req, res) => {
         // Check terrain clearance for valid solutions
         let reachable = false;
 
-        if (highValid && clearsTerrain(thetaHigh, v0, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
-          reachable = true;
-        }
-        if (!reachable && lowValid && clearsTerrain(thetaLow, v0, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
-          reachable = true;
+        if (isRocket) {
+          if (highValid && rocketClearsTerrain(thetaHigh, launchVelocity, thrustAccel, burnTime, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
+            reachable = true;
+          }
+          if (!reachable && lowValid && rocketClearsTerrain(thetaLow, launchVelocity, thrustAccel, burnTime, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
+            reachable = true;
+          }
+        } else {
+          if (highValid && clearsTerrain(thetaHigh, v0, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
+            reachable = true;
+          }
+          if (!reachable && lowValid && clearsTerrain(thetaLow, v0, gunAlt, latitude, longitude, bearingRad, dist, getElevation)) {
+            reachable = true;
+          }
         }
 
         grid[r][s - 1] = reachable ? 1 : 3; // 1=reachable, 3=terrain-masked

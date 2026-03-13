@@ -57,7 +57,7 @@ router.get('/users', (req, res) => {
   const db = getDb();
   const orgId = req.user.orgId;
   const users = db.prepare(
-    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, fire_report_enabled, created_at, updated_at, last_login_at FROM users WHERE org_id = ? ORDER BY username COLLATE NOCASE'
+    'SELECT id, username, role, must_change_password, locked, ai_chat_enabled, timelapse_enabled, wasos_enabled, signal_enabled, infraview_enabled, upscale_enabled, fire_report_enabled, firing_range_enabled, created_at, updated_at, last_login_at FROM users WHERE org_id = ? ORDER BY username COLLATE NOCASE'
   ).all(orgId);
   const onlineIds = getConnectedUserIds();
 
@@ -123,6 +123,7 @@ router.get('/users', (req, res) => {
       infraviewEnabled: !!u.infraview_enabled,
       upscaleEnabled: !!u.upscale_enabled,
       fireReportEnabled: !!u.fire_report_enabled,
+      firingRangeEnabled: !!u.firing_range_enabled,
       timelapseBytes,
       detectionBytes: detectionStats.detectionBytes,
       detectionCount: detectionStats.detectionCount,
@@ -375,6 +376,18 @@ router.post('/users/:id/toggle-fire-report', (req, res) => {
   const newVal = user.fire_report_enabled ? 0 : 1;
   db.prepare("UPDATE users SET fire_report_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
   res.json({ ok: true, fireReportEnabled: !!newVal });
+});
+
+// Toggle Firing Range access
+router.post('/users/:id/toggle-firing-range', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_firing_range')) return;
+  const db = getDb();
+  const user = db.prepare('SELECT id, firing_range_enabled FROM users WHERE id = ? AND org_id = ?').get(req.params.id, req.user.orgId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVal = user.firing_range_enabled ? 0 : 1;
+  db.prepare("UPDATE users SET firing_range_enabled = ?, updated_at = datetime('now') WHERE id = ?").run(newVal, req.params.id);
+  res.json({ ok: true, firingRangeEnabled: !!newVal });
 });
 
 // --- AI Configuration ---
