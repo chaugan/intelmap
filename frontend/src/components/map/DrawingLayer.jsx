@@ -556,20 +556,28 @@ export default function DrawingLayer() {
           const coords = generateCirclePolygon([cx, cy], Math.max(0.01, radiusKm));
           newGeom.coordinates = [coords];
         } else if (ds.drawingType === 'ellipse') {
-          // For ellipse: derive params from ring, adjust rx/ry accounting for rotation
+          // For ellipse: derive params from ring, adjust rx/ry or rotation
           const ring = newGeom.coordinates[0];
           const params = getEllipseParams(ring);
           let { cx, cy, rx, ry, rotationDeg } = params;
-          const rotRad = (rotationDeg * Math.PI) / 180;
-          // Project cursor offset onto the rotated axes
-          const cdx = cursorLngLat.lng - cx;
-          const cdy = cursorLngLat.lat - cy;
-          if (ds.vertexIndex === 0) {
-            // Dragging rx handle: project onto major axis
-            rx = Math.max(0.00001, Math.abs(cdx * Math.cos(rotRad) + cdy * Math.sin(rotRad)));
+
+          if (ds.vertexIndex === 2) {
+            // Rotation handle: compute angle from center to cursor
+            const cdx = cursorLngLat.lng - cx;
+            const cdy = cursorLngLat.lat - cy;
+            rotationDeg = Math.atan2(cdy, cdx) * 180 / Math.PI;
           } else {
-            // Dragging ry handle: project onto minor axis
-            ry = Math.max(0.00001, Math.abs(-cdx * Math.sin(rotRad) + cdy * Math.cos(rotRad)));
+            const rotRad = (rotationDeg * Math.PI) / 180;
+            // Project cursor offset onto the rotated axes
+            const cdx = cursorLngLat.lng - cx;
+            const cdy = cursorLngLat.lat - cy;
+            if (ds.vertexIndex === 0) {
+              // Dragging rx handle: project onto major axis
+              rx = Math.max(0.00001, Math.abs(cdx * Math.cos(rotRad) + cdy * Math.sin(rotRad)));
+            } else {
+              // Dragging ry handle: project onto minor axis
+              ry = Math.max(0.00001, Math.abs(-cdx * Math.sin(rotRad) + cdy * Math.cos(rotRad)));
+            }
           }
           const edgePt = [cx + rx, cy + ry];
           const coords = generateEllipsePolygon([cx, cy], edgePt, rotationDeg);
@@ -599,11 +607,20 @@ export default function DrawingLayer() {
 
       if (movedRef.current && !ds.isLocal && lastDragGeomRef.current) {
         // Persist final geometry to server
-        socket.emit('client:drawing:update', {
+        const updatePayload = {
           projectId: ds.projectId,
           id: ds.drawingId,
           geometry: lastDragGeomRef.current,
-        });
+        };
+        // For ellipse rotation/resize, also update the rotation property
+        if (ds.drawingType === 'ellipse' && ds.type === 'vertex') {
+          const params = getEllipseParams(lastDragGeomRef.current.coordinates[0]);
+          const drawing = drawingsRef.current.find(d => d.id === ds.drawingId);
+          if (drawing) {
+            updatePayload.properties = { ...drawing.properties, rotation: Math.round(params.rotationDeg % 360) };
+          }
+        }
+        socket.emit('client:drawing:update', updatePayload);
       }
       lastDragGeomRef.current = null;
       useMapStore.setState({ dragPreview: null });
@@ -648,11 +665,19 @@ export default function DrawingLayer() {
       return [ring[0]];
     }
     if (drawing.drawingType === 'ellipse' && drawing.geometry.type === 'Polygon') {
-      // Show two handles: east (index 0 = 0°) and north (index 16 = 90°)
+      // Show three handles: east (rx resize), north (ry resize), rotation handle
       const ring = drawing.geometry.coordinates[0];
+      const params = getEllipseParams(ring);
       const handles = [];
-      if (ring.length > 0) handles.push(ring[0]);   // east (rx)
-      if (ring.length > 16) handles.push(ring[16]);  // north (ry)
+      if (ring.length > 0) handles.push(ring[0]);   // index 0: east (rx)
+      if (ring.length > 16) handles.push(ring[16]);  // index 1: north (ry)
+      // index 2: rotation handle — offset beyond the rx handle along the major axis
+      const rotRad = (params.rotationDeg * Math.PI) / 180;
+      const offset = params.rx * 0.35;
+      handles.push([
+        ring[0][0] + offset * Math.cos(rotRad),
+        ring[0][1] + offset * Math.sin(rotRad),
+      ]);
       return handles;
     }
     if (drawing.geometry.type === 'LineString') {
@@ -856,31 +881,6 @@ export default function DrawingLayer() {
       setDrawFontSize(prev => Math.max(10, Math.min(40, prev + delta)));
     }
   }, [selectedDrawing, activeMode]);
-
-  // Rotate selected ellipse by delta degrees
-  const adjustRotation = useCallback((delta) => {
-    if (!selectedDrawing || selectedDrawing.drawingType !== 'ellipse') return;
-    const ring = selectedDrawing.geometry.coordinates[0];
-    const params = getEllipseParams(ring);
-    const newRotation = params.rotationDeg + delta;
-    const edgePt = [params.cx + params.rx, params.cy + params.ry];
-    const coords = generateEllipsePolygon([params.cx, params.cy], edgePt, newRotation);
-    const newGeometry = { type: 'Polygon', coordinates: [coords] };
-    const newProps = { ...selectedDrawing.properties, rotation: Math.round(newRotation % 360) };
-    if (selectedDrawing._local) {
-      setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id
-        ? { ...d, geometry: newGeometry, properties: newProps }
-        : d
-      ));
-    } else {
-      socket.emit('client:drawing:update', {
-        projectId: selectedDrawing._projectId,
-        id: selectedDrawing.id,
-        geometry: newGeometry,
-        properties: newProps,
-      });
-    }
-  }, [selectedDrawing]);
 
   // Force re-render on map move so preview SVG stays in sync with map
   useEffect(() => {
@@ -1207,27 +1207,11 @@ export default function DrawingLayer() {
               </div>
             )}
 
-            {/* Rotation controls for selected ellipse */}
+            {/* Rotation indicator for selected ellipse */}
             {selectedDrawing.drawingType === 'ellipse' && (
               <div className="flex flex-col items-center gap-0.5 bg-slate-800 rounded px-1.5 py-1 shadow-lg">
                 <span className="text-[9px] text-slate-300 font-medium">{t('draw.rotation', lang)}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => adjustRotation(-15)}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
-                    title="-15°"
-                  >
-                    ↺
-                  </button>
-                  <span className="text-[11px] text-white w-7 text-center font-bold">{Math.round(selectedDrawing.properties?.rotation || 0)}°</span>
-                  <button
-                    onClick={() => adjustRotation(15)}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-slate-600 text-white text-sm font-bold hover:bg-slate-500"
-                    title="+15°"
-                  >
-                    ↻
-                  </button>
-                </div>
+                <span className="text-[11px] text-white font-bold">{Math.round(getEllipseParams(selectedDrawing.geometry.coordinates[0]).rotationDeg % 360)}°</span>
               </div>
             )}
           </div>
@@ -1499,6 +1483,49 @@ export default function DrawingLayer() {
           {getVertices(selectedDrawing).map((coord, i) => {
             try {
               const pt = mapRefValue.project(coord);
+              const isRotationHandle = selectedDrawing.drawingType === 'ellipse' && i === 2;
+
+              if (isRotationHandle) {
+                // Draw a line from the rx handle (index 0) to the rotation handle
+                const rxCoord = getVertices(selectedDrawing)[0];
+                const rxPt = mapRefValue.project(rxCoord);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={rxPt.x} y1={rxPt.y} x2={pt.x} y2={pt.y}
+                      stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"
+                    />
+                    <circle
+                      cx={pt.x} cy={pt.y} r="9"
+                      fill="#06b6d4" stroke="white" strokeWidth="2"
+                      style={{ cursor: 'crosshair', pointerEvents: 'auto' }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const startLngLat = mapRefValue.unproject([pt.x, pt.y]);
+                        const ds = {
+                          type: 'vertex',
+                          vertexIndex: i,
+                          drawingId: selectedDrawing.id,
+                          startLngLat: [startLngLat.lng, startLngLat.lat],
+                          originalGeometry: JSON.parse(JSON.stringify(selectedDrawing.geometry)),
+                          isLocal: !!selectedDrawing._local,
+                          projectId: selectedDrawing._projectId,
+                          drawingType: selectedDrawing.drawingType,
+                        };
+                        dragStateRef.current = ds;
+                        setDragState(ds);
+                        mapRefValue.dragPan.disable();
+                      }}
+                    />
+                    {/* Rotation icon: ↻ */}
+                    <text x={pt.x} y={pt.y + 1} textAnchor="middle" dominantBaseline="central"
+                      fill="white" fontSize="12" fontWeight="bold"
+                      style={{ pointerEvents: 'none' }}>↻</text>
+                  </g>
+                );
+              }
+
               return (
                 <circle
                   key={i}
