@@ -3,6 +3,40 @@ import html2canvas from 'html2canvas-pro';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/constants.js';
 import { drawSecurityMarking } from '../lib/export-marking.js';
 
+// Keys to persist in localStorage
+const DATA_LAYER_PERSIST_KEYS = [
+  'baseLayer',
+  'windVisible', 'windOpacity',
+  'webcamsVisible',
+  'avalancheVisible',
+  'avalancheWarningsVisible', 'avalancheWarningsOpacity',
+  'snowDepthVisible', 'snowDepthOpacity',
+  'aircraftVisible', 'aircraftOpacity',
+  'vesselsVisible', 'vesselsOpacity',
+  'roadRestrictionsVisible', 'roadRestrictionsOpacity',
+  'trafficFlowVisible', 'trafficFlowOpacity',
+  'trafficInfoVisible', 'trafficInfoOpacity',
+  'sunlightVisible', 'sunlightOpacity',
+  'hillshadeVisible', 'hillshadeOpacity',
+  'terrainVisible', 'terrainExaggeration',
+  'auroraVisible', 'auroraOpacity',
+  'infraVisible', 'infraOpacity',
+  'wmsTransportVisible', 'wmsTransportOpacity',
+  'wmsPlacenamesVisible', 'wmsPlacenamesOpacity',
+  'wmsContoursVisible', 'wmsContoursOpacity',
+  'wmsBordersVisible', 'wmsBordersOpacity',
+];
+
+function loadSavedLayerState() {
+  try {
+    const raw = localStorage.getItem('dataLayerVisibility');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
+const savedLayerState = loadSavedLayerState();
+
 export const useMapStore = create((set) => ({
   // Viewport
   longitude: DEFAULT_CENTER.longitude,
@@ -555,3 +589,27 @@ export function getThemeState(includePosition = false) {
   }
   return state;
 }
+
+// Restore saved data layer visibility from localStorage on startup
+if (Object.keys(savedLayerState).length > 0) {
+  const patch = {};
+  for (const key of DATA_LAYER_PERSIST_KEYS) {
+    if (key in savedLayerState) patch[key] = savedLayerState[key];
+  }
+  if (Object.keys(patch).length > 0) useMapStore.setState(patch);
+}
+
+// Auto-save data layer visibility to localStorage on change
+let _saveTimer = null;
+useMapStore.subscribe((state, prev) => {
+  const changed = DATA_LAYER_PERSIST_KEYS.some(k => state[k] !== prev[k]);
+  if (!changed) return;
+  // Debounce to avoid excessive writes
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    const snap = {};
+    const s = useMapStore.getState();
+    for (const k of DATA_LAYER_PERSIST_KEYS) snap[k] = s[k];
+    try { localStorage.setItem('dataLayerVisibility', JSON.stringify(snap)); } catch { /* quota */ }
+  }, 500);
+});

@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { socket } from '../lib/socket.js';
 
+function loadTacticalLayerVisibility(projectId) {
+  try {
+    const raw = localStorage.getItem(`tacticalLayers:${projectId}`);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
 export const useTacticalStore = create((set, get) => ({
   // projectId → { markers[], drawings[], layers[] }
   projects: {},
@@ -63,10 +71,20 @@ export const useTacticalStore = create((set, get) => ({
 
   setProjectState: (projectId, { markers, drawings, layers, pins, viewsheds, rfCoverages }) => set((s) => {
     const allLayers = layers || [];
-    // Force all "not_in_use" layers to be hidden on load
+    // Restore saved layer visibility from localStorage
+    const saved = loadTacticalLayerVisibility(projectId);
     const newVis = { ...s.layerVisibility };
+    const newLabelVis = { ...s.labelVisibility };
     for (const l of allLayers) {
-      if (l.category === 'not_in_use') newVis[l.id] = false;
+      // Force all "not_in_use" layers to be hidden regardless of saved state
+      if (l.category === 'not_in_use') {
+        newVis[l.id] = false;
+      } else if (l.id in (saved.layerVisibility || {})) {
+        newVis[l.id] = saved.layerVisibility[l.id];
+      }
+      if (l.id in (saved.labelVisibility || {})) {
+        newLabelVis[l.id] = saved.labelVisibility[l.id];
+      }
     }
     return {
       projects: {
@@ -74,6 +92,7 @@ export const useTacticalStore = create((set, get) => ({
         [projectId]: { markers: markers || [], drawings: drawings || [], layers: allLayers, pins: pins || [], viewsheds: viewsheds || [], rfCoverages: rfCoverages || [] },
       },
       layerVisibility: newVis,
+      labelVisibility: newLabelVis,
     };
   }),
 
@@ -358,6 +377,31 @@ export const useTacticalStore = create((set, get) => ({
 
   // --- Computed helpers (not in store, use outside) ---
 }));
+
+// Auto-save tactical layer visibility per project to localStorage
+let _tacticalSaveTimer = null;
+useTacticalStore.subscribe((state, prev) => {
+  if (state.layerVisibility === prev.layerVisibility && state.labelVisibility === prev.labelVisibility) return;
+  clearTimeout(_tacticalSaveTimer);
+  _tacticalSaveTimer = setTimeout(() => {
+    const s = useTacticalStore.getState();
+    // Save visibility for each visible project's layers
+    for (const pid of s.visibleProjectIds) {
+      const proj = s.projects[pid];
+      if (!proj) continue;
+      const layerIds = proj.layers.map(l => l.id);
+      const layerVis = {};
+      const labelVis = {};
+      for (const lid of layerIds) {
+        if (lid in s.layerVisibility) layerVis[lid] = s.layerVisibility[lid];
+        if (lid in s.labelVisibility) labelVis[lid] = s.labelVisibility[lid];
+      }
+      try {
+        localStorage.setItem(`tacticalLayers:${pid}`, JSON.stringify({ layerVisibility: layerVis, labelVisibility: labelVis }));
+      } catch { /* quota */ }
+    }
+  }, 500);
+});
 
 /**
  * Get all visible markers across all visible projects, respecting layer visibility.
