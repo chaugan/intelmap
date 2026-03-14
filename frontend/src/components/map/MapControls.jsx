@@ -240,6 +240,7 @@ export default function MapControls() {
 
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
+      {user?.fireReportEnabled && <FireReportButton lang={lang} />}
       {user && <GridButton lang={lang} />}
       {user && <ViewshedButton lang={lang} />}
       {user && <RFCoverageButton lang={lang} />}
@@ -275,13 +276,6 @@ export default function MapControls() {
             </svg>
             {t('panel.chat', lang)}
           </button>
-        </>
-      )}
-
-      {user?.fireReportEnabled && (
-        <>
-          <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
-          <FireReportButton lang={lang} />
         </>
       )}
 
