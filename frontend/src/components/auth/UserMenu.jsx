@@ -123,10 +123,18 @@ export default function UserMenu() {
               <button
                 onClick={async () => {
                   setOpen(false);
-                  const res = await fetch('/api/self-destruct/token', { credentials: 'include' });
-                  if (res.ok) {
-                    const { url } = await res.json();
-                    window.open(url, '_blank');
+                  const w = window.open('about:blank', '_blank');
+                  try {
+                    const res = await fetch('/api/self-destruct/token', { credentials: 'include' });
+                    if (res.ok) {
+                      const { url } = await res.json();
+                      if (w && !w.closed) w.location.href = url;
+                      else window.location.href = url;
+                    } else {
+                      if (w && !w.closed) w.close();
+                    }
+                  } catch {
+                    if (w && !w.closed) w.close();
                   }
                 }}
                 className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-red-500 font-semibold"
