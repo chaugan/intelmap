@@ -30,7 +30,8 @@ export function validateSession(sessionId) {
             u.totp_enabled,
             o.name as org_name,
             o.feature_ai_chat, o.feature_wasos, o.feature_signal, o.feature_infraview,
-            o.feature_upscale, o.feature_fire_report, o.feature_firing_range, o.feature_mfa, o.mfa_required
+            o.feature_upscale, o.feature_fire_report, o.feature_firing_range, o.feature_mfa, o.mfa_required,
+            o.feature_self_delete, o.self_delete_enabled
      FROM users u
      LEFT JOIN organizations o ON u.org_id = o.id
      WHERE u.id = ?
@@ -71,6 +72,8 @@ export function validateSession(sessionId) {
     orgFeatureFiringRange: !!row.feature_firing_range,
     orgFeatureMfa: row.role === 'super_admin' ? true : !!row.feature_mfa,
     orgMfaRequired: !!row.mfa_required,
+    orgFeatureSelfDelete: !!row.feature_self_delete,
+    orgSelfDeleteEnabled: !!row.self_delete_enabled,
     totpEnabled: !!row.totp_enabled,
     hasMfa,
     mfaSetupRequired: !!row.mfa_required && !hasMfa,

@@ -1051,4 +1051,18 @@ router.post('/toggle-mfa-required', (req, res) => {
   res.json({ ok: true, required: !!newVal });
 });
 
+router.post('/toggle-self-delete-enabled', (req, res) => {
+  if (!requireOrgFeature(req, res, 'feature_self_delete')) return;
+
+  const db = getDb();
+  const org = db.prepare('SELECT self_delete_enabled FROM organizations WHERE id = ?').get(req.user.orgId);
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+
+  const newVal = org.self_delete_enabled ? 0 : 1;
+  db.prepare("UPDATE organizations SET self_delete_enabled = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newVal, req.user.orgId);
+
+  res.json({ ok: true, enabled: !!newVal });
+});
+
 export default router;

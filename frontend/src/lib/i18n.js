@@ -236,6 +236,7 @@ const translations = {
     // Auth
     'auth.login': 'Logg inn',
     'auth.logout': 'Logg ut',
+    'auth.killMyUser': 'Slett min bruker',
     'auth.username': 'Brukernavn',
     'auth.password': 'Passord',
     'auth.changePassword': 'Bytt passord',
@@ -998,6 +999,7 @@ const translations = {
     // Auth
     'auth.login': 'Log in',
     'auth.logout': 'Log out',
+    'auth.killMyUser': 'Kill My User',
     'auth.username': 'Username',
     'auth.password': 'Password',
     'auth.changePassword': 'Change password',

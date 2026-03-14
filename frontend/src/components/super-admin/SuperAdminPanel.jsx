@@ -253,6 +253,18 @@ function OrganizationsTab() {
     } catch (err) { setError(err.message); }
   };
 
+  const toggleSelfDeleteEnabled = async (orgId) => {
+    try {
+      const res = await fetch(`${API}/orgs/${orgId}/toggle-self-delete-enabled`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
+      fetchOrgs();
+    } catch (err) { setError(err.message); }
+  };
+
   const activeOrgs = orgs.filter(o => !o.deletedAt);
   const deletedOrgs = orgs.filter(o => o.deletedAt);
 
@@ -329,7 +341,9 @@ function OrganizationsTab() {
                 <th className="text-center px-2 py-2 font-medium text-xs">MFA</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">Fire</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">Artillery</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Kill</th>
                 <th className="text-center px-2 py-2 font-medium text-xs">MFA Req</th>
+                <th className="text-center px-2 py-2 font-medium text-xs">Self-Del</th>
                 <th className="text-right px-4 py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -379,6 +393,7 @@ function OrganizationsTab() {
                   <FeatureToggleCell on={org.featureMfa} onClick={() => toggleFeature(org.id, 'mfa')} />
                   <FeatureToggleCell on={org.featureFireReport} onClick={() => toggleFeature(org.id, 'fire_report')} />
                   <FeatureToggleCell on={org.featureFiringRange} onClick={() => toggleFeature(org.id, 'firing_range')} />
+                  <FeatureToggleCell on={org.featureSelfDelete} onClick={() => toggleFeature(org.id, 'self_delete')} />
                   <td className="px-2 py-2 text-center">
                     {org.featureMfa ? (
                       <button
@@ -388,6 +403,18 @@ function OrganizationsTab() {
                         }`}
                       >
                         {org.mfaRequired ? 'On' : 'Off'}
+                      </button>
+                    ) : <span className="text-slate-600 text-xs">-</span>}
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    {org.featureSelfDelete ? (
+                      <button
+                        onClick={() => toggleSelfDeleteEnabled(org.id)}
+                        className={`px-1.5 py-0.5 rounded text-xs transition-colors ${
+                          org.selfDeleteEnabled ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                        }`}
+                      >
+                        {org.selfDeleteEnabled ? 'On' : 'Off'}
                       </button>
                     ) : <span className="text-slate-600 text-xs">-</span>}
                   </td>
@@ -423,7 +450,7 @@ function OrganizationsTab() {
                 </tr>
                 {expandedOrgId === org.id && (
                   <tr>
-                    <td colSpan="12" className="p-0">
+                    <td colSpan="15" className="p-0">
                       <OrgUsersPanel orgId={org.id} orgName={org.name} onUserChange={fetchOrgs} />
                     </td>
                   </tr>

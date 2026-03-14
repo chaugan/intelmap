@@ -42,6 +42,8 @@ router.get('/orgs', (req, res) => {
     featureMfa: !!o.feature_mfa,
     featureFireReport: !!o.feature_fire_report,
     featureFiringRange: !!o.feature_firing_range,
+    featureSelfDelete: !!o.feature_self_delete,
+    selfDeleteEnabled: !!o.self_delete_enabled,
     mfaRequired: !!o.mfa_required,
   })));
 });
@@ -339,7 +341,7 @@ router.get('/orgs/:id/settings', (req, res) => {
 
 // --- Feature Gating ---
 
-const VALID_FEATURES = ['ai_chat', 'wasos', 'signal', 'infraview', 'upscale', 'mfa', 'fire_report', 'firing_range'];
+const VALID_FEATURES = ['ai_chat', 'wasos', 'signal', 'infraview', 'upscale', 'mfa', 'fire_report', 'firing_range', 'self_delete'];
 
 router.post('/orgs/:id/toggle-feature', (req, res) => {
   const { feature } = req.body;
@@ -374,6 +376,11 @@ router.post('/orgs/:id/toggle-feature', (req, res) => {
       db.prepare(`UPDATE users SET ${userCol} = 0 WHERE org_id = ?`).run(req.params.id);
     }
 
+    // When disabling self-delete, also reset self_delete_enabled
+    if (feature === 'self_delete') {
+      db.prepare("UPDATE organizations SET self_delete_enabled = 0 WHERE id = ?").run(req.params.id);
+    }
+
     // When disabling MFA, also clear all MFA data
     if (feature === 'mfa') {
       db.prepare("UPDATE organizations SET mfa_required = 0 WHERE id = ?").run(req.params.id);
@@ -404,6 +411,20 @@ router.post('/orgs/:id/toggle-mfa-required', (req, res) => {
 
   eventLogger.config.info(`MFA required ${newVal ? 'enabled' : 'disabled'} for org ${org.name}`);
   res.json({ ok: true, required: !!newVal });
+});
+
+router.post('/orgs/:id/toggle-self-delete-enabled', (req, res) => {
+  const db = getDb();
+  const org = db.prepare('SELECT * FROM organizations WHERE id = ?').get(req.params.id);
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  if (!org.feature_self_delete) return res.status(400).json({ error: 'Self-delete feature is not enabled for this organization' });
+
+  const newVal = org.self_delete_enabled ? 0 : 1;
+  db.prepare("UPDATE organizations SET self_delete_enabled = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newVal, req.params.id);
+
+  eventLogger.config.info(`Self-delete ${newVal ? 'enabled' : 'disabled'} for org ${org.name}`);
+  res.json({ ok: true, enabled: !!newVal });
 });
 
 export default router;

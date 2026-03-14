@@ -129,6 +129,13 @@ export function runMigration() {
     console.log('Added feature_firing_range column to organizations table');
   }
 
+  // Self-delete feature flag on organizations
+  if (!orgCols.some(c => c.name === 'feature_self_delete')) {
+    db.prepare("ALTER TABLE organizations ADD COLUMN feature_self_delete INTEGER NOT NULL DEFAULT 0").run();
+    db.prepare("ALTER TABLE organizations ADD COLUMN self_delete_enabled INTEGER NOT NULL DEFAULT 0").run();
+    console.log('Added self-delete feature columns to organizations table');
+  }
+
   // Firing Range column on users
   if (!userCols.some(c => c.name === 'firing_range_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN firing_range_enabled INTEGER NOT NULL DEFAULT 0").run();

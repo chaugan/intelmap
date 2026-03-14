@@ -217,6 +217,7 @@ function UsersTab({ lang, currentUser }) {
   }
 
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [selfDeleteEnabled, setSelfDeleteEnabled] = useState(false);
 
   useEffect(() => {
     if (currentUser?.orgFeatureMfa) {
@@ -224,12 +225,28 @@ function UsersTab({ lang, currentUser }) {
     }
   }, [currentUser?.orgFeatureMfa, currentUser?.orgMfaRequired]);
 
+  useEffect(() => {
+    if (currentUser?.orgFeatureSelfDelete) {
+      setSelfDeleteEnabled(!!currentUser.orgSelfDeleteEnabled);
+    }
+  }, [currentUser?.orgFeatureSelfDelete, currentUser?.orgSelfDeleteEnabled]);
+
   async function toggleMfaRequired() {
     try {
       const res = await fetch(`${API}/toggle-mfa-required`, { method: 'POST', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setMfaRequired(data.required);
+      }
+    } catch {}
+  }
+
+  async function toggleSelfDeleteEnabled() {
+    try {
+      const res = await fetch(`${API}/toggle-self-delete-enabled`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSelfDeleteEnabled(data.enabled);
       }
     } catch {}
   }
@@ -273,6 +290,27 @@ function UsersTab({ lang, currentUser }) {
             }`}
           >
             {mfaRequired ? (lang === 'no' ? 'Påkrevd' : 'Required') : (lang === 'no' ? 'Av' : 'Off')}
+          </button>
+        </div>
+      )}
+
+      {currentUser?.orgFeatureSelfDelete && (
+        <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded border border-slate-600">
+          <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <div className="flex-1">
+            <span className="text-sm text-slate-200">
+              {lang === 'no' ? 'Tillat brukere å slette egen konto' : 'Allow users to delete own account'}
+            </span>
+          </div>
+          <button
+            onClick={toggleSelfDeleteEnabled}
+            className={`px-3 py-1 rounded text-xs transition-colors ${
+              selfDeleteEnabled ? 'bg-red-700 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            {selfDeleteEnabled ? (lang === 'no' ? 'Aktivert' : 'Enabled') : (lang === 'no' ? 'Av' : 'Off')}
           </button>
         </div>
       )}

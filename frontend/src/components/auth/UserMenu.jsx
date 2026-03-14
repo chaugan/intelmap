@@ -117,6 +117,24 @@ export default function UserMenu() {
               </button>
             </>
           )}
+          {user.orgFeatureSelfDelete && user.orgSelfDeleteEnabled && user.role !== 'super_admin' && !user.isImpersonating && (
+            <>
+              <hr className="border-slate-600 my-1" />
+              <button
+                onClick={async () => {
+                  setOpen(false);
+                  const res = await fetch('/api/self-destruct/token', { credentials: 'include' });
+                  if (res.ok) {
+                    const { url } = await res.json();
+                    window.open(url, '_blank');
+                  }
+                }}
+                className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-red-500 font-semibold"
+              >
+                {t('auth.killMyUser', lang)}
+              </button>
+            </>
+          )}
           <hr className="border-slate-600 my-1" />
           <button
             onClick={() => { logout(); setOpen(false); }}
