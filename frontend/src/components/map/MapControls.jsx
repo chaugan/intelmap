@@ -241,7 +241,13 @@ export default function MapControls() {
       <ToggleButton active={drawingToolsVisible} onClick={toggleDrawingTools} label={t('layer.draw', lang)} shortcut="D" />
       <ToggleButton active={measuringToolVisible} onClick={toggleMeasuringTool} label={t('layer.measure', lang)} shortcut="M" />
       {user?.fireReportEnabled && <FireReportButton lang={lang} />}
-      {user && <GridButton lang={lang} />}
+      <button
+        onClick={() => setActivePanel('search')}
+        className={`px-3 py-1 rounded transition-colors ${activePanel === 'search' ? 'bg-emerald-700 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
+        title={`${t('panel.search', lang)} (${panelShortcuts.search})`}
+      >
+        {t('panel.search', lang)}
+      </button>
       {user && <ViewshedButton lang={lang} />}
       {user && <RFCoverageButton lang={lang} />}
       {user?.firingRangeEnabled && <FiringRangeButton lang={lang} />}
@@ -250,7 +256,7 @@ export default function MapControls() {
       <div className="w-px h-5 bg-slate-600 mx-1" data-divider="true" />
 
       {/* Panel buttons */}
-      {['layers', 'symbols', 'weather', 'search'].map((panel) => (
+      {['layers', 'symbols', 'weather'].map((panel) => (
         <button
           key={panel}
           onClick={() => setActivePanel(panel)}
@@ -260,6 +266,7 @@ export default function MapControls() {
           {t(`panel.${panel}`, lang)}
         </button>
       ))}
+      {user && <GridButton lang={lang} />}
 
       {user?.aiChatEnabled && (
         <>
