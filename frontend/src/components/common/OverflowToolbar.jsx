@@ -165,7 +165,7 @@ export default function OverflowToolbar({ children, lang, className = '' }) {
         <div
           ref={menuRef}
           className="fixed bg-slate-800 text-slate-100 rounded-lg shadow-2xl border border-slate-600 py-2 min-w-[200px] max-w-[calc(100vw-16px)] overflow-y-auto z-[99999]"
-          style={{ top: menuPos.top, right: menuPos.right, maxHeight: `calc(100vh - ${menuPos.top + 8}px)` }}
+          style={{ top: menuPos.top, right: menuPos.right, maxHeight: `calc(100dvh - ${menuPos.top + 16}px)` }}
         >
           {overflowItems.filter((child) => {
             // Skip dividers - check data-divider or if it's an empty div with divider styling
