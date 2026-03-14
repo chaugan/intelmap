@@ -1037,7 +1037,7 @@ export default function DrawingLayer() {
     { id: 'polygon', icon: '\u2B21', shortcut: 'P' },
     { id: 'circle', icon: '\u25EF', shortcut: 'O' },
     { id: 'ellipse', icon: '\u2B2D', shortcut: 'E' },
-    { id: 'sector', icon: '\u25D4', shortcut: 'S' },
+    { id: 'sector', icon: <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 10 L10 2 A8 8 0 0 1 16.9 6.1 Z" fill="currentColor" opacity="0.35" stroke="currentColor" /></svg>, shortcut: 'S' },
     { id: 'arrow', icon: '\u2192', shortcut: 'A' },
     { id: 'text', icon: 'T', shortcut: 'T' },
     { id: 'needle', icon: '\uD83D\uDCCD', shortcut: 'N' },
