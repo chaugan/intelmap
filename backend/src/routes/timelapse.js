@@ -323,6 +323,7 @@ router.get('/exports', requireAuth, requireTimelapseAccess, (req, res) => {
     const exports = getUserExports(req.user.id);
     res.json(exports.map(e => ({
       id: e.id,
+      userId: e.user_id,
       cameraId: e.camera_id,
       startTime: e.start_time,
       endTime: e.end_time,
