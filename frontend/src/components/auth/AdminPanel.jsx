@@ -301,7 +301,7 @@ function UsersTab({ lang, currentUser }) {
           </svg>
           <div className="flex-1">
             <span className="text-sm text-slate-200">
-              {lang === 'no' ? 'Tillat brukere å slette egen konto' : 'Allow users to delete own account'}
+              {lang === 'no' ? 'Nødsletting av konto' : 'Emergency Account Deletion'}
             </span>
           </div>
           <button
