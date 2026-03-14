@@ -45,7 +45,7 @@ async function calculateRF({ longitude, latitude, antennaHeight, txPowerWatts, f
   const height = Math.max(0.5, Math.min(100, Number(antennaHeight) || 1.5));
   const txPower = Math.max(0.1, Math.min(100, Number(txPowerWatts) || 5));
   const freq = Math.max(2, Math.min(6000, Number(frequencyMHz) || 150));
-  const radius = Math.max(1, Math.min(30, Number(radiusKm) || 15));
+  const radius = Math.max(1, Math.min(75, Number(radiusKm) || 15));
   const radiusMeters = radius * 1000;
 
   const txPowerDbm = wattsToDbm(txPower);
@@ -62,7 +62,7 @@ async function calculateRF({ longitude, latitude, antennaHeight, txPowerWatts, f
   const txElevation = groundElevation + height;
 
   const numRays = 360;
-  const sampleStep = radius > 15 ? 150 : radius > 8 ? 100 : radius > 3 ? 60 : 30;
+  const sampleStep = radius > 40 ? 250 : radius > 15 ? 150 : radius > 8 ? 100 : radius > 3 ? 60 : 30;
   const numSamples = Math.ceil(radiusMeters / sampleStep);
 
   const signalGrid = new Array(numRays);

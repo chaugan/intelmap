@@ -1026,7 +1026,7 @@ export default function RFCoverageTool() {
             {/* Radius */}
             <div className="mt-2">
               <label className="text-xs text-slate-400">{t('rfcoverage.radius', lang)}: {radiusKm} km</label>
-              <input type="range" min={1} max={30} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full mt-1" />
+              <input type="range" min={1} max={75} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full mt-1" />
             </div>
 
             {/* Dampening */}
