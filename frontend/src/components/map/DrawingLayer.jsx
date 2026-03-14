@@ -30,7 +30,7 @@ function drawingIntersectsBox(drawing, box) {
   return false;
 }
 
-import { generateCirclePolygon, generateEllipsePolygon, getEllipseParams } from '../../lib/drawing-utils.js';
+import { generateCirclePolygon, generateEllipsePolygon, getEllipseParams, generateSectorPolygon, getSectorParams } from '../../lib/drawing-utils.js';
 import CsvDrawingImportDialog from './CsvDrawingImportDialog.jsx';
 import MarkdownNoteOverlay from './MarkdownNoteOverlay.jsx';
 
@@ -153,6 +153,28 @@ export default function DrawingLayer() {
       const coords = generateEllipsePolygon(pts[0], pts[1]);
       geometry = { type: 'Polygon', coordinates: [coords] };
       drawingType = 'ellipse';
+    } else if (mode === 'sector' && pts.length >= 3) {
+      const center = pts[0];
+      const edge1 = pts[1];
+      const edge2 = pts[2];
+      const R = 6371;
+      const dLat = ((edge1[1] - center[1]) * Math.PI) / 180;
+      const dLon = ((edge1[0] - center[0]) * Math.PI) / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(center[1]*Math.PI/180)*Math.cos(edge1[1]*Math.PI/180)*Math.sin(dLon/2)**2;
+      const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const bearingFromCenter = (c, p) => {
+        const dL = (p[0] - c[0]) * Math.PI / 180;
+        const lat1 = c[1] * Math.PI / 180;
+        const lat2 = p[1] * Math.PI / 180;
+        const y = Math.sin(dL) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dL);
+        return Math.atan2(y, x);
+      };
+      const startBearing = bearingFromCenter(center, edge1);
+      const endBearing = bearingFromCenter(center, edge2);
+      const coords = generateSectorPolygon(center, radiusKm, startBearing, endBearing);
+      geometry = { type: 'Polygon', coordinates: [coords] };
+      drawingType = 'sector';
     }
 
     const currentState = useTacticalStore.getState();
@@ -326,6 +348,13 @@ export default function DrawingLayer() {
         }
 
         if ((activeModeRef.current === 'circle' || activeModeRef.current === 'ellipse') && drawPointsRef.current.length === 1) {
+          setDrawPoints(prev => [...prev, [lng, lat]]);
+          setCursorPoint(null);
+          setTimeout(() => finishDrawing(), 0);
+          return;
+        }
+
+        if (activeModeRef.current === 'sector' && drawPointsRef.current.length === 2) {
           setDrawPoints(prev => [...prev, [lng, lat]]);
           setCursorPoint(null);
           setTimeout(() => finishDrawing(), 0);
@@ -583,6 +612,34 @@ export default function DrawingLayer() {
           const edgePt = [cx + rx, cy + ry];
           const coords = generateEllipsePolygon([cx, cy], edgePt, rotationDeg);
           newGeom.coordinates = [coords];
+        } else if (ds.drawingType === 'sector') {
+          const ring = newGeom.coordinates[0];
+          const center = ring[0];
+          const params = getSectorParams(ring);
+          const bearingFromCenter = (c, p) => {
+            const dL = (p[0] - c[0]) * Math.PI / 180;
+            const lat1 = c[1] * Math.PI / 180;
+            const lat2 = p[1] * Math.PI / 180;
+            const y = Math.sin(dL) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dL);
+            return Math.atan2(y, x);
+          };
+          if (ds.vertexIndex === 0) {
+            // Dragging start edge: update radius + start bearing
+            const R = 6371;
+            const dLat2 = ((cursorLngLat.lat - center[1]) * Math.PI) / 180;
+            const dLon2 = ((cursorLngLat.lng - center[0]) * Math.PI) / 180;
+            const a = Math.sin(dLat2/2)**2 + Math.cos(center[1]*Math.PI/180)*Math.cos(cursorLngLat.lat*Math.PI/180)*Math.sin(dLon2/2)**2;
+            const newRadiusKm = Math.max(0.01, R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+            const newStartBearing = bearingFromCenter(center, [cursorLngLat.lng, cursorLngLat.lat]);
+            const coords = generateSectorPolygon(center, newRadiusKm, newStartBearing, params.endBearingRad);
+            newGeom.coordinates = [coords];
+          } else {
+            // Dragging end edge: update end bearing (keep radius)
+            const newEndBearing = bearingFromCenter(center, [cursorLngLat.lng, cursorLngLat.lat]);
+            const coords = generateSectorPolygon(center, params.radiusKm, params.startBearingRad, newEndBearing);
+            newGeom.coordinates = [coords];
+          }
         } else if (newGeom.type === 'LineString') {
           newGeom.coordinates[ds.vertexIndex] = [cursorLngLat.lng, cursorLngLat.lat];
         } else if (newGeom.type === 'Polygon') {
@@ -684,6 +741,12 @@ export default function DrawingLayer() {
       if (ring.length > 16) return [ring[16]];
       return [ring[0]];
     }
+    if (drawing.drawingType === 'sector' && drawing.geometry.type === 'Polygon') {
+      const ring = drawing.geometry.coordinates[0];
+      // ring = [center, ...arcPoints(65), center]
+      // Show handles at: start of arc (ring[1]), end of arc (ring[ring.length-2])
+      return [ring[1], ring[ring.length - 2]];
+    }
     if (drawing.drawingType === 'ellipse' && drawing.geometry.type === 'Polygon') {
       // Show three handles: east (rx resize), north (ry resize), rotation handle
       const ring = drawing.geometry.coordinates[0];
@@ -719,6 +782,8 @@ export default function DrawingLayer() {
       const pts = drawPointsRef.current;
       const { lng, lat } = e.lngLat;
       if ((mode === 'circle' || mode === 'ellipse') && pts.length === 1) {
+        setCursorPoint([lng, lat]);
+      } else if (mode === 'sector' && pts.length >= 1 && pts.length <= 2) {
         setCursorPoint([lng, lat]);
       } else if ((mode === 'line' || mode === 'arrow' || mode === 'polygon') && pts.length > 0) {
         setCursorPoint([lng, lat]);
@@ -972,6 +1037,7 @@ export default function DrawingLayer() {
     { id: 'polygon', icon: '\u2B21', shortcut: 'P' },
     { id: 'circle', icon: '\u25EF', shortcut: 'O' },
     { id: 'ellipse', icon: '\u2B2D', shortcut: 'E' },
+    { id: 'sector', icon: '\u25D4', shortcut: 'S' },
     { id: 'arrow', icon: '\u2192', shortcut: 'A' },
     { id: 'text', icon: 'T', shortcut: 'T' },
     { id: 'needle', icon: '\uD83D\uDCCD', shortcut: 'N' },
@@ -1295,6 +1361,8 @@ export default function DrawingLayer() {
               ? (lang === 'no' ? 'Klikk for å plassere nål' : 'Click to place needle')
               : activeMode === 'note'
               ? (lang === 'no' ? 'Klikk to hjørner for notat' : 'Click two corners for note')
+              : activeMode === 'sector'
+              ? (lang === 'no' ? 'Klikk senter, kant 1, kant 2' : 'Click center, edge 1, edge 2')
               : (lang === 'no' ? 'Klikk for punkter, \u2713 for \u00e5 fullf\u00f8re' : 'Click to add points, \u2713 to finish')
             }
           </div>
@@ -1342,7 +1410,7 @@ export default function DrawingLayer() {
 
 
       {/* Drawing preview — SVG overlay on top of the map */}
-      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'ellipse' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon' || activeMode === 'note') && drawPoints.length >= 1 && cursorPoint)) && (
+      {(screenPoints.length > 0 || ((activeMode === 'circle' || activeMode === 'ellipse' || activeMode === 'sector' || activeMode === 'line' || activeMode === 'arrow' || activeMode === 'polygon' || activeMode === 'note') && drawPoints.length >= 1 && cursorPoint)) && (
         <svg className="absolute inset-0 pointer-events-none z-[6]" style={{ width: '100%', height: '100%' }}>
           {/* Circle preview — follows cursor after center is placed */}
           {activeMode === 'circle' && screenPoints.length >= 1 && (() => {
@@ -1391,6 +1459,50 @@ export default function DrawingLayer() {
                 fill="rgba(30,41,59,0.4)" stroke={drawColor}
                 strokeWidth="2" strokeDasharray="8 4" opacity="0.8" />;
             } catch { return null; }
+          })()}
+          {/* Sector preview — fan shape from center through placed/cursor points */}
+          {activeMode === 'sector' && screenPoints.length >= 1 && cursorPoint && mapRefValue && (() => {
+            try {
+              const cp = mapRefValue.project(cursorPoint);
+              if (screenPoints.length === 1) {
+                // After center placed: show radius line to cursor
+                const cx = screenPoints[0].x, cy = screenPoints[0].y;
+                return (
+                  <line x1={cx} y1={cy} x2={cp.x} y2={cp.y}
+                    stroke={drawColor} strokeWidth="2" strokeDasharray="6 4" opacity="0.6" />
+                );
+              } else if (screenPoints.length === 2) {
+                // After center + edge1: show growing sector preview
+                const center = drawPoints[0];
+                const edge1 = drawPoints[1];
+                const cursor = cursorPoint;
+                const R = 6371;
+                const dLat = ((edge1[1] - center[1]) * Math.PI) / 180;
+                const dLon = ((edge1[0] - center[0]) * Math.PI) / 180;
+                const a = Math.sin(dLat/2)**2 + Math.cos(center[1]*Math.PI/180)*Math.cos(edge1[1]*Math.PI/180)*Math.sin(dLon/2)**2;
+                const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const bearingFn = (c, p) => {
+                  const dL = (p[0] - c[0]) * Math.PI / 180;
+                  const lat1 = c[1] * Math.PI / 180;
+                  const lat2 = p[1] * Math.PI / 180;
+                  const y = Math.sin(dL) * Math.cos(lat2);
+                  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dL);
+                  return Math.atan2(y, x);
+                };
+                const startB = bearingFn(center, edge1);
+                const endB = bearingFn(center, cursor);
+                const previewCoords = generateSectorPolygon(center, radiusKm, startB, endB);
+                const svgPoints = previewCoords.map(c => {
+                  const p = mapRefValue.project(c);
+                  return `${p.x},${p.y}`;
+                }).join(' ');
+                return (
+                  <polygon points={svgPoints} fill={drawColor} fillOpacity="0.12"
+                    stroke={drawColor} strokeWidth={drawStrokeWidth} strokeDasharray="8 4" opacity="0.8" />
+                );
+              }
+            } catch { return null; }
+            return null;
           })()}
           {/* Polygon preview */}
           {activeMode === 'polygon' && screenPoints.length >= 2 && (

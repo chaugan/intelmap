@@ -48,6 +48,60 @@ export function generateEllipsePolygon(center, edgePoint, rotationDeg = 0) {
   return coords;
 }
 
+// Generate a sector/fan polygon from center, radius, and two bearings (radians, 0=north, clockwise)
+export function generateSectorPolygon(center, radiusKm, startBearingRad, endBearingRad) {
+  const ARC_POINTS = 64;
+  const coords = [center];
+
+  // Normalize: sweep clockwise from start to end
+  let start = ((startBearingRad % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  let end = ((endBearingRad % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  if (end <= start) end += 2 * Math.PI;
+
+  const latFactor = Math.cos(center[1] * Math.PI / 180);
+  for (let i = 0; i <= ARC_POINTS; i++) {
+    const angle = start + (i / ARC_POINTS) * (end - start);
+    // Bearing convention: 0=north, clockwise → dLat=cos, dLon=sin
+    const dLat = (radiusKm / 111.32) * Math.cos(angle);
+    const dLon = (radiusKm / (111.32 * latFactor)) * Math.sin(angle);
+    coords.push([center[0] + dLon, center[1] + dLat]);
+  }
+  coords.push(center);
+  return coords;
+}
+
+// Extract sector parameters from a stored sector polygon ring
+// ring = [center, ...arcPoints(65), center]
+export function getSectorParams(ring) {
+  const center = ring[0];
+  const arcStart = ring[1];
+  const arcEnd = ring[ring.length - 2];
+
+  // Haversine distance for radius
+  const R = 6371;
+  const dLat = ((arcStart[1] - center[1]) * Math.PI) / 180;
+  const dLon = ((arcStart[0] - center[0]) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(center[1] * Math.PI / 180) * Math.cos(arcStart[1] * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const radiusKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  // Bearing from center to point (geodetic: 0=north, clockwise)
+  function bearingRad(c, p) {
+    const dL = (p[0] - c[0]) * Math.PI / 180;
+    const lat1 = c[1] * Math.PI / 180;
+    const lat2 = p[1] * Math.PI / 180;
+    const y = Math.sin(dL) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dL);
+    return Math.atan2(y, x);
+  }
+
+  return {
+    center,
+    radiusKm,
+    startBearingRad: bearingRad(center, arcStart),
+    endBearingRad: bearingRad(center, arcEnd),
+  };
+}
+
 // Extract ellipse parameters (center, rx, ry, rotation) from a 64-point ring
 // Returns rx/ry in degree-space and rotation in the uniform (metric-corrected) space
 export function getEllipseParams(ring) {
