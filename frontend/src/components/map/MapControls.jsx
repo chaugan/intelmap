@@ -40,26 +40,64 @@ export default function MapControls() {
   const latitude = useMapStore((s) => s.latitude);
   const [showBaseDropdown, setShowBaseDropdown] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [tracking, setTracking] = useState(false);
+  const watchIdRef = useRef(null);
+  const trackingFirstFixRef = useRef(false);
   const dropdownRef = useRef(null);
 
   const setUserLocation = useMapStore((s) => s.setUserLocation);
+  const clearUserLocation = useMapStore((s) => s.clearUserLocation);
+
+  const stopTracking = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setTracking(false);
+    setLocating(false);
+    clearUserLocation();
+  }, [clearUserLocation]);
+
+  // Clean up watch on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   const handleGeolocate = useCallback(() => {
     if (!navigator.geolocation) return;
+
+    // If already tracking, stop
+    if (tracking) {
+      stopTracking();
+      return;
+    }
+
+    // Start continuous tracking
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
+    trackingFirstFixRef.current = true;
+    const id = navigator.geolocation.watchPosition(
       (pos) => {
         const lng = pos.coords.longitude;
         const lat = pos.coords.latitude;
-        if (!isFinite(lng) || !isFinite(lat)) { setLocating(false); return; }
-        flyTo(lng, lat, 14);
+        if (!isFinite(lng) || !isFinite(lat)) return;
         setUserLocation({ longitude: lng, latitude: lat });
         setLocating(false);
+        setTracking(true);
+        // Fly to location on first fix only
+        if (trackingFirstFixRef.current) {
+          trackingFirstFixRef.current = false;
+          flyTo(lng, lat, 14);
+        }
       },
-      () => setLocating(false),
+      () => { setLocating(false); stopTracking(); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [flyTo, setUserLocation]);
+    watchIdRef.current = id;
+  }, [flyTo, setUserLocation, tracking, stopTracking]);
 
   useEffect(() => {
     function handleClick(e) {
@@ -303,8 +341,15 @@ export default function MapControls() {
       <button
         onClick={handleGeolocate}
         disabled={locating}
-        className="px-2 py-1 rounded transition-colors bg-slate-700 hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1"
-        title={t('toolbar.myLocation', lang)}
+        className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+          tracking
+            ? 'bg-emerald-700 hover:bg-emerald-600'
+            : 'bg-slate-700 hover:bg-slate-600'
+        } disabled:opacity-50`}
+        title={tracking
+          ? (lang === 'no' ? 'Stopp sporing' : 'Stop tracking')
+          : t('toolbar.myLocation', lang)
+        }
       >
         {locating ? (
           <svg className="w-4 h-4 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -312,12 +357,12 @@ export default function MapControls() {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
         ) : (
-          <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <svg className={`w-4 h-4 ${tracking ? 'text-emerald-300' : 'text-slate-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <circle cx="12" cy="12" r="3" />
             <path d="M12 2v4m0 12v4m10-10h-4M6 12H2" />
           </svg>
         )}
-        <span className="text-sm text-slate-300">{t('toolbar.myLocation', lang)}</span>
+        <span className={`text-sm ${tracking ? 'text-emerald-200' : 'text-slate-300'}`}>{t('toolbar.myLocation', lang)}</span>
       </button>
     </OverflowToolbar>
   );
