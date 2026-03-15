@@ -3,13 +3,23 @@ import * as fzstd from 'fzstd';
 
 const router = Router();
 
-// Single shared cache entry — one active query at a time is enough
+// ADS-B Exchange cache/backoff state
+let adsbxCachedFeatures = null;
+let adsbxCacheTime = 0;
+let adsbxLastFetch = 0;
+let adsbxBackoffUntil = 0;
+
+// airplanes.live cache/backoff state
+let aplCachedFeatures = [];
+let aplCacheTime = 0;
+let aplLastFetch = 0;
+let aplBackoffUntil = 0;
+
+// Merged response cache
 let cachedData = null;
 let cacheTime = 0;
 const CACHE_TTL = 15000; // 15 seconds
-let lastFetchTime = 0;
 const MIN_FETCH_INTERVAL = 3000; // 3 seconds between upstream requests
-let backoffUntil = 0; // timestamp until we stop retrying after 429
 
 /**
  * Decode binCraft binary format from ADS-B Exchange.
@@ -132,6 +142,124 @@ function decodeBinCraft(decompressed) {
   return aircraft;
 }
 
+/**
+ * Convert bounding box to center point + radius in nautical miles for airplanes.live API.
+ */
+function bboxToCenterRadius(south, north, west, east) {
+  const lat = (south + north) / 2;
+  const lon = (west + east) / 2;
+  const dLat = Math.abs(north - south) / 2;
+  const dLon = Math.abs(east - west) / 2;
+  const radiusLat = dLat * 60; // 1 deg lat ≈ 60nm
+  const radiusLon = dLon * 60 * Math.cos(lat * Math.PI / 180);
+  const radius = Math.min(Math.ceil(Math.max(radiusLat, radiusLon)), 250);
+  return { lat, lon, radius };
+}
+
+/**
+ * Normalize an airplanes.live aircraft object to our GeoJSON feature format.
+ */
+function normalizeAirplanesLive(a) {
+  if (a.lat == null || a.lon == null) return null;
+  const dbFlags = a.dbFlags || 0;
+  return {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [a.lon, a.lat] },
+    properties: {
+      hex: a.hex || '',
+      callsign: a.flight ? a.flight.trim() || null : null,
+      registration: a.r || null,
+      type: a.t || null,
+      altBaro: typeof a.alt_baro === 'number' ? a.alt_baro : null,
+      groundSpeed: typeof a.gs === 'number' ? a.gs : null,
+      track: typeof a.track === 'number' ? a.track : null,
+      squawk: a.squawk || null,
+      military: !!(dbFlags & 1),
+      special: !!(dbFlags & 2),
+      helicopter: a.category === 'A7',
+      onGround: a.alt_baro === 'ground',
+      emergency: null,
+      category: a.category || null,
+    },
+  };
+}
+
+/**
+ * Fetch aircraft from airplanes.live API.
+ * Returns normalized GeoJSON features array. Errors are handled internally.
+ */
+async function fetchAirplanesLive(south, north, west, east) {
+  if (process.env.AIRPLANES_LIVE_DISABLED === '1') return [];
+
+  const now = Date.now();
+  if (now < aplBackoffUntil) return aplCachedFeatures;
+  if (now - aplLastFetch < MIN_FETCH_INTERVAL) return aplCachedFeatures;
+  if (aplCachedFeatures.length > 0 && now - aplCacheTime < CACHE_TTL) return aplCachedFeatures;
+
+  aplLastFetch = now;
+
+  try {
+    const { lat, lon, radius } = bboxToCenterRadius(south, north, west, east);
+    const url = `https://api.airplanes.live/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${radius}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+
+    if (response.status === 429) {
+      aplBackoffUntil = Date.now() + 30000;
+      console.warn('airplanes.live: 429 rate limited, backing off 30s');
+      return aplCachedFeatures;
+    }
+    if (!response.ok) throw new Error(`airplanes.live ${response.status}`);
+
+    const json = await response.json();
+    const ac = json.ac || [];
+    const features = ac.map(normalizeAirplanesLive).filter(Boolean);
+
+    aplCachedFeatures = features;
+    aplCacheTime = Date.now();
+    return features;
+  } catch (err) {
+    console.error('airplanes.live error:', err.message);
+    return aplCachedFeatures;
+  }
+}
+
+/**
+ * Fetch aircraft from ADS-B Exchange. Returns GeoJSON features array.
+ */
+async function fetchAdsbExchange(south, north, west, east) {
+  const now = Date.now();
+  if (now < adsbxBackoffUntil) return adsbxCachedFeatures || [];
+  if (now - adsbxLastFetch < MIN_FETCH_INTERVAL) return adsbxCachedFeatures || [];
+  if (adsbxCachedFeatures && now - adsbxCacheTime < CACHE_TTL) return adsbxCachedFeatures;
+
+  adsbxLastFetch = now;
+
+  const url = `https://globe.adsbexchange.com/re-api/?binCraft&zstd&box=${south.toFixed(4)},${north.toFixed(4)},${west.toFixed(4)},${east.toFixed(4)}`;
+  const response = await fetch(url, {
+    headers: {
+      'Referer': 'https://globe.adsbexchange.com/',
+      'x-requested-with': 'XMLHttpRequest',
+    },
+    signal: AbortSignal.timeout(8000),
+  });
+
+  if (response.status === 429 || response.status === 403) {
+    adsbxBackoffUntil = Date.now() + 30000;
+    console.warn(`ADS-B Exchange: ${response.status} rate limited, backing off 30s`);
+    return adsbxCachedFeatures || [];
+  }
+
+  if (!response.ok) throw new Error(`ADS-B Exchange ${response.status}`);
+
+  const compressedBuf = await response.arrayBuffer();
+  const decompressed = fzstd.decompress(new Uint8Array(compressedBuf));
+  const features = decodeBinCraft(decompressed);
+
+  adsbxCachedFeatures = features;
+  adsbxCacheTime = Date.now();
+  return features;
+}
+
 router.get('/', async (req, res) => {
   try {
     const south = parseFloat(req.query.south);
@@ -149,48 +277,26 @@ router.get('/', async (req, res) => {
       return res.json(cachedData);
     }
 
-    // If we're in backoff from a 429/403, serve stale cache or empty
-    if (Date.now() < backoffUntil) {
-      if (cachedData) return res.json(cachedData);
-      return res.json({ type: 'FeatureCollection', meta: { total: 0, fetchedAt: new Date().toISOString() }, features: [] });
+    // Fetch both sources in parallel — each handles its own errors/backoff
+    const [adsbxFeatures, aplFeatures] = await Promise.all([
+      fetchAdsbExchange(south, north, west, east).catch(() => adsbxCachedFeatures || []),
+      fetchAirplanesLive(south, north, west, east).catch(() => aplCachedFeatures),
+    ]);
+
+    // Merge: ADS-B Exchange is primary — wins all conflicts
+    const featureMap = new Map();
+    for (const f of adsbxFeatures) featureMap.set(f.properties.hex, f);
+    for (const f of aplFeatures) {
+      if (!featureMap.has(f.properties.hex)) featureMap.set(f.properties.hex, f);
     }
 
-    // Rate-limit guard
-    const now = Date.now();
-    const elapsed = now - lastFetchTime;
-    if (elapsed < MIN_FETCH_INTERVAL) {
-      if (cachedData) return res.json(cachedData);
-      await new Promise((resolve) => setTimeout(resolve, MIN_FETCH_INTERVAL - elapsed));
-    }
-    lastFetchTime = Date.now();
-
-    const url = `https://globe.adsbexchange.com/re-api/?binCraft&zstd&box=${south.toFixed(4)},${north.toFixed(4)},${west.toFixed(4)},${east.toFixed(4)}`;
-    const response = await fetch(url, {
-      headers: {
-        'Referer': 'https://globe.adsbexchange.com/',
-        'x-requested-with': 'XMLHttpRequest',
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (response.status === 429 || response.status === 403) {
-      backoffUntil = Date.now() + 30000;
-      console.warn(`Aircraft API: ${response.status} rate limited, backing off 30s`);
-      if (cachedData) return res.json(cachedData);
-      return res.json({ type: 'FeatureCollection', meta: { total: 0, fetchedAt: new Date().toISOString() }, features: [] });
-    }
-
-    if (!response.ok) throw new Error(`ADS-B Exchange ${response.status}`);
-
-    const compressedBuf = await response.arrayBuffer();
-    const decompressed = fzstd.decompress(new Uint8Array(compressedBuf));
-    const features = decodeBinCraft(decompressed);
-
+    const features = Array.from(featureMap.values());
     const geojson = {
       type: 'FeatureCollection',
       meta: {
         total: features.length,
         fetchedAt: new Date().toISOString(),
+        sources: { adsbx: adsbxFeatures.length, airplaneslive: aplFeatures.length },
       },
       features,
     };
@@ -242,6 +348,46 @@ router.get('/trace/:hex', async (req, res) => {
     ]);
 
     if (fullRes.status === 404) {
+      // Fallback: try OpenSky Network tracks API
+      try {
+        const osRes = await fetch(`https://opensky-network.org/api/tracks/all?icao24=${hex}&time=0`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (osRes.ok) {
+          const osJson = await osRes.json();
+          const path = osJson.path || [];
+          if (path.length >= 2) {
+            // path format: [timestamp, lat, lon, baro_alt, track, on_ground]
+            // Detect current flight: walk backwards for ground/gap boundary
+            const GAP_THRESHOLD_OS = 300;
+            let flightStartOS = 0;
+            for (let i = path.length - 1; i >= 1; i--) {
+              if (path[i - 1][5]) { flightStartOS = i; break; } // on_ground
+              if (path[i][0] - path[i - 1][0] > GAP_THRESHOLD_OS) { flightStartOS = i; break; }
+            }
+            const coords = [];
+            for (let i = flightStartOS; i < path.length; i++) {
+              const [, lat, lon] = path[i];
+              if (lat != null && lon != null) coords.push([lon, lat]);
+            }
+            if (coords.length >= 2) {
+              const geojson = {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: coords },
+                properties: { hex, pointCount: coords.length, departureTime: path[flightStartOS][0], source: 'opensky' },
+              };
+              if (traceCache.size >= TRACE_CACHE_MAX) {
+                const oldest = traceCache.keys().next().value;
+                traceCache.delete(oldest);
+              }
+              traceCache.set(hex, { data: geojson, time: Date.now() });
+              return res.json(geojson);
+            }
+          }
+        }
+      } catch (osErr) {
+        // OpenSky also failed — fall through to 404
+      }
       return res.status(404).json({ error: 'No trace data for this aircraft' });
     }
     if (!fullRes.ok) {
