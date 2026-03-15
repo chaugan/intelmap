@@ -1523,7 +1523,7 @@ export default function ProjectDrawer() {
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                 </svg>
-                                {lang === 'no' ? '+ Underlag' : '+ Sub-layer'}
+                                {lang === 'no' ? 'Underlag' : 'Sub-layer'}
                               </button>
                             )}
                           </div>
