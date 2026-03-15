@@ -143,8 +143,9 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'south, north, west, east are required' });
     }
 
-    // Serve from cache if fresh enough
-    if (cachedData && Date.now() - cacheTime < CACHE_TTL) {
+    // Serve from cache if fresh enough (skip cache when fresh=1 for activity analysis)
+    const skipCache = req.query.fresh === '1';
+    if (!skipCache && cachedData && Date.now() - cacheTime < CACHE_TTL) {
       return res.json(cachedData);
     }
 

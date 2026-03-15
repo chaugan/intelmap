@@ -332,9 +332,9 @@ export default function AircraftActivityPanel() {
         east: bounds.east + lngExpansion,
       };
 
-      // Fetch current aircraft in expanded area
+      // Fetch current aircraft in expanded area (fresh=1 bypasses the shared cache)
       const res = await fetch(
-        `/api/aircraft?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}`
+        `/api/aircraft?south=${expandedBounds.south}&north=${expandedBounds.north}&west=${expandedBounds.west}&east=${expandedBounds.east}&fresh=1`
       );
       if (!res.ok) throw new Error('Failed to fetch aircraft');
       const geojson = await res.json();
