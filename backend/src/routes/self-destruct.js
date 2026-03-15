@@ -83,12 +83,14 @@ router.get('/favicon.ico', (req, res) => {
   }
 });
 
-// GET /manifest.json — PWA manifest for install-to-home-screen
+// GET /manifest.json — PWA manifest with dynamic start_url pointing to token URL
 router.get('/manifest.json', (req, res) => {
+  const token = req.query.token;
+  const startUrl = token ? `/api/self-destruct/${token}` : '/api/self-destruct/offline';
   res.json({
     name: 'Emergency Delete',
     short_name: 'EmgDelete',
-    start_url: '/api/self-destruct/offline',
+    start_url: startUrl,
     display: 'standalone',
     background_color: '#0f172a',
     theme_color: '#f59e0b',
@@ -104,7 +106,7 @@ router.get('/sw.js', (req, res) => {
   res.type('application/javascript').send(`// Minimal service worker for PWA installability - pass through all requests`);
 });
 
-// GET /offline — landing page when opened as installed PWA (no token context)
+// GET /offline — fallback if manifest start_url has no token
 router.get('/offline', (req, res) => {
   res.type('html').send(`<!DOCTYPE html>
 <html lang="en">
@@ -121,7 +123,7 @@ router.get('/offline', (req, res) => {
 </head>
 <body>
   <h1>Emergency Delete</h1>
-  <p>To use Emergency Delete, open IntelMap in your browser, go to the user menu, and tap "Emergency Delete!"</p>
+  <p>This link has expired. Open IntelMap and tap "Emergency Delete!" to get a new link.</p>
 </body>
 </html>`);
 });
@@ -162,7 +164,7 @@ router.get('/:token', (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Emergency Delete</title>
-  <link rel="manifest" href="/api/self-destruct/manifest.json">
+  <link rel="manifest" href="/api/self-destruct/manifest.json?token=${req.params.token}">
   <link rel="apple-touch-icon" href="/api/self-destruct/touch-icon.png">
   <link rel="icon" type="image/png" href="data:image/png;base64,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">
   <style>
