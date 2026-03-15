@@ -59,12 +59,14 @@ async function warmCache() {
         if (!existing.properties.directions) {
           existing.properties.directions = [{
             id: existing.properties.id,
+            name: existing.properties.name,
             direction: existing.properties.direction,
             imageUrl: existing.properties.imageUrl,
           }];
         }
         existing.properties.directions.push({
           id: f.properties.id,
+          name: f.properties.name,
           direction: f.properties.direction,
           imageUrl: f.properties.imageUrl,
         });

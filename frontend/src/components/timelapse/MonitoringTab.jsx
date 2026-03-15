@@ -104,22 +104,24 @@ export default function MonitoringTab() {
         // Expand grouped cameras (same location, multiple directions) into separate entries
         const expanded = [];
         for (const f of features) {
-          const name = f.properties?.name || '';
+          const groupName = f.properties?.name || '';
           const road = f.properties?.road || '';
           const lat = f.geometry?.coordinates?.[1];
           const lon = f.geometry?.coordinates?.[0];
-          const matchesQuery = name.toLowerCase().includes(queryLower) ||
-            f.properties?.id?.toLowerCase().includes(queryLower) ||
-            road.toLowerCase().includes(queryLower);
-          if (!matchesQuery) continue;
 
           if (f.properties.directions && f.properties.directions.length > 1) {
             // Multiple cameras at same location — one entry per direction
             for (const dir of f.properties.directions) {
-              if (!subscribedIds.has(dir.id)) {
+              const dirName = dir.name || groupName;
+              const matchesQuery = dirName.toLowerCase().includes(queryLower) ||
+                groupName.toLowerCase().includes(queryLower) ||
+                dir.id?.toLowerCase().includes(queryLower) ||
+                (dir.direction || '').toLowerCase().includes(queryLower) ||
+                road.toLowerCase().includes(queryLower);
+              if (matchesQuery && !subscribedIds.has(dir.id)) {
                 expanded.push({
                   id: dir.id,
-                  title: name,
+                  title: dirName,
                   road,
                   direction: dir.direction || null,
                   lat,
@@ -128,10 +130,13 @@ export default function MonitoringTab() {
               }
             }
           } else {
-            if (!subscribedIds.has(f.properties.id)) {
+            const matchesQuery = groupName.toLowerCase().includes(queryLower) ||
+              f.properties?.id?.toLowerCase().includes(queryLower) ||
+              road.toLowerCase().includes(queryLower);
+            if (matchesQuery && !subscribedIds.has(f.properties.id)) {
               expanded.push({
                 id: f.properties.id,
-                title: name,
+                title: groupName,
                 road,
                 direction: f.properties.direction || null,
                 lat,
