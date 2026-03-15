@@ -476,6 +476,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   const [activeDir, setActiveDir] = useState(0);
   const activeId = directions ? directions[activeDir]?.id : camera.properties.id;
   const activeDirection = directions ? directions[activeDir]?.direction : camera.properties.direction;
+  const activeName = directions ? (directions[activeDir]?.name || camera.properties.name) : camera.properties.name;
   const id = activeId;
   const [cacheBust, setCacheBust] = useState(Date.now());
   const [fullscreen, setFullscreen] = useState(false);
@@ -634,7 +635,7 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
                 } else {
                   // Subscribe with coordinates and open drawer
                   const [lon, lat] = camera.geometry.coordinates;
-                  await timelapseSubscribe(id, camera.properties.name, lat, lon);
+                  await timelapseSubscribe(id, activeName, lat, lon);
                   openDrawer();
                 }
               }}
