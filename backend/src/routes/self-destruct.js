@@ -157,6 +157,7 @@ router.get('/:token', (req, res) => {
 
   const { user } = result;
   const confirmUrl = `/api/self-destruct/${req.params.token}/confirm`;
+  const fromIntelMap = req.query.ref === 'intelmap';
 
   res.type('html').send(`<!DOCTYPE html>
 <html lang="en">
@@ -264,9 +265,23 @@ router.get('/:token', (req, res) => {
       display: block;
       margin: 0 auto;
     }
+    .back-link {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .back-link:hover { color: #60a5fa; }
   </style>
 </head>
 <body>
+  ${fromIntelMap ? '<a href="/" class="back-link"><span style="font-size:1.2rem">&larr;</span> Back to IntelMap</a>' : ''}
   <h1>Account Self-Destruct</h1>
   <div class="username">${user.username}</div>
   <div class="warning">
@@ -335,7 +350,7 @@ router.get('/:token', (req, res) => {
 
     // PWA install logic — only when referred from IntelMap
     (function() {
-      const fromIntelMap = document.referrer && document.referrer.includes(window.location.origin);
+      const fromIntelMap = new URLSearchParams(window.location.search).get('ref') === 'intelmap';
       if (!fromIntelMap) return;
 
       const installSection = document.getElementById('installSection');

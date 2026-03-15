@@ -123,23 +123,13 @@ export default function UserMenu() {
               <button
                 onClick={async () => {
                   setOpen(false);
-                  const w = window.open('', '_blank');
-                  if (w) {
-                    w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Loading...</title></head><body style="background:#0f172a;color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:system-ui"><div style="text-align:center"><div style="font-size:2rem;margin-bottom:1rem">&#9203;</div>Loading...</div></body></html>');
-                    w.document.close();
-                  }
                   try {
                     const res = await fetch('/api/self-destruct/token', { credentials: 'include' });
                     if (res.ok) {
                       const { url } = await res.json();
-                      if (w && !w.closed) w.location.href = url;
-                      else window.location.href = url;
-                    } else {
-                      if (w && !w.closed) w.close();
+                      window.location.href = url + '?ref=intelmap';
                     }
-                  } catch {
-                    if (w && !w.closed) w.close();
-                  }
+                  } catch { /* ignore */ }
                 }}
                 className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-red-500 font-semibold"
               >
