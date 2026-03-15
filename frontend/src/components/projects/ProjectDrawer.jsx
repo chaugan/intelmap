@@ -1517,13 +1517,13 @@ export default function ProjectDrawer() {
                                   if (!name?.trim()) return;
                                   socket.emit('client:layer:add', { projectId: p.id, name: name.trim(), parentId: l.id, source: 'user', createdBy: socket.id });
                                 }}
-                                className="ml-4 flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-400 py-0.5 px-1"
+                                className="ml-5 flex items-center gap-1 text-[11px] text-slate-500 hover:text-emerald-400 py-0.5 px-1.5 rounded hover:bg-slate-700/50 transition-colors"
                                 title={lang === 'no' ? 'Legg til underlag' : 'Add sub-layer'}
                               >
-                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                 </svg>
-                                {lang === 'no' ? 'Underlag' : 'Sub-layer'}
+                                {lang === 'no' ? '+ Underlag' : '+ Sub-layer'}
                               </button>
                             )}
                           </div>
