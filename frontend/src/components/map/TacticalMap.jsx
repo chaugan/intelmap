@@ -28,6 +28,8 @@ import VesselLayer, { VesselLegend } from './VesselLayer.jsx';
 import VesselDeepAnalysis from './VesselDeepAnalysis.jsx';
 import VesselActivityBox from './VesselActivityBox.jsx';
 import VesselActivityPanel from '../panels/VesselActivityPanel.jsx';
+import AircraftActivityBox from './AircraftActivityBox.jsx';
+import AircraftActivityPanel from '../panels/AircraftActivityPanel.jsx';
 import { useAvalancheWarnings } from '../../hooks/useAvalancheWarnings.js';
 import { useAircraft } from '../../hooks/useAircraft.js';
 import { useVessels } from '../../hooks/useVessels.js';
@@ -1473,6 +1475,10 @@ export default function TacticalMap() {
       {vesselsVisible && <VesselActivityBox mapRef={mapInstance} />}
       {/* Vessel Activity Panel */}
       {vesselsVisible && <VesselActivityPanel />}
+      {/* Aircraft Activity Box Drawing */}
+      {aircraftVisible && <AircraftActivityBox mapRef={mapInstance} />}
+      {/* Aircraft Activity Panel */}
+      {aircraftVisible && <AircraftActivityPanel />}
       {/* Vessel Deep Analysis Panel */}
       {vesselDeepAnalysis && (
         <VesselDeepAnalysis

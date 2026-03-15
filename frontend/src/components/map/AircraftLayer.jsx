@@ -714,6 +714,15 @@ const PLANE_PATH = 'M24 3 L22 16 L8 22 L8 25 L22 23 L22 37 L17 40 L17 43 L24 41 
 
 export function AircraftLegend({ count }) {
   const lang = useMapStore((s) => s.lang);
+  const aircraftActivityDrawing = useMapStore((s) => s.aircraftActivityDrawing);
+  const setAircraftActivityDrawing = useMapStore((s) => s.setAircraftActivityDrawing);
+  const aircraftActivityBox = useMapStore((s) => s.aircraftActivityBox);
+  const clearAircraftActivityBox = useMapStore((s) => s.clearAircraftActivityBox);
+
+  // Hide legend when activity panel is shown (to avoid overlap)
+  if (aircraftActivityBox && !aircraftActivityDrawing) {
+    return null;
+  }
 
   return (
     <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs">
@@ -752,6 +761,36 @@ export function AircraftLegend({ count }) {
           </svg>
           <span className="text-slate-400 text-[10px]">{lang === 'no' ? 'Helikopter' : 'Heli'}</span>
         </div>
+      </div>
+
+      {/* Activity Box Tool */}
+      <div className="mt-2 pt-2 border-t border-slate-700">
+        <button
+          onClick={() => {
+            if (aircraftActivityBox) { clearAircraftActivityBox(); }
+            else { setAircraftActivityDrawing(!aircraftActivityDrawing); }
+          }}
+          className={`flex items-center gap-1.5 w-full text-left px-2 py-1.5 rounded transition-colors ${
+            aircraftActivityDrawing
+              ? 'bg-amber-600 text-white'
+              : aircraftActivityBox
+              ? 'bg-amber-600 text-white'
+              : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
+            <path strokeLinecap="round" strokeWidth={1.5} d="M4 9h16M9 4v16" />
+          </svg>
+          <span className="text-[10px]">
+            {aircraftActivityDrawing
+              ? (lang === 'no' ? 'Tegner...' : 'Drawing...')
+              : aircraftActivityBox
+              ? (lang === 'no' ? 'Overv\u00e5ker' : 'Monitoring')
+              : (lang === 'no' ? 'Aktivitetsomr\u00e5de' : 'Activity Box')}
+          </span>
+        </button>
       </div>
     </div>
   );

@@ -324,6 +324,125 @@ router.get('/trace/:hex', async (req, res) => {
   }
 });
 
+// --- Batch trace endpoint for activity analysis ---
+
+const batchTraceCache = new Map(); // hex -> { data, time }
+const BATCH_TRACE_CACHE_TTL = 300000; // 5 minutes
+const BATCH_TRACE_CACHE_MAX = 200;
+
+router.post('/traces/batch', async (req, res) => {
+  const { hexes } = req.body;
+  if (!Array.isArray(hexes) || hexes.length === 0) {
+    return res.status(400).json({ error: 'hexes array is required' });
+  }
+  if (hexes.length > 50) {
+    return res.status(400).json({ error: 'Maximum 50 hex codes per batch' });
+  }
+
+  const validHexes = hexes.filter(h => typeof h === 'string' && /^[0-9a-f]{6}$/i.test(h)).map(h => h.toLowerCase());
+  const traces = {};
+  const errors = [];
+  const toFetch = [];
+
+  // Check cache first
+  for (const hex of validHexes) {
+    const cached = batchTraceCache.get(hex);
+    if (cached && Date.now() - cached.time < BATCH_TRACE_CACHE_TTL) {
+      traces[hex] = cached.data;
+    } else {
+      toFetch.push(hex);
+    }
+  }
+
+  // Fetch in batches of 5 with 200ms delay between batches
+  const FETCH_BATCH_SIZE = 5;
+  for (let i = 0; i < toFetch.length; i += FETCH_BATCH_SIZE) {
+    if (i > 0) await new Promise(r => setTimeout(r, 200));
+    const batch = toFetch.slice(i, i + FETCH_BATCH_SIZE);
+
+    await Promise.all(batch.map(async (hex) => {
+      try {
+        const last2 = hex.slice(-2);
+        const headers = {
+          'Referer': 'https://globe.adsbexchange.com/',
+          'x-requested-with': 'XMLHttpRequest',
+        };
+
+        const [fullRes, recentRes] = await Promise.all([
+          fetch(`https://globe.adsbexchange.com/data/traces/${last2}/trace_full_${hex}.json`, {
+            headers, signal: AbortSignal.timeout(10000),
+          }),
+          fetch(`https://globe.adsbexchange.com/data/traces/${last2}/trace_recent_${hex}.json`, {
+            headers, signal: AbortSignal.timeout(10000),
+          }).catch(() => null),
+        ]);
+
+        if (!fullRes.ok) {
+          errors.push({ hex, error: `HTTP ${fullRes.status}` });
+          return;
+        }
+
+        const fullJson = await fullRes.json();
+        const baseTimestamp = fullJson.timestamp || 0;
+        let trace = fullJson.trace || [];
+
+        // Append recent points
+        if (recentRes && recentRes.ok) {
+          const recentJson = await recentRes.json();
+          const recentTrace = recentJson.trace || [];
+          const lastFullTime = trace.length > 0 ? trace[trace.length - 1][0] : -Infinity;
+          for (const pt of recentTrace) {
+            if (pt[0] > lastFullTime) trace.push(pt);
+          }
+        }
+
+        // Build enriched trackPoints from ALL trace data
+        // trace format: [time_offset, lat, lon, alt_baro, gs, track, flags, ...]
+        const trackPoints = [];
+        const coordinates = [];
+        for (const pt of trace) {
+          const lat = pt[1];
+          const lon = pt[2];
+          if (lat == null || lon == null || typeof lat !== 'number' || typeof lon !== 'number') continue;
+
+          const altRaw = pt[3];
+          const onGround = altRaw === 'ground';
+          const altitude = onGround ? 0 : (typeof altRaw === 'number' ? altRaw : null);
+
+          trackPoints.push({
+            coordinates: [lon, lat],
+            timestamp: new Date((baseTimestamp + pt[0]) * 1000).toISOString(),
+            altitude,
+            speed: typeof pt[4] === 'number' ? pt[4] : null,
+            track: typeof pt[5] === 'number' ? pt[5] : null,
+            onGround,
+          });
+          coordinates.push([lon, lat]);
+        }
+
+        const geojson = {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates },
+          properties: { hex, pointCount: coordinates.length, trackPoints },
+        };
+
+        traces[hex] = geojson;
+
+        // Cache
+        if (batchTraceCache.size >= BATCH_TRACE_CACHE_MAX) {
+          const oldest = batchTraceCache.keys().next().value;
+          batchTraceCache.delete(oldest);
+        }
+        batchTraceCache.set(hex, { data: geojson, time: Date.now() });
+      } catch (err) {
+        errors.push({ hex, error: err.message });
+      }
+    }));
+  }
+
+  res.json({ traces, errors });
+});
+
 // --- Route/airport lookup via adsbdb.com ---
 
 const routeCache = new Map(); // callsign -> { data, time }

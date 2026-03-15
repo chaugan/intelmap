@@ -75,6 +75,10 @@ export const useMapStore = create((set) => ({
   vesselActivityDrawing: false, // true when drawing mode is active
   vesselActivityAnalysis: null, // { entered: [], exited: [], inside: [], anomalies: {} }
   vesselActivityLoading: false,
+  aircraftActivityBox: null,
+  aircraftActivityDrawing: false,
+  aircraftActivityAnalysis: null,
+  aircraftActivityLoading: false,
   focusedVesselMmsis: [], // Array for multi-vessel focus
   roadRestrictionsVisible: false,
   roadRestrictionsOpacity: 0.85,
@@ -253,6 +257,11 @@ export const useMapStore = create((set) => ({
   setVesselActivityDrawing: (drawing) => set({ vesselActivityDrawing: drawing }),
   setVesselActivityAnalysis: (analysis) => set({ vesselActivityAnalysis: analysis }),
   setVesselActivityLoading: (loading) => set({ vesselActivityLoading: loading }),
+  setAircraftActivityBox: (box) => set({ aircraftActivityBox: box }),
+  clearAircraftActivityBox: () => set({ aircraftActivityBox: null, aircraftActivityAnalysis: null }),
+  setAircraftActivityDrawing: (drawing) => set({ aircraftActivityDrawing: drawing }),
+  setAircraftActivityAnalysis: (analysis) => set({ aircraftActivityAnalysis: analysis }),
+  setAircraftActivityLoading: (loading) => set({ aircraftActivityLoading: loading }),
   setFocusedVessels: (mmsis) => set({ focusedVesselMmsis: mmsis }),
   clearFocusedVessels: () => set({ focusedVesselMmsis: [] }),
   toggleInfra: () => set((s) => {
