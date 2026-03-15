@@ -99,6 +99,11 @@ export default function WebcamLayer() {
     return new Set(monitoredCameraIdsList);
   }, [monitoredCameraIdsList]);
 
+  // Clear all open popups when layer is toggled off (unmount)
+  useEffect(() => {
+    return () => useWebcamStore.setState({ openCameras: [] });
+  }, []);
+
   // Viewport bounds for culling - only render markers in view
   const [bounds, setBounds] = useState(null);
 
