@@ -476,7 +476,16 @@ function WebcamPopupContent({ camera, pinned, onTogglePin, onClose, lang }) {
   const [activeDir, setActiveDir] = useState(0);
   const activeId = directions ? directions[activeDir]?.id : camera.properties.id;
   const activeDirection = directions ? directions[activeDir]?.direction : camera.properties.direction;
-  const activeName = directions ? (directions[activeDir]?.name || camera.properties.name) : camera.properties.name;
+  const activeName = (() => {
+    if (!directions) return camera.properties.name;
+    const dir = directions[activeDir];
+    const baseName = camera.properties.name;
+    const dirLabel = dir?.direction || '';
+    if (dirLabel && dirLabel.toLowerCase() !== baseName.toLowerCase()) {
+      return `${baseName} — ${dirLabel}`;
+    }
+    return dir?.name || baseName;
+  })();
   const id = activeId;
   const [cacheBust, setCacheBust] = useState(Date.now());
   const [fullscreen, setFullscreen] = useState(false);

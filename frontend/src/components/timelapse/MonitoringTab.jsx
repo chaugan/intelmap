@@ -112,18 +112,21 @@ export default function MonitoringTab() {
           if (f.properties.directions && f.properties.directions.length > 1) {
             // Multiple cameras at same location — one entry per direction
             for (const dir of f.properties.directions) {
-              const dirName = dir.name || groupName;
-              const matchesQuery = dirName.toLowerCase().includes(queryLower) ||
+              const dirLabel = dir.direction || '';
+              const displayName = dirLabel && dirLabel.toLowerCase() !== groupName.toLowerCase()
+                ? `${groupName} — ${dirLabel}`
+                : (dir.name || groupName);
+              const matchesQuery = displayName.toLowerCase().includes(queryLower) ||
                 groupName.toLowerCase().includes(queryLower) ||
                 dir.id?.toLowerCase().includes(queryLower) ||
-                (dir.direction || '').toLowerCase().includes(queryLower) ||
+                dirLabel.toLowerCase().includes(queryLower) ||
                 road.toLowerCase().includes(queryLower);
               if (matchesQuery && !subscribedIds.has(dir.id)) {
                 expanded.push({
                   id: dir.id,
-                  title: dirName,
+                  title: displayName,
                   road,
-                  direction: dir.direction || null,
+                  direction: dirLabel || null,
                   lat,
                   lon,
                 });
