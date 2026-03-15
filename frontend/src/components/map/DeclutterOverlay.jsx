@@ -80,21 +80,17 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
   const metaRef = useRef(null);
   const svgRef = useRef(null); // direct ref to SVG element
   const frameRef = useRef(null);
+  const prevActiveRef = useRef(false);
 
-  // Run the declutter algorithm (expensive — only on activation or data change)
-  const solve = useCallback(() => {
-    if (!map || !active) return;
-
-    const { items, meta, sources } = buildItems(map, markers, localMarkers, drawings);
-    const offsets = declutter(items);
-
-    offsetsRef.current = offsets;
-    sourcesRef.current = sources;
-    metaRef.current = meta;
-
-    // Push offsets to parent (one-time, triggers re-render for marker offset props)
-    onOffsetsChange(offsets);
-  }, [map, active, markers, localMarkers, drawings, onOffsetsChange]);
+  // Keep latest props in refs to avoid dependency loops
+  const markersRef = useRef(markers);
+  const localMarkersRef = useRef(localMarkers);
+  const drawingsRef = useRef(drawings);
+  const onOffsetsChangeRef = useRef(onOffsetsChange);
+  markersRef.current = markers;
+  localMarkersRef.current = localMarkers;
+  drawingsRef.current = drawings;
+  onOffsetsChangeRef.current = onOffsetsChange;
 
   // Update leader line SVG positions (cheap — direct DOM, no React)
   const updateLines = useCallback(() => {
@@ -120,7 +116,6 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
     }
 
     // Update SVG DOM directly (no React reconciliation)
-    // Clear existing children
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
     for (const l of lineData) {
@@ -145,11 +140,34 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
     }
   }, [map]);
 
-  // Run algorithm once on activation or data change
+  // Run algorithm ONCE when active transitions false→true, reading from refs
   useEffect(() => {
-    if (!map || !active) return;
-    solve();
-  }, [solve]);
+    if (!map) return;
+
+    if (active && !prevActiveRef.current) {
+      // Just activated — solve once using current data from refs
+      const { items, meta, sources } = buildItems(map, markersRef.current, localMarkersRef.current, drawingsRef.current);
+      const offsets = declutter(items);
+
+      offsetsRef.current = offsets;
+      sourcesRef.current = sources;
+      metaRef.current = meta;
+
+      onOffsetsChangeRef.current(offsets);
+    }
+
+    if (!active && prevActiveRef.current) {
+      // Just deactivated — clear everything
+      offsetsRef.current = null;
+      sourcesRef.current = null;
+      metaRef.current = null;
+      onOffsetsChangeRef.current(null);
+      const svg = svgRef.current;
+      if (svg) while (svg.firstChild) svg.removeChild(svg.firstChild);
+    }
+
+    prevActiveRef.current = active;
+  }, [map, active]);
 
   // On map move: only re-project leader lines (cheap)
   useEffect(() => {
@@ -168,19 +186,6 @@ export default function DeclutterOverlay({ map, markers, localMarkers, drawings,
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
   }, [map, active, updateLines]);
-
-  // Clear when deactivated
-  useEffect(() => {
-    if (!active) {
-      offsetsRef.current = null;
-      sourcesRef.current = null;
-      metaRef.current = null;
-      onOffsetsChange(null);
-      // Clear SVG
-      const svg = svgRef.current;
-      if (svg) while (svg.firstChild) svg.removeChild(svg.firstChild);
-    }
-  }, [active, onOffsetsChange]);
 
   if (!active) return null;
 

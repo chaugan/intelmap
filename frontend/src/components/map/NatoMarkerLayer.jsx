@@ -284,7 +284,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
             draggable={isSelected && !declutterActive}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onDragEnd(e, marker)}
-            offset={declutterOff ? [declutterOff.dx, declutterOff.dy] : undefined}
+            offset={declutterOff ? [declutterOff.dx, declutterOff.dy] : [0, 0]}
           >
             <div
               className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}
@@ -361,7 +361,7 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
             draggable={isSelected && !declutterActive}
             onDragStart={() => onDragStart(marker.id)}
             onDragEnd={(e) => onLocalDragEnd(e, marker)}
-            offset={localDeclutterOff ? [localDeclutterOff.dx, localDeclutterOff.dy] : undefined}
+            offset={localDeclutterOff ? [localDeclutterOff.dx, localDeclutterOff.dy] : [0, 0]}
           >
             <div
               className={`nato-marker relative cursor-pointer flex flex-col items-center ${isSelected ? 'z-10' : ''}`}
