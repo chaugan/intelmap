@@ -101,7 +101,7 @@ router.get('/manifest.json', (req, res) => {
 
 // GET /sw.js — minimal service worker for PWA installability
 router.get('/sw.js', (req, res) => {
-  res.type('application/javascript').send(`self.addEventListener('fetch', () => {});`);
+  res.type('application/javascript').send(`// Minimal service worker for PWA installability - pass through all requests`);
 });
 
 // GET /offline — landing page when opened as installed PWA (no token context)
