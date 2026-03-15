@@ -170,67 +170,77 @@ function TacticalSection({ lang }) {
               </div>
               {expanded && (
                 <div className="ml-3 mt-0.5 space-y-0.5">
-                  {data.layers.map((layer) => {
-                    const vis = layerVisibility[layer.id] !== false;
-                    const isActiveLayer = isActive && activeLayerId === layer.id;
-                    const layerMarkers = data.markers.filter((m) => m.layerId === layer.id);
-                    const layerDrawings = data.drawings.filter((d) => d.layerId === layer.id);
-                    const mCount = layerMarkers.length;
-                    const dCount = layerDrawings.length;
-                    const isLayerExpanded = expandedLayerId === layer.id;
-                    const hasItems = mCount + dCount > 0;
-                    return (
-                      <div key={layer.id}>
-                        <div className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={vis}
-                            onChange={() => toggleLayerVisibility(layer.id)}
-                            className="accent-emerald-500 w-3 h-3"
-                          />
-                          {hasItems ? (
-                            <button
-                              onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
-                              className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300"
-                            >
-                              <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M6 4l8 6-8 6V4z" />
-                              </svg>
-                            </button>
-                          ) : (
-                            <span className="w-3 h-3 flex-shrink-0" />
-                          )}
-                          <span
-                            className={`flex-1 truncate cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
-                            onClick={() => { if (isActive) setActiveLayer(isActiveLayer ? null : layer.id); }}
-                          >
-                            {isActiveLayer && '\u25B8 '}{layer.name}
-                          </span>
-                          <span
-                            className={`text-slate-500 cursor-pointer hover:text-slate-300 ${hasItems ? '' : 'opacity-50'}`}
-                            onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
-                          >
-                            {mCount}m {dCount}d
-                          </span>
-                        </div>
-                        {isLayerExpanded && (
-                          <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
-                            <TacticalItemList
-                              markers={layerMarkers}
-                              drawings={layerDrawings}
-                              lang={lang}
-                              projectId={pId}
-                              flyTo={flyTo}
-                              copyTargets={copyTargets}
-                              copyingMarkerId={copyingMarkerId}
-                              setCopyingMarkerId={setCopyingMarkerId}
-                              onCopyMarker={handleCopyMarker}
+                  {(() => {
+                    const topLevelLayers = data.layers.filter(l => !l.parentId);
+                    const subLayersOf = (pid) => data.layers.filter(l => l.parentId === pid);
+                    const renderLayerRow = (layer, indent) => {
+                      const vis = layerVisibility[layer.id] !== false;
+                      const isActiveLayer = isActive && activeLayerId === layer.id;
+                      const layerMarkers = data.markers.filter((m) => m.layerId === layer.id);
+                      const layerDrawings = data.drawings.filter((d) => d.layerId === layer.id);
+                      const mCount = layerMarkers.length;
+                      const dCount = layerDrawings.length;
+                      const isLayerExpanded = expandedLayerId === layer.id;
+                      const hasItems = mCount + dCount > 0;
+                      return (
+                        <div key={layer.id} className={indent ? 'ml-3 border-l border-slate-700/50 pl-1' : ''}>
+                          <div className={`flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5 ${isActiveLayer ? 'bg-emerald-900/30 ring-1 ring-emerald-500/40' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={vis}
+                              onChange={() => toggleLayerVisibility(layer.id)}
+                              className="accent-emerald-500 w-3 h-3"
                             />
+                            {hasItems ? (
+                              <button
+                                onClick={() => setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                                className="w-3 h-3 flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-slate-300"
+                              >
+                                <svg className={`w-2.5 h-2.5 transition-transform ${isLayerExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M6 4l8 6-8 6V4z" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <span className="w-3 h-3 flex-shrink-0" />
+                            )}
+                            <span
+                              className={`flex-1 truncate cursor-pointer ${isActiveLayer ? 'text-emerald-300 font-medium' : 'text-slate-300 hover:text-white'}`}
+                              onClick={() => { if (isActive) setActiveLayer(isActiveLayer ? null : layer.id); }}
+                            >
+                              {isActiveLayer && '\u25B8 '}{layer.name}
+                            </span>
+                            <span
+                              className={`text-slate-500 cursor-pointer hover:text-slate-300 ${hasItems ? '' : 'opacity-50'}`}
+                              onClick={() => hasItems && setExpandedLayerId(isLayerExpanded ? null : layer.id)}
+                            >
+                              {mCount}m {dCount}d
+                            </span>
                           </div>
-                        )}
+                          {isLayerExpanded && (
+                            <div className="ml-5 mt-0.5 mb-1 border-l border-slate-700 pl-1.5">
+                              <TacticalItemList
+                                markers={layerMarkers}
+                                drawings={layerDrawings}
+                                lang={lang}
+                                projectId={pId}
+                                flyTo={flyTo}
+                                copyTargets={copyTargets}
+                                copyingMarkerId={copyingMarkerId}
+                                setCopyingMarkerId={setCopyingMarkerId}
+                                onCopyMarker={handleCopyMarker}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    };
+                    return topLevelLayers.map(layer => (
+                      <div key={layer.id}>
+                        {renderLayerRow(layer, false)}
+                        {subLayersOf(layer.id).map(sub => renderLayerRow(sub, true))}
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                   {/* Unassigned items */}
                   {(() => {
                     const unMarkers = data.markers.filter((m) => !m.layerId);

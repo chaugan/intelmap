@@ -143,10 +143,16 @@ export class ProjectStoreManager {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const category = data.category === 'not_in_use' ? 'not_in_use' : 'active';
+    let parentId = data.parentId || null;
+    // Validate parentId: must exist, belong to same project, and be a top-level layer
+    if (parentId) {
+      const parent = db.prepare('SELECT id, parent_id FROM project_layers WHERE id = ? AND project_id = ?').get(parentId, projectId);
+      if (!parent || parent.parent_id) parentId = null; // reject if not found or is itself a sub-layer
+    }
     db.prepare(
-      'INSERT INTO project_layers (id, project_id, name, visible, category, source, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, projectId, data.name || 'Unnamed', data.visible !== false ? 1 : 0, category, data.source || 'user', data.createdBy || '', now);
-    return { id, projectId, name: data.name || 'Unnamed', visible: true, category, source: data.source || 'user', createdBy: data.createdBy || '', createdAt: now };
+      'INSERT INTO project_layers (id, project_id, name, visible, category, source, created_by, created_at, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, projectId, data.name || 'Unnamed', data.visible !== false ? 1 : 0, category, data.source || 'user', data.createdBy || '', now, parentId);
+    return { id, projectId, name: data.name || 'Unnamed', visible: true, category, parentId, source: data.source || 'user', createdBy: data.createdBy || '', createdAt: now };
   }
 
   updateLayer(projectId, id, changes) {
@@ -159,6 +165,15 @@ export class ProjectStoreManager {
     if (changes.visible !== undefined) updates.visible = changes.visible ? 1 : 0;
     if (changes.category !== undefined) updates.category = changes.category;
     if (changes.source !== undefined) updates.source = changes.source;
+    if (changes.parentId !== undefined) {
+      if (changes.parentId) {
+        // Validate: must be top-level layer in same project
+        const parent = db.prepare('SELECT id, parent_id FROM project_layers WHERE id = ? AND project_id = ?').get(changes.parentId, projectId);
+        updates.parent_id = (parent && !parent.parent_id) ? changes.parentId : null;
+      } else {
+        updates.parent_id = null;
+      }
+    }
 
     if (Object.keys(updates).length === 0) return rowToLayer(row);
 
@@ -272,6 +287,7 @@ function rowToLayer(row) {
     name: row.name,
     visible: !!row.visible,
     category: row.category || 'active',
+    parentId: row.parent_id || null,
     source: row.source,
     createdBy: row.created_by,
     createdAt: row.created_at,

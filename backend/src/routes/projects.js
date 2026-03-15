@@ -251,8 +251,9 @@ router.post('/:id/copy', (req, res) => {
     for (const l of layers) {
       const nlId = crypto.randomUUID();
       layerMap.set(l.id, nlId);
-      db.prepare('INSERT INTO project_layers (id, project_id, name, visible, source, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(nlId, newId, l.name, l.visible, l.source, req.user.id);
+      const newParentId = l.parent_id ? layerMap.get(l.parent_id) || null : null;
+      db.prepare('INSERT INTO project_layers (id, project_id, name, visible, source, created_by, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(nlId, newId, l.name, l.visible, l.source, req.user.id, newParentId);
     }
 
     // Copy markers
@@ -406,14 +407,17 @@ router.post('/:id/share-token', (req, res) => {
   const id = crypto.randomUUID();
   const token = generateToken();
   const expiresAt = parseExpiresIn(req.body.expiresIn);
+  // Support both old single layerId and new layerIds array
+  const layerIds = req.body.layerIds || (req.body.layerId ? [req.body.layerId] : null);
+  const layerIdsJson = layerIds ? JSON.stringify(layerIds) : null;
   const layerId = req.body.layerId || null;
 
   db.prepare(
-    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at, layer_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, token, 'project', req.params.id, req.user.id, req.user.orgId, expiresAt, layerId);
+    'INSERT INTO share_tokens (id, token, resource_type, resource_id, created_by, org_id, expires_at, layer_id, layer_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, token, 'project', req.params.id, req.user.id, req.user.orgId, expiresAt, layerId, layerIdsJson);
 
   const url = `${req.protocol}://${req.get('host')}/?share=${token}`;
-  res.status(201).json({ id, token, url, expiresAt, layerId });
+  res.status(201).json({ id, token, url, expiresAt, layerIds });
 });
 
 // List share tokens for a project
@@ -423,12 +427,15 @@ router.get('/:id/share-tokens', (req, res) => {
 
   const db = getDb();
   const tokens = db.prepare(
-    `SELECT id, token, layer_id, expires_at, created_at FROM share_tokens
+    `SELECT id, token, layer_id, layer_ids, expires_at, created_at FROM share_tokens
      WHERE resource_type = 'project' AND resource_id = ?
      ORDER BY created_at DESC`
   ).all(req.params.id);
 
-  res.json(tokens);
+  res.json(tokens.map(tk => ({
+    ...tk,
+    layer_ids: tk.layer_ids ? tryParseJson(tk.layer_ids, null) : (tk.layer_id ? [tk.layer_id] : null),
+  })));
 });
 
 // Revoke a share token for a project

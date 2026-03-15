@@ -48,11 +48,19 @@ router.get('/:token', (req, res) => {
     let settings = {};
     try { settings = JSON.parse(project.settings); } catch {}
     const state = projectStore.getProjectState(row.resource_id);
+    // Parse visible layer IDs from token (multi-layer or legacy single)
+    let visibleLayerIds = null;
+    if (row.layer_ids) {
+      try { visibleLayerIds = JSON.parse(row.layer_ids); } catch {}
+    } else if (row.layer_id) {
+      visibleLayerIds = [row.layer_id];
+    }
     return res.json({
       valid: true,
       resourceType: 'project',
       resourceId: row.resource_id,
       readOnly: true,
+      visibleLayerIds,
       project: { id: project.id, name: project.name, settings, ...state },
     });
   }

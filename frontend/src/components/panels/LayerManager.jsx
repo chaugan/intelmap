@@ -31,9 +31,10 @@ export default function LayerManager() {
 
   const canEdit = projectRole === 'admin' || projectRole === 'editor';
 
-  // Split layers by category
-  const activeLayers = allLayers.filter(l => l.category !== 'not_in_use');
-  const notInUseLayers = allLayers.filter(l => l.category === 'not_in_use');
+  // Split layers by category and parent
+  const topLevelActive = allLayers.filter(l => l.category !== 'not_in_use' && !l.parentId);
+  const notInUseLayers = allLayers.filter(l => l.category === 'not_in_use' && !l.parentId);
+  const subLayersOf = (parentId) => allLayers.filter(l => l.parentId === parentId);
 
   const createLayer = () => {
     if (!newName.trim() || !activeProjectId) return;
@@ -260,12 +261,37 @@ export default function LayerManager() {
 
       {/* Layer list */}
       <div className="flex-1 overflow-y-auto space-y-1">
-        {activeLayers.length === 0 && notInUseLayers.length === 0 && (
+        {topLevelActive.length === 0 && notInUseLayers.length === 0 && (
           <p className="text-slate-500 text-sm">{t('layers.noLayers', lang)}</p>
         )}
 
-        {/* Active layers */}
-        {activeLayers.map((layer) => renderLayer(layer, false))}
+        {/* Active layers with sub-layers */}
+        {topLevelActive.map((layer) => (
+          <div key={layer.id}>
+            {renderLayer(layer, false)}
+            {subLayersOf(layer.id).map(sub => (
+              <div key={sub.id} className="ml-3 border-l border-slate-600/40 pl-1.5">
+                {renderLayer(sub, false)}
+              </div>
+            ))}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  const name = prompt(lang === 'no' ? 'Navn på underlag:' : 'Sub-layer name:');
+                  if (!name?.trim() || !activeProjectId) return;
+                  socket.emit('client:layer:add', { projectId: activeProjectId, name: name.trim(), parentId: layer.id, source: 'user', createdBy: socket.id });
+                }}
+                className="ml-3 flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-400 py-0.5 px-1"
+                title={lang === 'no' ? 'Legg til underlag' : 'Add sub-layer'}
+              >
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {lang === 'no' ? 'Underlag' : 'Sub-layer'}
+              </button>
+            )}
+          </div>
+        ))}
 
         {/* Unassigned items */}
         {(() => {
@@ -295,7 +321,16 @@ export default function LayerManager() {
               </button>
               {!notInUseCollapsed && (
                 <div className="space-y-1">
-                  {notInUseLayers.map((layer) => renderLayer(layer, true))}
+                  {notInUseLayers.map((layer) => (
+                    <div key={layer.id}>
+                      {renderLayer(layer, true)}
+                      {subLayersOf(layer.id).map(sub => (
+                        <div key={sub.id} className="ml-3 border-l border-slate-600/40 pl-1.5">
+                          {renderLayer(sub, true)}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

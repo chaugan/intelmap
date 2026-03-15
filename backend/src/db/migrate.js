@@ -25,6 +25,21 @@ export function runMigration() {
     db.prepare("ALTER TABLE share_tokens ADD COLUMN layer_id TEXT").run();
   }
 
+  // Add layer_ids column to share_tokens table (multi-layer sharing)
+  if (!shareTokenCols.some(c => c.name === 'layer_ids')) {
+    db.prepare("ALTER TABLE share_tokens ADD COLUMN layer_ids TEXT").run();
+    // Migrate existing single layer_id values to layer_ids JSON array
+    db.prepare("UPDATE share_tokens SET layer_ids = json_array(layer_id) WHERE layer_id IS NOT NULL AND layer_ids IS NULL").run();
+    console.log('Added layer_ids column to share_tokens table');
+  }
+
+  // Add parent_id column to project_layers table (sub-layers)
+  const layerCols = db.prepare("PRAGMA table_info(project_layers)").all();
+  if (!layerCols.some(c => c.name === 'parent_id')) {
+    db.prepare("ALTER TABLE project_layers ADD COLUMN parent_id TEXT REFERENCES project_layers(id) ON DELETE SET NULL").run();
+    console.log('Added parent_id column to project_layers table');
+  }
+
   // Get admin user for migrations
   const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   const adminId = admin?.id || 'system';

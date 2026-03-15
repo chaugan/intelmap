@@ -110,7 +110,11 @@ function buildSavedViewshedData(visibleProjectIds, projects, layerVisibility, it
     const proj = projects[pid];
     if (!proj?.viewsheds) continue;
     const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
+      proj.layers.filter(l => {
+        if (layerVisibility[l.id] === false) return false;
+        if (l.parentId) return layerVisibility[l.parentId] !== false;
+        return true;
+      }).map(l => l.id)
     );
     for (const v of proj.viewsheds) {
       if (v.layerId && !visLayerIds.has(v.layerId)) continue;

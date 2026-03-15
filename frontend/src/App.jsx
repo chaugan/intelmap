@@ -248,14 +248,15 @@ function MapApp({ user }) {
 
     if (!projectDrawerOpen) toggleProjectDrawer();
 
-    // If a specific layer was shared, activate it and hide others
-    if (layerId && projectData) {
-      const hasLayer = projectData.layers?.some(l => l.id === layerId);
-      if (hasLayer) {
-        useTacticalStore.setState({ activeLayerId: layerId });
+    // If specific layers were shared, show only those and hide others
+    const visibleLayerIds = Array.isArray(layerId) ? layerId : (layerId ? [layerId] : null);
+    if (visibleLayerIds && visibleLayerIds.length > 0 && projectData) {
+      const validIds = new Set(visibleLayerIds.filter(lid => projectData.layers?.some(l => l.id === lid)));
+      if (validIds.size > 0) {
+        useTacticalStore.setState({ activeLayerId: [...validIds][0] });
         const newVisibility = {};
         for (const l of projectData.layers || []) {
-          newVisibility[l.id] = l.id === layerId;
+          newVisibility[l.id] = validIds.has(l.id);
         }
         useTacticalStore.setState((s) => ({
           layerVisibility: { ...s.layerVisibility, ...newVisibility },
@@ -330,8 +331,9 @@ function MapApp({ user }) {
           }
         } else if (data.valid && data.resourceType === 'project' && data.project) {
           const proj = data.project;
-          const layerParam = params.get('layer');
-          openProjectWithView(proj.id, proj.settings?.savedView, proj, layerParam);
+          // Use visibleLayerIds from token, fall back to legacy &layer= param
+          const layerIds = data.visibleLayerIds || (params.get('layer') ? [params.get('layer')] : null);
+          openProjectWithView(proj.id, proj.settings?.savedView, proj, layerIds);
         } else if (!data.valid) {
           setThemeError(data.error === 'expired' ? 'expired' : 'notFound');
         }

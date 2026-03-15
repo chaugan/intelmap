@@ -18,7 +18,7 @@ const BOTTOM_HEIGHT = 48; // space for logo + text below QR
 const CANVAS_WIDTH = QR_SIZE + 8; // QR margin (4px each side)
 const CANVAS_HEIGHT = QR_SIZE + 8 + BOTTOM_HEIGHT;
 
-export default function QRCodeOverlay({ resourceType = 'theme', resourceId, resourceName, layerId, layerName, onClose }) {
+export default function QRCodeOverlay({ resourceType = 'theme', resourceId, resourceName, layerIds, layerNames, layerId, layerName, onClose }) {
   const lang = useMapStore((s) => s.lang);
   const wasosLoggedIn = useAuthStore((s) => s.wasosLoggedIn);
   const prepareWasosUpload = useAuthStore((s) => s.prepareWasosUpload);
@@ -37,15 +37,17 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
   const [logoLoaded, setLogoLoaded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
+  // Resolve effective layer IDs (prefer new multi-layer prop, fall back to single)
+  const effectiveLayerIds = layerIds || (layerId ? [layerId] : null);
+  const effectiveLayerNames = layerNames || (layerName ? [layerName] : null);
+
   // Build URL based on access mode
   const currentUrl = resourceType === 'theme'
     ? `${window.location.origin}/?theme=${resourceId}`
-    : layerId
-      ? `${window.location.origin}/?project=${resourceId}&layer=${layerId}`
-      : `${window.location.origin}/?project=${resourceId}`;
+    : `${window.location.origin}/?project=${resourceId}`;
 
   const activeUrl = accessMode === 'directLink' && shareToken
-    ? `${window.location.origin}/?share=${shareToken}${layerId ? `&layer=${layerId}` : ''}`
+    ? `${window.location.origin}/?share=${shareToken}`
     : currentUrl;
 
   // Load logo image once
@@ -126,7 +128,7 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ expiresIn, layerId: layerId || undefined }),
+      body: JSON.stringify({ expiresIn, layerIds: effectiveLayerIds || undefined }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -168,7 +170,10 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
   };
 
   const handleSignalLink = () => {
-    const label = `${resourceName}${layerName ? ` \u2192 ${layerName}` : ''}`;
+    const layerLabel = effectiveLayerNames?.length
+      ? (effectiveLayerNames.length <= 3 ? effectiveLayerNames.join(', ') : `${effectiveLayerNames.length} layers`)
+      : '';
+    const label = `${resourceName}${layerLabel ? ` \u2192 ${layerLabel}` : ''}`;
     prepareSignalLinkShare(activeUrl, label);
     onClose();
   };
@@ -200,8 +205,11 @@ export default function QRCodeOverlay({ resourceType = 'theme', resourceId, reso
         <p className="text-sm text-slate-400 mb-4">
           {resourceType === 'theme' ? t('themes.qrLinkTo', lang) : t('share.qrLinkTo', lang)}{' '}
           <span className="text-emerald-400 font-medium">{resourceName}</span>
-          {layerName && (
-            <span className="text-cyan-400"> &rarr; {layerName}</span>
+          {effectiveLayerNames && effectiveLayerNames.length > 0 && (
+            <span className="text-cyan-400"> &rarr; {effectiveLayerNames.length <= 3
+              ? effectiveLayerNames.join(', ')
+              : `${effectiveLayerNames.length} ${lang === 'no' ? 'lag' : 'layers'}`
+            }</span>
           )}
         </p>
 

@@ -547,7 +547,7 @@ export default function ProjectDrawer() {
   const [renamingLayerId, setRenamingLayerId] = useState(null);
   const [renameLayerVal, setRenameLayerVal] = useState('');
   const [qrProject, setQrProject] = useState(null);
-  const [qrLayerId, setQrLayerId] = useState(null);
+  const [qrLayerIds, setQrLayerIds] = useState(null);
   const [auditProject, setAuditProject] = useState(null);
   const [shareTokensProject, setShareTokensProject] = useState(null);
   const [shareTokens, setShareTokens] = useState([]);
@@ -1306,8 +1306,9 @@ export default function ProjectDrawer() {
                     <p className="text-xs text-slate-600">{t('layers.noLayers', lang)}</p>
                   )}
                   {projData && (() => {
-                    const activeLayers = projData.layers.filter(l => l.category !== 'not_in_use');
-                    const niuLayers = projData.layers.filter(l => l.category === 'not_in_use');
+                    const topLevelActive = projData.layers.filter(l => l.category !== 'not_in_use' && !l.parentId);
+                    const niuLayers = projData.layers.filter(l => l.category === 'not_in_use' && !l.parentId);
+                    const subLayersOf = (parentId) => projData.layers.filter(l => l.parentId === parentId);
                     const renderLayerRow = (layer, isNotInUse) => {
                       const vis = layerVisibility[layer.id] !== false;
                       const labelsOn = labelVisibility[layer.id] !== false;
@@ -1499,7 +1500,34 @@ export default function ProjectDrawer() {
                     };
                     return (
                       <>
-                        {activeLayers.map(l => renderLayerRow(l, false))}
+                        {topLevelActive.map(l => (
+                          <div key={l.id}>
+                            {renderLayerRow(l, false)}
+                            {/* Sub-layers */}
+                            {subLayersOf(l.id).map(sub => (
+                              <div key={sub.id} className="ml-4 border-l border-slate-700/50 pl-1">
+                                {renderLayerRow(sub, false)}
+                              </div>
+                            ))}
+                            {/* Add sub-layer button */}
+                            {canEditProject && (
+                              <button
+                                onClick={() => {
+                                  const name = prompt(lang === 'no' ? 'Navn på underlag:' : 'Sub-layer name:');
+                                  if (!name?.trim()) return;
+                                  socket.emit('client:layer:add', { projectId: p.id, name: name.trim(), parentId: l.id, source: 'user', createdBy: socket.id });
+                                }}
+                                className="ml-4 flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-400 py-0.5 px-1"
+                                title={lang === 'no' ? 'Legg til underlag' : 'Add sub-layer'}
+                              >
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                {lang === 'no' ? 'Underlag' : 'Sub-layer'}
+                              </button>
+                            )}
+                          </div>
+                        ))}
                         {canEditProject && (
                           <div className={`border-t border-slate-600/50 mt-2 pt-1.5 ${niuLayers.length === 0 ? 'opacity-60' : ''}`}>
                             <button
@@ -1514,7 +1542,16 @@ export default function ProjectDrawer() {
                             </button>
                             {!notInUseCollapsed[p.id] && niuLayers.length > 0 && (
                               <div className="space-y-1">
-                                {niuLayers.map(l => renderLayerRow(l, true))}
+                                {niuLayers.map(l => (
+                                  <div key={l.id}>
+                                    {renderLayerRow(l, true)}
+                                    {subLayersOf(l.id).map(sub => (
+                                      <div key={sub.id} className="ml-4 border-l border-slate-700/50 pl-1">
+                                        {renderLayerRow(sub, true)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -1640,16 +1677,18 @@ export default function ProjectDrawer() {
                       )}
 
                       {/* QR Code */}
-                      {(p.role === 'admin' || p.role === 'editor') && (
+                      {(p.role === 'admin' || p.role === 'editor') && (() => {
+                        const hasVisibleLayers = projData?.layers?.some(l => layerVisibility[l.id] !== false);
+                        return (
                         <button
                           onClick={() => {
-                            const projData = projects[p.id];
-                            const layerBelongsToProject = activeLayerId && projData?.layers?.some(l => l.id === activeLayerId);
+                            if (!hasVisibleLayers) return;
+                            const visibleLayers = projData?.layers?.filter(l => layerVisibility[l.id] !== false) || [];
                             setQrProject(p);
-                            setQrLayerId(layerBelongsToProject ? activeLayerId : null);
+                            setQrLayerIds(visibleLayers.map(l => l.id));
                           }}
-                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-700/50"
-                          title={t('themes.generateQr', lang)}
+                          className={`flex items-center gap-1 text-xs px-1.5 py-1 rounded ${hasVisibleLayers ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50' : 'text-slate-600 opacity-30 cursor-not-allowed'}`}
+                          title={hasVisibleLayers ? t('themes.generateQr', lang) : (lang === 'no' ? 'Ingen synlige lag' : 'No visible layers')}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -1660,7 +1699,8 @@ export default function ProjectDrawer() {
                           </svg>
                           QR
                         </button>
-                      )}
+                        );
+                      })()}
 
                       {/* Delete */}
                       {p.role === 'admin' && (
@@ -1785,9 +1825,16 @@ export default function ProjectDrawer() {
                               <p className="text-xs text-slate-600">{lang === 'no' ? 'Ingen aktive delingslenker' : 'No active share links'}</p>
                             ) : (
                               shareTokens.map((tk) => {
-                                const layerName = tk.layer_id ? projData?.layers?.find(l => l.id === tk.layer_id)?.name : null;
+                                const tkLayerIds = tk.layer_ids || (tk.layer_id ? [tk.layer_id] : null);
+                                const layerLabel = tkLayerIds
+                                  ? (() => {
+                                      const names = tkLayerIds.map(lid => projData?.layers?.find(l => l.id === lid)?.name).filter(Boolean);
+                                      if (names.length <= 2) return names.join(', ');
+                                      return `${names.length} ${lang === 'no' ? 'lag' : 'layers'}`;
+                                    })()
+                                  : (lang === 'no' ? 'Hele prosjektet' : 'Entire project');
                                 const expiry = tk.expires_at ? new Date(tk.expires_at).toLocaleDateString() : (lang === 'no' ? 'Aldri' : 'Never');
-                                const shareUrl = `${window.location.origin}/?share=${tk.token}${tk.layer_id ? `&layer=${tk.layer_id}` : ''}`;
+                                const shareUrl = `${window.location.origin}/?share=${tk.token}`;
                                 return (
                                   <div key={tk.id} className="flex items-center gap-1.5 text-xs group/link" title={shareUrl}>
                                     <button
@@ -1802,11 +1849,7 @@ export default function ProjectDrawer() {
                                     </button>
                                     <span className="text-slate-400 truncate flex-1">
                                       <span className="text-amber-400/70" title={lang === 'no' ? 'Alle med lenken har tilgang' : 'Anyone with the link has access'}>{lang === 'no' ? 'Åpen' : 'Public'}</span>
-                                      {layerName ? (
-                                        <><span className="text-slate-600"> · </span><span className="text-cyan-400">{layerName}</span></>
-                                      ) : (
-                                        <span className="text-slate-600"> · </span>
-                                      )}
+                                      <span className="text-slate-600"> · </span><span className="text-cyan-400">{layerLabel}</span>
                                       <span className="text-slate-600"> · {expiry}</span>
                                     </span>
                                     <button
@@ -1921,9 +1964,9 @@ export default function ProjectDrawer() {
           resourceType="project"
           resourceId={qrProject.id}
           resourceName={qrProject.name}
-          layerId={qrLayerId}
-          layerName={qrLayerId ? projects[qrProject.id]?.layers?.find(l => l.id === qrLayerId)?.name : null}
-          onClose={() => { setQrProject(null); setQrLayerId(null); }}
+          layerIds={qrLayerIds}
+          layerNames={qrLayerIds ? qrLayerIds.map(lid => projects[qrProject.id]?.layers?.find(l => l.id === lid)?.name).filter(Boolean) : null}
+          onClose={() => { setQrProject(null); setQrLayerIds(null); }}
         />
       )}
 

@@ -1302,7 +1302,7 @@ export default function DrawingLayer() {
               title={t('draw.color', lang)}
               disabled={noProjectWarning}
             >
-              <div className="w-6 h-6 rounded" style={{ backgroundColor: drawColor }} />
+              <div className="w-6 h-6 rounded" style={{ backgroundColor: selectedDrawing ? (selectedDrawing.properties?.color || '#3b82f6') : drawColor }} />
             </button>
             {showColorPicker && !noProjectWarning && (
               <div className="absolute left-12 top-0 bg-slate-800 p-3 rounded shadow-xl border border-slate-600 min-w-[240px]">
@@ -1310,8 +1310,22 @@ export default function DrawingLayer() {
                   {DRAW_COLORS.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => { setDrawColor(c.color); setShowColorPicker(false); }}
-                      className={`w-10 h-10 rounded border-2 transition-transform hover:scale-110 ${drawColor === c.color ? 'border-white scale-110' : 'border-transparent'}`}
+                      onClick={() => {
+                        setDrawColor(c.color);
+                        setShowColorPicker(false);
+                        // Update selected drawing's color if one is selected
+                        if (selectedDrawing && selectedDrawing._projectId) {
+                          socket.emit('client:drawing:update', {
+                            projectId: selectedDrawing._projectId,
+                            id: selectedDrawing.id,
+                            properties: { ...selectedDrawing.properties, color: c.color },
+                          });
+                        } else if (selectedDrawing && !selectedDrawing._projectId) {
+                          // Local drawing
+                          setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: c.color } } : d));
+                        }
+                      }}
+                      className={`w-10 h-10 rounded border-2 transition-transform hover:scale-110 ${(selectedDrawing ? (selectedDrawing.properties?.color || '#3b82f6') : drawColor) === c.color ? 'border-white scale-110' : 'border-transparent'}`}
                       style={{ backgroundColor: c.color }}
                       title={lang === 'no' ? c.label : c.labelEn}
                     />
@@ -1320,8 +1334,20 @@ export default function DrawingLayer() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="color"
-                    value={drawColor}
-                    onChange={(e) => { setDrawColor(e.target.value); }}
+                    value={selectedDrawing ? (selectedDrawing.properties?.color || '#3b82f6') : drawColor}
+                    onChange={(e) => {
+                      setDrawColor(e.target.value);
+                      // Update selected drawing's color in real-time
+                      if (selectedDrawing && selectedDrawing._projectId) {
+                        socket.emit('client:drawing:update', {
+                          projectId: selectedDrawing._projectId,
+                          id: selectedDrawing.id,
+                          properties: { ...selectedDrawing.properties, color: e.target.value },
+                        });
+                      } else if (selectedDrawing && !selectedDrawing._projectId) {
+                        setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: e.target.value } } : d));
+                      }
+                    }}
                     className="w-10 h-10 rounded border-0 cursor-pointer bg-transparent p-0"
                   />
                   <span className="text-xs text-slate-400">{lang === 'no' ? 'Egendefinert' : 'Custom'}</span>

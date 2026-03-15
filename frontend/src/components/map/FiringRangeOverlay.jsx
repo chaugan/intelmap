@@ -27,7 +27,11 @@ function buildSavedFiringRangeData(visibleProjectIds, projects, layerVisibility,
     const proj = projects[pid];
     if (!proj?.firingRanges) continue;
     const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
+      proj.layers.filter(l => {
+        if (layerVisibility[l.id] === false) return false;
+        if (l.parentId) return layerVisibility[l.parentId] !== false;
+        return true;
+      }).map(l => l.id)
     );
     for (const f of proj.firingRanges) {
       if (f.layerId && !visLayerIds.has(f.layerId)) continue;

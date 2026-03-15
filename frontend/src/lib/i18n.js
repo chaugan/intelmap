@@ -377,6 +377,11 @@ const translations = {
     'share.layerOnly': 'Deler kun lag',
     'share.shareLink': 'Del lenke',
     'share.signalLink': 'Del lenke via Signal',
+    'share.entireProject': 'Hele prosjektet',
+    'share.visibleLayers': 'Synlige lag',
+    'share.noVisibleLayers': 'Ingen synlige lag',
+    'layers.addSublayer': 'Legg til underlag',
+    'layers.sublayer': 'Underlag',
     'signal.linkSent': 'Lenken er sendt til Signal-gruppen',
     'signal.sendLink': 'Send lenke',
 
@@ -1170,6 +1175,11 @@ const translations = {
     'share.layerOnly': 'Sharing layer only',
     'share.shareLink': 'Share link',
     'share.signalLink': 'Share link via Signal',
+    'share.entireProject': 'Entire project',
+    'share.visibleLayers': 'Visible layers',
+    'share.noVisibleLayers': 'No visible layers',
+    'layers.addSublayer': 'Add sub-layer',
+    'layers.sublayer': 'Sub-layer',
     'signal.linkSent': 'Link sent to Signal group',
     'signal.sendLink': 'Send link',
 

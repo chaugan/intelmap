@@ -32,7 +32,11 @@ function buildCompositeData(visibleProjectIds, projects, layerVisibility, itemVi
     const proj = projects[pid];
     if (!proj?.rfCoverages) continue;
     const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
+      proj.layers.filter(l => {
+        if (layerVisibility[l.id] === false) return false;
+        if (l.parentId) return layerVisibility[l.parentId] !== false;
+        return true;
+      }).map(l => l.id)
     );
     for (const c of proj.rfCoverages) {
       if (c.layerId && !visLayerIds.has(c.layerId)) continue;

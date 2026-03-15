@@ -214,7 +214,8 @@ export const useTacticalStore = create((set, get) => ({
         ...s.projects,
         [projectId]: {
           ...proj,
-          layers: proj.layers.filter(l => l.id !== id),
+          // Remove the layer, orphan sub-layers (set parentId to null)
+          layers: proj.layers.filter(l => l.id !== id).map(l => l.parentId === id ? { ...l, parentId: null } : l),
           markers: proj.markers.filter(m => m.layerId !== id),
           drawings: proj.drawings.filter(d => d.layerId !== id),
         },
@@ -502,6 +503,24 @@ useTacticalStore.subscribe((state, prev) => {
 });
 
 /**
+ * Build a Set of effectively visible layer IDs, respecting sub-layer inheritance.
+ * A sub-layer is only visible if both itself AND its parent are checked.
+ */
+function buildVisLayerIds(layers, layerVisibility) {
+  const visSet = new Set();
+  for (const l of layers) {
+    if (layerVisibility[l.id] === false) continue;
+    if (l.parentId) {
+      // Sub-layer: also check parent visibility
+      if (layerVisibility[l.parentId] !== false) visSet.add(l.id);
+    } else {
+      visSet.add(l.id);
+    }
+  }
+  return visSet;
+}
+
+/**
  * Get all visible markers across all visible projects, respecting layer visibility.
  */
 export function getAllVisibleMarkers(state) {
@@ -510,9 +529,7 @@ export function getAllVisibleMarkers(state) {
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
     if (!proj) continue;
-    const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
-    );
+    const visLayerIds = buildVisLayerIds(proj.layers, layerVisibility);
     for (const m of proj.markers) {
       if (!m.layerId || visLayerIds.has(m.layerId)) {
         allMarkers.push({ ...m, _projectId: pid });
@@ -534,9 +551,7 @@ export function getAllVisiblePins(state) {
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
     if (!proj) continue;
-    const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
-    );
+    const visLayerIds = buildVisLayerIds(proj.layers, layerVisibility);
     for (const p of (proj.pins || [])) {
       if (!p.layerId || visLayerIds.has(p.layerId)) {
         allPins.push({ ...p, _projectId: pid });
@@ -552,9 +567,7 @@ export function getAllVisibleDrawings(state) {
   for (const pid of visibleProjectIds) {
     const proj = projects[pid];
     if (!proj) continue;
-    const visLayerIds = new Set(
-      proj.layers.filter(l => layerVisibility[l.id] !== false).map(l => l.id)
-    );
+    const visLayerIds = buildVisLayerIds(proj.layers, layerVisibility);
     for (const d of proj.drawings) {
       if (!d.layerId || visLayerIds.has(d.layerId)) {
         allDrawings.push({ ...d, _projectId: pid });
