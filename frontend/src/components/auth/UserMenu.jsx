@@ -123,7 +123,11 @@ export default function UserMenu() {
               <button
                 onClick={async () => {
                   setOpen(false);
-                  const w = window.open('about:blank', '_blank');
+                  const w = window.open('', '_blank');
+                  if (w) {
+                    w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Loading...</title></head><body style="background:#0f172a;color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:system-ui"><div style="text-align:center"><div style="font-size:2rem;margin-bottom:1rem">&#9203;</div>Loading...</div></body></html>');
+                    w.document.close();
+                  }
                   try {
                     const res = await fetch('/api/self-destruct/token', { credentials: 'include' });
                     if (res.ok) {
