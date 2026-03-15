@@ -221,7 +221,7 @@ export default function WebcamLayer() {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-        // Unpin from project
+        // Unpin from project and close popup
         const savedPinId = pinIdMap[id];
         if (savedPinId) {
           const state = useTacticalStore.getState();
@@ -234,6 +234,7 @@ export default function WebcamLayer() {
           }
           setPinIdMap(prev2 => { const n = { ...prev2 }; delete n[id]; return n; });
         }
+        closeCamera(id);
       } else {
         next.add(id);
         // Save to project
