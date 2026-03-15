@@ -75,7 +75,7 @@ function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   useEffect(() => {
     if (!anchorRef?.current) return;
     const rect = anchorRef.current.getBoundingClientRect();
-    const dropW = 180, dropH = 200;
+    const dropW = 240, dropH = 260;
     const left = Math.min(rect.right, window.innerWidth - dropW - 8);
     const top = rect.bottom + 4 + dropH > window.innerHeight
       ? Math.max(8, rect.top - dropH - 4)
@@ -97,29 +97,43 @@ function CopyDropdown({ anchorRef, copyTargets, item, lang, onCopy, onClose }) {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[99999] bg-slate-800 border border-slate-600 rounded shadow-xl py-1 w-[180px] text-[11px] max-h-48 overflow-y-auto"
+      className="fixed z-[99999] bg-slate-800 border border-slate-600 rounded shadow-xl py-1 w-[240px] text-[11px] max-h-64 overflow-y-auto"
       style={{ top: pos.top, left: pos.left }}
     >
-      {copyTargets.map((ct) => (
-        <div key={ct.projectId}>
-          <div className="px-2 py-0.5 text-slate-500 font-medium truncate">{ct.projectName}</div>
-          <button
-            onClick={() => onCopy(item, ct.projectId, null)}
-            className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
-          >
-            {lang === 'no' ? '(Intet lag)' : '(No layer)'}
-          </button>
-          {ct.layers.map((l) => (
+      {copyTargets.map((ct) => {
+        const topLayers = ct.layers.filter(l => !l.parentId);
+        const subOf = (pid) => ct.layers.filter(l => l.parentId === pid);
+        return (
+          <div key={ct.projectId}>
+            <div className="px-2 py-1 text-slate-500 font-semibold truncate border-b border-slate-700 mb-0.5">{ct.projectName}</div>
             <button
-              key={l.id}
-              onClick={() => onCopy(item, ct.projectId, l.id)}
-              className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
+              onClick={() => onCopy(item, ct.projectId, null)}
+              className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-400 italic"
             >
-              {l.name}
+              {lang === 'no' ? '(Intet lag)' : '(No layer)'}
             </button>
-          ))}
-        </div>
-      ))}
+            {topLayers.map((l) => (
+              <div key={l.id}>
+                <button
+                  onClick={() => onCopy(item, ct.projectId, l.id)}
+                  className="w-full text-left px-3 py-0.5 hover:bg-slate-700 text-slate-300 truncate"
+                >
+                  {l.name}
+                </button>
+                {subOf(l.id).map((sl) => (
+                  <button
+                    key={sl.id}
+                    onClick={() => onCopy(item, ct.projectId, sl.id)}
+                    className="w-full text-left pl-6 pr-3 py-0.5 hover:bg-slate-700 text-slate-400 truncate"
+                  >
+                    <span className="text-slate-600 mr-1">└</span>{sl.name}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>,
     document.body
   );

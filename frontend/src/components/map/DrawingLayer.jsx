@@ -1314,15 +1314,16 @@ export default function DrawingLayer() {
                         setDrawColor(c.color);
                         setShowColorPicker(false);
                         // Update selected drawing's color if one is selected
-                        if (selectedDrawing && selectedDrawing._projectId) {
-                          socket.emit('client:drawing:update', {
-                            projectId: selectedDrawing._projectId,
-                            id: selectedDrawing.id,
-                            properties: { ...selectedDrawing.properties, color: c.color },
-                          });
-                        } else if (selectedDrawing && !selectedDrawing._projectId) {
-                          // Local drawing
-                          setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: c.color } } : d));
+                        if (selectedDrawing) {
+                          if (selectedDrawing._local) {
+                            setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: c.color } } : d));
+                          } else {
+                            socket.emit('client:drawing:update', {
+                              projectId: selectedDrawing._projectId || selectedDrawing.projectId,
+                              id: selectedDrawing.id,
+                              properties: { ...selectedDrawing.properties, color: c.color },
+                            });
+                          }
                         }
                       }}
                       className={`w-10 h-10 rounded border-2 transition-transform hover:scale-110 ${(selectedDrawing ? (selectedDrawing.properties?.color || '#3b82f6') : drawColor) === c.color ? 'border-white scale-110' : 'border-transparent'}`}
@@ -1338,14 +1339,16 @@ export default function DrawingLayer() {
                     onChange={(e) => {
                       setDrawColor(e.target.value);
                       // Update selected drawing's color in real-time
-                      if (selectedDrawing && selectedDrawing._projectId) {
-                        socket.emit('client:drawing:update', {
-                          projectId: selectedDrawing._projectId,
-                          id: selectedDrawing.id,
-                          properties: { ...selectedDrawing.properties, color: e.target.value },
-                        });
-                      } else if (selectedDrawing && !selectedDrawing._projectId) {
-                        setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: e.target.value } } : d));
+                      if (selectedDrawing) {
+                        if (selectedDrawing._local) {
+                          setLocalDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, properties: { ...d.properties, color: e.target.value } } : d));
+                        } else {
+                          socket.emit('client:drawing:update', {
+                            projectId: selectedDrawing._projectId || selectedDrawing.projectId,
+                            id: selectedDrawing.id,
+                            properties: { ...selectedDrawing.properties, color: e.target.value },
+                          });
+                        }
                       }
                     }}
                     className="w-10 h-10 rounded border-0 cursor-pointer bg-transparent p-0"
