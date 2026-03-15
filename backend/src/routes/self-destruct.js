@@ -126,6 +126,17 @@ router.get('/offline', (req, res) => {
 </html>`);
 });
 
+// GET /ios-guide.png — serve iOS visual guide image
+router.get('/ios-guide.png', (req, res) => {
+  const imgPath = path.join(__dirname, '..', 'assets', 'ios-guide.png');
+  if (fs.existsSync(imgPath)) {
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.type('image/png').sendFile(imgPath);
+  } else {
+    res.status(404).end();
+  }
+});
+
 // GET /touch-icon.png — serve apple-touch-icon
 router.get('/touch-icon.png', (req, res) => {
   const pngPath = path.join(__dirname, '..', 'assets', 'self-destruct-touch.png');
@@ -247,14 +258,9 @@ router.get('/:token', (req, res) => {
     }
     .ios-guide ol { padding-left: 1.2rem; }
     .ios-guide li { margin-bottom: 0.4rem; }
-    .ios-placeholder {
-      margin-top: 0.75rem;
-      padding: 1rem;
-      border: 1px dashed #475569;
-      border-radius: 8px;
-      color: #64748b;
-      font-size: 0.75rem;
-      text-align: center;
+    .ios-guide img {
+      display: block;
+      margin: 0 auto;
     }
   </style>
 </head>
@@ -285,10 +291,7 @@ router.get('/:token', (req, res) => {
         <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
         <li>Tap <strong>Add</strong> to confirm</li>
       </ol>
-      <!-- PLACEHOLDER: Replace with visual guide images -->
-      <div class="ios-placeholder">
-        iOS visual guide images will be added here
-      </div>
+      <img src="/api/self-destruct/ios-guide.png" alt="iOS: Tap Share, then Add to Home Screen" style="width:100%;max-width:320px;border-radius:12px;margin-top:0.75rem;">
     </div>
   </div>
 
