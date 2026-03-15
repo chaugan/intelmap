@@ -13,10 +13,10 @@ import config from '../config.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 
-function generateToken(userId, salt) {
+function generateToken(userId, createdAt) {
   const userIdB64 = Buffer.from(userId).toString('base64url');
   const hmac = crypto.createHmac('sha256', config.sessionSecret)
-    .update('self-destruct:' + userId + ':' + (salt || ''))
+    .update('self-destruct:' + userId + ':' + (createdAt || ''))
     .digest('hex')
     .slice(0, 32);
   return userIdB64 + '.' + hmac;
@@ -42,9 +42,9 @@ function validateToken(token) {
   const org = db.prepare('SELECT * FROM organizations WHERE id = ? AND deleted_at IS NULL').get(user.org_id);
   if (!org || !org.feature_self_delete || !org.self_delete_enabled) return null;
 
-  // Verify HMAC
+  // Verify HMAC using created_at (stable, never changes unlike password salt)
   const expectedHmac = crypto.createHmac('sha256', config.sessionSecret)
-    .update('self-destruct:' + userId + ':' + (user.salt || ''))
+    .update('self-destruct:' + userId + ':' + (user.created_at || ''))
     .digest('hex')
     .slice(0, 32);
 
@@ -67,8 +67,8 @@ router.get('/token', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Self-delete not enabled for your organization' });
   }
 
-  const user = db.prepare('SELECT salt FROM users WHERE id = ?').get(req.user.id);
-  const token = generateToken(req.user.id, user?.salt);
+  const user = db.prepare('SELECT created_at FROM users WHERE id = ?').get(req.user.id);
+  const token = generateToken(req.user.id, user?.created_at);
   res.json({ url: '/api/self-destruct/' + token });
 });
 
