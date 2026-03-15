@@ -31,6 +31,7 @@ import rfcoverageRouter from './rfcoverage.js';
 import firingRangeRouter from './firing-range.js';
 import vulnerabilityRouter from './vulnerability.js';
 import selfDestructRouter from './self-destruct.js';
+import signalEmergencyRouter from './signal-emergency.js';
 const router = Router();
 
 router.use('/weather', weatherRouter);
@@ -65,4 +66,5 @@ router.use('/rfcoverage', rfcoverageRouter);
 router.use('/firing-range', firingRangeRouter);
 router.use('/vulnerability', vulnerabilityRouter);
 router.use('/self-destruct', selfDestructRouter);
+router.use('/signal-emergency', signalEmergencyRouter);
 export default router;

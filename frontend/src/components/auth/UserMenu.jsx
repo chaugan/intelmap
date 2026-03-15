@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { useMapStore } from '../../stores/useMapStore.js';
 import { t } from '../../lib/i18n.js';
+import SignalKeepGroupsDialog from './SignalKeepGroupsDialog.jsx';
 
 export default function UserMenu() {
   const user = useAuthStore((s) => s.user);
@@ -18,6 +19,7 @@ export default function UserMenu() {
   const lang = useMapStore((s) => s.lang);
 
   const [open, setOpen] = useState(false);
+  const [keepGroupsOpen, setKeepGroupsOpen] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -115,6 +117,33 @@ export default function UserMenu() {
               >
                 {signalLinked ? t('signal.linked', lang) : t('signal.linkTitle', lang)}
               </button>
+              {signalLinked && (
+                <>
+                  <button
+                    onClick={() => { setKeepGroupsOpen(true); setOpen(false); }}
+                    className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-slate-300"
+                  >
+                    {t('signal.keepGroups', lang)}
+                  </button>
+                  {!user.isImpersonating && (
+                    <button
+                      onClick={async () => {
+                        setOpen(false);
+                        try {
+                          const res = await fetch('/api/signal-emergency/token', { credentials: 'include' });
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            window.location.href = url + '?ref=intelmap';
+                          }
+                        } catch { /* ignore */ }
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm hover:bg-slate-600 transition-colors text-orange-500 font-semibold"
+                    >
+                      {t('signal.emergencyLeave', lang)}
+                    </button>
+                  )}
+                </>
+              )}
             </>
           )}
           {user.orgFeatureSelfDelete && user.orgSelfDeleteEnabled && user.role !== 'super_admin' && !user.isImpersonating && (
@@ -146,6 +175,7 @@ export default function UserMenu() {
           </button>
         </div>
       )}
+      <SignalKeepGroupsDialog open={keepGroupsOpen} onClose={() => setKeepGroupsOpen(false)} />
     </div>
   );
 }

@@ -117,6 +117,12 @@ export function runMigration() {
     console.log('Added Signal columns to users table');
   }
 
+  // Signal keep groups column (for emergency leave feature)
+  if (!userCols.some(c => c.name === 'signal_keep_groups')) {
+    db.prepare("ALTER TABLE users ADD COLUMN signal_keep_groups TEXT").run();
+    console.log('Added signal_keep_groups column to users table');
+  }
+
   // Fire Report column on users
   if (!userCols.some(c => c.name === 'fire_report_enabled')) {
     db.prepare("ALTER TABLE users ADD COLUMN fire_report_enabled INTEGER NOT NULL DEFAULT 0").run();

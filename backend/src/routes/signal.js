@@ -203,6 +203,60 @@ router.post('/send', async (req, res) => {
 });
 
 /**
+ * GET /api/signal/keep-groups — Get groups and keep list for emergency leave
+ */
+router.get('/keep-groups', async (req, res) => {
+  if (!requireSignalEnabled(req, res)) return;
+
+  const db = getDb();
+  const user = db.prepare('SELECT signal_phone, signal_keep_groups FROM users WHERE id = ?').get(req.user.id);
+  if (!user?.signal_phone) {
+    return res.status(400).json({ error: 'No linked Signal account' });
+  }
+
+  try {
+    const response = await fetch(
+      `${SIGNAL_API}/v1/groups/${encodeURIComponent(user.signal_phone)}`
+    );
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Failed to list Signal groups' });
+    }
+    const groups = await response.json();
+    const result = (Array.isArray(groups) ? groups : []).map(g => ({
+      id: g.id || g.internal_id,
+      name: g.name || 'Unnamed Group',
+      membersCount: g.members?.length || 0,
+    }));
+
+    let keepIds = [];
+    try { keepIds = JSON.parse(user.signal_keep_groups || '[]'); } catch {}
+
+    res.json({ groups: result, keepIds });
+  } catch (err) {
+    console.error('[Signal] Keep-groups error:', err.message);
+    res.status(502).json({ error: 'Signal service unavailable' });
+  }
+});
+
+/**
+ * PUT /api/signal/keep-groups — Save keep list for emergency leave
+ */
+router.put('/keep-groups', (req, res) => {
+  if (!requireSignalEnabled(req, res)) return;
+
+  const { groupIds } = req.body;
+  if (!Array.isArray(groupIds) || !groupIds.every(id => typeof id === 'string')) {
+    return res.status(400).json({ error: 'groupIds must be an array of strings' });
+  }
+
+  const db = getDb();
+  db.prepare("UPDATE users SET signal_keep_groups = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(JSON.stringify(groupIds), req.user.id);
+
+  res.json({ ok: true });
+});
+
+/**
  * DELETE /api/signal/unlink — Unlink Signal device
  */
 router.delete('/unlink', (req, res) => {

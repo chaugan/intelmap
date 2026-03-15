@@ -495,6 +495,13 @@ const translations = {
     'signal.send': 'Send',
     'signal.cancel': 'Avbryt',
     'signal.members': 'medlemmer',
+    'signal.emergencyLeave': 'Signal N\u00f8dutmelding!',
+    'signal.keepGroups': 'Grupper \u00e5 beholde',
+    'signal.keepGroupsDesc': 'Velg grupper du vil beholde ved n\u00f8dutmelding. Alle andre grupper forlates.',
+    'signal.keepGroupsSaved': 'Lagret',
+    'signal.noKeepGroupsWarning': 'Ingen grupper valgt \u2014 alle grupper vil forlates!',
+    'signal.groupsToLeave': 'Forlater',
+    'signal.groupsToKeep': 'Beholder',
 
     // Vessel Activity Box
     'vesselActivity.title': 'Fart\u00f8yoverv\u00e5kning',
@@ -1281,6 +1288,13 @@ const translations = {
     'signal.send': 'Send',
     'signal.cancel': 'Cancel',
     'signal.members': 'members',
+    'signal.emergencyLeave': 'Signal Emergency Leave!',
+    'signal.keepGroups': 'Groups to keep',
+    'signal.keepGroupsDesc': 'Select groups to keep during emergency leave. All other groups will be left.',
+    'signal.keepGroupsSaved': 'Saved',
+    'signal.noKeepGroupsWarning': 'No groups selected \u2014 all groups will be left!',
+    'signal.groupsToLeave': 'Leaving',
+    'signal.groupsToKeep': 'Keeping',
 
     // Vessel Activity Box
     'vesselActivity.title': 'Vessel Activity Monitor',
