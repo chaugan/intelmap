@@ -433,6 +433,22 @@ function WebcamPopupWrapper({ camera, mapRef, pinned, onPin, onTogglePin, onClos
     }
   }, [lon, lat, mapRef]);
 
+  // Check if saved display position is on-screen (skip if way off to prevent stuck popups)
+  const savedDisplayPos = useMemo(() => {
+    const dLng = savedPin?.properties?.displayLng;
+    const dLat = savedPin?.properties?.displayLat;
+    if (dLng == null || dLat == null || !mapRef) return {};
+    try {
+      const pt = mapRef.project([dLng, dLat]);
+      const canvas = mapRef.getCanvas();
+      const margin = 500;
+      if (pt.x < -margin || pt.x > canvas.width + margin || pt.y < -margin || pt.y > canvas.height + margin) {
+        return {}; // off-screen, reset to camera position
+      }
+      return { lng: dLng, lat: dLat };
+    } catch { return {}; }
+  }, [savedPin?.properties?.displayLng, savedPin?.properties?.displayLat, mapRef]);
+
   const handleDragEnd = useCallback(({ lng, lat: newLat }) => {
     if (savedPin) {
       socket.emit('client:pin:update', {
@@ -449,8 +465,8 @@ function WebcamPopupWrapper({ camera, mapRef, pinned, onPin, onTogglePin, onClos
       originLat={lat}
       originX={popupOrigin.x}
       originY={popupOrigin.y}
-      initialDisplayLng={savedPin?.properties?.displayLng}
-      initialDisplayLat={savedPin?.properties?.displayLat}
+      initialDisplayLng={savedDisplayPos.lng}
+      initialDisplayLat={savedDisplayPos.lat}
       showConnectionLine={true}
       onPin={onPin}
       onDragEnd={savedPin ? handleDragEnd : undefined}
