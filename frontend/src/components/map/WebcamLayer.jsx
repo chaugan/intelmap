@@ -390,7 +390,7 @@ export default function WebcamLayer() {
             pinned={pinnedIds.has(id)}
             onPin={(pos) => pinCamera(id, cam, pos)}
             onTogglePin={() => togglePinCamera(id, cam)}
-            onClose={() => closeCamera(id)}
+            onClose={() => { unpinCamera(id); closeCamera(id); }}
             lang={lang}
             savedPin={savedPin}
             onContextMenu={savedPin ? (e) => {
