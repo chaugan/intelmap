@@ -101,25 +101,46 @@ export default function MonitoringTab() {
         const subscribedIds = new Set(subscriptions.map(s => s.cameraId));
         const queryLower = query.toLowerCase();
 
-        const filtered = features
-          .filter(f => {
-            const id = f.properties?.id;
-            const name = f.properties?.name || '';
-            const road = f.properties?.road || '';
-            // Match against name, id, or road
-            const matchesQuery = name.toLowerCase().includes(queryLower) ||
-              id?.toLowerCase().includes(queryLower) ||
-              road.toLowerCase().includes(queryLower);
-            return matchesQuery && !subscribedIds.has(id);
-          })
-          .map(f => ({
-            id: f.properties.id,
-            title: f.properties.name,
-            road: f.properties.road,
-            lat: f.geometry?.coordinates?.[1],
-            lon: f.geometry?.coordinates?.[0],
-          }))
-          .slice(0, 10);
+        // Expand grouped cameras (same location, multiple directions) into separate entries
+        const expanded = [];
+        for (const f of features) {
+          const name = f.properties?.name || '';
+          const road = f.properties?.road || '';
+          const lat = f.geometry?.coordinates?.[1];
+          const lon = f.geometry?.coordinates?.[0];
+          const matchesQuery = name.toLowerCase().includes(queryLower) ||
+            f.properties?.id?.toLowerCase().includes(queryLower) ||
+            road.toLowerCase().includes(queryLower);
+          if (!matchesQuery) continue;
+
+          if (f.properties.directions && f.properties.directions.length > 1) {
+            // Multiple cameras at same location — one entry per direction
+            for (const dir of f.properties.directions) {
+              if (!subscribedIds.has(dir.id)) {
+                expanded.push({
+                  id: dir.id,
+                  title: name,
+                  road,
+                  direction: dir.direction || null,
+                  lat,
+                  lon,
+                });
+              }
+            }
+          } else {
+            if (!subscribedIds.has(f.properties.id)) {
+              expanded.push({
+                id: f.properties.id,
+                title: name,
+                road,
+                direction: f.properties.direction || null,
+                lat,
+                lon,
+              });
+            }
+          }
+        }
+        const filtered = expanded.slice(0, 10);
 
         setSearchResults(filtered);
       }
@@ -255,7 +276,12 @@ export default function MonitoringTab() {
                       selectedCamera?.id === cam.id ? 'bg-slate-700' : ''
                     }`}
                   >
-                    <div className="text-white">{cam.title || cam.id}</div>
+                    <div className="text-white">
+                      {cam.title || cam.id}
+                      {cam.direction && (
+                        <span className="ml-1.5 text-[10px] text-cyan-400 font-medium">({cam.direction})</span>
+                      )}
+                    </div>
                     {cam.road && (
                       <div className="text-xs text-slate-400">{cam.road}</div>
                     )}
@@ -267,7 +293,12 @@ export default function MonitoringTab() {
             {/* Selected camera */}
             {selectedCamera && (
               <div className="p-2 bg-cyan-900/30 rounded border border-cyan-700 text-sm">
-                <div className="text-cyan-400 font-medium">{selectedCamera.title || selectedCamera.id}</div>
+                <div className="text-cyan-400 font-medium">
+                  {selectedCamera.title || selectedCamera.id}
+                  {selectedCamera.direction && (
+                    <span className="ml-1.5 text-[10px] text-cyan-300 font-medium">({selectedCamera.direction})</span>
+                  )}
+                </div>
                 {selectedCamera.road && (
                   <div className="text-xs text-slate-400">{selectedCamera.road}</div>
                 )}
