@@ -106,7 +106,7 @@ router.get('/sw.js', (req, res) => {
 
 // GET /offline — landing page when opened as installed PWA (no token context)
 router.get('/offline', (req, res) => {
-  res.type('html').send(\`<!DOCTYPE html>
+  res.type('html').send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -123,7 +123,7 @@ router.get('/offline', (req, res) => {
   <h1>Emergency Delete</h1>
   <p>To use Emergency Delete, open IntelMap in your browser, go to the user menu, and tap "Emergency Delete!"</p>
 </body>
-</html>\`);
+</html>`);
 });
 
 // GET /touch-icon.png — serve apple-touch-icon
