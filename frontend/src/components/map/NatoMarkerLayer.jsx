@@ -6,7 +6,7 @@ import { generateSymbolSvg, getAffiliation, getEchelonCode, setEchelonCode } fro
 import { getSymbolName } from '../../lib/symbol-lookup.js';
 import { ECHELONS } from '../../lib/constants.js';
 import { socket } from '../../lib/socket.js';
-import { resolveMgrs, toMGRS, toUTM } from '../../lib/mgrs-utils.js';
+import { resolveMgrs, toMGRS } from '../../lib/mgrs-utils.js';
 import { t } from '../../lib/i18n.js';
 import ItemInfoPopup from './ItemInfoPopup.jsx';
 
@@ -448,7 +448,6 @@ export default function NatoMarkerLayer({ localMarkers = [], setLocalMarkers, de
               onClick={(e) => e.stopPropagation()}
             >
               <div><span className="text-slate-500 text-[9px]">MGRS</span> {toMGRS(echelonMenu.marker.lat, echelonMenu.marker.lon)}</div>
-              <div><span className="text-slate-500 text-[9px]">UTM&nbsp;&nbsp;</span> {toUTM(echelonMenu.marker.lat, echelonMenu.marker.lon)}</div>
               <div><span className="text-slate-500 text-[9px]">WGS84</span> {echelonMenu.marker.lat.toFixed(6)}, {echelonMenu.marker.lon.toFixed(6)}</div>
             </div>
           </div>
